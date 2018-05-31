@@ -320,18 +320,22 @@ blockquote > *:last-child {
 table.md-table {
   thead {
     border-bottom: 2px solid lighten($primary, 80%);
+    thead {
+    border-bottom: 2px solid lighten($primary, 80%);
     th {
-      text-align: left;
-      padding-bottom: 2px;
+    text-align: left;
+    background: #DFDFDF;
+    font-weight: bold;
     }
   }
 
-  td,th {
-    padding: 3px 3px 3px 10px;
-  }
-  tr {
-    border-bottom: 1px solid lighten($primary, 80%);
-  }
+  tr:nth-child(odd) td {
+    background: #FEFEFE;
+}
+
+tr:nth-child(even) td {
+    background: #F1F1F1;
+}
 }
 
 .small-action {
