@@ -1,7 +1,8 @@
 development:
   prepared_statements: false
   adapter: postgresql
-  database: <%= ENV['DISCOURSE_DEV_DB'] || 'discourse_development' %>
+  #database: <%= ENV['DISCOURSE_DEV_DB'] || 'discourse_development' %>
+  database: edgeryders_production
   min_messages: warning
   pool: 5
   host: localhost

@@ -43,7 +43,7 @@ It renders the `_table` partial to display details about the resources.
 
   <div>
     <%= link_to(
-                "#{t("administrate.actions.new")} Code",
+                "New Code",
                 [:new, namespace, :tag],
                 class: "button"
         )
@@ -53,7 +53,14 @@ It renders the `_table` partial to display details about the resources.
 
 <section class="main-content__body main-content__body--flush">
   <% if params[:search].present? %>
-      <%= render("collection", collection_presenter: page, resources: resources, table_title: "page-title") %>
+    <%= render(
+          "collection",
+          collection_presenter: page,
+          collection_field_name: resource_name,
+          page: page,
+          resources: resources,
+          table_title: "page-title"
+        ) %>
   <% else %>
       <style type="text/css">
           .filter-nav {
@@ -70,9 +77,9 @@ It renders the `_table` partial to display details about the resources.
       </style>
 
       <div class="filter-nav">
-        <%= link_to 'Any Creator', params.except(:page).deep_merge(creator_id: nil), class: (params[:creator_id].present? ? '' : 'active') %>
+        <%= link_to 'Any Creator', params.to_unsafe_h.except(:page).deep_merge(creator_id: nil), class: (params[:creator_id].present? ? '' : 'active') %>
         <% User.where(id: AnnotatorStore::Tag.select(:creator_id).uniq.pluck(:creator_id)).order(:name).each do |model| %>
-            <%= link_to "by #{model.username}", params.except(:page).deep_merge(creator_id: model.id), class: (params[:creator_id] == model.id.to_s ? 'active' : '') %>
+            <%= link_to "by #{model.username}", params.to_unsafe_h.except(:page).deep_merge(creator_id: model.id), class: (params[:creator_id] == model.id.to_s ? 'active' : '') %>
         <% end %>
       </div>
 
