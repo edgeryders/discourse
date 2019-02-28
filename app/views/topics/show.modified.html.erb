@@ -1,28 +1,28 @@
 <%# --- damingo (Github ID), 2017-08-22, #annotator --- %>
 <% if params[:oe].present? %>
-    <style type="text/css">
-        nav#bar, header, footer {
-            display: none;
-        }
+  <style type="text/css">
+    nav#bar, header, footer {
+      display: none;
+    }
 
-        body {
-            padding-bottom: 70px;
-        }
+    body {
+      padding-bottom: 70px;
+    }
 
-        .annotator-editor textarea {
-            display: none !important;
-        }
+    .annotator-editor textarea {
+      display: none !important;
+    }
 
-        .annotator-viewer .annotator-controls + div {
-            display: none;
-        }
-        <% tags = AnnotatorStore::Annotation.where(post_id: @topic_view.posts.map(&:id)).where.not(creator_id: current_user.id) %>
-        <% if tags.present? %>
-            <%= tags.map {|tag| "[data-annotation-id=\"#{tag.id}\"]"}.join(', ').html_safe %> {
-              background-color: rgba(182, 223, 236, 0.3) !important;
-            }
-        <% end %>
-    </style>
+    .annotator-viewer .annotator-controls + div {
+      display: none;
+    }
+    <% tags = AnnotatorStore::Annotation.where(post_id: @topic_view.posts.map(&:id)).where.not(creator_id: current_user.id) %>
+    <% if tags.present? %>
+    <%= tags.map {|tag| "[data-annotation-id=\"#{tag.id}\"]"}.join(', ').html_safe %> {
+      background-color: rgba(182, 223, 236, 0.3) !important;
+    }
+    <% end %>
+  </style>
 <% end %>
 <%# -------------------------------------- -%>
 
@@ -32,19 +32,19 @@
 </h1>
 
 <% @breadcrumbs = categories_breadcrumb(@topic_view.topic)
-    if @breadcrumbs.present? %>
-<div id='breadcrumbs'>
-  <% @breadcrumbs.each_with_index do |c,i| %>
-    <div id="breadcrumb-<%=i%>" itemscope itemtype="http://data-vocabulary.org/Breadcrumb"
-      <%-if (i+1) < @breadcrumbs.length%>
-        itemref="breadcrumb-<%=(i+1)%>"
-      <%-end%>>
-      <a href="<%=c[:url]%>" itemprop="url">
-        <span itemprop="title"><%=c[:name]%></span>
-      </a>
-    </div>
-  <% end %>
-</div>
+   if @breadcrumbs.present? %>
+  <div id='breadcrumbs'>
+    <% @breadcrumbs.each_with_index do |c, i| %>
+      <div id="breadcrumb-<%= i %>" itemscope itemtype="http://data-vocabulary.org/Breadcrumb"
+           <%- if (i+1) < @breadcrumbs.length %>
+           itemref="breadcrumb-<%= (i+1) %>"
+           <%- end %>>
+        <a href="<%= c[:url] %>" itemprop="url">
+          <span itemprop="title"><%= c[:name] %></span>
+        </a>
+      </div>
+    <% end %>
+  </div>
 <% end %>
 
 <% if SiteSetting.tagging_enabled %>
@@ -78,50 +78,94 @@
   <% end %>
   <%# -------------------------------------- -%>
 
-<% @topic_view.posts.each do |post| %>
-  <div id="post-<%= post.id %>"  itemscope itemtype='http://schema.org/DiscussionForumPosting'>
-    <% if (u = post.user) %>
-      <div class='creator'>
+  <% @topic_view.posts.each do |post| %>
+    <div id="post-<%= post.id %>" itemscope itemtype='http://schema.org/DiscussionForumPosting'>
+      <% if (u = post.user) %>
+        <div class='creator'>
         <span>
           <a href='<%= Discourse.base_uri %>/u/<%= u.username %>'><b itemprop='author'><%= u.username %></b></a>
-           <%= "(#{u.name})" if (SiteSetting.display_name_on_posts && SiteSetting.enable_names? && !u.name.blank?) %>
-           <time datetime='<%= post.created_at.to_formatted_s(:iso8601) %>' itemprop='datePublished'>
-             <%= post.created_at %>
-           </time>
+          <%= "(#{u.name})" if (SiteSetting.display_name_on_posts && SiteSetting.enable_names? && !u.name.blank?) %>
+          <time datetime='<%= post.created_at.to_formatted_s(:iso8601) %>' itemprop='datePublished'>
+            <%= post.created_at %>
+          </time>
         </span>
-        <span itemprop='position'>#<%= post.post_number %></span>
-      </div>
-      <div class='post' itemprop='articleBody'>
-        <%= post.hidden ? t('flagging.user_must_edit').html_safe : post.cooked.html_safe %>
-      </div>
-      <meta itemprop='interactionCount' content='UserLikes:<%= post.like_count %>'>
-      <meta itemprop='interactionCount' content='UserComments:<%= post.reply_count %>'>
-      <meta itemprop='headline' content='<%= @topic_view.title %>'>
-      <hr>
-      <% if @topic_view.link_counts[post.id] && @topic_view.link_counts[post.id].length > 0 %>
-        <% @topic_view.link_counts[post.id].each do |link| %>
-          <% if link[:reflection] && link[:title].present? %>
-            <a href="<%=link[:url]%>"><%=link[:title]%></a>
-            <hr>
+          <span itemprop='position'>#<%= post.post_number %></span>
+        </div>
+        <div class='post' itemprop='articleBody'>
+          <%= post.hidden ? t('flagging.user_must_edit').html_safe : post.cooked.html_safe %>
+        </div>
+        <meta itemprop='interactionCount' content='UserLikes:<%= post.like_count %>'>
+        <meta itemprop='interactionCount' content='UserComments:<%= post.reply_count %>'>
+        <meta itemprop='headline' content='<%= @topic_view.title %>'>
+        <hr>
+        <% if @topic_view.link_counts[post.id] && @topic_view.link_counts[post.id].length > 0 %>
+          <% @topic_view.link_counts[post.id].each do |link| %>
+            <% if link[:reflection] && link[:title].present? %>
+              <a href="<%= link[:url] %>"><%= link[:title] %></a>
+              <hr>
+            <% end %>
           <% end %>
         <% end %>
       <% end %>
-    <% end %>
-  </div>
-<% end %>
+    </div>
 
-<% if @topic_view.prev_page || @topic_view.next_page %>
-  <div role='navigation' itemscope itemtype='http://schema.org/SiteNavigationElement'>
-    <% if @topic_view.prev_page %>
-      <%# damingo (Github ID), 2017-08-22, #annotator %>
-      <span itemprop='url'><%= link_to t(:prev_page), @topic_view.prev_page_path + (params[:oe].present? ? (@topic_view.prev_page > 1 ? '&oe=1' : '?oe=1') : ''), rel: 'prev', itemprop: 'name' %></span>
+
+
+    <%# --- damingo (Github ID), 2017-08-22, #annotator --- %>
+    <% if params[:oe].present? %>
+      <script>
+        jQuery(function ($) {
+
+          var content = $('#post-<%= post.id %> > .post').annotator();
+
+          content.annotator('addPlugin', 'Tags');
+
+          $('#post-<%= post.id %> > .post').data('annotator').plugins.Tags.input.autocomplete({
+            source: availableTags,
+            minLength: 0,
+            open: function () {
+              $(this).autocomplete('widget').css('z-index', 10000);
+              return false;
+            }
+          }).focus(function () {
+            $(this).data("uiAutocomplete").search($(this).val());
+          });
+
+          content.annotator('addPlugin', 'Store', {
+            prefix: '/annotator_store',
+            annotationData: {
+              'annotator_schema_version': "v1.0",
+              'uri': '/post/<%= post.id %>',
+              'post': <%= post.id %>
+            },
+            loadFromSearch: {
+              'uri': '/post/<%= post.id %>'
+            }
+          });
+
+          $("#post-<%= post.id %> .annotator-adder").on("click", function () {
+            setTimeout(function() { $("#post-<%= post.id %> input").focus();   }, 150);
+          });
+        });
+      </script>
     <% end %>
-    <% if @topic_view.next_page %>
-      <%# damingo (Github ID), 2017-08-22, #annotator %>
-      <span itemprop='url'><b><%= link_to t(:next_page), @topic_view.next_page_path + (params[:oe].present? ? '&oe=1' : ''), rel: 'next', itemprop: 'name' %></b></span>
-    <% end %>
-  </div>
-<% end %>
+    <%# -------------------------------------- -%>
+  <% end %>
+
+
+
+  <% if @topic_view.prev_page || @topic_view.next_page %>
+    <div role='navigation' itemscope itemtype='http://schema.org/SiteNavigationElement'>
+      <% if @topic_view.prev_page %>
+        <%# damingo (Github ID), 2017-08-22, #annotator %>
+        <span itemprop='url'><%= link_to t(:prev_page), @topic_view.prev_page_path+(params[:oe].present? ? (@topic_view.prev_page > 1 ? '&oe=1' : '?oe=1') : ''), rel: 'prev', itemprop: 'name' %></span>
+      <% end %>
+      <% if @topic_view.next_page %>
+        <%# damingo (Github ID), 2017-08-22, #annotator %>
+        <span itemprop='url'><b><%= link_to t(:next_page), @topic_view.next_page_path+(params[:oe].present? ? '&oe=1' : ''), rel: 'next', itemprop: 'name' %></b></span>
+      <% end %>
+    </div>
+  <% end %>
 
 <% end %>
 
@@ -133,7 +177,7 @@
   <% end %>
 
   <%= auto_discovery_link_tag(@topic_view, {action: :feed, slug: @topic_view.topic.slug, topic_id: @topic_view.topic.id}, title: t('rss_posts_in_topic', topic: @topic_view.title), type: 'application/rss+xml') %>
-  <%= raw crawlable_meta_data(title: @topic_view.title, description: @topic_view.summary(strip_images: true), image: @topic_view.image_url, read_time: @topic_view.read_time, like_count: @topic_view.like_count, ignore_canonical: true, published_time: @topic_view.published_time) %>
+  <%= raw crawlable_meta_data(title: @topic_view.title, description: @topic_view.summary, image: @topic_view.image_url, read_time: @topic_view.read_time, like_count: @topic_view.like_count) %>
 
   <% if @topic_view.prev_page || @topic_view.next_page %>
     <% if @topic_view.prev_page %>
@@ -145,21 +189,21 @@
   <% end %>
 <% end %>
 
-<% content_for(:title) { @title || "#{gsub_emoji_to_unicode(@topic_view.page_title)} - #{SiteSetting.title}" } %>
+<% content_for(:title) { "#{gsub_emoji_to_unicode(@topic_view.page_title)}" } %>
 
 <%# damingo (Github ID), 2017-08-22, #annotator %>
 <% if @topic_view.print && !params[:oe].present? %>
   <% content_for :after_body do %>
-      <style media="print">
-        /* For readability */
-        a, a:visited {
-          color: #0088cc !important;
-        }
-      </style>
-      <script>
-        document.addEventListener("DOMContentLoaded", function() {
-          window.print();
-        });
-      </script>
+    <style media="print">
+      /* For readability */
+      a, a:visited {
+        color: #0088cc !important;
+      }
+    </style>
+    <script>
+      document.addEventListener("DOMContentLoaded", function () {
+        window.print();
+      });
+    </script>
   <% end %>
 <% end %>
