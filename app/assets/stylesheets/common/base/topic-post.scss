@@ -607,10 +607,17 @@ blockquote > *:last-child {
   thead {
     border-bottom: 2px solid lighten($primary, 80%);
     th {
-      text-align: left;
-      padding-bottom: 2px;
+      background: #DFDFDF;
+    font-weight: bold;
     }
   }
+  
+  tr:nth-child(odd) td {
+    background: #FEFEFE;
+}
+  tr:nth-child(even) td {
+    background: #F1F1F1;
+}
 
   td,
   th {
