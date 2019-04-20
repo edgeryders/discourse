@@ -127,6 +127,7 @@ vendor/bundle/*
 
 
 
+!/plugins/discourse-data-explorer
 !/plugins/discourse-migratepassword
 !/plugins/discourse-edgeryders
 !/plugins/discourse-text-direction

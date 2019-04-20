@@ -1,0 +1,51 @@
+# encoding: utf-8
+#
+# Never edit this file. It will be overwritten when translations are pulled from Transifex.
+#
+# To work with us on translations, join this project:
+# https://www.transifex.com/projects/p/discourse-org/
+
+ru:
+  js:
+    errors:
+      explorer:
+        no_semicolons: "Удалите точку с запятой из запроса."
+        dirty: "Вы должны сохранить запрос перед запуском."
+    explorer:
+      admins_only: "Исследование данных доступен только для администраторов."
+      title: "Проводник данных"
+      create: "Создавать новое"
+      create_placeholder: "Имя запроса..."
+      description_placeholder: "Введите описание здесь"
+      import:
+        label: "Импорт"
+        modal: "Импорт запроса"
+      schema:
+        title: "Database Schema"
+        filter: "Поиск..."
+        sensitive: "Содержимое этого столбца может содержать особенно конфиденциальную или конфиденциальную информацию. Будьте осторожны при использовании содержимого этой колонки."
+        type_help: "<a href='http://www.postgresql.org/docs/9.3/static/datatype.html#DATATYPE-TABLE' target='_blank'>Типы</a>"
+      types:
+        bool:
+          'yes': "Да"
+          'no': "Нет"
+          null_: "Null"
+      export: "Экспорт"
+      save: "Сохранить изменения"
+      undo: "Отменить изменения"
+      edit: "Редактировать"
+      delete: "Удалить"
+      recover: "Отменить запрос"
+      download_json: "JSON"
+      download_csv: "CSV"
+      others_dirty: "Запрос имеет несохраненные изменения, которые будут потеряны, если вы уйдете."
+      run_time: "Запрос завершен {{value}} мс."
+      query_name: "Запрос"
+      query_description: "Описание"
+      query_time: "Последний запуск"
+      query_user: "Создано"
+      column: "Колонка {{number}}"
+      explain_label: "Включить план запроса?"
+      save_params: "Установка значений по умолчанию"
+      reset_params: "Сброс"
+      search_placeholder: "Искать..."

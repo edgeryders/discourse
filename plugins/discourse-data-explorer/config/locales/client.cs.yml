@@ -1,0 +1,27 @@
+# encoding: utf-8
+#
+# Never edit this file. It will be overwritten when translations are pulled from Transifex.
+#
+# To work with us on translations, join this project:
+# https://www.transifex.com/projects/p/discourse-org/
+
+cs:
+  js:
+    explorer:
+      create: "Vytvořit nový"
+      import:
+        label: "Import"
+      schema:
+        filter: "Hledat..."
+      types:
+        bool:
+          'yes': "Ano"
+          'no': "Ne"
+          null_: "Null"
+      export: "Export"
+      save: "Uložit změny"
+      edit: "Upravit"
+      delete: "Smazat"
+      download_json: "JSON"
+      download_csv: "CSV"
+      column: "Sloupec {{number}}"

@@ -1,0 +1,37 @@
+<div class="result-info">
+  {{d-button action=(action "downloadResultJson") icon="download" label="explorer.download_json"}}
+  {{d-button action=(action "downloadResultCsv") icon="download" label="explorer.download_csv"}}
+</div>
+
+<div class="result-about">
+  {{resultCount}}
+  {{duration}}
+</div>
+
+<br>
+
+{{~#if hasExplain}}
+  <pre class="result-explain"><code>
+    {{~content.explain}}
+  </code></pre>
+{{~/if}}
+
+<br>
+
+<table>
+  <thead>
+  <tr class="headers">
+    {{#each columnDispNames as |col|}}
+      <th>{{col}}</th>
+    {{/each}}
+  </tr>
+  </thead>
+  <tbody>
+  {{#each rows as |row|}}
+    {{query-row-content
+      row=row
+      fallbackTemplate=fallbackTemplate
+      columnTemplates=columnTemplates}}
+  {{/each}}
+  </tbody>
+</table>

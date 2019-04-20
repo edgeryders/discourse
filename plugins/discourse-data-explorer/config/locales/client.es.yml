@@ -1,0 +1,60 @@
+# encoding: utf-8
+#
+# Never edit this file. It will be overwritten when translations are pulled from Transifex.
+#
+# To work with us on translations, join this project:
+# https://www.transifex.com/projects/p/discourse-org/
+
+es:
+  js:
+    errors:
+      explorer:
+        no_semicolons: "Eliminar los puntos y comas de la consulta."
+        dirty: "Debes guardar la consulta antes de ejecutarla."
+    explorer:
+      admins_only: "El data explorer esta disponible únicamente para administradores."
+      title: "Data Explorer"
+      create: "Crear Nuevo"
+      create_placeholder: "Nombre de la consulta..."
+      description_placeholder: "introduce una descripción aquí"
+      import:
+        label: "Importar"
+        modal: "Importar una Consulta"
+      schema:
+        title: "Esquema de Base de Datos"
+        filter: "Buscar..."
+        sensitive: "Los contenidos de esta parte pueden incluir información sensible o privada. Por favor, ten cuidado cuando visualices estos contenidos."
+        type_help: "<a href='http://www.postgresql.org/docs/9.3/static/datatype.html#DATATYPE-TABLE' target='_blank'>Tipos</a>"
+      types:
+        bool:
+          'yes': "Si"
+          'no': "No"
+          null_: "Null"
+      export: "Exportar"
+      save: "Guardar Cambios"
+      saverun: "Guardar cambios y ejecutar"
+      run: "Ejecutar"
+      undo: "Deshacer cambios"
+      edit: "Editar"
+      delete: "Borrar"
+      recover: "Recuperar consulta"
+      download_json: "JSON"
+      download_csv: "CSV"
+      others_dirty: "Una consulta tiene cambios no guardados que se perderán si salís."
+      run_time: "Consulta completada en {{value}} ms."
+      result_count:
+        one: "%{count} resultado."
+        other: "%{count} resultados."
+      max_result_count:
+        one: "Mostrando el %{count} mejor resultado."
+        other: "Mostrando los %{count} mejores resultados."
+      query_name: "Consulta"
+      query_description: "Descripción"
+      query_time: "Última corrida"
+      query_user: "Creada por"
+      column: "Columna {{number}}"
+      explain_label: "¿Incluir plan de consulta?"
+      save_params: "Configuración por Defecto"
+      reset_params: "Resetear"
+      search_placeholder: "Buscar..."
+      no_search_results: "Lo sentimos, no hemos podido encontrar ningún resultado."

@@ -1,0 +1,48 @@
+# encoding: utf-8
+#
+# Never edit this file. It will be overwritten when translations are pulled from Transifex.
+#
+# To work with us on translations, join this project:
+# https://www.transifex.com/projects/p/discourse-org/
+
+it:
+  js:
+    errors:
+      explorer:
+        no_semicolons: "Rimuovi i punti e virgola dalla query."
+        dirty: "È necessario salvare la query prima di eseguirla."
+    explorer:
+      admins_only: "Data explorer è disponibile solo per gli amministratori."
+      title: "Data Explorer"
+      create: "Crea Nuovo"
+      create_placeholder: "Nome ricerca..."
+      description_placeholder: "Inserisci una descrizione qui"
+      import:
+        label: "Importa"
+        modal: "Importa Una Ricerca"
+      schema:
+        title: "Schema del Database "
+        filter: "Cerca..."
+        sensitive: "Il contenuto di questa colonna potrebbe contenere dati sensibili o privati. Si prega di prestare particolare attenzione nell'uso dei contenuti di questa colonna."
+        type_help: "<a href='http://www.postgresql.org/docs/9.3/static/datatype.html#DATATYPE-TABLE' target='_blank'>Tipi</a>"
+      types:
+        bool:
+          'yes': "Sì"
+          'no': "No"
+          null_: "Null"
+      export: "Esporta"
+      save: "Salva Modifiche"
+      undo: "Annulla Modifiche"
+      edit: "Modifica"
+      delete: "Elimina"
+      recover: "Ripristina Query"
+      download_json: "JSON"
+      download_csv: "CSV"
+      others_dirty: "Una query ha modifiche non salvate che andranno perse se esci."
+      run_time: "Query completata in {{value}} ms."
+      query_time: "Ultima esecuzione"
+      query_user: "Creato da"
+      column: "Colonna {{number}}"
+      explain_label: "Includere il query plan?"
+      save_params: "Imposta Predefiniti"
+      reset_params: "Azzera"

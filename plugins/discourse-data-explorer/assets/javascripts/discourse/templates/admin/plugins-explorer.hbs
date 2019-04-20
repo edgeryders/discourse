@@ -1,0 +1,213 @@
+{{#explorer-container hideSchema=hideSchema everEditing=everEditing}}
+  {{#if disallow}}
+    <h1>{{i18n "explorer.admins_only"}}</h1>
+  {{else}}
+    {{#unless selectedQueryId}}
+      <div class="query-list">
+        {{text-field value=search placeholderKey="explorer.search_placeholder"}}
+        {{d-button action=(action "showCreate") icon="plus" class="no-text btn-right"}}
+        {{d-button action=(action "importQuery") label="explorer.import.label" icon="upload"}}
+      </div>
+
+      {{#if showCreate}}
+        <div class="query-create">
+          {{text-field value=newQueryName placeholderKey="explorer.create_placeholder"}}
+          {{d-button action=(action "create") disabled=createDisabled label="explorer.create" icon="plus"}}
+        </div>
+      {{/if}}
+
+      {{#if othersDirty}}
+        <div class="warning">
+          {{d-icon "warning"}}
+          {{i18n "explorer.others_dirty"}}
+        </div>
+      {{/if}}
+    {{/unless}}
+
+    {{#if model.length}}
+      {{#unless selectedItem.fake}}
+        <div class="query-edit {{if editName "editing"}}">
+          {{#if selectedItem}}
+            {{#if editing}}
+              <div class="name">
+                  {{d-button action=(action "goHome") icon="chevron-left" class="previous"}}
+                <div class="name-text-field">
+                  {{text-field value=selectedItem.name}}
+                </div>
+              </div>
+              <div class="desc">
+                {{textarea value=selectedItem.description placeholder=(i18n "explorer.description_placeholder")}}
+              </div>
+            {{else}}
+              <div class="name">
+                {{d-button action=(action "goHome") icon="chevron-left" class="previous"}}
+                <h1>{{selectedItem.name}}
+                  {{#unless editDisabled}}
+                    <a {{action "editName" class="edit-query-name"}}>{{d-icon "pencil"}}</a>
+                  {{/unless}}
+                </h1>
+              </div>
+              <div class="desc">
+                {{selectedItem.description}}
+              </div>
+            {{/if}}
+
+            {{! the SQL editor will show the first time you }}
+            {{#if everEditing}}
+              <div class="query-editor {{if hideSchema "no-schema"}}">
+                <div class="panels-flex">
+                  <div class="editor-panel">
+                    {{ace-editor content=selectedItem.sql mode="sql"}}
+                  </div>
+                  <div class="right-panel">
+                    {{#if hideSchema}}
+                      {{d-button action=(action "expandSchema") icon="chevron-left" class="no-text unhide"}}
+                    {{/if}}
+                    <div class="schema">
+                      {{explorer-schema schema=schema hideSchema=hideSchema}}
+                    </div>
+                  </div>
+                </div>
+                <div class="grippie">
+                  {{d-icon "discourse-expand"}}
+                </div>
+                <div class="clear"></div>
+              </div>
+            {{else}}
+              <div class="sql">
+                {{hljs-code-view value=selectedItem.sql codeClass="sql"}}
+              </div>
+            {{/if}}
+
+            <div class="clear"></div>
+
+            <div class="pull-left">
+              {{#if everEditing}}
+                {{d-button action=(action "save") label="explorer.save" disabled=saveDisable}}
+              {{else}}
+                {{#unless editDisabled}}
+                  {{d-button action=(action "editName") label="explorer.edit" icon="pencil"}}
+                {{/unless}}
+              {{/if}}
+              {{d-button action=(action "download") label="explorer.export" disabled=runDisabled icon="download"}}
+            </div>
+            <div class="pull-right">
+              {{#if selectedItem.destroyed}}
+                {{d-button action=(action "recover") class="" icon="undo" label="explorer.recover"}}
+              {{else}}
+                {{#if everEditing}}
+                  {{d-button action=(action "discard") icon="undo" label="explorer.undo" disabled=saveDisabled}}
+                {{/if}}
+                {{#unless editDisabled}}
+                  {{d-button action=(action "destroy") class="btn-danger" icon="trash" label="explorer.delete"}}
+                {{/unless}}
+              {{/if}}
+            </div>
+            <div class="clear"></div>
+          {{/if}}
+        </div>
+
+        <form class="query-run" {{action "run" on="submit"}}>
+          {{#if selectedItem.hasParams}}
+            <div class="query-params">
+              {{#each selectedItem.param_info as |pinfo|}}
+                {{param-input params=selectedItem.params info=pinfo}}
+              {{! <div class="param">
+                {{param-field params=selectedItem.params pname=pinfo.identifier type=pinfo.type}
+                <span class="param-name">{{pinfo.identifier}</span>
+              </div> }}
+              {{/each}}
+            </div>
+          {{/if}}
+          {{#if runDisabled}}
+            {{#if saveDisabled}}
+              {{d-button label="explorer.run" disabled="true" class="btn-primary"}}
+            {{else}}
+              {{d-button action=(action "saverun") icon="play" label="explorer.saverun" class="btn-primary"}}
+            {{/if}}
+          {{else}}
+            {{d-button action=(action "run") icon="play" label="explorer.run" disabled=runDisabled class="btn-primary" type="submit"}}
+          {{/if}}
+          <label class="query-plan">{{input type="checkbox" checked=explain name="explain"}} {{i18n "explorer.explain_label"}}</label>
+        </form>
+
+        <hr>
+      {{/unless}}
+      {{conditional-loading-spinner condition=loading}}
+      {{#unless selectedItem.fake}}
+        {{#if results}}
+          <div class="query-results">
+            {{#if showResults}}
+              {{query-result query=selectedItem content=results}}
+            {{else}}
+              {{#each results.errors as |err|}}
+                <pre class="query-error"><code>{{~err}}</code></pre>
+              {{/each}}
+            {{/if}}
+          </div>
+        {{/if}}
+      {{/unless}}
+
+    {{#if showRecentQueries}}
+      <div class="container">
+        <table class="recent-queries">
+          <thead class="heading-container">
+            <th class="col heading name">
+              <div class="heading-toggle" {{action "sortByProperty" "name"}}>
+                {{directory-toggle field="name" labelKey="explorer.query_name" order=order asc=asc}}
+              </div>
+            </th>
+            <th class="col heading created-by">
+              <div class="heading-toggle" {{action "sortByProperty" "username"}}>
+                {{directory-toggle field="username" labelKey="explorer.query_user" order=order asc=asc}}
+              </div>
+            </th>
+            <th class="col heading created-at">
+              <div class="heading-toggle" {{action "sortByProperty" "last_run_at"}}>
+                {{directory-toggle field="last_run_at" labelKey="explorer.query_time" order=order asc=asc}}
+              </div>
+            </th>
+          </thead>
+          <tr></tr>
+          <tbody>
+            {{#each filteredContent as |query|}}
+              <tr class="query-row">
+                <td>
+                  <a {{action "scrollTop"}} href="/admin/plugins/explorer/?id={{query.id}}">
+                    <b class="query-name">{{query.name}}</b>
+                    <medium class="query-desc">{{query.description}}</medium>
+                  </a>
+                </td>
+                <td class="query-created-by">
+                  {{#if query.username}}
+                    <a href="/users/{{query.username}}/activity">
+                      <medium>{{query.username}}</medium>
+                    </a>
+                  {{/if}}
+                </td>
+                <td class="query-created-at">
+                  {{#if query.last_run_at}}
+                    <medium>
+                      {{bound-date query.last_run_at}}
+                    </medium>
+                  {{else}}
+                    <medium>
+                      {{bound-date query.created_at}}
+                    </medium>
+                  {{/if}}
+                </td>
+              </tr>
+            {{else}}
+              <br>
+              <em class="no-search-results"> {{i18n "explorer.no_search_results"}}</em>
+            {{/each}}
+          </tbody>
+        </table>
+      </div>
+    {{/if}}
+
+      <div class="explorer-pad-bottom"></div>
+
+    {{/if}}
+  {{/if}}
+{{/explorer-container}}

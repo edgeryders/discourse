@@ -1,0 +1,70 @@
+# encoding: utf-8
+# This file contains content for the client portion of Discourse, sent out
+# to the Javascript app.
+#
+# To work with us on translations, see:
+# https://www.transifex.com/projects/p/discourse-org/
+#
+# This is a "source" file, which is used by Transifex to get translations for other languages.
+# After this file is changed, it needs to be pushed by a maintainer to Transifex:
+#
+#   tx push -s
+#
+# Read more here: https://meta.discourse.org/t/contribute-a-translation-to-discourse/14882
+#
+# To validate this YAML file after you change it, please paste it into
+# http://yamllint.com/
+
+en:
+  js:
+    errors:
+      explorer:
+        no_semicolons: "Remove the semicolons from the query."
+        dirty: "You must save the query before running."
+    explorer:
+      admins_only: "The data explorer is only available to admins."
+      title: "Data Explorer"
+      create: "Create New"
+      create_placeholder: "Query name..."
+      description_placeholder: "Enter a description here"
+      import:
+        label: "Import"
+        modal: "Import A Query"
+      schema:
+        title: "Database Schema"
+        filter: "Search..."
+        sensitive: "The contents of this column may contain particularly sensitive or private information. Please exercise caution when using the contents of this column."
+        type_help: "<a href='http://www.postgresql.org/docs/9.3/static/datatype.html#DATATYPE-TABLE' target='_blank'>Types</a>"
+      types:
+        bool:
+          yes: "Yes"
+          no: "No"
+          null_: "Null"
+      export: "Export"
+      save: "Save Changes"
+      saverun: "Save Changes and Run"
+      run: "Run"
+      undo: "Discard Changes"
+      edit: "Edit"
+      delete: "Delete"
+      recover: "Undelete Query"
+      download_json: "JSON"
+      download_csv: "CSV"
+      others_dirty: "A query has unsaved changes that will be lost if you navigate away."
+      run_time: "Query completed in {{value}} ms."
+      result_count:
+        one: "%{count} result."
+        other: "%{count} results."
+      max_result_count:
+        one: "Showing top %{count} results."
+        other: "Showing top %{count} results."
+      query_name: "Query"
+      query_description: "Description"
+      query_time: "Last run"
+      query_user: "Created by"
+      column: "Column {{number}}"
+      explain_label: "Include query plan?"
+      save_params: "Set Defaults"
+      reset_params: "Reset"
+      search_placeholder: "Search..."
+      no_search_results: "Sorry, we couldn't find any results matching your text."
