@@ -1,4 +1,13 @@
 GIT
+  remote: https://github.com/edgeryders/administrate-field-nested_has_many.git
+  revision: aeff567ef4001b935d91b0ee841fafeb81c62a8b
+  branch: master
+  specs:
+    administrate-field-nested_has_many (1.1.0)
+      administrate (> 0.8, < 1)
+      cocoon (~> 1.2, >= 1.2.11)
+
+GIT
   remote: https://github.com/edgeryders/capistrano-puma.git
   revision: cf0c6a4624f14ec71e2f0918d48a5393adc4470f
   specs:
@@ -140,6 +149,7 @@ GEM
       cork
       nap
       open4 (~> 1.3)
+    cocoon (1.2.12)
     coderay (1.1.2)
     colored2 (3.1.2)
     concurrent-ruby (1.1.4)
@@ -565,6 +575,7 @@ DEPENDENCIES
   activerecord (= 5.2.2)
   activesupport (= 5.2.2)
   administrate
+  administrate-field-nested_has_many!
   annotate
   annotator_store!
   aws-sdk-s3

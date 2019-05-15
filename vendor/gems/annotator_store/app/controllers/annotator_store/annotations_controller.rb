@@ -11,9 +11,9 @@ module AnnotatorStore
       @annotation.creator = current_user
       respond_to do |format|
         if @annotation.save
-          format.json { render :show, status: :created, location: annotation_url(@annotation) }
+          format.json {render :show, status: :created, location: annotation_url(@annotation)}
         else
-          format.json { render json: @annotation.errors, status: :unprocessable_entity }
+          format.json {render json: @annotation.errors, status: :unprocessable_entity}
         end
       end
     end
@@ -27,9 +27,9 @@ module AnnotatorStore
       format_client_input_to_rails_convention_for_update
       respond_to do |format|
         if @annotation.update(annotation_params)
-          format.json { render :show, status: :ok, location: annotation_url(@annotation) }
+          format.json {render :show, status: :ok, location: annotation_url(@annotation)}
         else
-          format.json { render json: @annotation.errors, status: :unprocessable_entity }
+          format.json {render json: @annotation.errors, status: :unprocessable_entity}
         end
       end
     end
@@ -38,14 +38,14 @@ module AnnotatorStore
     def destroy
       @annotation.destroy
       respond_to do |format|
-        format.json { head :no_content, status: :no_content }
+        format.json {head :no_content, status: :no_content}
       end
     end
 
     # OPTIONS /annotations
     def options
       respond_to do |format|
-        format.json { render :options }
+        format.json {render :options}
       end
     end
 
@@ -68,10 +68,10 @@ module AnnotatorStore
       params[:annotation][:tag_id] = get_tag_id unless params[:tags].blank?
       params[:annotation][:ranges_attributes] = params[:ranges].map do |r|
         range = {}
-        range[:start]        = r[:start]
-        range[:end]          = r[:end]
+        range[:start] = r[:start]
+        range[:end] = r[:end]
         range[:start_offset] = r[:startOffset]
-        range[:end_offset]   = r[:endOffset]
+        range[:end_offset] = r[:endOffset]
         range
       end unless params[:ranges].blank?
     end
@@ -90,31 +90,47 @@ module AnnotatorStore
     # Only allow a trusted parameter 'white list' through.
     def annotation_params
       params.require(:annotation).permit(
-       :text,
-       :quote,
-       :uri,
-       :version,
-       :tag_id,
-       :post_id,
-       ranges_attributes: [:start, :end, :start_offset, :end_offset]
+        :text,
+        :quote,
+        :uri,
+        :version,
+        :tag_id,
+        :post_id,
+        ranges_attributes: [:start, :end, :start_offset, :end_offset]
       )
     end
 
     def get_tag_id
       path = params[:tags].join(' ').split(' → ').map(&:strip)
-      # NOTE: Make sure we find the right tag, as tag names are only unique among siblings.
-      path_ids = []
-      tag = nil
-      path.each do |tag_name|
-        tag = AnnotatorStore::Tag.find_or_create_by!(
-          ancestry: path_ids.blank? ? nil : path_ids.join('/'),
-          name: tag_name,
-          creator_id: current_user.id
-        )
-        path_ids << tag.id
+      language = AnnotatorStore::UserSetting.language_for_user(current_user)
+      tag_names = AnnotatorStore::TagName.joins(:tag).where(name: path.last, annotator_store_tags: {creator_id: current_user.id}).all
+
+      if tag_names.blank?
+        tag = AnnotatorStore::Tag.new(creator: current_user)
+        tag.names.build(name: path.last, language: language)
+        tag.save!
+        return tag.id
+      else
+        tag_names.each do |tag_name|
+          return tag_name.tag_id if path_matches?(tag_name.tag, path)
+        end
       end
-      tag.id
     end
+
+
+    private
+
+    # If the path of the tag matches the given path.
+    def path_matches?(tag, path)
+      return true if tag.blank? && path.blank?
+
+      if tag.present? && path.present? && tag.names.exists?(name: path.last)
+        path_matches?(tag.parent, path.dup[0...-1])
+      else
+        false
+      end
+    end
+
 
   end
 end

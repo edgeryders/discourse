@@ -16,13 +16,19 @@ Discourse::Application.routes.draw do
   # damingo (Github ID), 2019-02-26
   mount AnnotatorStore::Engine, at: '/annotator_store', constraints: StaffConstraint.new
   namespace :administration, constraints: StaffConstraint.new do
+
+    root to: 'annotator_store/tags#index'
+    # https://edgeryders.eu/t/using-the-edgeryders-eu-apis/7904#heading--3
+    get 'annotator/users.json', to: 'application#consent', constraints: { format: 'json' }
+
     namespace :annotator_store, path: 'annotator' do
       resources :tags, path: 'codes'
+      resources :tag_names
       resources :collections
+      resources :languages
       resources :annotations, only: [:index, :show, :edit, :update]
-      resources :users, only: [:index], constraints: { format: 'json' }
+      resources :user_settings
     end
-    root to: 'annotator_store/tags#index'
   end
 
 

@@ -4,7 +4,7 @@ module AnnotatorStore
     has_many :ranges, dependent: :destroy, autosave: true
     belongs_to :tag
     belongs_to :post
-    belongs_to :creator, class_name: 'User'
+    belongs_to :creator, class_name: '::User'
 
     # Allow saving of attributes on associated records through the parent,
     # :autosave option is automatically enabled on every association

@@ -7,12 +7,17 @@ module AnnotatorStore
     has_ancestry
 
     # Associations
-    belongs_to :creator, class_name: 'User'
+    belongs_to :creator, class_name: '::User'
     has_many :annotations, dependent: :destroy
+    has_many :names, dependent: :destroy, class_name: 'TagName'
+
+    accepts_nested_attributes_for :names
+
 
     # Validations
-    validates :name, presence: true, uniqueness: {scope: [:ancestry, :creator_id], case_sensitive: false}
+    #validates :name, presence: true, uniqueness: {scope: [:ancestry, :creator_id], case_sensitive: false}
     validates :creator, presence: true
+    validates :names, length: {minimum: 1, too_short: ": One name is required"}
 
     # Callbacks
     after_save do
@@ -22,6 +27,12 @@ module AnnotatorStore
         t.destroy
       end
     end
+
+
+    # Alias used by administrate
+    # def name
+    #   translated_name
+    # end
 
 
     # --- Class Finder Methods --- #
@@ -34,6 +45,12 @@ module AnnotatorStore
 
 
     # --- Instance Methods --- #
+
+    def translated_name(language=nil)
+      (language.present? ? names.find_by(language_id: language.id)&.name : nil) ||
+        names.find_by(language_id: AnnotatorStore::Language.english.id)&.name ||
+        names.order(created_at: :asc).first&.name
+    end
 
 
   end

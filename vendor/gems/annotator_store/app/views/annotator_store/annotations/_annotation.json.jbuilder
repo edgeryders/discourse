@@ -9,7 +9,10 @@ json.uri annotation.uri
 # Content
 json.text annotation.text
 json.quote annotation.quote
-json.tags annotation.tag.present? ? [annotation.tag.path.map(&:name).join(' → ')] : []
+
+language = defined?(current_user) ? AnnotatorStore::UserSetting.language_for_user(current_user) : nil
+
+json.tags annotation.tag.present? ? [annotation.tag.path.map {|t| t.translated_name(language)}.join(' → ')] : []
 json.ranges do
   json.array! annotation.ranges do |range|
     json.start range.start

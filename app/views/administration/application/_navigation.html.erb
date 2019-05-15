@@ -9,9 +9,14 @@
               [namespace, :annotations],
               class: "navigation__link navigation__link--#{nav_link_state('annotator_store__annotations')}"
       ) %>
-  <%# link_to(
-              'Collections',
-              [namespace, :collections],
-              class: "navigation__link navigation__link--#{nav_link_state('annotator_store__collections')}"
+  <%= link_to(
+              'Languages',
+              [namespace, :languages],
+              class: "navigation__link navigation__link--#{nav_link_state('annotator_store__languages')}"
+      ) %>
+  <%= link_to(
+              'User Settings',
+              [namespace, :user_settings],
+              class: "navigation__link navigation__link--#{nav_link_state('annotator_store__user_settings')}"
       ) %>
 </nav>

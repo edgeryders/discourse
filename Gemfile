@@ -212,6 +212,7 @@ gem 'annotator_store', path: 'vendor/gems/annotator_store'
 gem 'administrate'
 gem 'bcrypt', '3.1.3'
 gem 'unix-crypt', '1.3.0'   #, :require_name => 'unix_crypt'
+gem "administrate-field-nested_has_many", git: 'https://github.com/edgeryders/administrate-field-nested_has_many.git', branch: 'master'
 
 
 # damingo (Github ID), 2018-11-27

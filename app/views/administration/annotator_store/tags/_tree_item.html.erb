@@ -3,19 +3,20 @@
     <% if tag.children.any? %>
         <i class="fa fa-minus-circle" style="color:#aaa;"></i>
     <% end %>
-    <strong class="item" title="<%= tag.annotations_count %> annotations use this code"><%= "#{tag.name} (#{tag.annotations_count})" %></strong>
+
+    <strong class="item" title="<%= tag.annotations_count %> annotations use this code"><%= "#{tag.translated_name} (#{tag.annotations_count})" %></strong>
   </span>
   <% unless params[:creator_id].present? %>
     by <%= tag.creator.username %>&nbsp;&nbsp;
   <% end %>
   <%= link_to(
-        t('administrate.actions.show'),
+        'Show',
         [namespace, tag],
         class: "action-edit",
         ) %> |
 
   <%= link_to(
-        t('administrate.actions.edit'),
+        'Edit',
         [:edit, namespace, tag],
         class: "action-edit",
         ) %> |
@@ -36,7 +37,7 @@
   <% if tag.is_childless? %>
     |
     <%= link_to(
-          t('administrate.actions.destroy'),
+          'Destroy',
           [namespace, tag],
           class: "text-color-red",
           method: :delete,
