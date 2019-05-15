@@ -22,7 +22,13 @@ class Administration::AnnotatorStore::TagsController < Administration::Applicati
 
     respond_to do |format|
       format.html {render locals: {resources: resources, search_term: search_term, page: page, show_search_bar: show_search_bar?}}
-      format.json {render json: JSON.pretty_generate(JSON.parse(resources.to_json))}
+      format.json {
+        render json: JSON.pretty_generate(
+          JSON.parse(
+            resources.to_json(except: [:name_legacy], include: {names: {except: [:tag_id, :created_at, :updated_at]}})
+          )
+        )
+      }
     end
   end
 
