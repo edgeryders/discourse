@@ -47,7 +47,7 @@
 
   <% if tag.children.any? %>
     <ul>
-      <% tag.children.with_annotations_count.order('LOWER(name) asc').each do |tag| %>
+      <% tag.children.with_annotations_count.order(updated_at: :desc).each do |tag| %>
         <%= render 'tree_item', tag: tag %>
       <% end %>
     </ul>

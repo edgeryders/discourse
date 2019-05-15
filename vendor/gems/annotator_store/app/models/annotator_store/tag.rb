@@ -29,10 +29,10 @@ module AnnotatorStore
     end
 
 
-    # Alias used by administrate
-    # def name
-    #   translated_name
-    # end
+    # Alias. Used by administrate
+    def name
+      translated_name
+    end
 
 
     # --- Class Finder Methods --- #

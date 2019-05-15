@@ -31,7 +31,6 @@ module AnnotatorStore
     # Feel free to add, remove, or rearrange items.
     COLLECTION_ATTRIBUTES = [
       :id,
-      :name,
       :creator,
     ].freeze
 
@@ -40,7 +39,6 @@ module AnnotatorStore
     SHOW_PAGE_ATTRIBUTES = [
       :id,
       :names,
-      :name,
       :parent,
       :description,
       :creator,
@@ -55,7 +53,6 @@ module AnnotatorStore
     FORM_ATTRIBUTES = [
       :creator,
       :parent,
-      :name,
       :description,
       :merge_tag,
       :names
