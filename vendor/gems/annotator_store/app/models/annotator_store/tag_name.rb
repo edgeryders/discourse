@@ -1,6 +1,9 @@
 module AnnotatorStore
   class TagName < ActiveRecord::Base
 
+    delegate :locale, to: :language
+
+
     # Associations
     belongs_to :tag
     belongs_to :language

@@ -20,12 +20,15 @@ class Administration::AnnotatorStore::TagsController < Administration::Applicati
     resources = resources.page(params[:page]).per(records_per_page)
     page = Administrate::Page::Collection.new(dashboard)
 
+
     respond_to do |format|
       format.html {render locals: {resources: resources, search_term: search_term, page: page, show_search_bar: show_search_bar?}}
       format.json {
         render json: JSON.pretty_generate(
           JSON.parse(
-            resources.to_json(except: [:name_legacy], include: {names: {except: [:tag_id, :created_at, :updated_at]}})
+            resources.to_json(
+              except: [:name_legacy], include: {names: {only: [:name], methods: [:locale]} }
+            )
           )
         )
       }
