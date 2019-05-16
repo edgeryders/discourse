@@ -3,6 +3,7 @@ require_dependency 'annotator_store/application_controller'
 module AnnotatorStore
   class AnnotationsController < ApplicationController
     before_action :set_annotation, only: [:show, :update, :destroy]
+    before_action :set_current_user, only: [:create, :show, :update, :destroy]
 
     # POST /annotations
     def create
@@ -54,6 +55,11 @@ module AnnotatorStore
     # Use callbacks to share common setup or constraints between actions.
     def set_annotation
       @annotation = Annotation.find(params[:id])
+    end
+
+    # Quick fix: Make the current user available in the json builder partial.
+    def set_current_user
+      @current_user = current_user
     end
 
     # Convert the data sent by AnnotatorJS to the format that Rails expects so
