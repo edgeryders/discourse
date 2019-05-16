@@ -15,3 +15,15 @@ by providing a `content_for(:stylesheet)` block.
 
 
 <%= yield :stylesheet %>
+
+
+<style>
+  tbody tr:hover {
+    background-color: transparent;
+    cursor: inherit;
+  }
+  tbody tr:focus {
+    outline: none;
+    outline-offset: -3px;
+  }
+</style>

@@ -23,29 +23,25 @@ It renders the `_table` partial to display details about the resources.
 [1]: http://www.rubydoc.info/gems/administrate/Administrate/Page/Collection
 %>
 
-<% content_for(:title) do %>
-    Codes
-<% end %>
-
 
 <header class="main-content__header" role="banner">
   <h1 class="main-content__page-title" id="page-title">
-    <%= content_for(:title) %>
+    Codes
   </h1>
 
   <% if show_search_bar %>
-      <%= render(
-                  'search',
-                  search_term: search_term,
-                  resource_name: 'Codes'
-          ) %>
+    <%= render(
+          'search',
+          search_term: search_term,
+          resource_name: 'Codes'
+        ) %>
   <% end %>
 
   <div>
     <%= link_to(
-                "New Code",
-                [:new, namespace, :tag],
-                class: "button"
+          "New Code",
+          [:new, namespace, :tag],
+          class: "button"
         )
     %>
   </div>
@@ -62,28 +58,29 @@ It renders the `_table` partial to display details about the resources.
           table_title: "page-title"
         ) %>
   <% else %>
-      <style type="text/css">
-          .filter-nav {
-              margin: 0 0 20px 40px;
-          }
-        .filter-nav a {
-            margin-right:10px;
-            font-size: 80%;
-        }
-        .filter-nav a.active {
-            color:#333;
-            text-decoration:none;
-        }
-      </style>
+    <style type="text/css">
+      .filter-nav {
+        margin: 0 0 20px 40px;
+      }
+      .filter-nav a {
+        margin-right:10px;
+        font-size: 80%;
+      }
+      .filter-nav a.active {
+        color:#333;
+        text-decoration:none;
+      }
+    </style>
+    <div class="filter-nav">
+      <%= link_to 'Any Creator',
+                  administration_annotator_store_tags_path(params.to_unsafe_h.except(:controller, :action, :page).merge(creator_id: nil)),
+                  class: (params[:creator_id].present? ? '' : 'active') %>
+      <% User.where(id: AnnotatorStore::Tag.select(:creator_id).uniq.pluck(:creator_id)).order(:username).each do |model| %>
+        <%= link_to "by #{model.username}", administration_annotator_store_tags_path(params.to_unsafe_h.except(:controller, :action, :page).merge(creator_id: model.id)), class: (params[:creator_id] == model.id.to_s ? 'active' : '') %>
+      <% end %>
+    </div>
 
-      <div class="filter-nav">
-        <%= link_to 'Any Creator', params.to_unsafe_h.except(:page).deep_merge(creator_id: nil), class: (params[:creator_id].present? ? '' : 'active') %>
-        <% User.where(id: AnnotatorStore::Tag.select(:creator_id).uniq.pluck(:creator_id)).order(:name).each do |model| %>
-            <%= link_to "by #{model.username}", params.to_unsafe_h.except(:page).deep_merge(creator_id: model.id), class: (params[:creator_id] == model.id.to_s ? 'active' : '') %>
-        <% end %>
-      </div>
-
-      <%= render 'tree', tags: resources %>
+    <%= render 'tree', tags: resources %>
   <% end %>
   <%= paginate resources %>
 </section>

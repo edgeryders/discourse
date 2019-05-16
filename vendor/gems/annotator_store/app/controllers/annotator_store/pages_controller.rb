@@ -8,7 +8,6 @@ module AnnotatorStore
     def search
       @annotations = AnnotatorStore::Annotation.where(search_params)
       @total = @annotations.size
-      @current_user = current_user
     end
 
     private
