@@ -1,0 +1,74 @@
+en:
+  js:
+    add_event:
+      btn_label: "Add Date and Time"
+      modal_title: Date and Time
+      event_start: Start
+      event_end: End
+      event_date: Date
+      event_time: Time
+      event_add: Done
+      event_clear: Clear
+      end_enabled: "Include event end"
+      all_day: "All day"
+      timezone: "Timezone"
+      no_timezone: "Select a timezone"
+      rsvp_enabled: "Rsvp enabled"
+      rsvp_enabled_label: "Rsvp"
+      going: "Guest list"
+      going_max: "Maximum number of guests"
+      going_max_label: "{{goingMax}} Guests"
+    category:
+      enable_events: "Allow events to be added to topics in this category (overrides site setting)."
+      enable_events_agenda: "Show an agenda topic list in this category (overrides site setting)."
+      enable_events_calendar: "Show a calendar topic list in this category (overrides site setting)."
+      events_min_trust_to_create: "Min trust to create event in this category (overrides site setting)."
+      events_event_label_no_text: "No text on add event buttons in this category (overrides site setting)."
+      require_event: "All topics in this category must have an event."
+    composer:
+      error:
+        event_missing: "Topics in this category must have an event."
+    event_list:
+      title: '{{categoryName}} Events'
+      about: 'Events in your area'
+      no_results: "No upcoming events"
+      create: "Create Event"
+    filters:
+      agenda:
+        title: "Agenda"
+        help: "List events in ascending chronological order according to the start datetime."
+      calendar:
+        title: "Calendar"
+        help: "Show events in a calendar"
+    add_to_calendar:
+      label: "Add to Calendar"
+      google: "Google Calendar"
+      ics: ".ics File"
+      default_details: "Event details: {{url}}"
+    topics:
+      none:
+        agenda: "There are no agenda topics."
+      bottom:
+        agenda: "There are no more agenda topics."
+    events_calendar:
+      today: "Today"
+      hidden: "{{count}} more"
+      subscribe: "Subscribe"
+      ical: "iCal"
+      rss: "RSS"
+    user:
+      events_calendar:
+        label: "Calendar"
+        first_day_week: "Start week on"
+    event_rsvp:
+      modal:
+        title: "Guests"
+        filter: "Filter"
+      going:
+        label: "Going"
+        max_reached: "Booked out"
+        one_spot_left: "1 spot left"
+        x_spots_left: "{{spotsLeft}} spots left"
+
+    site_settings:
+      events_timezone_default_placeholder: "Select a Timezone"

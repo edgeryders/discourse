@@ -1,0 +1,19 @@
+{{#if event}}
+  {{d-button class=valueClasses action="showAddEvent" translatedLabel=valueLabel}}
+  {{#unless noText}}
+    {{d-button icon="times" action="removeEvent" class="remove"}}
+  {{/unless}}
+{{else}}
+  {{#if iconOnly}}
+    {{d-button class="add-event"
+               icon=siteSettings.events_event_label_icon
+               action="showAddEvent"
+               title='add_event.btn_label'}}
+  {{else}}
+    {{d-button class="add-event"
+               icon=siteSettings.events_event_label_icon
+               label='add_event.btn_label'
+               action="showAddEvent"
+               title='add_event.btn_label'}}
+  {{/if}}
+{{/if}}

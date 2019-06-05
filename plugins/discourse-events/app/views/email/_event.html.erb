@@ -1,0 +1,30 @@
+<span>&#128197;</span>
+<span itemscope itemtype="http://schema.org/Event" style="display:inline-block">
+  <% if title %>
+    <div itemprop="name" content="<%= title %>" style="display:none"><%= title %></div>
+  <% end %>
+  <% if url %>
+    <a itemprop="url" href="<%= url %>" style="display:none"><%= url %></a>
+  <% end %>
+  <div itemprop="startDate" content="<%= event[:start] %>" style="display:inline-block">
+    <%= l event[:start], format: event[:format] %>
+  </div>
+  <% if event[:end] %>
+    <div itemprop="endDate" content="<%= event[:end] %>" style="display:inline-block">
+      — <%= l event[:end], format: event[:format] %>
+    </div>
+  <% end %>
+  <% if SiteSetting.events_rsvp %>
+    <div itemprop="potentialAction" itemscope itemtype="http://schema.org/RsvpAction">
+      <div itemprop="handler" itemscope itemtype="http://schema.org/HttpActionHandler">
+        <link itemprop="url" href="<%= Discourse.base_url %>/calendar-events/rsvp/add?topicId=<% topic_id %>&type=going"/>
+      </div>
+      <link itemprop="attendance" href="http://schema.org/RsvpAttendance/Yes"/>
+      <meta itemprop="rsvpResponse" content="yes">
+    </div>
+  <% end %>
+</span>
+<% if event[:timezone] && SiteSetting.events_timezone_include_in_email %>
+  <span><%= timezone_label event %></span>
+<% end %>
+<hr>

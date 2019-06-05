@@ -1,0 +1,90 @@
+#reply-control .title-and-category {
+  align-items: start;
+}
+
+#reply-control button.add-event {
+  position: relative;
+  margin-left: 4px;
+  line-height: 19px;
+  height: 31px;
+  padding: 5px 10px;
+
+  &:not(.btn-primary) {
+    background: $secondary;
+  }
+
+  .fa {
+    margin: 0;
+  }
+}
+
+#reply-control .show-event-controls .title-input {
+  display: flex;
+  flex-flow: wrap;
+
+  input#reply-title {
+    width: initial;
+    flex: 1 1 auto;
+  }
+}
+
+.add-event-modal .start-card {
+  padding-bottom: 20px;
+  border: none;
+}
+
+.add-event-modal .date-time-card {
+  padding-left: 0;
+  padding-right: 0;
+}
+
+.event-details {
+  align-items: center;
+
+  .event-label {
+    margin-right: 5px;
+    flex: 1 1 auto;
+  }
+
+  .add-to-calendar {
+    display: block;
+
+    .fa {
+      margin: 0;
+      min-width: 15px;
+    }
+
+    .dropdown-menu {
+      right: 0;
+      left: initial;
+    }
+  }
+}
+
+.event-date-mobile {
+  display: flex;
+  justify-content: space-between;
+  width: 100%;
+}
+
+.topic-list-item .date-time-container {
+  margin-bottom: 6px;
+
+  i {
+    margin-right: 6px;
+  }
+}
+
+.topic-list-item .right.with-event {
+  position: relative;
+
+  .topic-item-stats > .pull-right {
+    position: absolute;
+    right: 0;
+    bottom: 0;
+  }
+}
+
+body.calendar {
+  -webkit-tap-highlight-color: transparent;
+}

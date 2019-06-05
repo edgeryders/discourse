@@ -132,6 +132,7 @@ vendor/bundle/*
 !/plugins/discourse-edgeryders
 !/plugins/discourse-text-direction
 !/plugins/discourse-topic-previews
+!/plugins/discourse-events
 !/plugins/edgeryders-communities-navigation
 !/plugins/edgeryders-multisite
 !/plugins/edgeryders-signup-notification
