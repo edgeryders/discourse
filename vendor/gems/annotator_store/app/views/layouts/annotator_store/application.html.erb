@@ -2,13 +2,19 @@
 <html>
 <head>
   <title>AnnotatorStore</title>
-  <%= stylesheet_link_tag    "annotator_store/application", media: "all" %>
+  <%= stylesheet_link_tag "annotator_store/application", media: "all" %>
   <%= javascript_include_tag "annotator_store/application" %>
+  <%= yield(:assets) if content_for?(:assets) %>
+
+  <%= render 'annotator_store/lib/annotate_js', current_user: @current_user %>
+
   <%= csrf_meta_tags %>
 </head>
 <body>
 
-<%= yield %>
+<div class="container">
+  <%= yield %>
+</div>
 
 </body>
 </html>

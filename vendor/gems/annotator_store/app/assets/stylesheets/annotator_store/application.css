@@ -10,6 +10,15 @@
  * defined in the other CSS/SCSS files in this directory. It is generally better to create a new
  * file per style scope.
  *
- *= require_tree .
+
+ * NOTE: The order is important.
+ *= require ./vendor/normalize
+ *= require ./vendor/jquery-ui.min
+ *= require ./vendor/annotator.min.1.2.7
+ *= require ./vendor/annotorious
+ *= require ./vendor/video-js.4.2.2
+ *= require ./vendor/rangeslider.min
+ *= require ./vendor/ova.min
+ *= require ./custom
  *= require_self
  */

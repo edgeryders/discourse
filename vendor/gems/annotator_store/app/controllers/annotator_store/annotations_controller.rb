@@ -2,13 +2,22 @@ require_dependency 'annotator_store/application_controller'
 
 module AnnotatorStore
   class AnnotationsController < ApplicationController
+
     before_action :set_annotation, only: [:show, :update, :destroy]
     before_action :set_current_user, only: [:create, :show, :update, :destroy]
+
 
     # POST /annotations
     def create
       format_client_input_to_rails_convention_for_create
-      @annotation = Annotation.new(annotation_params)
+      # Determine the class based on the attributes that are set.
+      @annotation = if params[:target].present?
+                      VideoAnnotation.new(annotation_params)
+                    elsif params[:annotation][:geometry].present?
+                      ImageAnnotation.new(annotation_params)
+                    else
+                      TextAnnotation.new(annotation_params)
+                    end
       @annotation.creator = current_user
       respond_to do |format|
         if @annotation.save
@@ -50,28 +59,83 @@ module AnnotatorStore
       end
     end
 
-    private
-
-    # Use callbacks to share common setup or constraints between actions.
-    def set_annotation
-      @annotation = Annotation.find(params[:id])
-    end
-
     # Quick fix: Make the current user available in the json builder partial.
     def set_current_user
       @current_user = current_user
     end
 
+
+    private
+
     # Convert the data sent by AnnotatorJS to the format that Rails expects so
     # that we are able to create a proper params object
+    # VIDEO annotation input example:
+    # {
+    #   "uri"=>"/post/",
+    #   "target"=>{
+    #     "container"=>"vid1",
+    #     "src"=>"http://vjs.zencdn.net/v/oceans.mp4",
+    #     "ext"=>".mp4"
+    #    },
+    #   "rangeTime"=>{
+    #     "start"=>11.560403,
+    #     "end"=>16.2217363
+    #   },
+    #   "tags"=>["test", "tag", "→", "testtag", "deutsch"],
+    #   "updated"=>"2019-06-19T19:39:59.349Z",
+    #   "created"=>"2019-06-19T19:39:59.349Z",
+    #   "text"=>"",
+    #   "media"=>"video",
+    #   "ranges"=>[],
+    #   "quote"=>"",
+    #   "annotator_schema_version"=>"v1.0",
+    #   video_annotation"=>{"uri"=>"/post/1"}
+    # }
+    #
+    # IMAGE annotation input example:
+    # {
+    #   "url": "http://lloydbleekcollection.cs.uct.ac.za/images/stow/STOW_001.JPG",
+    #   "text": "sdfdfasdf",
+    #   "ranges": [],
+    #   "quote": "",
+    #   "closure_uid_k7l337": 6,
+    #   "l": [
+    #     {
+    #       "type": "rect",
+    #       "a": {
+    #         "x": 314,
+    #         "width": 261,
+    #         "y": 207,
+    #         "height": 188
+    #       }
+    #     }
+    #   ]
+    # }
     def format_client_input_to_rails_convention_for_create
       params[:annotation] = {}
+      params[:annotation][:tag_id] = get_tag_id unless params[:tags].blank?
+
+      # VideoAnnotation
+      params[:annotation][:uri] = params[:uri] unless params[:uri].blank?
+      params[:annotation][:container] = params[:target][:container] unless params[:target].blank?
+      params[:annotation][:src] = params[:target][:src] unless params[:target].blank?
+      params[:annotation][:ext] = params[:target][:ext] unless params[:target].blank?
+      params[:annotation][:start] = params[:rangeTime][:start] unless params[:rangeTime].blank?
+      params[:annotation][:end] = params[:rangeTime][:end] unless params[:rangeTime].blank?
+
+      # ImageAnnotation
+      # params[:annotation][:page_url] = params[:page_url] unless params[:page_url].blank?
+      params[:annotation][:src] = params[:url] unless params[:url].blank?
+      params[:annotation][:units] = 'pixel'
+      params[:annotation][:shape] = params[:l][0][:type] unless params[:l].blank?
+      params[:annotation][:geometry] = params[:l][0][:a].to_json.to_s unless params[:l].blank?
+
+      # TextAnnotation
       params[:annotation][:version] = params[:annotator_schema_version] unless params[:annotator_schema_version].blank?
       params[:annotation][:text] = params[:text] #unless params[:text].blank?
       params[:annotation][:quote] = params[:quote] unless params[:quote].blank?
       params[:annotation][:uri] = params[:uri] unless params[:uri].blank?
-      params[:annotation][:post_id] = params[:post] unless params[:post].blank?
-      params[:annotation][:tag_id] = get_tag_id unless params[:tags].blank?
+      params[:annotation][:post_id] = params[:uri].split('/').last unless params[:uri].blank?
       params[:annotation][:ranges_attributes] = params[:ranges].map do |r|
         range = {}
         range[:start] = r[:start]
@@ -96,13 +160,13 @@ module AnnotatorStore
     # Only allow a trusted parameter 'white list' through.
     def annotation_params
       params.require(:annotation).permit(
-        :text,
-        :quote,
-        :uri,
-        :version,
-        :tag_id,
-        :post_id,
-        ranges_attributes: [:start, :end, :start_offset, :end_offset]
+        :tag_id, :uri,
+        # VideoAnnotation
+        :container, :src, :ext, :start, :end,
+        # Image Annotation
+        :src, :shape, :units, :geometry,
+        # TextAnnotation
+        :text, :quote, :version, :post_id, ranges_attributes: [:start, :end, :start_offset, :end_offset]
       )
     end
 
@@ -123,9 +187,6 @@ module AnnotatorStore
       end
     end
 
-
-    private
-
     # If the path of the tag matches the given path.
     def path_matches?(tag, path)
       return true if tag.blank? && path.blank?
@@ -137,6 +198,10 @@ module AnnotatorStore
       end
     end
 
+    # Use callbacks to share common setup or constraints between actions.
+    def set_annotation
+      @annotation = Annotation.find(params[:id])
+    end
 
   end
 end

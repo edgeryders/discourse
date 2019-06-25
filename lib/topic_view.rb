@@ -556,6 +556,7 @@ class TopicView
     filter_posts_by_ids(posts.pluck(:id))
 
     @posts = @posts.unscope(:order).order(sort_order: :desc) if !asc
+    @posts = @posts.unscope(:order).order(sort_order: :desc) if !asc
   end
 
   def filter_posts_by_ids(post_ids)

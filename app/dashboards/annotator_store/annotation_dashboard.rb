@@ -13,6 +13,7 @@ module AnnotatorStore
       tag: Administrate::ParentTagField.with_options(class_name: 'AnnotatorStore::Tag'),
       id: Field::Number,
       uri: Field::String,
+      type: Field::String,
       tag_id: Field::Number,
       quote: Field::Text.with_options(truncate: 1000),
       creator_id: Field::Number,
@@ -27,6 +28,7 @@ module AnnotatorStore
     # Feel free to add, remove, or rearrange items.
     COLLECTION_ATTRIBUTES = [
       :id,
+      :type,
       :quote,
       :tag,
       :creator,
@@ -36,6 +38,7 @@ module AnnotatorStore
     # # an array of attributes that will be displayed on the model's show page.
     SHOW_PAGE_ATTRIBUTES = [
       :id,
+      :type,
       :quote,
       :tag,
       :creator,

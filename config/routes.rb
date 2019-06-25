@@ -27,6 +27,9 @@ Discourse::Application.routes.draw do
       resources :collections
       resources :languages
       resources :annotations, only: [:index, :show, :edit, :update]
+      resources :text_annotations, only: [:index, :show, :edit, :update]
+      resources :video_annotations, only: [:index, :show, :edit, :update]
+      resources :image_annotations, only: [:index, :show, :edit, :update]
       resources :user_settings
     end
   end

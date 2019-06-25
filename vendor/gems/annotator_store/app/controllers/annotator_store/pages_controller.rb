@@ -11,6 +11,7 @@ module AnnotatorStore
       @current_user = current_user
     end
 
+
     private
 
     def format_input

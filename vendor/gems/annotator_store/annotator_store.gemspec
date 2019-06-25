@@ -34,4 +34,6 @@ Gem::Specification.new do |spec|
   spec.add_runtime_dependency 'jbuilder'
   spec.add_runtime_dependency 'rails', '>= 4.0'
   spec.add_runtime_dependency 'ancestry'
+  # https://github.com/vmg/redcarpet - The safe Markdown parser.
+  spec.add_runtime_dependency 'redcarpet'
 end
