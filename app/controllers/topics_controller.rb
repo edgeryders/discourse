@@ -890,7 +890,7 @@ class TopicsController < ApplicationController
         @description_meta = @topic_view.topic.excerpt.present? ? @topic_view.topic.excerpt : @topic_view.summary
         store_preloaded("topic_#{@topic_view.topic.id}", MultiJson.dump(topic_view_serializer))
         # damingo (Github ID), 2019-06-20, #annotator
-        redirect_to annotator_store.topic_path(@topic_view.topic.id) and return if params[:oe].present?
+        redirect_to annotator_store.annotator_store_topic_path(@topic_view.topic.id) and return if params[:oe].present?
         render :show
       end
 
