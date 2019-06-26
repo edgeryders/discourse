@@ -4,7 +4,6 @@ module AnnotatorStore
 
     # Associations
     has_many :ranges, foreign_key: 'annotation_id', dependent: :destroy, autosave: true
-    belongs_to :post
 
 
     # Allow saving of attributes on associated records through the parent,
@@ -13,7 +12,6 @@ module AnnotatorStore
 
 
     # Validations
-    validates :post, presence: true
     validates :version, presence: true
     validates :quote, presence: true
     validates :uri, presence: true

@@ -23,12 +23,14 @@ blockquote {
 }
 
 .annotator-image {
-  /*position:relative;*/
+  margin-top:15px;
+  margin-bottom:15px;
 }
 
-/*.annotator-adder, .annotator-outer, .annotator-notice {*/
-  /*top:2px !important;*/
-/*}*/
+.video-wrapper {
+  margin-top:15px;
+  margin-bottom:15px;
+}
 
 .container {
   margin: auto;

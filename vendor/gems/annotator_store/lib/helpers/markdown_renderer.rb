@@ -26,7 +26,7 @@ class MarkdownRenderer < Redcarpet::Render::HTML
   # @todo add poster attribute: poster=\"http://....com/file.png\"
   def video_link(link)
     upload = Upload.get_from_url(link)
-    "<div id=\"video-wrapper\">
+    "<div class=\"video-wrapper\">
       <video class=\"video-js vjs-default-skin\" controls preload=\"none\" width=\"640\" height=\"264\" >
         <source src=\"#{upload.url}\" type=\"video/mp4\"/>
       </video>

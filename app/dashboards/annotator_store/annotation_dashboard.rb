@@ -19,6 +19,7 @@ module AnnotatorStore
       creator_id: Field::Number,
       created_at: Field::DateTime,
       updated_at: Field::DateTime,
+      topic: Administrate::TopicField
     }.freeze
 
     # COLLECTION_ATTRIBUTES
@@ -44,6 +45,7 @@ module AnnotatorStore
       :creator,
       :created_at,
       :updated_at,
+      :topic,
     ].freeze
 
     # # FORM_ATTRIBUTES

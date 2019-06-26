@@ -49,10 +49,10 @@
 <% if @topic_view.prev_page || @topic_view.next_page %>
   <div role='navigation' itemscope itemtype='http://schema.org/SiteNavigationElement'>
     <% if @topic_view.prev_page %>
-      <span itemprop='url'><%= link_to t(:prev_page), @topic_view.prev_page_path + (@topic_view.prev_page > 1 ? '&oe=1' : '?oe=1'), rel: 'prev', itemprop: 'name' %></span>
+      <span itemprop='url'><%= link_to t(:prev_page), annotator_store.annotator_store_topic_path(@topic_view.topic.id, page: @topic_view.prev_page), rel: 'prev', itemprop: 'name' %></span>
     <% end %>
     <% if @topic_view.next_page %>
-      <span itemprop='url'><b><%= link_to t(:next_page), @topic_view.next_page_path + '&oe=1', rel: 'next', itemprop: 'name' %></b></span>
+      <span itemprop='url'><b><%= link_to t(:next_page), annotator_store.annotator_store_topic_path(@topic_view.topic.id, page: @topic_view.next_page), rel: 'next', itemprop: 'name' %></b></span>
     <% end %>
   </div>
 <% end %>

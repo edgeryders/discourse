@@ -6,7 +6,7 @@ module AnnotatorStore
 
     def show
       opts = params.slice(:username_filters, :filter, :page, :post_number, :show_deleted)
-      page = params[:page]
+      page = params[:page]&.to_i
 
       @current_user = current_user
       @topic_view = TopicView.new(params[:id] || params[:topic_id], current_user, opts)
