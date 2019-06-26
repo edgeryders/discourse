@@ -945,4 +945,5 @@ class TopicsController < ApplicationController
   def pm_has_slots?(pm)
     guardian.is_staff? || !pm.reached_recipients_limit?
   end
+
 end

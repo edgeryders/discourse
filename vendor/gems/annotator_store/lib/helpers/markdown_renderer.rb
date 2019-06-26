@@ -49,10 +49,24 @@ class MarkdownRenderer < Redcarpet::Render::HTML
   end
 
   def image(link, title, alt_text)
-    upload = Upload.find_by(sha1: Upload.sha1_from_short_url(link) )
+    upload = Upload.find_by(sha1: Upload.sha1_from_short_url(link))
     if upload.present?
       "<div class=\"annotator-image\" id=\"image-#{upload.id}\"><img src=\"#{upload.url}\" alt=\"#{alt_text}\" /></div>"
     end
+  end
+
+  def paragraph(text)
+    process_custom_quotes(text)
+  end
+
+
+  private
+
+  def process_custom_quotes(text)
+    text.gsub! /\[quote=([^\]]*)\]((?:[\s\S](?!\[quote=[^\]]*\]))*?)\[\/quote\]/im do
+      %(<blockquote>#{$2}</blockquote>)
+    end
+    text
   end
 
 
