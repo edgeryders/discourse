@@ -15,6 +15,7 @@ module AnnotatorStore
     validates :version, presence: true
     validates :quote, presence: true
     validates :uri, presence: true
+    validates :post, presence: true
 
 
     def text_annotation?

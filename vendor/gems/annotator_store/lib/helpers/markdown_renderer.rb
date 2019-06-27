@@ -1,5 +1,6 @@
 # Source: https://stackoverflow.com/questions/23051568/how-to-embed-a-youtube-video-in-markdown-with-redcarpet-for-rails
 require 'redcarpet'
+require 'digest/md5'
 
 class MarkdownRenderer < Redcarpet::Render::HTML
 
@@ -25,12 +26,18 @@ class MarkdownRenderer < Redcarpet::Render::HTML
 
   # @todo add poster attribute: poster=\"http://....com/file.png\"
   def video_link(link)
-    upload = Upload.get_from_url(link)
+    if (upload = Upload.get_from_url(link))
+      video_src = upload.url
+      annotation_url = "/annotator_store/video/#{upload.id}"
+    else # External Video
+      video_src = link
+      annotation_url = "/annotator_store/video/#{Digest::MD5.hexdigest(link)}?#{{src: video_src}.to_query}"
+    end
     "<div class=\"video-wrapper\">
       <video class=\"video-js vjs-default-skin\" controls preload=\"none\" width=\"640\" height=\"264\" >
-        <source src=\"#{upload.url}\" type=\"video/mp4\"/>
+        <source src=\"#{video_src}\" type=\"video/mp4\"/>
       </video>
-      <div style=\"margin-top:10px;\"><a href=\"/annotator_store/video/#{upload.id}\" target=\"_blank\">See annotations / add annotations</a></div>
+      <div style=\"margin-top:10px;\"><a href=\"#{annotation_url}\" target=\"_blank\">See annotations / add annotations</a></div>
     </div>"
   end
 

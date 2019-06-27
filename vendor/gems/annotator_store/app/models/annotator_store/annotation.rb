@@ -10,7 +10,6 @@ module AnnotatorStore
     validates :type, presence: true, inclusion: {in: %w(AnnotatorStore::TextAnnotation AnnotatorStore::ImageAnnotation AnnotatorStore::VideoAnnotation) }
     validates :creator, presence: true
     validates :tag, presence: true
-    validates :post, presence: true
 
 
     def topic

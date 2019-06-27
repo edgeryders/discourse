@@ -9,15 +9,15 @@
 <% end %>
 
 
-<div id="video-wrapper-<%= @video.id %>" class="video-wrapper">
-  <video id="video-<%= @video.id %>" class="video-js vjs-default-skin" controls preload="none" width="800" height="400">
-    <source src="<%= @video.url %>" type="video/mp4"/>
+<div id="video-wrapper-<%= @video_id %>" class="video-wrapper">
+  <video id="video-<%= @video_id %>" class="video-js vjs-default-skin" controls preload="none" width="800" height="400">
+    <source src="<%= @video_src %>" type="video/mp4"/>
   </video>
 </div>
 
 
 <script>
-  loadVideoAnnotator('<%= @video.id %>');
+  loadVideoAnnotator('<%= @video_id %>');
 </script>
 
 
