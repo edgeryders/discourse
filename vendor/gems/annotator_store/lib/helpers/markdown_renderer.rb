@@ -28,10 +28,10 @@ class MarkdownRenderer < Redcarpet::Render::HTML
   def video_link(link)
     if (upload = Upload.get_from_url(link))
       video_src = upload.url
-      annotation_url = "/annotator_store/video/#{upload.id}"
+      annotation_url = "/annotator/videos/#{upload.id}"
     else # External Video
       video_src = link
-      annotation_url = "/annotator_store/video/#{Digest::MD5.hexdigest(link)}?#{{src: video_src}.to_query}"
+      annotation_url = "/annotator/videos/#{Digest::MD5.hexdigest(link)}?#{{src: video_src}.to_query}"
     end
     "<div class=\"video-wrapper\">
       <video class=\"video-js vjs-default-skin\" controls preload=\"none\" width=\"640\" height=\"264\" >
@@ -63,7 +63,7 @@ class MarkdownRenderer < Redcarpet::Render::HTML
   end
 
   def paragraph(text)
-    process_custom_quotes(text)
+    "<p>#{process_custom_quotes(text)}</p>"
   end
 
 

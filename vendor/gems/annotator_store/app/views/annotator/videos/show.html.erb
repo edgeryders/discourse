@@ -1,0 +1,31 @@
+<% content_for :javascript do %>
+  <%= stylesheet_link_tag "annotator_store/application", media: "all" %>
+  <%= javascript_include_tag "annotator_store/application" %>
+  <%= render 'annotator/lib/annotate_js', current_user: @current_user %>
+<% end %>
+
+<% content_for :stylesheet do %>
+  <style type="text/css">
+    .video-wrapper {
+      margin: auto;
+      margin-top: 50px;
+      width: 800px;
+    }
+  </style>
+<% end %>
+
+<br/>
+<br/>
+
+<div id="video-wrapper-<%= @video_id %>" class="video-wrapper">
+  <video id="video-<%= @video_id %>" class="video-js vjs-default-skin" controls preload="none" width="800" height="400">
+    <source src="<%= @video_src %>" type="video/mp4"/>
+  </video>
+</div>
+
+
+<script>
+  loadVideoAnnotator('<%= @video_id %>');
+</script>
+
+

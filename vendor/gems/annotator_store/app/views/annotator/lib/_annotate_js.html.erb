@@ -1,0 +1,64 @@
+<script>
+
+  jQuery.noConflict();
+
+  function loadAnnotator(selector, uri) {
+    jQuery(document).ready(function ($) {
+      var content = $(selector).annotator();
+      content.annotator('addPlugin', 'AnnotoriousImagePlugin');
+      content.annotator('addPlugin', 'Tags');
+      annotationAutocompleteTags(selector);
+      content.annotator('addPlugin', 'Store', {
+        prefix: '/annotator',
+        annotationData: {'annotator_schema_version': "v1.0", 'uri': uri },
+        loadFromSearch: {'uri': uri}
+      });
+
+      $(selector + " .annotator-adder").on("click", function () {
+        setTimeout(function () {$(selector + " input").focus();}, 150);
+      });
+
+    });
+  }
+
+  function loadVideoAnnotator(video_id) {
+    jQuery(document).ready(function ($) {
+      var options = {
+        optionsAnnotator: {
+          store: {
+            prefix: '/annotator',
+            annotationData: {
+              'annotator_schema_version': "v1.0",
+              'uri': '/video/'+video_id,
+            },
+            loadFromSearch: {'uri': '/video/'+video_id},
+          },
+        },
+      }
+      var ova = new OpenVideoAnnotation.Annotator($('#video-wrapper-' + video_id), options);
+      ova.annotator.addPlugin('Tags');
+      annotationAutocompleteTags('#video-wrapper-' + video_id);
+    });
+  }
+
+  function annotationAutocompleteTags(selector) {
+    <% language = AnnotatorStore::UserSetting.language_for_user(current_user) %>
+    var availableTags = <%= AnnotatorStore::Tag.sort_by_ancestry(AnnotatorStore::Tag.where(creator_id: current_user.id)).map {|t|
+          t.path.map { |tag| tag.translated_name(language) }.join(' → ')
+        }.to_json.html_safe -%>;
+
+    jQuery(document).ready(function ($) {
+      $(selector).data('annotator').plugins.Tags.input.autocomplete({
+        source: availableTags,
+        minLength: 0,
+        open: function () {
+          $(this).autocomplete('widget').css('z-index', 10000);
+          return false;
+        }
+      }).focus(function () {
+        $(this).data("uiAutocomplete").search($(this).val());
+      });
+    });
+  }
+
+</script>

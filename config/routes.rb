@@ -9,38 +9,16 @@ require_dependency "permalink_constraint"
 USERNAME_ROUTE_FORMAT = /[\w.\-]+?/ unless defined? USERNAME_ROUTE_FORMAT
 BACKUP_ROUTE_FORMAT = /.+\.(sql\.gz|tar\.gz|tgz)/i unless defined? BACKUP_ROUTE_FORMAT
 
+
 Discourse::Application.routes.draw do
   relative_url_root = (defined?(Rails.configuration.relative_url_root) && Rails.configuration.relative_url_root) ? Rails.configuration.relative_url_root + '/' : '/'
-
-
-  # damingo (Github ID), 2019-02-26
-  mount AnnotatorStore::Engine, at: '/annotator_store', constraints: StaffConstraint.new
-  namespace :administration, constraints: StaffConstraint.new do
-
-    root to: 'annotator_store/tags#index'
-    # https://edgeryders.eu/t/using-the-edgeryders-eu-apis/7904#heading--3
-    get 'annotator/users.json', to: 'application#consent', constraints: { format: 'json' }
-
-    namespace :annotator_store, path: 'annotator' do
-      resources :tags, path: 'codes'
-      resources :tag_names
-      resources :collections
-      resources :languages
-      resources :annotations, only: [:index, :show, :edit, :update]
-      resources :text_annotations, only: [:index, :show, :edit, :update]
-      resources :video_annotations, only: [:index, :show, :edit, :update]
-      resources :image_annotations, only: [:index, :show, :edit, :update]
-      resources :user_settings
-    end
-  end
-
 
   match "/404", to: "exceptions#not_found", via: [:get, :post]
   get "/404-body" => "exceptions#not_found_body"
 
-  post "webhooks/mailgun"  => "webhooks#mailgun"
+  post "webhooks/mailgun" => "webhooks#mailgun"
   post "webhooks/sendgrid" => "webhooks#sendgrid"
-  post "webhooks/mailjet"  => "webhooks#mailjet"
+  post "webhooks/mailjet" => "webhooks#mailjet"
   post "webhooks/mandrill" => "webhooks#mandrill"
   post "webhooks/sparkpost" => "webhooks#sparkpost"
 
@@ -157,8 +135,8 @@ Discourse::Application.routes.draw do
       post "reset_bounce_score"
       put "disable_second_factor"
     end
-    get "users/:id.json" => 'users#show', defaults: { format: 'json' }
-    get 'users/:id/:username' => 'users#show', constraints: { username: RouteFormat.username }
+    get "users/:id.json" => 'users#show', defaults: {format: 'json'}
+    get 'users/:id/:username' => 'users#show', constraints: {username: RouteFormat.username}
     get 'users/:id/:username/badges' => 'users#show'
     get 'users/:id/:username/tl3_requirements' => 'users#show'
 
@@ -188,22 +166,22 @@ Discourse::Application.routes.draw do
     end
 
     scope "/logs" do
-      resources :staff_action_logs,     only: [:index]
+      resources :staff_action_logs, only: [:index]
       get 'staff_action_logs/:id/diff' => 'staff_action_logs#diff'
-      resources :screened_emails,       only: [:index, :destroy]
+      resources :screened_emails, only: [:index, :destroy]
       resources :screened_ip_addresses, only: [:index, :create, :update, :destroy] do
         collection do
           post "roll_up"
         end
       end
-      resources :screened_urls,         only: [:index]
+      resources :screened_urls, only: [:index]
       resources :watched_words, only: [:index, :create, :update, :destroy] do
         collection do
           get "action/:id" => "watched_words#index"
         end
       end
       post "watched_words/upload" => "watched_words#upload"
-      resources :search_logs,           only: [:index]
+      resources :search_logs, only: [:index]
       get 'search_logs/term/:term' => 'search_logs#term'
     end
 
@@ -241,18 +219,18 @@ Discourse::Application.routes.draw do
       get "themes/:id/export" => "themes#export"
 
       # They have periods in their URLs often:
-      get 'site_texts'             => 'site_texts#index'
-      get 'site_texts/:id.json'    => 'site_texts#show',   constraints: { id: /[\w.\-\+]+/i }
-      get 'site_texts/:id'         => 'site_texts#show',   constraints: { id: /[\w.\-\+]+/i }
-      put 'site_texts/:id.json'    => 'site_texts#update', constraints: { id: /[\w.\-\+]+/i }
-      put 'site_texts/:id'         => 'site_texts#update', constraints: { id: /[\w.\-\+]+/i }
-      delete 'site_texts/:id.json' => 'site_texts#revert', constraints: { id: /[\w.\-\+]+/i }
-      delete 'site_texts/:id'      => 'site_texts#revert', constraints: { id: /[\w.\-\+]+/i }
+      get 'site_texts' => 'site_texts#index'
+      get 'site_texts/:id.json' => 'site_texts#show', constraints: {id: /[\w.\-\+]+/i}
+      get 'site_texts/:id' => 'site_texts#show', constraints: {id: /[\w.\-\+]+/i}
+      put 'site_texts/:id.json' => 'site_texts#update', constraints: {id: /[\w.\-\+]+/i}
+      put 'site_texts/:id' => 'site_texts#update', constraints: {id: /[\w.\-\+]+/i}
+      delete 'site_texts/:id.json' => 'site_texts#revert', constraints: {id: /[\w.\-\+]+/i}
+      delete 'site_texts/:id' => 'site_texts#revert', constraints: {id: /[\w.\-\+]+/i}
 
-      get 'email_templates'          => 'email_templates#index'
-      get 'email_templates/(:id)'    => 'email_templates#show',   constraints: { id: /[0-9a-z_.]+/ }
-      put 'email_templates/(:id)'    => 'email_templates#update', constraints: { id: /[0-9a-z_.]+/ }
-      delete 'email_templates/(:id)' => 'email_templates#revert', constraints: { id: /[0-9a-z_.]+/ }
+      get 'email_templates' => 'email_templates#index'
+      get 'email_templates/(:id)' => 'email_templates#show', constraints: {id: /[0-9a-z_.]+/}
+      put 'email_templates/(:id)' => 'email_templates#update', constraints: {id: /[0-9a-z_.]+/}
+      delete 'email_templates/(:id)' => 'email_templates#revert', constraints: {id: /[0-9a-z_.]+/}
     end
 
     resources :embeddable_hosts, constraints: AdminConstraint.new
@@ -294,10 +272,10 @@ Discourse::Application.routes.draw do
 
     resources :backups, only: [:index, :create], constraints: AdminConstraint.new do
       member do
-        get "" => "backups#show", constraints: { id: RouteFormat.backup }
-        put "" => "backups#email", constraints: { id: RouteFormat.backup }
-        delete "" => "backups#destroy", constraints: { id: RouteFormat.backup }
-        post "restore" => "backups#restore", constraints: { id: RouteFormat.backup }
+        get "" => "backups#show", constraints: {id: RouteFormat.backup}
+        put "" => "backups#email", constraints: {id: RouteFormat.backup}
+        delete "" => "backups#destroy", constraints: {id: RouteFormat.backup}
+        post "restore" => "backups#restore", constraints: {id: RouteFormat.backup}
       end
       collection do
         get "logs" => "backups#logs"
@@ -350,24 +328,24 @@ Discourse::Application.routes.draw do
   post "composer/parse_html" => "composer#parse_html"
 
   resources :static
-  post "login" => "static#enter", constraints: { format: /(json|html)/ }
-  get "login" => "static#show", id: "login", constraints: { format: /(json|html)/ }
-  get "password-reset" => "static#show", id: "password_reset", constraints: { format: /(json|html)/ }
-  get "faq" => "static#show", id: "faq", constraints: { format: /(json|html)/ }
-  get "tos" => "static#show", id: "tos", as: 'tos', constraints: { format: /(json|html)/ }
-  get "privacy" => "static#show", id: "privacy", as: 'privacy', constraints: { format: /(json|html)/ }
-  get "signup" => "static#show", id: "signup", constraints: { format: /(json|html)/ }
-  get "login-preferences" => "static#show", id: "login", constraints: { format: /(json|html)/ }
+  post "login" => "static#enter", constraints: {format: /(json|html)/}
+  get "login" => "static#show", id: "login", constraints: {format: /(json|html)/}
+  get "password-reset" => "static#show", id: "password_reset", constraints: {format: /(json|html)/}
+  get "faq" => "static#show", id: "faq", constraints: {format: /(json|html)/}
+  get "tos" => "static#show", id: "tos", as: 'tos', constraints: {format: /(json|html)/}
+  get "privacy" => "static#show", id: "privacy", as: 'privacy', constraints: {format: /(json|html)/}
+  get "signup" => "static#show", id: "signup", constraints: {format: /(json|html)/}
+  get "login-preferences" => "static#show", id: "login", constraints: {format: /(json|html)/}
 
   %w{guidelines rules conduct}.each do |faq_alias|
-    get faq_alias => "static#show", id: "guidelines", as: faq_alias, constraints: { format: /(json|html)/ }
+    get faq_alias => "static#show", id: "guidelines", as: faq_alias, constraints: {format: /(json|html)/}
   end
 
   get "my/*path", to: 'users#my_redirect'
   get "user_preferences" => "users#user_preferences_redirect"
 
   %w{users u}.each_with_index do |root_path, index|
-    get "#{root_path}" => "users#index", constraints: { format: 'html' }
+    get "#{root_path}" => "users#index", constraints: {format: 'html'}
 
     resources :users, except: [:index, :new, :show, :update, :destroy], path: root_path do
       collection do
@@ -392,117 +370,117 @@ Discourse::Application.routes.draw do
     post "#{root_path}/read-faq" => "users#read_faq"
     get "#{root_path}/search/users" => "users#search_users"
 
-    get({ "#{root_path}/account-created/" => "users#account_created" }.merge(index == 1 ? { as: :users_account_created } : { as: :old_account_created }))
+    get({"#{root_path}/account-created/" => "users#account_created"}.merge(index == 1 ? {as: :users_account_created} : {as: :old_account_created}))
 
     get "#{root_path}/account-created/resent" => "users#account_created"
     get "#{root_path}/account-created/edit-email" => "users#account_created"
-    get({ "#{root_path}/password-reset/:token" => "users#password_reset" }.merge(index == 1 ? { as: :password_reset_token } : {}))
-    get "#{root_path}/confirm-email-token/:token" => "users#confirm_email_token", constraints: { format: 'json' }
+    get({"#{root_path}/password-reset/:token" => "users#password_reset"}.merge(index == 1 ? {as: :password_reset_token} : {}))
+    get "#{root_path}/confirm-email-token/:token" => "users#confirm_email_token", constraints: {format: 'json'}
     put "#{root_path}/password-reset/:token" => "users#password_reset"
     get "#{root_path}/activate-account/:token" => "users#activate_account"
-    put({ "#{root_path}/activate-account/:token" => "users#perform_account_activation" }.merge(index == 1 ? { as: 'perform_activate_account' } : {}))
+    put({"#{root_path}/activate-account/:token" => "users#perform_account_activation"}.merge(index == 1 ? {as: 'perform_activate_account'} : {}))
     get "#{root_path}/authorize-email/:token" => "users_email#confirm"
     put "#{root_path}/authorize-email/:token" => "users_email#confirm"
     get({
-      "#{root_path}/confirm-admin/:token" => "users#confirm_admin",
-      constraints: { token: /[0-9a-f]+/ }
-    }.merge(index == 1 ? { as: 'confirm_admin' } : {}))
-    post "#{root_path}/confirm-admin/:token" => "users#confirm_admin", constraints: { token: /[0-9a-f]+/ }
-    get "#{root_path}/:username/private-messages" => "user_actions#private_messages", constraints: { username: RouteFormat.username }
-    get "#{root_path}/:username/private-messages/:filter" => "user_actions#private_messages", constraints: { username: RouteFormat.username }
-    get "#{root_path}/:username/messages" => "user_actions#private_messages", constraints: { username: RouteFormat.username }
-    get "#{root_path}/:username/messages/:filter" => "user_actions#private_messages", constraints: { username: RouteFormat.username }
-    get "#{root_path}/:username/messages/group/:group_name" => "user_actions#private_messages", constraints: { username: RouteFormat.username, group_name: RouteFormat.username }
-    get "#{root_path}/:username/messages/group/:group_name/archive" => "user_actions#private_messages", constraints: { username: RouteFormat.username, group_name: RouteFormat.username }
+          "#{root_path}/confirm-admin/:token" => "users#confirm_admin",
+          constraints: {token: /[0-9a-f]+/}
+        }.merge(index == 1 ? {as: 'confirm_admin'} : {}))
+    post "#{root_path}/confirm-admin/:token" => "users#confirm_admin", constraints: {token: /[0-9a-f]+/}
+    get "#{root_path}/:username/private-messages" => "user_actions#private_messages", constraints: {username: RouteFormat.username}
+    get "#{root_path}/:username/private-messages/:filter" => "user_actions#private_messages", constraints: {username: RouteFormat.username}
+    get "#{root_path}/:username/messages" => "user_actions#private_messages", constraints: {username: RouteFormat.username}
+    get "#{root_path}/:username/messages/:filter" => "user_actions#private_messages", constraints: {username: RouteFormat.username}
+    get "#{root_path}/:username/messages/group/:group_name" => "user_actions#private_messages", constraints: {username: RouteFormat.username, group_name: RouteFormat.username}
+    get "#{root_path}/:username/messages/group/:group_name/archive" => "user_actions#private_messages", constraints: {username: RouteFormat.username, group_name: RouteFormat.username}
     get "#{root_path}/:username/messages/tags/:tag_id" => "user_actions#private_messages", constraints: StaffConstraint.new
-    get "#{root_path}/:username.json" => "users#show", constraints: { username: RouteFormat.username }, defaults: { format: :json }
-    get({ "#{root_path}/:username" => "users#show", constraints: { username: RouteFormat.username, format: /(json|html)/ } }.merge(index == 1 ? { as: 'user' } : {}))
-    put "#{root_path}/:username" => "users#update", constraints: { username: RouteFormat.username, format: /(json|html)/ }, defaults: { format: :json }
-    get "#{root_path}/:username/emails" => "users#check_emails", constraints: { username: RouteFormat.username }
-    get({ "#{root_path}/:username/preferences" => "users#preferences", constraints: { username: RouteFormat.username } }.merge(index == 1 ? { as: :email_preferences } : {}))
-    get "#{root_path}/:username/preferences/email" => "users_email#index", constraints: { username: RouteFormat.username }
-    get "#{root_path}/:username/preferences/account" => "users#preferences", constraints: { username: RouteFormat.username }
-    get "#{root_path}/:username/preferences/profile" => "users#preferences", constraints: { username: RouteFormat.username }
-    get "#{root_path}/:username/preferences/emails" => "users#preferences", constraints: { username: RouteFormat.username }
-    get "#{root_path}/:username/preferences/notifications" => "users#preferences", constraints: { username: RouteFormat.username }
-    get "#{root_path}/:username/preferences/categories" => "users#preferences", constraints: { username: RouteFormat.username }
-    get "#{root_path}/:username/preferences/tags" => "users#preferences", constraints: { username: RouteFormat.username }
-    get "#{root_path}/:username/preferences/interface" => "users#preferences", constraints: { username: RouteFormat.username }
-    get "#{root_path}/:username/preferences/apps" => "users#preferences", constraints: { username: RouteFormat.username }
-    put "#{root_path}/:username/preferences/email" => "users_email#update", constraints: { username: RouteFormat.username }
-    get "#{root_path}/:username/preferences/about-me" => "users#preferences", constraints: { username: RouteFormat.username }
-    get "#{root_path}/:username/preferences/badge_title" => "users#preferences", constraints: { username: RouteFormat.username }
-    put "#{root_path}/:username/preferences/badge_title" => "users#badge_title", constraints: { username: RouteFormat.username }
-    get "#{root_path}/:username/preferences/username" => "users#preferences", constraints: { username: RouteFormat.username }
-    put "#{root_path}/:username/preferences/username" => "users#username", constraints: { username: RouteFormat.username }
-    get "#{root_path}/:username/preferences/second-factor" => "users#preferences", constraints: { username: RouteFormat.username }
-    get "#{root_path}/:username/preferences/second-factor-backup" => "users#preferences", constraints: { username: RouteFormat.username }
-    delete "#{root_path}/:username/preferences/user_image" => "users#destroy_user_image", constraints: { username: RouteFormat.username }
-    put "#{root_path}/:username/preferences/avatar/pick" => "users#pick_avatar", constraints: { username: RouteFormat.username }
-    put "#{root_path}/:username/preferences/avatar/select" => "users#select_avatar", constraints: { username: RouteFormat.username }
-    post "#{root_path}/:username/preferences/revoke-account" => "users#revoke_account", constraints: { username: RouteFormat.username }
-    post "#{root_path}/:username/preferences/revoke-auth-token" => "users#revoke_auth_token", constraints: { username: RouteFormat.username }
-    get "#{root_path}/:username/staff-info" => "users#staff_info", constraints: { username: RouteFormat.username }
-    get "#{root_path}/:username/summary" => "users#summary", constraints: { username: RouteFormat.username }
-    get "#{root_path}/:username/invited" => "users#invited", constraints: { username: RouteFormat.username }
-    get "#{root_path}/:username/invited_count" => "users#invited_count", constraints: { username: RouteFormat.username }
-    get "#{root_path}/:username/invited/:filter" => "users#invited", constraints: { username: RouteFormat.username }
+    get "#{root_path}/:username.json" => "users#show", constraints: {username: RouteFormat.username}, defaults: {format: :json}
+    get({"#{root_path}/:username" => "users#show", constraints: {username: RouteFormat.username, format: /(json|html)/}}.merge(index == 1 ? {as: 'user'} : {}))
+    put "#{root_path}/:username" => "users#update", constraints: {username: RouteFormat.username, format: /(json|html)/}, defaults: {format: :json}
+    get "#{root_path}/:username/emails" => "users#check_emails", constraints: {username: RouteFormat.username}
+    get({"#{root_path}/:username/preferences" => "users#preferences", constraints: {username: RouteFormat.username}}.merge(index == 1 ? {as: :email_preferences} : {}))
+    get "#{root_path}/:username/preferences/email" => "users_email#index", constraints: {username: RouteFormat.username}
+    get "#{root_path}/:username/preferences/account" => "users#preferences", constraints: {username: RouteFormat.username}
+    get "#{root_path}/:username/preferences/profile" => "users#preferences", constraints: {username: RouteFormat.username}
+    get "#{root_path}/:username/preferences/emails" => "users#preferences", constraints: {username: RouteFormat.username}
+    get "#{root_path}/:username/preferences/notifications" => "users#preferences", constraints: {username: RouteFormat.username}
+    get "#{root_path}/:username/preferences/categories" => "users#preferences", constraints: {username: RouteFormat.username}
+    get "#{root_path}/:username/preferences/tags" => "users#preferences", constraints: {username: RouteFormat.username}
+    get "#{root_path}/:username/preferences/interface" => "users#preferences", constraints: {username: RouteFormat.username}
+    get "#{root_path}/:username/preferences/apps" => "users#preferences", constraints: {username: RouteFormat.username}
+    put "#{root_path}/:username/preferences/email" => "users_email#update", constraints: {username: RouteFormat.username}
+    get "#{root_path}/:username/preferences/about-me" => "users#preferences", constraints: {username: RouteFormat.username}
+    get "#{root_path}/:username/preferences/badge_title" => "users#preferences", constraints: {username: RouteFormat.username}
+    put "#{root_path}/:username/preferences/badge_title" => "users#badge_title", constraints: {username: RouteFormat.username}
+    get "#{root_path}/:username/preferences/username" => "users#preferences", constraints: {username: RouteFormat.username}
+    put "#{root_path}/:username/preferences/username" => "users#username", constraints: {username: RouteFormat.username}
+    get "#{root_path}/:username/preferences/second-factor" => "users#preferences", constraints: {username: RouteFormat.username}
+    get "#{root_path}/:username/preferences/second-factor-backup" => "users#preferences", constraints: {username: RouteFormat.username}
+    delete "#{root_path}/:username/preferences/user_image" => "users#destroy_user_image", constraints: {username: RouteFormat.username}
+    put "#{root_path}/:username/preferences/avatar/pick" => "users#pick_avatar", constraints: {username: RouteFormat.username}
+    put "#{root_path}/:username/preferences/avatar/select" => "users#select_avatar", constraints: {username: RouteFormat.username}
+    post "#{root_path}/:username/preferences/revoke-account" => "users#revoke_account", constraints: {username: RouteFormat.username}
+    post "#{root_path}/:username/preferences/revoke-auth-token" => "users#revoke_auth_token", constraints: {username: RouteFormat.username}
+    get "#{root_path}/:username/staff-info" => "users#staff_info", constraints: {username: RouteFormat.username}
+    get "#{root_path}/:username/summary" => "users#summary", constraints: {username: RouteFormat.username}
+    get "#{root_path}/:username/invited" => "users#invited", constraints: {username: RouteFormat.username}
+    get "#{root_path}/:username/invited_count" => "users#invited_count", constraints: {username: RouteFormat.username}
+    get "#{root_path}/:username/invited/:filter" => "users#invited", constraints: {username: RouteFormat.username}
     post "#{root_path}/action/send_activation_email" => "users#send_activation_email"
-    get "#{root_path}/:username/summary" => "users#show", constraints: { username: RouteFormat.username }
-    get "#{root_path}/:username/activity/topics.rss" => "list#user_topics_feed", format: :rss, constraints: { username: RouteFormat.username }
-    get "#{root_path}/:username/activity.rss" => "posts#user_posts_feed", format: :rss, constraints: { username: RouteFormat.username }
-    get "#{root_path}/:username/activity.json" => "posts#user_posts_feed", format: :json, constraints: { username: RouteFormat.username }
-    get "#{root_path}/:username/activity" => "users#show", constraints: { username: RouteFormat.username }
-    get "#{root_path}/:username/activity/:filter" => "users#show", constraints: { username: RouteFormat.username }
-    get "#{root_path}/:username/badges" => "users#badges", constraints: { username: RouteFormat.username }
-    get "#{root_path}/:username/notifications" => "users#show", constraints: { username: RouteFormat.username }
-    get "#{root_path}/:username/notifications/:filter" => "users#show", constraints: { username: RouteFormat.username }
-    get "#{root_path}/:username/activity/pending" => "users#show", constraints: { username: RouteFormat.username }
-    delete "#{root_path}/:username" => "users#destroy", constraints: { username: RouteFormat.username, format: /(json|html)/ }
-    get "#{root_path}/by-external/:external_id" => "users#show", constraints: { external_id: /[^\/]+/ }
-    get "#{root_path}/:username/flagged-posts" => "users#show", constraints: { username: RouteFormat.username }
-    get "#{root_path}/:username/deleted-posts" => "users#show", constraints: { username: RouteFormat.username }
-    get "#{root_path}/:username/topic-tracking-state" => "users#topic_tracking_state", constraints: { username: RouteFormat.username }
+    get "#{root_path}/:username/summary" => "users#show", constraints: {username: RouteFormat.username}
+    get "#{root_path}/:username/activity/topics.rss" => "list#user_topics_feed", format: :rss, constraints: {username: RouteFormat.username}
+    get "#{root_path}/:username/activity.rss" => "posts#user_posts_feed", format: :rss, constraints: {username: RouteFormat.username}
+    get "#{root_path}/:username/activity.json" => "posts#user_posts_feed", format: :json, constraints: {username: RouteFormat.username}
+    get "#{root_path}/:username/activity" => "users#show", constraints: {username: RouteFormat.username}
+    get "#{root_path}/:username/activity/:filter" => "users#show", constraints: {username: RouteFormat.username}
+    get "#{root_path}/:username/badges" => "users#badges", constraints: {username: RouteFormat.username}
+    get "#{root_path}/:username/notifications" => "users#show", constraints: {username: RouteFormat.username}
+    get "#{root_path}/:username/notifications/:filter" => "users#show", constraints: {username: RouteFormat.username}
+    get "#{root_path}/:username/activity/pending" => "users#show", constraints: {username: RouteFormat.username}
+    delete "#{root_path}/:username" => "users#destroy", constraints: {username: RouteFormat.username, format: /(json|html)/}
+    get "#{root_path}/by-external/:external_id" => "users#show", constraints: {external_id: /[^\/]+/}
+    get "#{root_path}/:username/flagged-posts" => "users#show", constraints: {username: RouteFormat.username}
+    get "#{root_path}/:username/deleted-posts" => "users#show", constraints: {username: RouteFormat.username}
+    get "#{root_path}/:username/topic-tracking-state" => "users#topic_tracking_state", constraints: {username: RouteFormat.username}
     get "#{root_path}/:username/profile-hidden" => "users#profile_hidden"
   end
 
-  get "user-badges/:username.json" => "user_badges#username", constraints: { username: RouteFormat.username }, defaults: { format: :json }
-  get "user-badges/:username" => "user_badges#username", constraints: { username: RouteFormat.username, format: /(json|html)/ }
+  get "user-badges/:username.json" => "user_badges#username", constraints: {username: RouteFormat.username}, defaults: {format: :json}
+  get "user-badges/:username" => "user_badges#username", constraints: {username: RouteFormat.username, format: /(json|html)/}
 
-  post "user_avatar/:username/refresh_gravatar" => "user_avatars#refresh_gravatar", constraints: { username: RouteFormat.username }
-  get "letter_avatar/:username/:size/:version.png" => "user_avatars#show_letter", format: false, constraints: { hostname: /[\w\.-]+/, size: /\d+/, username: RouteFormat.username }
-  get "user_avatar/:hostname/:username/:size/:version.png" => "user_avatars#show", format: false, constraints: { hostname: /[\w\.-]+/, size: /\d+/, username: RouteFormat.username }
+  post "user_avatar/:username/refresh_gravatar" => "user_avatars#refresh_gravatar", constraints: {username: RouteFormat.username}
+  get "letter_avatar/:username/:size/:version.png" => "user_avatars#show_letter", format: false, constraints: {hostname: /[\w\.-]+/, size: /\d+/, username: RouteFormat.username}
+  get "user_avatar/:hostname/:username/:size/:version.png" => "user_avatars#show", format: false, constraints: {hostname: /[\w\.-]+/, size: /\d+/, username: RouteFormat.username}
 
   get "letter_avatar_proxy/:version/letter/:letter/:color/:size.png" => "user_avatars#show_proxy_letter"
 
-  get "svg-sprite/:hostname/svg-:version.js" => "svg_sprite#show", format: false, constraints: { hostname: /[\w\.-]+/, version: /\h{40}/ }
-  get "svg-sprite/search/:keyword" => "svg_sprite#search", format: false, constraints: { keyword: /[-a-z0-9\s\%]+/ }
+  get "svg-sprite/:hostname/svg-:version.js" => "svg_sprite#show", format: false, constraints: {hostname: /[\w\.-]+/, version: /\h{40}/}
+  get "svg-sprite/search/:keyword" => "svg_sprite#search", format: false, constraints: {keyword: /[-a-z0-9\s\%]+/}
 
-  get "highlight-js/:hostname/:version.js" => "highlight_js#show", format: false, constraints: { hostname: /[\w\.-]+/ }
+  get "highlight-js/:hostname/:version.js" => "highlight_js#show", format: false, constraints: {hostname: /[\w\.-]+/}
 
-  get "stylesheets/:name.css.map" => "stylesheets#show_source_map", constraints: { name: /[-a-z0-9_]+/ }
-  get "stylesheets/:name.css" => "stylesheets#show", constraints: { name: /[-a-z0-9_]+/ }
-  get "theme-javascripts/:digest.js" => "theme_javascripts#show", constraints: { digest: /\h{40}/ }
+  get "stylesheets/:name.css.map" => "stylesheets#show_source_map", constraints: {name: /[-a-z0-9_]+/}
+  get "stylesheets/:name.css" => "stylesheets#show", constraints: {name: /[-a-z0-9_]+/}
+  get "theme-javascripts/:digest.js" => "theme_javascripts#show", constraints: {digest: /\h{40}/}
 
   post "uploads" => "uploads#create"
   post "uploads/lookup-urls" => "uploads#lookup_urls"
 
-  # used to download original images
-  get "uploads/:site/:sha(.:extension)" => "uploads#show", constraints: { site: /\w+/, sha: /\h{40}/, extension: /[a-z0-9\.]+/i }
-  # used to download attachments
-  get "uploads/:site/original/:tree:sha(.:extension)" => "uploads#show", constraints: { site: /\w+/, tree: /([a-z0-9]+\/)+/i, sha: /\h{40}/, extension: /[a-z0-9\.]+/i }
-  # used to download attachments (old route)
-  get "uploads/:site/:id/:sha" => "uploads#show", constraints: { site: /\w+/, id: /\d+/, sha: /\h{16}/ }
+# used to download original images
+  get "uploads/:site/:sha(.:extension)" => "uploads#show", constraints: {site: /\w+/, sha: /\h{40}/, extension: /[a-z0-9\.]+/i}
+# used to download attachments
+  get "uploads/:site/original/:tree:sha(.:extension)" => "uploads#show", constraints: {site: /\w+/, tree: /([a-z0-9]+\/)+/i, sha: /\h{40}/, extension: /[a-z0-9\.]+/i}
+# used to download attachments (old route)
+  get "uploads/:site/:id/:sha" => "uploads#show", constraints: {site: /\w+/, id: /\d+/, sha: /\h{16}/}
 
   get "posts" => "posts#latest", id: "latest_posts"
   get "private-posts" => "posts#latest", id: "private_posts"
   get "posts/by_number/:topic_id/:post_number" => "posts#by_number"
   get "posts/by-date/:topic_id/:date" => "posts#by_date"
   get "posts/:id/reply-history" => "posts#reply_history"
-  get "posts/:id/reply-ids"     => "posts#reply_ids"
+  get "posts/:id/reply-ids" => "posts#reply_ids"
   get "posts/:id/reply-ids/all" => "posts#all_reply_ids"
-  get "posts/:username/deleted" => "posts#deleted_posts", constraints: { username: RouteFormat.username }
-  get "posts/:username/flagged" => "posts#flagged_posts", constraints: { username: RouteFormat.username }
+  get "posts/:username/deleted" => "posts#deleted_posts", constraints: {username: RouteFormat.username}
+  get "posts/:username/flagged" => "posts#flagged_posts", constraints: {username: RouteFormat.username}
 
   resources :groups, id: RouteFormat.username do
     get "posts.rss" => "groups#posts_feed", format: :rss
@@ -546,7 +524,7 @@ Discourse::Application.routes.draw do
     end
   end
 
-  # aliases so old API code works
+# aliases so old API code works
   delete "admin/groups/:id/members" => "groups#remove_member", constraints: AdminConstraint.new
   put "admin/groups/:id/members" => "groups#add_members", constraints: AdminConstraint.new
 
@@ -559,10 +537,10 @@ Discourse::Application.routes.draw do
     put "locked"
     get "replies"
     get "revisions/latest" => "posts#latest_revision"
-    get "revisions/:revision" => "posts#revisions", constraints: { revision: /\d+/ }
-    put "revisions/:revision/hide" => "posts#hide_revision", constraints: { revision: /\d+/ }
-    put "revisions/:revision/show" => "posts#show_revision", constraints: { revision: /\d+/ }
-    put "revisions/:revision/revert" => "posts#revert", constraints: { revision: /\d+/ }
+    get "revisions/:revision" => "posts#revisions", constraints: {revision: /\d+/}
+    put "revisions/:revision/hide" => "posts#hide_revision", constraints: {revision: /\d+/}
+    put "revisions/:revision/show" => "posts#show_revision", constraints: {revision: /\d+/}
+    put "revisions/:revision/revert" => "posts#revert", constraints: {revision: /\d+/}
     put "recover"
     collection do
       delete "destroy_many"
@@ -621,7 +599,7 @@ Discourse::Application.routes.draw do
   get "c/:parent_category/:category.rss" => "list#category_feed", format: :rss
   get "c/:category" => "list#category_default", as: "category_default"
   get "c/:category/none" => "list#category_none_latest"
-  get "c/:parent_category/:category/(:id)" => "list#parent_category_category_latest", constraints: { id: /\d+/ }
+  get "c/:parent_category/:category/(:id)" => "list#parent_category_category_latest", constraints: {id: /\d+/}
   get "c/:category/l/top" => "list#category_top", as: "category_top"
   get "c/:category/none/l/top" => "list#category_none_top", as: "category_none_top"
   get "c/:parent_category/:category/l/top" => "list#parent_category_category_top", as: "parent_category_category_top"
@@ -641,7 +619,7 @@ Discourse::Application.routes.draw do
   end
 
   Discourse.filters.each do |filter|
-    get "#{filter}" => "list##{filter}", constraints: { format: /(json|html)/ }
+    get "#{filter}" => "list##{filter}", constraints: {format: /(json|html)/}
     get "c/:category/l/#{filter}" => "list#category_#{filter}", as: "category_#{filter}"
     get "c/:category/none/l/#{filter}" => "list#category_none_#{filter}", as: "category_none_#{filter}"
     get "c/:parent_category/:category/l/#{filter}" => "list#parent_category_category_#{filter}", as: "parent_category_category_#{filter}"
@@ -654,7 +632,7 @@ Discourse::Application.routes.draw do
   get "search" => "search#show"
   post "search/click" => "search#click"
 
-  # Topics resource
+# Topics resource
   get "t/:id" => "topics#show"
   put "t/:id" => "topics#update"
   delete "t/:id" => "topics#destroy"
@@ -674,11 +652,11 @@ Discourse::Application.routes.draw do
   get "topics/feature_stats"
 
   scope "/topics", username: RouteFormat.username do
-    get "created-by/:username" => "list#topics_by", as: "topics_by", constraints: { format: /(json|html)/ }, defaults: { format: :json }
-    get "private-messages/:username" => "list#private_messages", as: "topics_private_messages", constraints: { format: /(json|html)/ }, defaults: { format: :json }
-    get "private-messages-sent/:username" => "list#private_messages_sent", as: "topics_private_messages_sent", constraints: { format: /(json|html)/ }, defaults: { format: :json }
-    get "private-messages-archive/:username" => "list#private_messages_archive", as: "topics_private_messages_archive", constraints: { format: /(json|html)/ }, defaults: { format: :json }
-    get "private-messages-unread/:username" => "list#private_messages_unread", as: "topics_private_messages_unread", constraints: { format: /(json|html)/ }, defaults: { format: :json }
+    get "created-by/:username" => "list#topics_by", as: "topics_by", constraints: {format: /(json|html)/}, defaults: {format: :json}
+    get "private-messages/:username" => "list#private_messages", as: "topics_private_messages", constraints: {format: /(json|html)/}, defaults: {format: :json}
+    get "private-messages-sent/:username" => "list#private_messages_sent", as: "topics_private_messages_sent", constraints: {format: /(json|html)/}, defaults: {format: :json}
+    get "private-messages-archive/:username" => "list#private_messages_archive", as: "topics_private_messages_archive", constraints: {format: /(json|html)/}, defaults: {format: :json}
+    get "private-messages-unread/:username" => "list#private_messages_unread", as: "topics_private_messages_unread", constraints: {format: /(json|html)/}, defaults: {format: :json}
     get "private-messages-tags/:username/:tag_id.json" => "list#private_messages_tag", as: "topics_private_messages_tag", constraints: StaffConstraint.new
     get "groups/:group_name" => "list#group_topics", as: "group_topics", group_name: RouteFormat.username
 
@@ -695,50 +673,50 @@ Discourse::Application.routes.draw do
   get "new-topic" => "list#latest"
   get "new-message" => "list#latest"
 
-  # Topic routes
+# Topic routes
   get "t/id_for/:slug" => "topics#id_for_slug"
-  get "t/:slug/:topic_id/print" => "topics#show", format: :html, print: true, constraints: { topic_id: /\d+/ }
-  get "t/:slug/:topic_id/wordpress" => "topics#wordpress", constraints: { topic_id: /\d+/ }
-  get "t/:topic_id/wordpress" => "topics#wordpress", constraints: { topic_id: /\d+/ }
-  get "t/:slug/:topic_id/moderator-liked" => "topics#moderator_liked", constraints: { topic_id: /\d+/ }
-  get "t/:slug/:topic_id/summary" => "topics#show", defaults: { summary: true }, constraints: { topic_id: /\d+/ }
-  get "t/:topic_id/summary" => "topics#show", constraints: { topic_id: /\d+/ }
-  put "t/:slug/:topic_id" => "topics#update", constraints: { topic_id: /\d+/ }
-  put "t/:slug/:topic_id/star" => "topics#star", constraints: { topic_id: /\d+/ }
-  put "t/:topic_id/star" => "topics#star", constraints: { topic_id: /\d+/ }
-  put "t/:slug/:topic_id/status" => "topics#status", constraints: { topic_id: /\d+/ }
-  put "t/:topic_id/status" => "topics#status", constraints: { topic_id: /\d+/ }
-  put "t/:topic_id/clear-pin" => "topics#clear_pin", constraints: { topic_id: /\d+/ }
-  put "t/:topic_id/re-pin" => "topics#re_pin", constraints: { topic_id: /\d+/ }
-  put "t/:topic_id/mute" => "topics#mute", constraints: { topic_id: /\d+/ }
-  put "t/:topic_id/unmute" => "topics#unmute", constraints: { topic_id: /\d+/ }
-  post "t/:topic_id/timer" => "topics#timer", constraints: { topic_id: /\d+/ }
-  put "t/:topic_id/make-banner" => "topics#make_banner", constraints: { topic_id: /\d+/ }
-  put "t/:topic_id/remove-banner" => "topics#remove_banner", constraints: { topic_id: /\d+/ }
-  put "t/:topic_id/remove-allowed-user" => "topics#remove_allowed_user", constraints: { topic_id: /\d+/ }
-  put "t/:topic_id/remove-allowed-group" => "topics#remove_allowed_group", constraints: { topic_id: /\d+/ }
-  put "t/:topic_id/recover" => "topics#recover", constraints: { topic_id: /\d+/ }
-  get "t/:topic_id/:post_number" => "topics#show", constraints: { topic_id: /\d+/, post_number: /\d+/ }
-  get "t/:topic_id/last" => "topics#show", post_number: 99999999, constraints: { topic_id: /\d+/ }
-  get "t/:slug/:topic_id.rss" => "topics#feed", format: :rss, constraints: { topic_id: /\d+/ }
-  get "t/:slug/:topic_id" => "topics#show", constraints: { topic_id: /\d+/ }
-  get "t/:slug/:topic_id/:post_number" => "topics#show", constraints: { topic_id: /\d+/, post_number: /\d+/ }
-  get "t/:slug/:topic_id/last" => "topics#show", post_number: 99999999, constraints: { topic_id: /\d+/ }
-  get "t/:topic_id/posts" => "topics#posts", constraints: { topic_id: /\d+/ }, format: :json
-  get "t/:topic_id/post_ids" => "topics#post_ids", constraints: { topic_id: /\d+/ }, format: :json
-  get "t/:topic_id/excerpts" => "topics#excerpts", constraints: { topic_id: /\d+/ }, format: :json
-  post "t/:topic_id/timings" => "topics#timings", constraints: { topic_id: /\d+/ }
-  post "t/:topic_id/invite" => "topics#invite", constraints: { topic_id: /\d+/ }
-  post "t/:topic_id/invite-group" => "topics#invite_group", constraints: { topic_id: /\d+/ }
-  post "t/:topic_id/move-posts" => "topics#move_posts", constraints: { topic_id: /\d+/ }
-  post "t/:topic_id/merge-topic" => "topics#merge_topic", constraints: { topic_id: /\d+/ }
-  post "t/:topic_id/change-owner" => "topics#change_post_owners", constraints: { topic_id: /\d+/ }
-  put "t/:topic_id/change-timestamp" => "topics#change_timestamps", constraints: { topic_id: /\d+/ }
-  delete "t/:topic_id/timings" => "topics#destroy_timings", constraints: { topic_id: /\d+/ }
-  put "t/:topic_id/bookmark" => "topics#bookmark", constraints: { topic_id: /\d+/ }
-  put "t/:topic_id/remove_bookmarks" => "topics#remove_bookmarks", constraints: { topic_id: /\d+/ }
+  get "t/:slug/:topic_id/print" => "topics#show", format: :html, print: true, constraints: {topic_id: /\d+/}
+  get "t/:slug/:topic_id/wordpress" => "topics#wordpress", constraints: {topic_id: /\d+/}
+  get "t/:topic_id/wordpress" => "topics#wordpress", constraints: {topic_id: /\d+/}
+  get "t/:slug/:topic_id/moderator-liked" => "topics#moderator_liked", constraints: {topic_id: /\d+/}
+  get "t/:slug/:topic_id/summary" => "topics#show", defaults: {summary: true}, constraints: {topic_id: /\d+/}
+  get "t/:topic_id/summary" => "topics#show", constraints: {topic_id: /\d+/}
+  put "t/:slug/:topic_id" => "topics#update", constraints: {topic_id: /\d+/}
+  put "t/:slug/:topic_id/star" => "topics#star", constraints: {topic_id: /\d+/}
+  put "t/:topic_id/star" => "topics#star", constraints: {topic_id: /\d+/}
+  put "t/:slug/:topic_id/status" => "topics#status", constraints: {topic_id: /\d+/}
+  put "t/:topic_id/status" => "topics#status", constraints: {topic_id: /\d+/}
+  put "t/:topic_id/clear-pin" => "topics#clear_pin", constraints: {topic_id: /\d+/}
+  put "t/:topic_id/re-pin" => "topics#re_pin", constraints: {topic_id: /\d+/}
+  put "t/:topic_id/mute" => "topics#mute", constraints: {topic_id: /\d+/}
+  put "t/:topic_id/unmute" => "topics#unmute", constraints: {topic_id: /\d+/}
+  post "t/:topic_id/timer" => "topics#timer", constraints: {topic_id: /\d+/}
+  put "t/:topic_id/make-banner" => "topics#make_banner", constraints: {topic_id: /\d+/}
+  put "t/:topic_id/remove-banner" => "topics#remove_banner", constraints: {topic_id: /\d+/}
+  put "t/:topic_id/remove-allowed-user" => "topics#remove_allowed_user", constraints: {topic_id: /\d+/}
+  put "t/:topic_id/remove-allowed-group" => "topics#remove_allowed_group", constraints: {topic_id: /\d+/}
+  put "t/:topic_id/recover" => "topics#recover", constraints: {topic_id: /\d+/}
+  get "t/:topic_id/:post_number" => "topics#show", constraints: {topic_id: /\d+/, post_number: /\d+/}
+  get "t/:topic_id/last" => "topics#show", post_number: 99999999, constraints: {topic_id: /\d+/}
+  get "t/:slug/:topic_id.rss" => "topics#feed", format: :rss, constraints: {topic_id: /\d+/}
+  get "t/:slug/:topic_id" => "topics#show", constraints: {topic_id: /\d+/}
+  get "t/:slug/:topic_id/:post_number" => "topics#show", constraints: {topic_id: /\d+/, post_number: /\d+/}
+  get "t/:slug/:topic_id/last" => "topics#show", post_number: 99999999, constraints: {topic_id: /\d+/}
+  get "t/:topic_id/posts" => "topics#posts", constraints: {topic_id: /\d+/}, format: :json
+  get "t/:topic_id/post_ids" => "topics#post_ids", constraints: {topic_id: /\d+/}, format: :json
+  get "t/:topic_id/excerpts" => "topics#excerpts", constraints: {topic_id: /\d+/}, format: :json
+  post "t/:topic_id/timings" => "topics#timings", constraints: {topic_id: /\d+/}
+  post "t/:topic_id/invite" => "topics#invite", constraints: {topic_id: /\d+/}
+  post "t/:topic_id/invite-group" => "topics#invite_group", constraints: {topic_id: /\d+/}
+  post "t/:topic_id/move-posts" => "topics#move_posts", constraints: {topic_id: /\d+/}
+  post "t/:topic_id/merge-topic" => "topics#merge_topic", constraints: {topic_id: /\d+/}
+  post "t/:topic_id/change-owner" => "topics#change_post_owners", constraints: {topic_id: /\d+/}
+  put "t/:topic_id/change-timestamp" => "topics#change_timestamps", constraints: {topic_id: /\d+/}
+  delete "t/:topic_id/timings" => "topics#destroy_timings", constraints: {topic_id: /\d+/}
+  put "t/:topic_id/bookmark" => "topics#bookmark", constraints: {topic_id: /\d+/}
+  put "t/:topic_id/remove_bookmarks" => "topics#remove_bookmarks", constraints: {topic_id: /\d+/}
 
-  post "t/:topic_id/notifications" => "topics#set_notifications" , constraints: { topic_id: /\d+/ }
+  post "t/:topic_id/notifications" => "topics#set_notifications", constraints: {topic_id: /\d+/}
 
   get "p/:post_id(/:user_id)" => "posts#short_link"
   get "/posts/:id/cooked" => "posts#cooked"
@@ -838,9 +816,9 @@ Discourse::Application.routes.draw do
   Discourse.filters.each do |filter|
     root to: "list##{filter}", constraints: HomePageConstraint.new("#{filter}"), as: "list_#{filter}"
   end
-  # special case for categories
+# special case for categories
   root to: "categories#index", constraints: HomePageConstraint.new("categories"), as: "categories_index"
-  # special case for top
+# special case for top
   root to: "list#top", constraints: HomePageConstraint.new("top"), as: "top_lists"
 
   root to: 'finish_installation#index', constraints: HomePageConstraint.new("finish_installation"), as: 'installation_redirect'
@@ -868,3 +846,5 @@ Discourse::Application.routes.draw do
   get "*url", to: 'permalinks#show', constraints: PermalinkConstraint.new
 
 end
+
+

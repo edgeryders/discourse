@@ -1,0 +1,73 @@
+<% content_for :javascript do %>
+  <%= stylesheet_link_tag "annotator_store/application", media: "all" %>
+  <%= javascript_include_tag "annotator_store/application" %>
+  <%= render 'annotator/lib/annotate_js', current_user: @current_user %>
+<% end %>
+
+<% content_for :stylesheet do %>
+  <style type="text/css">
+    <% tags = AnnotatorStore::Annotation.where(post_id: @topic_view.posts.map(&:id)).where.not(creator_id: @current_user.id) %>
+    <% if tags.present? %>
+    <%= tags.map {|tag| "[data-annotation-id=\"#{tag.id}\"]"}.join(', ').html_safe + "{ background-color: rgba(182, 223, 236, 0.3) !important; }" %>
+    <% end %>
+  </style>
+<% end %>
+
+
+
+<header class="main-content__header" role="banner">
+  <h1 class="main-content__page-title" id="page-title">
+    <%= @topic_view.topic.title %>
+  </h1>
+  <div></div>
+</header>
+
+<section class="main-content__body">
+
+  <% @topic_view.posts.each do |post| %>
+    <div id="post-<%= post.id %>">
+      <% if (u = post.user) %>
+        <div class='creator'>
+        <span>
+          <a href='<%= Discourse.base_uri %>/u/<%= u.username %>'><b itemprop='author'><%= u.username %></b></a>
+          <%= "(#{u.name})" if (SiteSetting.display_name_on_posts && SiteSetting.enable_names? && !u.name.blank?) %>
+          <% who_username = post.custom_fields["action_code_who"] || "" %>
+          <% if post.action_code %>
+            <%= t("js.action_codes.#{post.action_code}", when: "", who: who_username).html_safe %>
+          <% end %>
+          <time datetime='<%= post.created_at.to_formatted_s(:iso8601) %>' itemprop='datePublished'>
+            <%= post.created_at %>
+          </time>
+        </span>
+          <span itemprop='position'>#<%= post.post_number %></span>
+        </div>
+        <div class='post' itemprop='articleBody'>
+          <% if post.hidden? %>
+            <%= t('flagging.user_must_edit').html_safe %>
+          <% else %>
+            <%= markdown(post.raw) %>
+          <% end %>
+        </div>
+        <hr>
+      <% end %>
+    </div>
+
+    <script>
+        loadAnnotator('#post-<%= post.id %> > .post', '/post/<%= post.id %>');
+    </script>
+  <% end %>
+
+
+  <% if @topic_view.prev_page || @topic_view.next_page %>
+    <div role='navigation' itemscope itemtype='http://schema.org/SiteNavigationElement'>
+      <% if @topic_view.prev_page %>
+        <span itemprop='url'><%= link_to t(:prev_page), annotator_topic_path(@topic_view.topic.id, page: @topic_view.prev_page), rel: 'prev', itemprop: 'name' %></span>
+      <% end %>
+      <% if @topic_view.next_page %>
+        <span itemprop='url'><b><%= link_to t(:next_page), annotator_topic_path(@topic_view.topic.id, page: @topic_view.next_page), rel: 'next', itemprop: 'name' %></b></span>
+      <% end %>
+    </div>
+  <% end %>
+
+</section>
+

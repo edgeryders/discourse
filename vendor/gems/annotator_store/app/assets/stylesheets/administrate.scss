@@ -1,0 +1,23 @@
+//@import "vendor/select2";
+
+
+.annotator-filter-nav {
+  margin: 0 0 20px 40px;
+  a {
+    margin-right: 10px;
+    font-size: 80%;
+    &.active {
+      color: #333;
+      text-decoration: none;
+    }
+  }
+}
+
+tbody tr:hover {
+  background-color: transparent;
+  cursor: inherit;
+}
+tbody tr:focus {
+  outline: none;
+  outline-offset: -3px;
+}
