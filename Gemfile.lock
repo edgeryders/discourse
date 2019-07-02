@@ -617,7 +617,6 @@ DEPENDENCIES
   hiredis
   htmlentities
   http_accept_language (~> 2.0.5)
-  kaminari
   listen
   lograge
   logstash-event

@@ -19,7 +19,7 @@ Rails.application.routes.draw do
       # Annotations Endpoint
       resources :annotations, only: [:index, :show], defaults: {format: :html}, constraints: {format: :html}
 
-      resources :annotations, only: [:create, :show, :edit, :update, :destroy], defaults: {format: :json}, constraints: {format: :json} do
+      resources :annotations, only: [:index, :create, :show, :edit, :update, :destroy], defaults: {format: :json}, constraints: {format: :json} do
         match '/', to: 'annotations#options', via: [:options], on: :collection
         match '/', to: 'annotations#options', via: [:options], on: :member
       end
