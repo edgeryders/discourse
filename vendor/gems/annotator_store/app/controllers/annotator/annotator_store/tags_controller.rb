@@ -14,8 +14,9 @@ class Annotator::AnnotatorStore::TagsController < Annotator::ApplicationControll
             end
 
     scope = scope.where(creator_id: params[:creator_id]) if params[:creator_id].present?
+    scope = scope.joins(:names).where(annotator_store_tag_names: {name: params[:search] }) if params[:search].present?
 
-    search_term = params[:search].to_s.strip
+    search_term = ''# params[:search].to_s.strip
     resources = Administrate::Search.new(scope, dashboard_class, search_term).run
     resources = apply_resource_includes(resources)
     resources = params[:search].present? ? order.apply(resources) : resources.order(updated_at: :desc)

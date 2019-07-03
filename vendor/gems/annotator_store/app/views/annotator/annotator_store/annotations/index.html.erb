@@ -37,57 +37,24 @@ It renders the `_table` partial to display details about the resources.
   </h1>
 
   <% if show_search_bar %>
-    <%= render(
-          'search',
-          search_term: search_term,
-          resource_name: 'Annotations'
-        ) %>
+    <%= render('search', search_term: search_term, resource_name: 'Annotations') %>
   <% end %>
 </header>
 
 <section class="main-content__body main-content__body--flush">
-  <% if params[:search].present? %>
-    <%= render(
-          "collection",
-          collection_presenter: page,
-          collection_field_name: resource_name,
-          page: page,
-          resources: resources,
-          table_title: "page-title"
-        ) %>
-  <% else %>
-    <style type="text/css">
-      .filter-nav {
-        margin: 0 0 20px 40px;
-      }
 
-      .filter-nav a {
-        margin-right: 10px;
-        font-size: 80%;
-      }
+  <div class="annotator-filter-nav">
+    <%= render '/lib/filter_creator', users: User.where(id: AnnotatorStore::Annotation.select(:creator_id).uniq.pluck(:creator_id)).order(:name) %>
+  </div>
 
-      .filter-nav a.active {
-        color: #333;
-        text-decoration: none;
-      }
-    </style>
+  <%= render(
+        "collection",
+        collection_presenter: page,
+        collection_field_name: resource_name,
+        page: page,
+        resources: resources,
+        table_title: "page-title"
+      ) %>
 
-    <div class="filter-nav">
-      <%= link_to 'Any Creator', params.to_unsafe_h.except(:page).deep_merge(creator_id: nil), class: (params[:creator_id].present? ? '' : 'active') %>
-      <% User.where(id: AnnotatorStore::Annotation.select(:creator_id).uniq.pluck(:creator_id)).order(:name).each do |model| %>
-        <%= link_to "by #{model.username}", params.to_unsafe_h.except(:page).deep_merge(creator_id: model.id), class: (params[:creator_id] == model.id.to_s ? 'active' : '') %>
-      <% end %>
-    </div>
-
-    <%= render(
-          "collection",
-          collection_presenter: page,
-          collection_field_name: resource_name,
-          page: page,
-          resources: resources,
-          table_title: "page-title"
-        ) %>
-
-  <% end %>
   <%= paginate resources %>
 </section>
