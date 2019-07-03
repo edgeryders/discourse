@@ -1,9 +1,11 @@
-require_dependency "staff_constraint"
+require_dependency "annotator_constraint"
 
 
 Rails.application.routes.draw do
 
-  namespace :annotator, constraints: StaffConstraint.new  do
+  namespace :annotator, constraints: AnnotatorConstraint.new  do
+
+    root to: 'application#front'
     resources :topics, only: [:index, :show]
     resources :videos, only: [:show]
 

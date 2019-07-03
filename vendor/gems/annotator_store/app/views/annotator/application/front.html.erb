@@ -1,0 +1,23 @@
+<header class="main-content__header" role="banner">
+  <h1 class="main-content__page-title">
+    Overview
+  </h1>
+</header>
+
+<section class="main-content__body">
+  <div>
+    <h3 style="margin-bottom:.4rem;">Topics most recently annotated by you</h3>
+    <% annotations = AnnotatorStore::Annotation.where(creator_id: current_user.id).order(created_at: :desc).limit(20) %>
+    <% # @todo Use a DB query instead
+      topics = annotations.map {|a| a.post&.topic }.uniq.compact
+    %>
+
+    <% if topics.each do |t| %>
+      <div style="margin-bottom:.4rem;">
+        <%= link_to t.title, annotator_topic_path(t) %>
+      </div>
+    <% end.blank? %>
+      No topics
+    <% end %>
+  </div>
+</section>

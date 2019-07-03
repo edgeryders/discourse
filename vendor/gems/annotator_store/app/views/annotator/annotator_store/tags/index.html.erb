@@ -30,20 +30,11 @@ It renders the `_table` partial to display details about the resources.
   </h1>
 
   <% if show_search_bar %>
-    <%= render(
-          'search',
-          search_term: search_term,
-          resource_name: 'Codes'
-        ) %>
+    <%= render('search', search_term: search_term, resource_name: 'Codes') %>
   <% end %>
 
   <div>
-    <%= link_to(
-          "New Code",
-          [:new, namespace, :tag],
-          class: "button"
-        )
-    %>
+    <%= link_to("New Code", [:new, namespace, :tag], class: "button") %>
   </div>
 </header>
 

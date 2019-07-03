@@ -10,6 +10,10 @@ class Annotator::ApplicationController < Administrate::ApplicationController
   before_action :set_headers
 
 
+  def front
+  end
+
+
   def namespace
     'annotator_annotator_store'
   end

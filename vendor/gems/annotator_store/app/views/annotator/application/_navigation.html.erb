@@ -1,5 +1,10 @@
 <nav class="navigation" role="navigation">
   <%= link_to(
+              'Overview',
+              [:annotator, :root],
+              class: "navigation__link navigation__link--#{annotator_root_path == request.path ? 'active' : 'inactive'}"
+      ) %>
+  <%= link_to(
               'Codes',
               [:annotator_annotator_store, :tags],
               class: "navigation__link navigation__link--#{nav_link_state('annotator_store__tags')}"
