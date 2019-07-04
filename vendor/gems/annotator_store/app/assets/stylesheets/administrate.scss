@@ -1,7 +1,7 @@
 //@import "vendor/select2";
 
 .flash-referer {
-  display:none !important;
+  display: none !important;
 }
 
 .annotator-filter-nav {
@@ -88,4 +88,18 @@ tbody tr:hover {
 tbody tr:focus {
   outline: none;
   outline-offset: -3px;
+}
+
+
+ul {
+  list-style-type: disc;
+}
+
+ol {
+  list-style-type: decimal;
+}
+
+ul, ol {
+  margin: 0 0 5px 20px;
+  padding: 0;
 }
