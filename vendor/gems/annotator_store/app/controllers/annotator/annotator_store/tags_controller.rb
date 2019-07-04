@@ -75,7 +75,7 @@ class Annotator::AnnotatorStore::TagsController < Annotator::ApplicationControll
   def destroy
     requested_resource.destroy
     flash[:notice] = 'Code was successfully destroyed.'
-    redirect_to :back
+    redirect_to action: :index
   end
 
 
