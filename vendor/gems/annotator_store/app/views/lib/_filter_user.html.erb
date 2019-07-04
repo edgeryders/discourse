@@ -1,0 +1,18 @@
+<% any = "Any #{name}" %>
+<div class="dropdown">
+  <div class="dropdown-btn" aria-haspopup="true" role="button" tabindex="0">
+    <div class="dropdown-btn-text">
+      <%= params[filter].present? ? "#{name}: #{User.find(params[filter]).username}" : any %>
+    </div>
+    <span class="dropdown-arrow"></span>
+  </div>
+
+  <div class="dropdown-content">
+    <%= link_to any, request.query_parameters.except(:page).merge(filter => nil),
+                class: (params[filter].present? ? '' : 'active') %>
+    <% users.each do |model| %>
+      <%= link_to "#{model.username}", request.query_parameters.except(:page).merge(filter => model.id),
+                  class: (params[filter] == model.id.to_s ? 'active' : '') %>
+    <% end %>
+  </div>
+</div>

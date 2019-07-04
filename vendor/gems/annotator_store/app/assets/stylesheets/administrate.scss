@@ -1,4 +1,28 @@
-//@import "vendor/select2";
+tbody tr:hover {
+  background-color: transparent;
+  cursor: inherit;
+}
+
+tbody tr:focus {
+  outline: none;
+  outline-offset: -3px;
+}
+
+
+ul {
+  list-style-type: disc;
+}
+
+ol {
+  list-style-type: decimal;
+}
+
+ul, ol {
+  margin: 0 0 5px 20px;
+  padding: 0;
+}
+
+
 
 .flash-referer {
   display: none !important;
@@ -77,29 +101,5 @@
     }
   }
 
-
 }
 
-tbody tr:hover {
-  background-color: transparent;
-  cursor: inherit;
-}
-
-tbody tr:focus {
-  outline: none;
-  outline-offset: -3px;
-}
-
-
-ul {
-  list-style-type: disc;
-}
-
-ol {
-  list-style-type: decimal;
-}
-
-ul, ol {
-  margin: 0 0 5px 20px;
-  padding: 0;
-}

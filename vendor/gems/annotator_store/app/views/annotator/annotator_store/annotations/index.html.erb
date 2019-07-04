@@ -44,7 +44,10 @@ It renders the `_table` partial to display details about the resources.
 <section class="main-content__body main-content__body--flush">
 
   <div class="annotator-filter-nav">
-    <%= render '/lib/filter_creator', users: User.where(id: AnnotatorStore::Annotation.select(:creator_id).uniq.pluck(:creator_id)).order(:name) %>
+    <%= render '/lib/filter_user',
+               name: 'Creator',
+               filter: :creator_id,
+               users: User.where(id: AnnotatorStore::Annotation.select(:creator_id).uniq.pluck(:creator_id)).order(:name) %>
   </div>
 
   <%= render(
