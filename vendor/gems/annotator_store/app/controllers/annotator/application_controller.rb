@@ -6,7 +6,7 @@ class Annotator::ApplicationController < Administrate::ApplicationController
   protect_from_forgery prepend: true
 
   before_action :ensure_logged_in
-  before_action :ensure_staff
+  before_action :ensure_staff_or_annotator_group_member
   before_action :set_headers
 
 
@@ -40,6 +40,10 @@ class Annotator::ApplicationController < Administrate::ApplicationController
 
   def ensure_admin
     raise Discourse::InvalidAccess.new unless current_user && current_user.admin?
+  end
+
+  def ensure_staff_or_annotator_group_member
+    raise Discourse::InvalidAccess.new unless current_user && (current_user.staff? || current_user.groups.pluck(:name).map(&:downcase).include?('annotator'))
   end
 
 
