@@ -89,8 +89,6 @@ end
 # This is the API for the ethical consent funnel
 # https://edgeryders.eu/t/using-the-edgeryders-eu-apis/7904#heading--3
 # Accessible as: /admin/consent.json
-#register_asset 'javascripts/discourse/templates/user/route.hbs'
-
 after_initialize do
   Discourse::Application.routes.append do
     get 'admin/consent.json', to: 'admin/user_consent#index', constraints: StaffConstraint.new
