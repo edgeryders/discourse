@@ -1,7 +1,11 @@
 import Session from "discourse/models/session";
 
-const ANON_TOPIC_IDS = 2;
-const ANON_PROMPT_READ_TIME = 2 * 60 * 1000;
+// damingo (Github ID), 2019-07-06
+// See: https://meta.discourse.org/t/where-to-control-when-the-signup-cta-shows/43047/6
+const ANON_TOPIC_IDS = 0; // 2;
+const ANON_PROMPT_READ_TIME = 0; // 2 * 60 * 1000;
+
+
 const ONE_DAY = 24 * 60 * 60 * 1000;
 const PROMPT_HIDE_DURATION = ONE_DAY;
 
