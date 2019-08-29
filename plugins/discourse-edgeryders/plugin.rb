@@ -77,6 +77,7 @@ after_initialize do
       def ensure_consent_given
         raise Discourse::InvalidAccess.new unless current_user && current_user.consent_given?
       end
+
     end
   end
   PostsController.send :include, PostsControllerPatch

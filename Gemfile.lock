@@ -8,16 +8,9 @@ GIT
       cocoon (~> 1.2, >= 1.2.11)
 
 GIT
-  remote: https://github.com/edgeryders/capistrano-puma.git
-  revision: cf0c6a4624f14ec71e2f0918d48a5393adc4470f
-  specs:
-    capistrano3-puma (3.1.1)
-      capistrano (~> 3.7)
-      capistrano-bundler
-      puma (~> 3.4)
-
-PATH
-  remote: vendor/gems/annotator_store
+  remote: https://github.com/edgeryders/annotator_store-gem
+  revision: f809aba7b6d6e4cba19e97976117d02fe123cbca
+  branch: master
   specs:
     annotator_store (1.0.0)
       administrate
@@ -25,6 +18,15 @@ PATH
       jbuilder
       rails (>= 4.0)
       redcarpet
+
+GIT
+  remote: https://github.com/edgeryders/capistrano-puma.git
+  revision: cf0c6a4624f14ec71e2f0918d48a5393adc4470f
+  specs:
+    capistrano3-puma (3.1.1)
+      capistrano (~> 3.7)
+      capistrano-bundler
+      puma (~> 3.4)
 
 GEM
   remote: https://rubygems.org/
@@ -313,7 +315,7 @@ GEM
     net-scp (1.2.1)
       net-ssh (>= 2.6.5)
     net-ssh (5.1.0)
-    nio4r (2.3.1)
+    nio4r (2.5.1)
     no_proxy_fix (0.1.2)
     nokogiri (1.10.1)
       mini_portile2 (~> 2.4.0)
@@ -434,7 +436,7 @@ GEM
       msgpack (>= 0.4.3)
       trollop (>= 1.16.2)
     rchardet (1.8.0)
-    redcarpet (3.4.0)
+    redcarpet (3.5.0)
     redis (4.0.1)
     redis-namespace (1.6.0)
       redis (>= 3.0.4)

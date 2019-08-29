@@ -208,8 +208,9 @@ gem 'maxminddb'
 # damingo (Github ID), 2017-08-22, #annotator
 gem 'bcrypt', '3.1.3'
 gem 'unix-crypt', '1.3.0'   #, :require_name => 'unix_crypt'
-# gem 'annotator_store', git: 'https://github.com/edgeryders/annotator_store-gem'
-gem 'annotator_store', path: 'vendor/gems/annotator_store'
+gem 'annotator_store', git: 'https://github.com/edgeryders/annotator_store-gem', branch: 'master'
+# TODO In development reference the local version by means of an absolute path?!
+#gem 'annotator_store', path: 'vendor/gems/annotator_store'
 
 # NOTE: This is a quickfix to make sure the gem is loaded for annotator_store. It is specified in the annotator_store/Gemfile
 # as a dependency but this doesn't load the gem "uninitialized constant Administrate::Field::NestedHasMany"
