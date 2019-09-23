@@ -1,21 +1,21 @@
 require 'current_user'
 
-# damingo (Github ID), 2017-08-24, #annotator
+# damingo (Github ID), 2017-08-24
 #
 module AdministrationHelper
   include CurrentUser
 
 
-  def nested_dropdown_with_counts(items)
-    result = []
-    items.each do |item, sub_items|
-      path = (item.depth > 0) ? item.ancestors.map(&:name).join(' → ') + ' → ' : ''
-
-      result << [path + "#{item.name} (#{item.annotations_count})", item.id]
-      result += nested_dropdown_with_counts(sub_items) unless sub_items.blank?
-    end
-    result
-  end
+  # def nested_dropdown_with_counts(items)
+  #   result = []
+  #   items.each do |item, sub_items|
+  #     path = (item.depth > 0) ? item.ancestors.map(&:name).join(' → ') + ' → ' : ''
+  #
+  #     result << [path + "#{item.name} (#{item.annotations_count})", item.id]
+  #     result += nested_dropdown_with_counts(sub_items) unless sub_items.blank?
+  #   end
+  #   result
+  # end
 
 
   # # http://stackoverflow.com/questions/7674754/how-to-arrange-entries-from-ancestry-tree-in-dropdown-list-in-rails-3

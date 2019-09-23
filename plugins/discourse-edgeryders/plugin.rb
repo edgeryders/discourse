@@ -16,16 +16,6 @@ after_initialize do
   DiscoursePluginRegistry.serialized_current_user_fields << 'edgeryders_consent'
 
 
-  require_dependency 'current_user_serializer'
-  class ::CurrentUserSerializer
-    attributes :annotator
-
-    def annotator
-      object.groups.exists?(name: 'annotator')
-    end
-  end
-
-
   require_dependency 'user_serializer'
   class ::UserSerializer
     attributes :consent_given

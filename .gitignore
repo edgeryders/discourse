@@ -136,3 +136,5 @@ vendor/bundle/*
 !/plugins/edgeryders-communities-navigation
 !/plugins/edgeryders-multisite
 !/plugins/edgeryders-signup-notification
+!/plugins/edgeryders-shared
+
