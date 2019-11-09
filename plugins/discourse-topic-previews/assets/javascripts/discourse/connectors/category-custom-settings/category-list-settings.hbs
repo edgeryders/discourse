@@ -1,29 +1,46 @@
-<section class='field'>
-  <label>{{i18n 'category.topic_list_social'}}</label>
-  {{list-setting settingValue=category.custom_fields.topic_list_social choices=choices settingName='category.topic_list_social'}}
-</section>
+{{#if siteSettings.topic_list_previews_enabled}}
+  <section class='field'>
+    <label>{{i18n 'category.topic_list_tiles'}}</label>
+    {{list-setting settingValue=category.custom_fields.topic_list_tiles choices=filteredChoices settingName='category.topic_list_tiles'}}
+  </section>
 
-<section class='field'>
-  <label>{{i18n 'category.topic_list_thumbnail'}}</label>
-  {{list-setting settingValue=category.custom_fields.topic_list_thumbnail choices=choices settingName='category.topic_list_thumbnail'}}
-</section>
+  <section class='field'>
+    <label>{{i18n 'category.topic_list_thumbnail'}}</label>
+    {{list-setting settingValue=category.custom_fields.topic_list_thumbnail choices=choices settingName='category.topic_list_thumbnail'}}
+  </section>
 
-<section class='field'>
-  <label>{{i18n 'category.topic_list_excerpt'}}</label>
-  {{list-setting settingValue=category.custom_fields.topic_list_excerpt choices=choices settingName='category.topic_list_excerpt'}}
-</section>
+  <section class='field'>
+    <label>{{i18n 'category.topic_list_excerpt'}}</label>
+    {{list-setting settingValue=category.custom_fields.topic_list_excerpt choices=choices settingName='category.topic_list_excerpt'}}
+  </section>
 
-<section class='field'>
-  <label>{{i18n 'category.topic_list_action'}}</label>
-  {{list-setting settingValue=category.custom_fields.topic_list_action choices=choices settingName='category.topic_list_action'}}
-</section>
+  <section class='field'>
+    <label>{{i18n 'category.topic_list_action'}}</label>
+    {{list-setting settingValue=category.custom_fields.topic_list_action choices=choices settingName='category.topic_list_action'}}
+  </section>
 
-<section class='field'>
-  <label>{{i18n 'category.topic_list_category_badge_move'}}</label>
-  {{list-setting settingValue=category.custom_fields.topic_list_category_badge_move choices=choices settingName='category.topic_list_category_badge_move'}}
-</section>
+  <section class='field'>
+    <label>{{i18n 'category.topic_list_category_column'}}</label>
+    {{list-setting settingValue=category.custom_fields.topic_list_category_column choices=choices settingName='category.topic_list_category_column'}}
+  </section>
 
-<section class='field'>
-  <label>{{i18n 'category.topic_list_default_thumbnail'}}</label>
-  {{text-field value=category.custom_fields.topic_list_default_thumbnail placeholderKey="category.topic_list_default_thumbnail_placeholder"}}
-</section>
+  <section class='field'>
+    <label>{{i18n 'category.topic_list_default_thumbnail'}}</label>
+    {{text-field value=category.custom_fields.topic_list_default_thumbnail placeholderKey="category.topic_list_default_thumbnail_placeholder"}}
+  </section>
+
+  <section class='field'>
+    <label>{{i18n 'category.topic_list_thumbnail_width'}}</label>
+    {{input type='integer' class='input-small' value=category.custom_fields.topic_list_thumbnail_width placeholderKey="category.topic_list_thumbnail_width_placeholder"}}
+  </section>
+
+  <section class='field'>
+    <label>{{i18n 'category.topic_list_thumbnail_height'}}</label>
+    {{input type='integer' class='input-small' value=category.custom_fields.topic_list_thumbnail_height placeholderKey="category.topic_list_thumbnail_height_placeholder"}}
+  </section>
+
+  <section class='field'>
+    {{input type='checkbox' checked=category.custom_fields.topic_list_featured_images}}
+    <span>{{i18n 'category.topic_list_featured_images'}}</span>
+  </section>
+{{/if}}

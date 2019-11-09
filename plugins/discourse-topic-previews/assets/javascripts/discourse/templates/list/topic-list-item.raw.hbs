@@ -5,88 +5,95 @@
 {{/if}}
 
 <td class='main-link clearfix' colspan="{{titleColSpan}}">
-  {{#if socialStyle}}
-    {{raw "list/topic-list-title" topic=topic
-                                  showTopicPostBadges=showTopicPostBadges}}
-    {{raw "list/topic-intro" topic=topic
-                             posterNames=posterNames
-                             likesHeat=view.likesHeat
-                             title=view.title}}
+  {{#if tilesStyle}}
+    <div class="topic-header-grid">
+      {{raw "list/topic-list-title" topic=topic tilesStyle=tilesStyle showTopicPostBadges=showTopicPostBadges}}
+      <div class="topic-category">
+        {{#if showCategoryBadge}}
+          {{category-link topic.category}}
+        {{/if}}
+      </div>
+    </div>
   {{/if}}
+
   {{#if showThumbnail}}
-    {{raw "list/topic-thumbnail" topic=topic
-                                 thumbnails=thumbnails}}
+    {{raw "list/topic-thumbnail" topic=topic thumbnails=thumbnails category=category opts=thumbnailOpts}}
   {{/if}}
+
   <div class="topic-details">
-    {{#unless socialStyle}}
-      {{raw "list/topic-list-title" topic=topic
-                                    showTopicPostBadges=showTopicPostBadges}}
+    {{#unless tilesStyle}}
+      {{raw "list/topic-list-title"
+        topic=topic
+        showTopicPostBadges=showTopicPostBadges
+        homepage=parentView.homepage
+        suggested=parentView.suggestedList}}
+
       {{#if showCategoryBadge}}
-        {{raw "list/topic-category" category=topic.category}}
-      {{/if}}
-      {{#if topic.tags}}
-        <div class='discourse-tags'>
-        {{#each topic.visibleListTags as |tag|}}
-          {{discourse-tag tag}}
-        {{/each}}
+        <div class='topic-category'>
+          {{category-link topic.category}}
         </div>
       {{/if}}
-      {{raw-plugin-outlet name="topic-list-tags"}}
+
+      {{discourse-tags topic mode="list" tagsForUser=tagsForUser}}
     {{/unless}}
 
     {{#if expandPinned}}
       {{raw "list/topic-excerpt" topic=topic}}
     {{/if}}
 
-    {{#if showActions}}
-      {{raw "list/topic-actions" likeCountDisplay=likeCountDisplay
-                                 topicActions=topicActions}}
-    {{/if}}
-
-    {{#if socialStyle}}
-      <div class="topic-meta-social">
-        {{raw-plugin-outlet name="topic-list-tags"}}
+    {{#unless tilesStyle}}
+      <div class="actions-and-meta-data">
+        {{#if showActions}}
+          {{raw "list/topic-actions" likeCount=likeCount topicActions=topicActions}}
+        {{/if}}
+        {{raw "list/action-list" topic=topic postNumbers=topic.liked_post_numbers className="likes" icon="heart"}}
       </div>
-    {{/if}}
+    {{/unless}}
 
-    {{raw "list/action-list" topic=topic postNumbers=topic.liked_post_numbers className="likes" icon="heart"}}
-  </div>
+    {{#if tilesStyle}}
+      </div>
+      {{raw 'list/topic-meta' likesHeat=likesHeat title=view.title topic=topic}}
+      {{#if showActions}}
+        {{raw "list/topic-actions" likeCount=likeCount topicActions=topicActions}}
+      {{/if}}
+    {{/if}}
 </td>
 
-{{#unless hideCategory}}
-  {{#unless topic.isPinnedUncategorized}}
+{{#unless tilesStyle}}
+  {{#if showCategoryColumn}}
     {{raw "list/category-column" category=topic.category}}
-  {{/unless}}
+  {{/if}}
+
+  {{#if showPosters}}
+    {{raw "list/posters-column" posters=topic.posters}}
+  {{/if}}
+
+  {{raw "list/posts-count-column" topic=topic}}
+
+  {{#if showParticipants}}
+    {{raw "list/posters-column" posters=topic.participants}}
+  {{/if}}
+
+  {{#if showLikes}}
+    <td class="num likes">
+      {{#if hasLikes}}
+        <a href='{{topic.summaryUrl}}'>
+          {{number topic.like_count}} {{d-icon 'heart'}}
+        </a>
+      {{/if}}
+    </td>
+  {{/if}}
+
+  {{#if showOpLikes}}
+    <td class="num likes">
+      {{#if hasOpLikes}}
+        <a href='{{topic.summaryUrl}}'>
+          {{number topic.op_like_count}} {{d-icon 'heart'}}
+        </a>
+      {{/if}}
+    </td>
+  {{/if}}
+
+  <td class="num views {{topic.viewsHeat}}">{{number topic.views numberKey="views_long"}}</td>
+  {{raw "list/activity-column" topic=topic class="num" tagName="td"}}
 {{/unless}}
-
-{{#if showPosters}}
-  {{raw "list/posters-column" posters=topic.posters}}
-{{/if}}
-
-{{raw "list/posts-count-column" topic=topic}}
-
-{{#if showParticipants}}
-  {{raw "list/posters-column" posters=topic.participants}}
-{{/if}}
-
-{{#if showLikes}}
-<td class="num likes">
-  {{#if hasLikes}}
-    <a href='{{topic.summaryUrl}}'>
-      {{number topic.like_count}} <i class='fa fa-heart'></i></td>
-    </a>
-  {{/if}}
-{{/if}}
-
-{{#if showOpLikes}}
-<td class="num likes">
-  {{#if hasOpLikes}}
-    <a href='{{topic.summaryUrl}}'>
-      {{number topic.op_like_count}} <i class='fa fa-heart'></i></td>
-    </a>
-  {{/if}}
-{{/if}}
-
-<td class="num views {{topic.viewsHeat}}">{{number topic.views numberKey="views_long"}}</td>
-
-{{raw "list/activity-column" topic=topic class="num" tagName="td"}}
