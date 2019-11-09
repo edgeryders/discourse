@@ -77,11 +77,13 @@ class ApplicationController < ActionController::Base
   def use_crawler_layout?
     @use_crawler_layout ||=
       request.user_agent &&
-      (request.content_type.blank? || request.content_type.include?('html')) &&
-      !['json', 'rss'].include?(params[:format]) &&
-      (has_escaped_fragment? || params.key?("print") ||
-      CrawlerDetection.crawler?(request.user_agent, request.headers["HTTP_VIA"])
-      )
+        (request.content_type.blank? || request.content_type.include?('html')) &&
+        !['json', 'rss'].include?(params[:format]) &&
+        # damingo (Github ID), 2019-09-23, #annotator
+        (has_escaped_fragment? || params.key?("print") ||
+          CrawlerDetection.crawler?(request.user_agent, request.headers["HTTP_VIA"]) ||
+          params.key?("oe")
+        )
   end
 
   def perform_refresh_session
