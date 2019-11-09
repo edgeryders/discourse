@@ -137,4 +137,6 @@ vendor/bundle/*
 !/plugins/edgeryders-multisite
 !/plugins/edgeryders-signup-notification
 !/plugins/edgeryders-shared
+!/plugins/edgeryders-permit-api-cors
+
 
