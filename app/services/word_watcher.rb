@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 class WordWatcher
 
   def initialize(raw)
@@ -19,7 +21,7 @@ class WordWatcher
         nil
       else
         regexp = '(' + words.map { |w| word_to_regexp(w) }.join('|'.freeze) + ')'
-        SiteSetting.watched_words_regular_expressions? ? regexp : "\\b(#{regexp})\\b"
+        SiteSetting.watched_words_regular_expressions? ? regexp : "(?<!\\w)(#{regexp})(?!\\w)"
       end
     end
     s.present? ? Regexp.new(s, Regexp::IGNORECASE) : nil
@@ -39,7 +41,7 @@ class WordWatcher
   end
 
   def self.clear_cache!
-    WatchedWord.actions.sum do |a, i|
+    WatchedWord.actions.each do |a, i|
       Discourse.cache.delete word_matcher_regexp_key(a)
     end
   end

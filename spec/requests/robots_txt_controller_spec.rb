@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 require 'rails_helper'
 
 RSpec.describe RobotsTxtController do
@@ -18,7 +20,6 @@ RSpec.describe RobotsTxtController do
         Discourse.stubs(:base_uri).returns('/forum')
         get '/robots.txt'
         expect(response.body).to include("\nDisallow: /forum/admin")
-        expect(response.body).to include("\nNoindex: /forum/admin")
       end
     end
 

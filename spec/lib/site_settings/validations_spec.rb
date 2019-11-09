@@ -1,15 +1,35 @@
+# frozen_string_literal: true
+
 require 'rails_helper'
 require 'site_settings/validations'
 
 describe SiteSettings::Validations do
   subject { Class.new.include(described_class).new }
 
+  context "default_categories" do
+    fab!(:category) { Fabricate(:category) }
+
+    it "supports valid categories" do
+      expect { subject.validate_default_categories_watching("#{category.id}") }.not_to raise_error
+    end
+
+    it "won't allow you to input junk categories" do
+      expect {
+        subject.validate_default_categories_watching("junk")
+      }.to raise_error(Discourse::InvalidParameters)
+
+      expect {
+        subject.validate_default_categories_watching("#{category.id}|12312323")
+      }.to raise_error(Discourse::InvalidParameters)
+    end
+  end
+
   context "s3 buckets reusage" do
     let(:error_message) { I18n.t("errors.site_settings.s3_bucket_reused") }
 
     shared_examples "s3 bucket validation" do
       def change_bucket_value(value)
-        SiteSetting.public_send("#{other_setting_name}=", value)
+        SiteSetting.set(other_setting_name, value)
       end
 
       it "shouldn't raise an error when both buckets are blank" do

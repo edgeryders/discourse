@@ -7,8 +7,7 @@ const ADMIN_MODELS = [
   "embeddable-host",
   "web-hook",
   "web-hook-event",
-  "flagged-topic",
-  "moderation-history"
+  "flagged-topic"
 ];
 
 export function Result(payload, responseJson) {
@@ -55,7 +54,9 @@ export default Ember.Object.extend({
         }
       } else {
         // It's serializable as a string if not an object
-        return `${path}/${findArgs}${extension ? extension : ""}`;
+        return `${path}/${encodeURIComponent(findArgs)}${
+          extension ? extension : ""
+        }`;
       }
     }
     return path;

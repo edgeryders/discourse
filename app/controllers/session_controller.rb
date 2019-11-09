@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 require_dependency 'rate_limiter'
 require_dependency 'single_sign_on'
 require_dependency 'single_sign_on_provider'
@@ -9,10 +11,10 @@ class SessionController < ApplicationController
     render body: nil, status: 500
   end
 
-  before_action :check_local_login_allowed, only: %i(create forgot_password email_login)
+  before_action :check_local_login_allowed, only: %i(create forgot_password email_login email_login_info)
   before_action :rate_limit_login, only: %i(create email_login)
   skip_before_action :redirect_to_login_if_required
-  skip_before_action :preload_json, :check_xhr, only: %i(sso sso_login sso_provider destroy email_login)
+  skip_before_action :preload_json, :check_xhr, only: %i(sso sso_login sso_provider destroy one_time_password)
 
   ACTIVATE_USER_KEY = "activate_user"
 
@@ -26,7 +28,7 @@ class SessionController < ApplicationController
 
     if destination_url && return_path == path('/')
       uri = URI::parse(destination_url)
-      return_path = "#{uri.path}#{uri.query ? "?" << uri.query : ""}"
+      return_path = "#{uri.path}#{uri.query ? "?#{uri.query}" : ""}"
     end
 
     session.delete(:destination_url)
@@ -69,12 +71,16 @@ class SessionController < ApplicationController
           sso.avatar_url = UrlHelper.absolute Discourse.store.cdn_url(avatar_url)
         end
 
-        if current_user.user_profile.profile_background.present?
-          sso.profile_background_url = UrlHelper.absolute upload_cdn_path(current_user.user_profile.profile_background)
+        if current_user.user_profile.profile_background_upload.present?
+          sso.profile_background_url = UrlHelper.absolute(upload_cdn_path(
+            current_user.user_profile.profile_background_upload.url
+          ))
         end
 
-        if current_user.user_profile.card_background.present?
-          sso.card_background_url = UrlHelper.absolute upload_cdn_path(current_user.user_profile.card_background)
+        if current_user.user_profile.card_background_upload.present?
+          sso.card_background_url = UrlHelper.absolute(upload_cdn_path(
+            current_user.user_profile.card_background_upload.url
+          ))
         end
 
         if request.xhr?
@@ -97,7 +103,21 @@ class SessionController < ApplicationController
     skip_before_action :check_xhr, only: [:become]
 
     def become
+
       raise Discourse::InvalidAccess if Rails.env.production?
+
+      if ENV['DISCOURSE_DEV_ALLOW_ANON_TO_IMPERSONATE'] != "1"
+        render(content_type: 'text/plain', inline: <<~TEXT)
+          To enable impersonating any user without typing passwords set the following ENV var
+
+          export DISCOURSE_DEV_ALLOW_ANON_TO_IMPERSONATE=1
+
+          You can do that in your bashrc of bash profile file or the script you use to launch the web server
+        TEXT
+
+        return
+      end
+
       user = User.find_by_username(params[:session_id])
       raise "User #{params[:session_id]} not found" if user.blank?
 
@@ -144,7 +164,7 @@ class SessionController < ApplicationController
       if user = sso.lookup_or_create_user(request.remote_ip)
 
         if user.suspended?
-          render_sso_error(text: I18n.t("login.suspended", date: user.suspended_till), status: 403)
+          render_sso_error(text: failed_to_login(user)[:error], status: 403)
           return
         end
 
@@ -174,7 +194,7 @@ class SessionController < ApplicationController
           begin
             uri = URI(return_path)
             if (uri.hostname == Discourse.current_hostname)
-              return_path = uri.request_uri
+              return_path = uri.to_s
             elsif !SiteSetting.sso_allows_all_return_paths
               return_path = path("/")
             end
@@ -183,8 +203,10 @@ class SessionController < ApplicationController
           end
         end
 
-        # never redirects back to sso in an sso loop
-        if return_path.start_with?(path("/session/sso"))
+        # this can be done more surgically with a regex
+        # but it the edge case of never supporting redirects back to
+        # any url with `/session/sso` in it anywhere is reasonable
+        if return_path.include?(path("/session/sso"))
           return_path = path("/")
         end
 
@@ -221,7 +243,7 @@ class SessionController < ApplicationController
       render_sso_error(text: text || I18n.t("sso.unknown_error"), status: 500)
 
     rescue => e
-      message = "Failed to create or lookup user: #{e}."
+      message = +"Failed to create or lookup user: #{e}."
       message << "  "
       message << "  #{sso.diagnostics}"
       message << "  "
@@ -283,37 +305,81 @@ class SessionController < ApplicationController
     end
   end
 
+  def email_login_info
+    raise Discourse::NotFound if !SiteSetting.enable_local_logins_via_email
+
+    token = params[:token]
+    matched_token = EmailToken.confirmable(token)
+
+    if matched_token
+      response = {
+        can_login: true,
+        token: token,
+        token_email: matched_token.email
+      }
+
+      if matched_token.user&.totp_enabled?
+        response.merge!(
+          second_factor_required: true,
+          backup_codes_enabled: matched_token.user&.backup_codes_enabled?
+        )
+      end
+
+      render json: response
+    else
+      render json: {
+        can_login: false,
+        error: I18n.t('email_login.invalid_token')
+      }
+    end
+  end
+
   def email_login
     raise Discourse::NotFound if !SiteSetting.enable_local_logins_via_email
     second_factor_token = params[:second_factor_token]
     second_factor_method = params[:second_factor_method].to_i
     token = params[:token]
-    valid_token = !!EmailToken.valid_token_format?(token)
-    user = EmailToken.confirmable(token)&.user
+    matched_token = EmailToken.confirmable(token)
 
-    if valid_token && user&.totp_enabled?
+    if matched_token&.user&.totp_enabled?
       if !second_factor_token.present?
-        @second_factor_required = true
-        @backup_codes_enabled = true if user&.backup_codes_enabled?
-        return render layout: 'no_ember'
-      elsif !user.authenticate_second_factor(second_factor_token, second_factor_method)
+        return render json: { error: I18n.t('login.invalid_second_factor_code') }
+      elsif !matched_token.user.authenticate_second_factor(second_factor_token, second_factor_method)
         RateLimiter.new(nil, "second-factor-min-#{request.remote_ip}", 3, 1.minute).performed!
-        @error = I18n.t('login.invalid_second_factor_code')
-        return render layout: 'no_ember'
+        return render json: { error: I18n.t('login.invalid_second_factor_code') }
       end
     end
 
     if user = EmailToken.confirm(token)
       if login_not_approved_for?(user)
-        @error = login_not_approved[:error]
+        return render json: login_not_approved
       elsif payload = login_error_check(user)
-        @error = payload[:error]
+        return render json: payload
       else
         log_on_user(user)
+        return render json: success_json
+      end
+    end
+
+    return render json: { error: I18n.t('email_login.invalid_token') }
+  end
+
+  def one_time_password
+    @otp_username = otp_username = $redis.get "otp_#{params[:token]}"
+
+    if otp_username && user = User.find_by_username(otp_username)
+      if current_user&.username == otp_username
+        $redis.del "otp_#{params[:token]}"
         return redirect_to path("/")
+      elsif request.post?
+        log_on_user(user)
+        $redis.del "otp_#{params[:token]}"
+        return redirect_to path("/")
+      else
+        # Display the form
       end
     else
-      @error = I18n.t('email_login.invalid_token')
+      @error = I18n.t('user_api_key.invalid_token')
     end
 
     render layout: 'no_ember'
@@ -329,7 +395,7 @@ class SessionController < ApplicationController
     RateLimiter.new(nil, "forgot-password-login-min-#{params[:login].to_s[0..100]}", 3, 1.minute).performed!
 
     user = User.find_by_username_or_email(params[:login])
-    user_presence = user.present? && user.id > 0 && !user.staged
+    user_presence = user.present? && user.human? && !user.staged
     if user_presence
       email_token = user.email_tokens.create(email: user.email)
       Jobs.enqueue(:critical_user_email, type: :forgot_password, user_id: user.id, email_token: email_token.token)

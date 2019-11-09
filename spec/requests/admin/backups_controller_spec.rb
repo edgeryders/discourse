@@ -1,10 +1,11 @@
+# frozen_string_literal: true
+
 require 'rails_helper'
 
 RSpec.describe Admin::BackupsController do
-  let(:admin) { Fabricate(:admin) }
+  fab!(:admin) { Fabricate(:admin) }
   let(:backup_filename) { "2014-02-10-065935.tar.gz" }
   let(:backup_filename2) { "2014-02-11-065935.tar.gz" }
-  let(:store) { BackupRestore::LocalBackupStore.new }
 
   def create_backup_files(*filenames)
     @paths = filenames.map do |filename|
@@ -162,12 +163,10 @@ RSpec.describe Admin::BackupsController do
 
   describe '#restore' do
     it "starts a restore" do
-      expect(SiteSetting.disable_emails).to eq("no")
       BackupRestore.expects(:restore!).with(admin.id, filename: backup_filename, publish_to_message_bus: true, client_id: "foo")
 
       post "/admin/backups/#{backup_filename}/restore.json", params: { client_id: "foo" }
 
-      expect(SiteSetting.disable_emails).to eq("yes")
       expect(response.status).to eq(200)
     end
   end
@@ -202,7 +201,9 @@ RSpec.describe Admin::BackupsController do
           described_class.any_instance.expects(:has_enough_space_on_disk?).returns(true)
 
           post "/admin/backups/upload", params: {
-            resumableFilename: invalid_filename, resumableTotalSize: 1
+            resumableFilename: invalid_filename,
+            resumableTotalSize: 1,
+            resumableIdentifier: 'test'
           }
 
           expect(response.status).to eq(415)
@@ -211,27 +212,59 @@ RSpec.describe Admin::BackupsController do
       end
     end
 
+    describe "when resumableIdentifier is invalid" do
+      it "should raise an error" do
+        filename = 'test_site-0123456789.tar.gz'
+        @paths = [backup_path(File.join('tmp', 'test', "#{filename}.part1"))]
+
+        post "/admin/backups/upload.json", params: {
+          resumableFilename: filename,
+          resumableTotalSize: 1,
+          resumableIdentifier: '../test',
+          resumableChunkNumber: '1',
+          resumableChunkSize: '1',
+          resumableCurrentChunkSize: '1',
+          file: fixture_file_upload(Tempfile.new)
+        }
+
+        expect(response.status).to eq(400)
+      end
+    end
+
     describe "when filename is valid" do
       it "should upload the file successfully" do
-        begin
-          described_class.any_instance.expects(:has_enough_space_on_disk?).returns(true)
+        described_class.any_instance.expects(:has_enough_space_on_disk?).returns(true)
 
-          filename = 'test_Site-0123456789.tar.gz'
-          @paths = [backup_path(File.join('tmp', 'test', "#{filename}.part1"))]
+        filename = 'test_Site-0123456789.tar.gz'
+        @paths = [backup_path(File.join('tmp', 'test', "#{filename}.part1"))]
 
-          post "/admin/backups/upload.json", params: {
-            resumableFilename: filename,
-            resumableTotalSize: 1,
-            resumableIdentifier: 'test',
-            resumableChunkNumber: '1',
-            resumableChunkSize: '1',
-            resumableCurrentChunkSize: '1',
-            file: fixture_file_upload(Tempfile.new)
-          }
+        post "/admin/backups/upload.json", params: {
+          resumableFilename: filename,
+          resumableTotalSize: 1,
+          resumableIdentifier: 'test',
+          resumableChunkNumber: '1',
+          resumableChunkSize: '1',
+          resumableCurrentChunkSize: '1',
+          file: fixture_file_upload(Tempfile.new)
+        }
 
-          expect(response.status).to eq(200)
-          expect(response.body).to eq("")
-        end
+        expect(response.status).to eq(200)
+        expect(response.body).to eq("")
+      end
+    end
+  end
+
+  describe "#check_backup_chunk" do
+    describe "when resumableIdentifier is invalid" do
+      it "should raise an error" do
+        get "/admin/backups/upload", params: {
+          resumableIdentifier: "../some_file",
+          resumableFilename: "test_site-0123456789.tar.gz",
+          resumableChunkNumber: '1',
+          resumableCurrentChunkSize: '1'
+        }
+
+        expect(response.status).to eq(400)
       end
     end
   end

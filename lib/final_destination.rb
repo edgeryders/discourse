@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 require 'socket'
 require 'ipaddr'
 require 'excon'
@@ -39,21 +41,23 @@ class FinalDestination
     @opts[:lookup_ip] ||= lambda { |host| FinalDestination.lookup_ip(host) }
 
     @ignored = @opts[:ignore_hostnames] || []
+    @limit = @opts[:max_redirects]
 
-    ignore_redirects = [Discourse.base_url_no_prefix]
+    if @limit > 0
+      ignore_redirects = [Discourse.base_url_no_prefix]
 
-    if @opts[:ignore_redirects]
-      ignore_redirects.concat(@opts[:ignore_redirects])
-    end
+      if @opts[:ignore_redirects]
+        ignore_redirects.concat(@opts[:ignore_redirects])
+      end
 
-    ignore_redirects.each do |ignore_redirect|
-      ignore_redirect = uri(ignore_redirect)
-      if ignore_redirect.present? && ignore_redirect.hostname
-        @ignored << ignore_redirect.hostname
+      ignore_redirects.each do |ignore_redirect|
+        ignore_redirect = uri(ignore_redirect)
+        if ignore_redirect.present? && ignore_redirect.hostname
+          @ignored << ignore_redirect.hostname
+        end
       end
     end
 
-    @limit = @opts[:max_redirects]
     @status = :ready
     @http_verb = @force_get_hosts.any? { |host| hostname_matches?(host) } ? :get : :head
     @cookie = nil
@@ -61,6 +65,7 @@ class FinalDestination
     @verbose = @opts[:verbose] || false
     @timeout = @opts[:timeout] || nil
     @preserve_fragment_url = @preserve_fragment_url_hosts.any? { |host| hostname_matches?(host) }
+    @validate_uri = @opts.fetch(:validate_uri) { true }
   end
 
   def self.connection_timeout
@@ -87,12 +92,26 @@ class FinalDestination
     result
   end
 
-  def small_get(headers)
-    Net::HTTP.start(@uri.host, @uri.port, use_ssl: @uri.is_a?(URI::HTTPS)) do |http|
-      http.open_timeout = timeout
-      http.read_timeout = timeout
-      http.request_get(@uri.request_uri, headers)
+  def small_get(request_headers)
+    status_code, response_headers = nil
+
+    catch(:done) do
+      Net::HTTP.start(@uri.host, @uri.port, use_ssl: @uri.is_a?(URI::HTTPS)) do |http|
+        http.open_timeout = timeout
+        http.read_timeout = timeout
+        http.request_get(@uri.request_uri, request_headers) do |resp|
+          status_code = resp.code.to_i
+          response_headers = resp.to_hash
+
+          # see: https://bugs.ruby-lang.org/issues/15624
+          # if we allow response to return then body will be read
+          # got to abort without reading body
+          throw :done
+        end
+      end
     end
+
+    [status_code, response_headers]
   end
 
   # this is a new interface for simply getting
@@ -177,20 +196,19 @@ class FinalDestination
       @status = :resolved
       return @uri
     when 400, 405, 406, 409, 501
-      get_response = small_get(request_headers)
+      response_status, small_headers = small_get(request_headers)
 
-      response_status = get_response.code.to_i
       if response_status == 200
         @status = :resolved
         return @uri
       end
 
       response_headers = {}
-      if cookie_val = get_response.get_fields('set-cookie')
+      if cookie_val = small_headers['set-cookie']
         response_headers[:cookies] = cookie_val
       end
 
-      if location_val = get_response.get_fields('location')
+      if location_val = small_headers['location']
         response_headers[:location] = location_val.join
       end
     end
@@ -237,7 +255,7 @@ class FinalDestination
   end
 
   def validate_uri
-    validate_uri_format && is_dest_valid?
+    !@validate_uri || (validate_uri_format && is_dest_valid?)
   end
 
   def validate_uri_format

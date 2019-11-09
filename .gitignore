@@ -125,6 +125,9 @@ vendor/bundle/*
 
 /vendor/data/GeoLite2-City.mmdb
 
+# Vagrant
+.vagrant
+
 
 
 !/plugins/discourse-data-explorer

@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 require 'uri'
 require_dependency "onebox/discourse_onebox_sanitize_config"
 require_dependency 'final_destination'
@@ -234,13 +236,16 @@ module Oneboxer
     username = route[:username] || ""
 
     if user = User.find_by(username_lower: username.downcase)
+
+      name = user.name if SiteSetting.enable_names
+
       args = {
         user_id: user.id,
         username: user.username,
         avatar: PrettyText.avatar_img(user.avatar_template, "extra_large"),
-        name: user.name,
+        name: name,
         bio: user.user_profile.bio_excerpt(230),
-        location: user.user_profile.location,
+        location: Onebox::Helpers.sanitize(user.user_profile.location),
         joined: I18n.t('joined'),
         created_at: user.created_at.strftime(I18n.t('datetime_formats.formats.date_only')),
         website: user.user_profile.website,

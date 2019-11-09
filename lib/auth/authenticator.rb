@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 # this class is used by the user and omniauth controllers, it controls how
 #  an authentication system interacts with our database and middleware
 
@@ -35,6 +37,13 @@ class Auth::Authenticator
   #  connected accounts under the user's preferences. Empty string
   #  indicates not connected
   def description_for_user(user)
+    ""
+  end
+
+  # return a string describing the connected account
+  #  for a given OmniAuth::AuthHash. Used in the confirmation screen
+  #  when connecting accounts
+  def description_for_auth_hash(user)
     ""
   end
 

@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 require 'digest/sha1'
 require 'fileutils'
 require_dependency 'plugin/metadata'
@@ -81,25 +83,28 @@ class Plugin::Instance
   end
 
   def enabled?
-    @enabled_site_setting ? SiteSetting.send(@enabled_site_setting) : true
+    @enabled_site_setting ? SiteSetting.get(@enabled_site_setting) : true
   end
 
   delegate :name, to: :metadata
 
   def add_to_serializer(serializer, attr, define_include_method = true, &block)
     reloadable_patch do |plugin|
-      klass = "#{serializer.to_s.classify}Serializer".constantize rescue "#{serializer.to_s}Serializer".constantize
+      base = "#{serializer.to_s.classify}Serializer".constantize rescue "#{serializer.to_s}Serializer".constantize
 
-      unless attr.to_s.start_with?("include_")
-        klass.attributes(attr)
+      # we have to work through descendants cause serializers may already be baked and cached
+      ([base] + base.descendants).each do |klass|
+        unless attr.to_s.start_with?("include_")
+          klass.attributes(attr)
 
-        if define_include_method
-          # Don't include serialized methods if the plugin is disabled
-          klass.send(:define_method, "include_#{attr}?") { plugin.enabled? }
+          if define_include_method
+            # Don't include serialized methods if the plugin is disabled
+            klass.public_send(:define_method, "include_#{attr}?") { plugin.enabled? }
+          end
         end
-      end
 
-      klass.send(:define_method, attr, &block)
+        klass.public_send(:define_method, attr, &block)
+      end
     end
   end
 
@@ -144,6 +149,12 @@ class Plugin::Instance
     end
   end
 
+  def register_editable_group_custom_field(field)
+    reloadable_patch do |plugin|
+      ::Group.register_plugin_editable_group_custom_field(field, plugin) # plugin.enabled? is checked at runtime
+    end
+  end
+
   def custom_avatar_column(column)
     reloadable_patch do |plugin|
       AvatarLookup.lookup_columns << column
@@ -170,10 +181,10 @@ class Plugin::Instance
     reloadable_patch do |plugin|
       klass = class_name.to_s.classify.constantize rescue class_name.to_s.constantize
       hidden_method_name = :"#{attr}_without_enable_check"
-      klass.send(:define_method, hidden_method_name, &block)
+      klass.public_send(:define_method, hidden_method_name, &block)
 
-      klass.send(:define_method, attr) do |*args|
-        send(hidden_method_name, *args) if plugin.enabled?
+      klass.public_send(:define_method, attr) do |*args|
+        public_send(hidden_method_name, *args) if plugin.enabled?
       end
     end
   end
@@ -184,10 +195,10 @@ class Plugin::Instance
       klass = klass_name.to_s.classify.constantize rescue klass_name.to_s.constantize
 
       hidden_method_name = :"#{attr}_without_enable_check"
-      klass.send(:define_singleton_method, hidden_method_name, &block)
+      klass.public_send(:define_singleton_method, hidden_method_name, &block)
 
-      klass.send(:define_singleton_method, attr) do |*args|
-        send(hidden_method_name, *args) if plugin.enabled?
+      klass.public_send(:define_singleton_method, attr) do |*args|
+        public_send(hidden_method_name, *args) if plugin.enabled?
       end
     end
   end
@@ -200,10 +211,10 @@ class Plugin::Instance
       method_name = "#{plugin.name}_#{klass.name}_#{callback}#{@idx}".underscore
       @idx += 1
       hidden_method_name = :"#{method_name}_without_enable_check"
-      klass.send(:define_method, hidden_method_name, &block)
+      klass.public_send(:define_method, hidden_method_name, &block)
 
-      klass.send(callback, options) do |*args|
-        send(hidden_method_name, *args) if plugin.enabled?
+      klass.public_send(callback, options) do |*args|
+        public_send(hidden_method_name, *args) if plugin.enabled?
       end
 
       hidden_method_name
@@ -243,7 +254,7 @@ class Plugin::Instance
   # Add validation method but check that the plugin is enabled
   def validate(klass, name, &block)
     klass = klass.to_s.classify.constantize
-    klass.send(:define_method, name, &block)
+    klass.public_send(:define_method, name, &block)
 
     plugin = self
     klass.validate(name, if: -> { plugin.enabled? })
@@ -359,6 +370,13 @@ class Plugin::Instance
   def register_group_custom_field_type(name, type)
     reloadable_patch do |plugin|
       ::Group.register_custom_field_type(name, type)
+    end
+  end
+
+  # Applies to all sites in a multisite environment. Ignores plugin.enabled?
+  def register_user_custom_field_type(name, type)
+    reloadable_patch do |plugin|
+      ::User.register_custom_field_type(name, type)
     end
   end
 
@@ -524,7 +542,7 @@ class Plugin::Instance
       provider = Auth::AuthProvider.new
 
       Auth::AuthProvider.auth_attributes.each do |sym|
-        provider.send "#{sym}=", opts.delete(sym) if opts.has_key?(sym)
+        provider.public_send("#{sym}=", opts.delete(sym)) if opts.has_key?(sym)
       end
 
       begin
@@ -532,7 +550,7 @@ class Plugin::Instance
       rescue NotImplementedError
         provider.authenticator.define_singleton_method(:enabled?) do
           Discourse.deprecate("#{provider.authenticator.class.name} should define an `enabled?` function. Patching for now.")
-          return SiteSetting.send(provider.enabled_setting) if provider.enabled_setting
+          return SiteSetting.get(provider.enabled_setting) if provider.enabled_setting
           Discourse.deprecate("#{provider.authenticator.class.name} has not defined an enabled_setting. Defaulting to true.")
           true
         end
@@ -604,6 +622,19 @@ class Plugin::Instance
     end
   end
 
+  def register_reviewable_type(reviewable_type_class)
+    extend_list_method Reviewable, :types, [reviewable_type_class.name]
+  end
+
+  def extend_list_method(klass, method, new_attributes)
+    current_list = klass.public_send(method)
+    current_list.concat(new_attributes)
+
+    reloadable_patch do
+      klass.public_send(:define_singleton_method, method) { current_list }
+    end
+  end
+
   protected
 
   def register_assets!
@@ -632,11 +663,15 @@ class Plugin::Instance
 
       path = File.join(lib_locale_path, "message_format")
       opts[:message_format] = find_locale_file(locale_chain, path)
-      opts[:message_format] = JsLocaleHelper.find_message_format_locale(locale_chain, false) unless opts[:message_format]
+      opts[:message_format] = JsLocaleHelper.find_message_format_locale(locale_chain, fallback_to_english: false) unless opts[:message_format]
 
       path = File.join(lib_locale_path, "moment_js")
       opts[:moment_js] = find_locale_file(locale_chain, path)
       opts[:moment_js] = JsLocaleHelper.find_moment_locale(locale_chain) unless opts[:moment_js]
+
+      path = File.join(lib_locale_path, "moment_js_timezones")
+      opts[:moment_js_timezones] = find_locale_file(locale_chain, path)
+      opts[:moment_js_timezones] = JsLocaleHelper.find_moment_locale(locale_chain, timezone_names: true) unless opts[:moment_js_timezones]
 
       if valid_locale?(opts)
         DiscoursePluginRegistry.register_locale(locale, opts)
