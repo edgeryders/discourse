@@ -47,7 +47,7 @@ after_initialize do
         return render_json_error("edgeryders_research_consent: Edgeryders research consent is required.")
       end
       response = create_sso_provider_account
-      return render json: response unless response['success']
+      return render json: response, status: :unprocessable_entity unless response['success']
       sso_provider_user = User.find_by(username: params[:username])
       api_keys = params[:requested_api_keys].split(' ').map do |hostname|
         create_community_account(hostname: hostname, sso_provider_user: sso_provider_user)
