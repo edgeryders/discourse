@@ -117,6 +117,7 @@
             <h4>{{i18n "admin.dashboard.last_updated"}} </h4>
             <p>{{format-date model.attributes.updated_at leaveAgo="true"}}</p>
           </div>
+          {{#if model.attributes.discourse_updated_at}}
           <div>
             <h4>{{i18n "admin.dashboard.discourse_last_updated"}} </h4>
             <p>{{format-date model.attributes.discourse_updated_at leaveAgo="true"}}</p>
@@ -124,6 +125,7 @@
               {{i18n "admin.dashboard.whats_new_in_discourse"}}
             </a>
           </div>
+          {{/if}}
         </div>
       </div>
     </div>
