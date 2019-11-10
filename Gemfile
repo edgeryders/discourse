@@ -239,7 +239,7 @@ gem 'annotator_store', git: 'https://github.com/edgeryders/annotator_store-gem',
 gem "administrate-field-nested_has_many", git: 'https://github.com/edgeryders/administrate-field-nested_has_many.git', branch: 'master'
 
 # https://github.com/thoughtbot/administrate
-# gem 'administrate'
+#gem 'administrate'
 
 
 # damingo (Github ID), 2018-11-27
