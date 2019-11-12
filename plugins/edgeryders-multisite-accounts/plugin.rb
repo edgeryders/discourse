@@ -108,7 +108,7 @@ after_initialize do
         email: args[:sso_provider_user].email,
         external_id: args[:sso_provider_user].id
       }
-      sync_sso_args[:'custom.edgeryders_consent'] = 1 if args[:edgeryders_research_consent].present?
+      sync_sso_args[:'custom.edgeryders_consent'] = '1' if args[:edgeryders_research_consent].present?
 
       create_user_response = client.sync_sso(**sync_sso_args)
 
