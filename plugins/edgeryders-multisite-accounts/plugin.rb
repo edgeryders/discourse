@@ -38,19 +38,23 @@ after_initialize do
       unless params[:auth_key].present? && params[:auth_key] == Rails.application.secrets.auth_key
         return render_json_error("auth_key: Is invalid.")
       end
-      return render_json_error("accepted_gtc: GTCs must be accepted.") unless !!params[:accepted_gtc]
-      return render_json_error("accepted_privacy_policy: Privacy policy must be accepted.") unless !!params[:accepted_privacy_policy]
+      return render_json_error("accepted_gtc: GTCs must be accepted.") unless params[:accepted_gtc] == 'true'
+      return render_json_error("accepted_privacy_policy: Privacy policy must be accepted.") unless params[:accepted_privacy_policy] == 'true'
       if params[:requested_api_keys].blank?
         return render_json_error("requested_api_keys: At least one domain name is required. Separate multiple domain names by whitespace.")
       end
-      if params[:edgeryders_research_consent].present? && !params[:edgeryders_research_consent]
+      if params[:edgeryders_research_consent].present? && params[:edgeryders_research_consent] != 'true'
         return render_json_error("edgeryders_research_consent: Edgeryders research consent is required.")
       end
       response = create_sso_provider_account
       return render json: response, status: :unprocessable_entity unless response['success']
       sso_provider_user = User.find_by(username: params[:username])
       api_keys = params[:requested_api_keys].split(' ').map do |hostname|
-        create_community_account(hostname: hostname, sso_provider_user: sso_provider_user)
+        create_community_account(
+          hostname: hostname,
+          sso_provider_user: sso_provider_user,
+          edgeryders_research_consent: params[:edgeryders_research_consent]
+        )
       end
       respond_to do |format|
         format.json do
@@ -96,13 +100,18 @@ after_initialize do
       # See: https://github.com/discourse/discourse/blob/master/lib/auth/default_current_user_provider.rb
       api_key = Rails.application.secrets.communities.find {|i| i[:hostname] == args[:hostname]}[:api_key]
       client = DiscourseApi::Client.new("#{protocol}://#{args[:hostname]}?api_key=#{api_key}&api_username=system")
-      create_user_response = client.sync_sso(
+
+      sync_sso_args = {
         name: args[:sso_provider_user].name,
         sso_secret: SiteSetting.sso_secret,
         username: args[:sso_provider_user].username,
         email: args[:sso_provider_user].email,
         external_id: args[:sso_provider_user].id
-      )
+      }
+      sync_sso_args[:'custom.edgeryders_consent'] = 1 if args[:edgeryders_research_consent].present?
+
+      create_user_response = client.sync_sso(**sync_sso_args)
+
       user = client.by_external_id(args[:sso_provider_user].id)
       api_key_response = client.generate_user_api_key(user['id'])
 
