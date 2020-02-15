@@ -10,9 +10,5 @@ module WebkitComponents
            .yield_self { |r| params_for(:categories) ? r.where("categories.slug": params_for(:categories)) : r }
            .yield_self { |r| params_for(:tags) ? r.where("tags.name": params_for(:tags)) : r }
     end
-
-    def params_for(param)
-      params.fetch(param, '').split(',').presence
-    end
   end
 end

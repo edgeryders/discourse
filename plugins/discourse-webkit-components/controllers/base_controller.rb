@@ -21,5 +21,9 @@ module WebkitComponents
     def serializer_param
       %w(category event organizer topic user).detect { |s| s == params[:serializer] } || controller_name
     end
+
+    def params_for(param)
+      params.fetch(param, '').split(',').presence
+    end
   end
 end

@@ -58,6 +58,24 @@ https://edgeryders.eu/webkit_components/users.json
 
 This displays a list of users on the site, sorted by those who have most recently posted.
 
+#### Endpoint specific options
+
+- Categories
+
+  ```
+  https://edgeryders.eu/webkit_components/users.json?categories=festival,campfire
+  ```
+
+  This option narrows down users to ones that have a `CategoryUser` on any of the comma-delimited category slugs passed as the `categories` parameter
+
+  - Topics
+
+    ```
+    https://edgeryders.eu/webkit_components/users.json?topics=10,15
+    ```
+
+    This option narrows down users to ones that have a `TopicUser` on any of the comma-delimited topic ids passed as the `topics` parameter
+
 ## Common Endpoint options
 
 All endpoints share the following options:
