@@ -12,8 +12,10 @@ describe ::WebkitComponents::TopicsController do
   describe "index" do
     fab!(:event) { Fabricate(:topic) }
     fab!(:story) { Fabricate(:topic) }
+    fab!(:organizer) { Fabricate(:topic) }
     fab!(:festival_category) { Fabricate(:category, slug: :festival) }
     fab!(:conversation_category) { Fabricate(:category, slug: :conversation) }
+    fab!(:organizer_category) { Fabricate(:category, slug: :organizers) }
     fab!(:event_tag) { Fabricate(:tag, name: "webcontent-event") }
     fab!(:story_tag) { Fabricate(:tag, name: "webcontent-story") }
     fab!(:confirmed_tag) { Fabricate(:tag, name: "event-confirmed") }
@@ -24,6 +26,7 @@ describe ::WebkitComponents::TopicsController do
 
       event.update(category: festival_category)
       story.update(category: conversation_category)
+      organizer.update(category: organizer_category)
     end
 
     it "returns a topic for a single tag" do
@@ -60,6 +63,13 @@ describe ::WebkitComponents::TopicsController do
       event_json = response_json[0]
       expect(event_json['confirmed']).to eq true
       expect(event_json)
+    end
+
+    it "return the full topic body for organizers" do
+      organizer.posts << Fabricate(:post)
+      get :index, params: { serializer: "organizer" }, format: :json
+
+      expect(response_json.detect { |t| t['id'] == organizer.id }['cooked']).to eq organizer.first_post.cooked
     end
 
     it "uses the default serializer if an unknown serializer is passed" do
