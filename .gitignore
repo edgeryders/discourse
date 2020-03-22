@@ -139,4 +139,5 @@ vendor/bundle/*
 !/plugins/edgeryders-shared
 !/plugins/edgeryders-permit-api-cors
 !/plugins/discourse-events
+!/plugins/discourse-webkit-components
 
