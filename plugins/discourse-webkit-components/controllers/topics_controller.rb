@@ -1,5 +1,11 @@
 module WebkitComponents
   class TopicsController < BaseController
+    def show
+      @topic = Topic.secured(guardian).includes(:posts).find(params[:id])
+
+      render_serialized @topic, WebkitComponents::DiscussionSerializer
+    end
+
     private
 
     def relevant_records

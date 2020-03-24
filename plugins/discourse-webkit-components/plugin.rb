@@ -17,6 +17,8 @@ after_initialize do
         "../controllers/users_controller",
         "../serializers/category_serializer",
         "../serializers/topic_serializer",
+        "../serializers/post_serializer",
+        "../serializers/discussion_serializer",
         "../serializers/organizer_serializer",
         "../serializers/event_serializer",
         "../serializers/user_serializer"
@@ -24,7 +26,7 @@ after_initialize do
 
       routes.draw do
         resources :categories, only: :index, format: :json
-        resources :topics, only: :index, format: :json
+        resources :topics, only: [:show, :index], format: :json
         resources :users, only: :index, format: :json
       end
     end

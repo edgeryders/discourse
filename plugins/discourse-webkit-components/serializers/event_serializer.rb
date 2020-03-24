@@ -1,6 +1,6 @@
 module WebkitComponents
   class EventSerializer < TopicSerializer
-    attributes :event, :location, :date, :event_type, :confirmed, :tags, :cooked
+    attributes :event, :location, :date, :event_type, :confirmed, :tags, :cooked, :raw
 
     def location
       from_event_tag :location, length: 15
@@ -8,6 +8,10 @@ module WebkitComponents
 
     def tags
       ActiveModel::ArraySerializer.new(object.tags, serializer: TagSerializer)
+    end
+
+    def raw
+      object.first_post&.raw
     end
 
     def cooked
@@ -34,7 +38,8 @@ module WebkitComponents
 
     def from_event_tag(prefix, length: 11)
       object.tags
-            .detect { |tag| tag.name.starts_with?("event-#{prefix}") }
+            .map(&:name)
+            .detect { |name| name.starts_with?("event-#{prefix}") }
             .to_s
             .sub("event-#{prefix}-", '')
             .slice(0, length)
