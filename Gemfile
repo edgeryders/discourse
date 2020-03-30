@@ -233,7 +233,8 @@ gem 'unix-crypt', '1.3.0'   #, :require_name => 'unix_crypt'
 # damingo (Github ID), 2017-08-22, #annotator
 gem 'annotator_store', git: 'https://github.com/edgeryders/annotator_store-gem', branch: 'master'
 # gem 'annotator_store', path: '~/Projects/annotator_store-gem'
-
+# NOTE: Quickfix as 1.2 breaks administrate
+gem 'kaminari', '1.1.1'
 
 # NOTE: This is a quickfix to make sure the gem is loaded for annotator_store. It is specified in the annotator_store/Gemfile
 # as a dependency but this doesn't load the gem "uninitialized constant Administrate::Field::NestedHasMany"
