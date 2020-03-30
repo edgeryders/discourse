@@ -222,6 +222,10 @@ gem 'maxminddb'
 
 
 
+# NOTE: Quickfix as 1.2 breaks administrate
+gem 'kaminari', '1.1.1'
+
+
 # damingo (Github ID), 2019-09, #annotator
 gem 'annotator_store', git: 'https://github.com/edgeryders/annotator_store-gem', branch: 'master'
 # gem 'annotator_store', path: '~/Projects/annotator_store-gem'
@@ -232,6 +236,7 @@ gem 'annotator_store', git: 'https://github.com/edgeryders/annotator_store-gem',
 # The gems main file (administrate-field-nested_has_many/lib/administrate/field/nested_has_many.rb) is supposed to
 # be required in `annotator_store/lib/annotator_store.rb` but that doesn't work.
 gem "administrate-field-nested_has_many", git: 'https://github.com/edgeryders/administrate-field-nested_has_many.git', branch: 'master'
+# gem 'administrate-field-nested_has_many', path: '~/Projects/administrate-field-nested_has_many'
 
 
 # Required by the edgeryders-multisite-accounts plugin.

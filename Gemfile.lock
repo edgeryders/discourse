@@ -1,21 +1,22 @@
 GIT
   remote: https://github.com/edgeryders/administrate-field-nested_has_many.git
-  revision: aeff567ef4001b935d91b0ee841fafeb81c62a8b
+  revision: 1b941abaddd1aa55bafb51d1138bfb5ed2585bed
   branch: master
   specs:
     administrate-field-nested_has_many (1.1.0)
-      administrate (> 0.8, < 1)
+      administrate (> 0.8)
       cocoon (~> 1.2, >= 1.2.11)
 
 GIT
   remote: https://github.com/edgeryders/annotator_store-gem
-  revision: 906add6db1bb9cf24d7f2ab7c6884f79f409a37c
+  revision: 2f6ba5d9421ad543e243d41d03c197806038e83a
   branch: master
   specs:
     annotator_store (1.0.0)
-      administrate
+      administrate (= 0.12.0)
       ancestry
       jbuilder
+      kaminari (= 1.1.1)
       rails (>= 4.0)
       redcarpet
 
@@ -106,7 +107,7 @@ GEM
       rake (>= 10.4, < 13.0)
     arel (9.0.0)
     ast (2.4.0)
-    autoprefixer-rails (9.6.1.1)
+    autoprefixer-rails (9.7.5)
       execjs
     aws-eventstream (1.0.3)
     aws-partitions (1.154.0)
@@ -595,6 +596,7 @@ DEPENDENCIES
   hiredis
   htmlentities
   http_accept_language (~> 2.0.5)
+  kaminari (= 1.1.1)
   listen
   lograge
   logstash-event
