@@ -227,6 +227,9 @@ gem 'bcrypt', '3.1.3'
 gem 'unix-crypt', '1.3.0'   #, :require_name => 'unix_crypt'
 
 
+
+
+
 # damingo (Github ID), 2017-08-22, #annotator
 gem 'annotator_store', git: 'https://github.com/edgeryders/annotator_store-gem', branch: 'master'
 # gem 'annotator_store', path: '~/Projects/annotator_store-gem'
@@ -238,6 +241,10 @@ gem 'annotator_store', git: 'https://github.com/edgeryders/annotator_store-gem',
 # be required in `annotator_store/lib/annotator_store.rb` but that doesn't work.
 gem "administrate-field-nested_has_many", git: 'https://github.com/edgeryders/administrate-field-nested_has_many.git', branch: 'master'
 # gem 'administrate-field-nested_has_many', path: '~/Projects/administrate-field-nested_has_many'
+
+
+
+
 
 # https://github.com/thoughtbot/administrate
 #gem 'administrate'

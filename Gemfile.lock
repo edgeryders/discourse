@@ -1,19 +1,19 @@
 GIT
   remote: https://github.com/edgeryders/administrate-field-nested_has_many.git
-  revision: 3e05bbff92b7514c29e61b7fa0475fff69378208
+  revision: 1b941abaddd1aa55bafb51d1138bfb5ed2585bed
   branch: master
   specs:
     administrate-field-nested_has_many (1.1.0)
-      administrate (> 0.8, < 1)
+      administrate (> 0.8)
       cocoon (~> 1.2, >= 1.2.11)
 
 GIT
   remote: https://github.com/edgeryders/annotator_store-gem
-  revision: ead8431647fbd8b7ee866300545b0d771a9be00f
+  revision: 17eedaa3ba4413e835404717b9f1dbe3f5e477da
   branch: master
   specs:
     annotator_store (1.0.0)
-      administrate
+      administrate (= 0.12.0)
       ancestry
       jbuilder
       rails (>= 4.0)
@@ -76,7 +76,7 @@ GEM
       tzinfo (~> 1.1)
     addressable (2.5.2)
       public_suffix (>= 2.0.2, < 4.0)
-    administrate (0.13.0)
+    administrate (0.12.0)
       actionpack (>= 4.2)
       actionview (>= 4.2)
       activerecord (>= 4.2)
