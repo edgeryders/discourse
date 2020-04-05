@@ -237,6 +237,8 @@ gem 'annotator_store', git: 'https://github.com/edgeryders/annotator_store-gem',
 # be required in `annotator_store/lib/annotator_store.rb` but that doesn't work.
 gem "administrate-field-nested_has_many", git: 'https://github.com/edgeryders/administrate-field-nested_has_many.git', branch: 'master'
 # gem 'administrate-field-nested_has_many', path: '~/Projects/administrate-field-nested_has_many'
+gem 'administrate-field-belongs_to_search'
+
 
 
 # Required by the edgeryders-multisite-accounts plugin.
