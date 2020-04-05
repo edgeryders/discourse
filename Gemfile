@@ -244,9 +244,7 @@ gem "administrate-field-nested_has_many", git: 'https://github.com/edgeryders/ad
 # gem 'administrate-field-nested_has_many', path: '~/Projects/administrate-field-nested_has_many'
 
 
-
-
-
+gem 'administrate-field-belongs_to_search'
 # https://github.com/thoughtbot/administrate
 #gem 'administrate'
 

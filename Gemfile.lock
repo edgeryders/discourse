@@ -9,11 +9,12 @@ GIT
 
 GIT
   remote: https://github.com/edgeryders/annotator_store-gem
-  revision: 23522dc386b6467cef6e9699ed74aa5a0304f003
+  revision: be56e4416466476752c93be1b3d893936ea1d1ae
   branch: master
   specs:
     annotator_store (1.0.0)
       administrate (= 0.12.0)
+      administrate-field-belongs_to_search
       ancestry
       jbuilder
       kaminari (= 1.1.1)
@@ -87,6 +88,11 @@ GEM
       kaminari (>= 1.0)
       momentjs-rails (~> 2.8)
       sassc-rails (~> 2.1)
+      selectize-rails (~> 0.6)
+    administrate-field-belongs_to_search (0.7.0)
+      administrate (>= 0.3, < 1.0)
+      jbuilder (~> 2)
+      rails (>= 4.2, < 7.0)
       selectize-rails (~> 0.6)
     airbrussh (1.4.0)
       sshkit (>= 1.6.1, != 1.7.0)
@@ -545,6 +551,7 @@ DEPENDENCIES
   activemodel (= 5.2.3)
   activerecord (= 5.2.3)
   activesupport (= 5.2.3)
+  administrate-field-belongs_to_search
   administrate-field-nested_has_many!
   annotate
   annotator_store!
