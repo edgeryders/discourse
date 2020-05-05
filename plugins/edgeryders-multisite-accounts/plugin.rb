@@ -28,7 +28,9 @@ after_initialize do
     # hostname: Hostname of the forum for which to get the API key.
     # @return: API key
     def self.get_community_account_api_key(args={})
-      master_api_key = Rails.application.secrets.communities.find {|i| i[:hostname] == args[:hostname]}[:api_key]
+      community_config = Rails.application.secrets.communities.find {|i| i[:hostname] == args[:hostname]}
+      raise ArgumentError.new("The master API key for #{args[:hostname]} is not available.") unless community_config.present?
+      master_api_key = community_config[:api_key]
       client = DiscourseApi::Client.new("#{protocol}://#{args[:hostname]}?api_key=#{master_api_key}&api_username=system")
 
       begin
