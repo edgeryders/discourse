@@ -27,7 +27,7 @@ after_initialize do
     # user: User object on the SSO provider site.
     # hostname: Hostname of the forum for which to get the API key.
     # @return: API key
-    def self.get_community_account_api_key(args={})
+    def self.get_community_account_api_key(args = {})
       community_config = Rails.application.secrets.communities.find {|i| i[:hostname] == args[:hostname]}
       raise ArgumentError.new("The master API key for #{args[:hostname]} is not available.") unless community_config.present?
       master_api_key = community_config[:api_key]
@@ -53,7 +53,7 @@ after_initialize do
     # username:
     # email:
     # password:
-    def self.create_sso_provider_account(args={})
+    def self.create_sso_provider_account(args = {})
       hostname = Rails.application.secrets.sso_provider[:hostname]
       api_key = Rails.application.secrets.sso_provider[:api_key]
       client = DiscourseApi::Client.new("#{EdgerydersMultisiteAccounts.protocol}://#{hostname}?api_key=#{api_key}&api_username=system")
@@ -101,7 +101,6 @@ after_initialize do
   end
 
 
-
   require_dependency "application_controller"
   class EdgerydersMultisiteAccounts::ActionsController < ::ApplicationController
     requires_plugin PLUGIN_NAME
@@ -124,9 +123,9 @@ after_initialize do
         return render_json_error("edgeryders_research_consent: Edgeryders research consent is required.")
       end
       response = EdgerydersMultisiteAccounts.create_sso_provider_account(
-          username: params[:username],
-          email: params[:email],
-          password: params[:password]
+        username: params[:username],
+        email: params[:email],
+        password: params[:password]
       )
       return render json: response, status: :unprocessable_entity unless response['success']
       sso_provider_user = User.find_by(username: params[:username])
@@ -157,7 +156,10 @@ after_initialize do
 
     # @return The current users API key for the community site provided as params[:hostname]
     def get_api_key
-      render json: EdgerydersMultisiteAccounts.get_community_account_api_key(user: current_user, hostname: params[:hostname])
+      render json: {
+        site: params[:hostname],
+        key: EdgerydersMultisiteAccounts.get_community_account_api_key(user: current_user, hostname: params[:hostname])
+      }.to_json
     end
 
   end
