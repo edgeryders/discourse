@@ -23,14 +23,89 @@ after_initialize do
       engine_name PLUGIN_NAME
       isolate_namespace EdgerydersMultisiteAccounts
     end
+
+    # user: User object on the SSO provider site.
+    # hostname: Hostname of the forum for which to get the API key.
+    # @return: API key
+    def self.get_community_account_api_key(args={})
+      master_api_key = Rails.application.secrets.communities.find {|i| i[:hostname] == args[:hostname]}[:api_key]
+      client = DiscourseApi::Client.new("#{protocol}://#{args[:hostname]}?api_key=#{master_api_key}&api_username=system")
+
+      begin
+        client_user = client.by_external_id(args[:user].id)
+        # NOTE: Only the admin API includes the users API key in the response.
+        client_user_details = client.get("/admin/users/#{client_user['id']}.json")[:body]
+
+        if client_user_details['api_key'].present?
+          client_user_details['api_key']['key']
+        else
+          api_key_response = client.generate_user_api_key(client_user['id'])
+          api_key_response['api_key']['key']
+        end
+      rescue DiscourseApi::NotFoundError => e
+        create_community_account(hostname: args[:hostname], sso_provider_user: args[:user])['key']
+      end
+    end
+
+
+    # username:
+    # email:
+    # password:
+    def self.create_sso_provider_account(args={})
+      hostname = Rails.application.secrets.sso_provider[:hostname]
+      api_key = Rails.application.secrets.sso_provider[:api_key]
+      client = DiscourseApi::Client.new("#{EdgerydersMultisiteAccounts.protocol}://#{hostname}?api_key=#{api_key}&api_username=system")
+      client.create_user(
+        name: args[:username],
+        email: args[:email],
+        username: args[:username],
+        password: args[:password]
+      )
+    end
+
+
+    # Doc: https://meta.discourse.org/t/sync-sso-user-data-with-the-sync-sso-route/84398
+    # hostname: Hostname of the forum where the user shall be created.
+    # sso_provider_user: Reference user on the SSO provider site.
+    # @return
+    #   {site: "edgeryders.eu", key: "sgev47…fdffd0"}
+    def self.create_community_account(args = {})
+      # NOTE: Do not use `client.api_key= ...` as this supplies the API key in the header. As of now (2019-09-21)
+      # this only works with the discourse master branch, but we are on the stable branch.
+      # See: https://github.com/discourse/discourse/blob/master/lib/auth/default_current_user_provider.rb
+      api_key = Rails.application.secrets.communities.find {|i| i[:hostname] == args[:hostname]}[:api_key]
+      client = DiscourseApi::Client.new("#{EdgerydersMultisiteAccounts.protocol}://#{args[:hostname]}?api_key=#{api_key}&api_username=system")
+
+      sync_sso_args = {
+        name: args[:sso_provider_user].name,
+        sso_secret: SiteSetting.sso_secret,
+        username: args[:sso_provider_user].username,
+        email: args[:sso_provider_user].email,
+        external_id: args[:sso_provider_user].id
+      }
+      sync_sso_args[:'custom.edgeryders_consent'] = '1' if args[:edgeryders_research_consent].present?
+
+      create_user_response = client.sync_sso(**sync_sso_args)
+      user = client.by_external_id(args[:sso_provider_user].id)
+      api_key_response = client.generate_user_api_key(user['id'])
+
+      {site: args[:hostname], key: api_key_response['api_key']['key']}
+    end
+
+    def self.protocol
+      Rails.env.production? ? 'https' : 'http'
+    end
+
   end
+
 
 
   require_dependency "application_controller"
   class EdgerydersMultisiteAccounts::ActionsController < ::ApplicationController
     requires_plugin PLUGIN_NAME
 
-    skip_before_action :redirect_to_login_if_required
+    before_action :ensure_logged_in, except: [:create]
+
 
     # See: https://edgeryders.eu/t/it-development-plan-for-the-h2020-projects/9202#heading--2-2-posting
     def create
@@ -46,11 +121,15 @@ after_initialize do
       if params[:edgeryders_research_consent].present? && params[:edgeryders_research_consent] != 'true'
         return render_json_error("edgeryders_research_consent: Edgeryders research consent is required.")
       end
-      response = create_sso_provider_account
+      response = EdgerydersMultisiteAccounts.create_sso_provider_account(
+          username: params[:username],
+          email: params[:email],
+          password: params[:password]
+      )
       return render json: response, status: :unprocessable_entity unless response['success']
       sso_provider_user = User.find_by(username: params[:username])
       api_keys = params[:requested_api_keys].split(' ').map do |hostname|
-        create_community_account(
+        EdgerydersMultisiteAccounts.create_community_account(
           hostname: hostname,
           sso_provider_user: sso_provider_user,
           edgeryders_research_consent: params[:edgeryders_research_consent]
@@ -74,59 +153,17 @@ after_initialize do
     end
 
 
-    private
-
-    def create_sso_provider_account
-      hostname = Rails.application.secrets.sso_provider[:hostname]
-      api_key = Rails.application.secrets.sso_provider[:api_key]
-      client = DiscourseApi::Client.new("#{protocol}://#{hostname}?api_key=#{api_key}&api_username=system")
-      client.create_user(
-        name: params[:username],
-        email: params[:email],
-        username: params[:username],
-        password: params[:password]
-      )
+    # @return The current users API key for the community site provided as params[:hostname]
+    def get_api_key
+      render json: EdgerydersMultisiteAccounts.get_community_account_api_key(user: current_user, hostname: params[:hostname])
     end
 
-
-    # Doc: https://meta.discourse.org/t/sync-sso-user-data-with-the-sync-sso-route/84398
-    # hostname: Hostname of the forum where the user shall be created.
-    # sso_provider_user: Reference user on the SSO provider site.
-    # @return
-    #   {site: "edgeryders.eu", key: "sgev47…fdffd0"}
-    def create_community_account(args = {})
-      # NOTE: Do not use `client.api_key= ...` as this supplies the API key in the header. As of now (2019-09-21)
-      # this only works with the discourse master branch, but we are on the stable branch.
-      # See: https://github.com/discourse/discourse/blob/master/lib/auth/default_current_user_provider.rb
-      api_key = Rails.application.secrets.communities.find {|i| i[:hostname] == args[:hostname]}[:api_key]
-      client = DiscourseApi::Client.new("#{protocol}://#{args[:hostname]}?api_key=#{api_key}&api_username=system")
-
-      sync_sso_args = {
-        name: args[:sso_provider_user].name,
-        sso_secret: SiteSetting.sso_secret,
-        username: args[:sso_provider_user].username,
-        email: args[:sso_provider_user].email,
-        external_id: args[:sso_provider_user].id
-      }
-      sync_sso_args[:'custom.edgeryders_consent'] = '1' if args[:edgeryders_research_consent].present?
-
-      create_user_response = client.sync_sso(**sync_sso_args)
-
-      user = client.by_external_id(args[:sso_provider_user].id)
-      api_key_response = client.generate_user_api_key(user['id'])
-
-      {site: args[:hostname], key: api_key_response['api_key']['key']}
-    end
-
-
-    def protocol
-      Rails.env.production? ? 'https' : 'http'
-    end
   end
 
 
   EdgerydersMultisiteAccounts::Engine.routes.draw do
     get "/multisite_account(.:format)" => "actions#create", format: :json
+    get "/multisite_account_api_key(.:format)" => "actions#get_api_key", format: :json
   end
 
 
