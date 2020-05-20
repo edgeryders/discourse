@@ -227,8 +227,8 @@ gem 'kaminari', '1.1.1'
 
 
 # damingo (Github ID), 2019-09, #annotator
-gem 'annotator_store', git: 'https://github.com/edgeryders/annotator_store-gem', branch: 'master'
-# gem 'annotator_store', path: '~/Projects/annotator_store-gem'
+# gem 'annotator_store', git: 'https://github.com/edgeryders/annotator_store-gem', branch: 'master'
+gem 'annotator_store', path: '~/Projects/annotator_store-gem'
 
 
 # NOTE: This is a quickfix to make sure the gem is loaded for annotator_store. It is specified in the annotator_store/Gemfile
