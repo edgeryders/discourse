@@ -8,6 +8,20 @@ GIT
       cocoon (~> 1.2, >= 1.2.11)
 
 GIT
+  remote: https://github.com/edgeryders/annotator_store-gem
+  revision: 0ddfc5c7530c2e794bd2bc130851da1c6191bc58
+  branch: master
+  specs:
+    annotator_store (1.0.0)
+      administrate (= 0.12.0)
+      administrate-field-belongs_to_search
+      ancestry
+      jbuilder
+      kaminari (= 1.1.1)
+      rails (>= 4.0)
+      redcarpet
+
+GIT
   remote: https://github.com/edgeryders/capistrano-puma.git
   revision: cf0c6a4624f14ec71e2f0918d48a5393adc4470f
   specs:
@@ -25,18 +39,6 @@ GIT
       faraday (~> 0.9)
       faraday_middleware (~> 0.10)
       rack (>= 1.6)
-
-PATH
-  remote: ../annotator_store-gem
-  specs:
-    annotator_store (1.0.0)
-      administrate (= 0.12.0)
-      administrate-field-belongs_to_search
-      ancestry
-      jbuilder
-      kaminari (= 1.1.1)
-      rails (>= 4.0)
-      redcarpet
 
 GEM
   remote: https://rubygems.org/
