@@ -9,13 +9,14 @@ GIT
 
 GIT
   remote: https://github.com/edgeryders/annotator_store-gem
-  revision: 47401c2797b02ef35e979167fa4ebd73fe5dbdf4
+  revision: 0a832240ebd623e3d0bcb32f0deed3f06b935522
   branch: master
   specs:
     annotator_store (1.0.0)
       administrate (= 0.12.0)
       administrate-field-belongs_to_search
       ancestry
+      deep_cloneable (~> 3.0.0)
       jbuilder
       kaminari (= 1.1.1)
       rails (>= 4.0)
@@ -180,6 +181,8 @@ GEM
     datetime_picker_rails (0.0.7)
       momentjs-rails (>= 2.8.1)
     debug_inspector (0.0.3)
+    deep_cloneable (3.0.0)
+      activerecord (>= 3.1.0, < 7)
     diff-lcs (1.3)
     diffy (3.3.0)
     discourse-ember-source (3.8.0.1)
