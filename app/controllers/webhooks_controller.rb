@@ -63,6 +63,23 @@ class WebhooksController < ActionController::Base
     success
   end
 
+  def postmark
+    # see https://postmarkapp.com/developer/webhooks/bounce-webhook#bounce-webhook-data
+    # and https://postmarkapp.com/developer/api/bounce-api#bounce-types
+
+    message_id = params["MessageID"]
+    to_address = params["Email"]
+    type = params["Type"]
+    case type
+    when "HardBounce", "SpamNotification", "SpamComplaint"
+      process_bounce(message_id, to_address, SiteSetting.hard_bounce_score)
+    when "SoftBounce"
+      process_bounce(message_id, to_address, SiteSetting.soft_bounce_score)
+    end
+
+    success
+  end
+
   def sparkpost
     events = params["_json"] || [params]
     events.each do |event|
@@ -119,8 +136,8 @@ class WebhooksController < ActionController::Base
 
     # prevent replay attacks
     key = "mailgun_token_#{token}"
-    return false unless $redis.setnx(key, 1)
-    $redis.expire(key, 10.minutes)
+    return false unless Discourse.redis.setnx(key, 1)
+    Discourse.redis.expire(key, 10.minutes)
 
     # ensure timestamp isn't too far from current time
     return false if (Time.at(timestamp.to_i) - Time.now).abs > 12.hours.to_i

@@ -119,8 +119,8 @@ module Email
 
       key = "rejection_email:#{email}:#{type}:#{Date.today}"
 
-      if $redis.setnx(key, "1")
-        $redis.expire(key, 25.hours)
+      if Discourse.redis.setnx(key, "1")
+        Discourse.redis.expire(key, 25.hours)
         true
       else
         false
@@ -128,7 +128,12 @@ module Email
     end
 
     def set_incoming_email_rejection_message(incoming_email, message)
-      incoming_email.update!(rejection_message: message) if incoming_email
+      if incoming_email
+        incoming_email.update!(
+          rejection_message: message,
+          raw: Email::Cleaner.new(incoming_email.raw, rejected: true).execute
+        )
+      end
     end
 
     def log_email_process_failure(mail_string, exception)

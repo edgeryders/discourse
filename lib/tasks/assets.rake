@@ -75,18 +75,14 @@ end
 def compress_node(from, to)
   to_path = "#{assets_path}/#{to}"
   assets = cdn_relative_path("/assets")
-  source_map_root = assets + ((d = File.dirname(from)) == "." ? "" : "/#{d}")
+  assets_additional_path = (d = File.dirname(from)) == "." ? "" : "/#{d}"
+  source_map_root = assets + assets_additional_path
   source_map_url = cdn_path "/assets/#{to}.map"
+  base_source_map = assets_path + assets_additional_path
 
-  cmd = if `uglifyjs -V`.match?(/2(.\d*){2}/)
-    <<~EOS
-    uglifyjs '#{assets_path}/#{from}' -p relative -m -c -o '#{to_path}' --source-map-root '#{source_map_root}' --source-map '#{assets_path}/#{to}.map' --source-map-url '#{source_map_url}'
-    EOS
-  else
-    <<~EOS
-    uglifyjs '#{assets_path}/#{from}' -m -c -o '#{to_path}' --source-map "root='#{source_map_root}',url='#{source_map_url}'" --output '#{to_path}'
-    EOS
-  end
+  cmd = <<~EOS
+    uglifyjs '#{assets_path}/#{from}' -m -c -o '#{to_path}' --source-map "base='#{base_source_map}',root='#{source_map_root}',url='#{source_map_url}'"
+  EOS
 
   STDERR.puts cmd
   result = `#{cmd} 2>&1`

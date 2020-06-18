@@ -1,10 +1,5 @@
 # frozen_string_literal: true
 
-require_dependency 'site_settings/deprecated_settings'
-require_dependency 'site_settings/type_supervisor'
-require_dependency 'site_settings/defaults_provider'
-require_dependency 'site_settings/db_provider'
-
 module SiteSettingExtension
   include SiteSettings::DeprecatedSettings
 
@@ -137,7 +132,7 @@ module SiteSettingExtension
         hidden_settings << name
       end
 
-      if opts[:shadowed_by_global] && GlobalSetting.respond_to?(name)
+      if GlobalSetting.respond_to?(name)
         val = GlobalSetting.public_send(name)
 
         unless val.nil? || (val == ''.freeze)
@@ -197,7 +192,7 @@ module SiteSettingExtension
   end
 
   def client_settings_json
-    Rails.cache.fetch(SiteSettingExtension.client_settings_cache_key, expires_in: 30.minutes) do
+    Discourse.cache.fetch(SiteSettingExtension.client_settings_cache_key, expires_in: 30.minutes) do
       client_settings_json_uncached
     end
   end
@@ -418,10 +413,26 @@ module SiteSettingExtension
     end
   end
 
+  if defined?(Rails::Console)
+    # Convenience method for debugging site setting issues
+    # Returns a hash with information about a specific setting
+    def info(name)
+      {
+        resolved_value: get(name),
+        default_value: defaults[name],
+        global_override: GlobalSetting.respond_to?(name) ? GlobalSetting.public_send(name) : nil,
+        database_value: provider.find(name)&.value,
+        refresh?: refresh_settings.include?(name),
+        client?: client_settings.include?(name),
+        secret?: secret_settings.include?(name),
+      }
+    end
+  end
+
   protected
 
   def clear_cache!
-    Rails.cache.delete(SiteSettingExtension.client_settings_cache_key)
+    Discourse.cache.delete(SiteSettingExtension.client_settings_cache_key)
     Site.clear_anon_cache!
   end
 

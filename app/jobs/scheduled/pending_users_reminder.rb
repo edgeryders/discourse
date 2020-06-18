@@ -1,10 +1,8 @@
 # frozen_string_literal: true
 
-require_dependency 'admin_user_index_query'
-
 module Jobs
 
-  class PendingUsersReminder < Jobs::Scheduled
+  class PendingUsersReminder < ::Jobs::Scheduled
     every 1.hour
 
     def execute(args)
@@ -52,11 +50,11 @@ module Jobs
     end
 
     def previous_newest_username
-      $redis.get previous_newest_username_cache_key
+      Discourse.redis.get previous_newest_username_cache_key
     end
 
     def previous_newest_username=(username)
-      $redis.setex previous_newest_username_cache_key, 7.days, username
+      Discourse.redis.setex previous_newest_username_cache_key, 7.days, username
     end
 
     def previous_newest_username_cache_key

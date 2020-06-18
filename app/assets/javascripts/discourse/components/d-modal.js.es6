@@ -1,6 +1,8 @@
-import { on } from "ember-addons/ember-computed-decorators";
+import { next } from "@ember/runloop";
+import { on } from "discourse-common/utils/decorators";
+import Component from "@ember/component";
 
-export default Ember.Component.extend({
+export default Component.extend({
   classNameBindings: [
     ":modal",
     ":d-modal",
@@ -29,9 +31,16 @@ export default Ember.Component.extend({
 
   @on("didInsertElement")
   setUp() {
-    $("html").on("keydown.discourse-modal", e => {
-      if (e.which === 27 && this.dismissable) {
-        Ember.run.next(() => $(".modal-header a.close").click());
+    $("html").on("keyup.discourse-modal", e => {
+      //only respond to events when the modal is visible
+      if ($("#discourse-modal:visible").length > 0) {
+        if (e.which === 27 && this.dismissable) {
+          next(() => $(".modal-header button.modal-close").click());
+        }
+
+        if (e.which === 13 && this.triggerClickOnEnter(e)) {
+          next(() => $(".modal-footer .btn-primary").click());
+        }
       }
     });
 
@@ -40,8 +49,20 @@ export default Ember.Component.extend({
 
   @on("willDestroyElement")
   cleanUp() {
-    $("html").off("keydown.discourse-modal");
+    $("html").off("keyup.discourse-modal");
     this.appEvents.off("modal:body-shown", this, "_modalBodyShown");
+  },
+
+  triggerClickOnEnter(e) {
+    // skip when in a form or a textarea element
+    if (
+      e.target.closest("form") ||
+      (document.activeElement && document.activeElement.nodeName === "TEXTAREA")
+    ) {
+      return false;
+    }
+
+    return true;
   },
 
   mouseDown(e) {
@@ -56,7 +77,7 @@ export default Ember.Component.extend({
       // Delegate click to modal close if clicked outside.
       // We do this because some CSS of ours seems to cover
       // the backdrop and makes it unclickable.
-      $(".modal-header a.close").click();
+      $(".modal-header button.modal-close").click();
     }
   },
 
@@ -66,7 +87,7 @@ export default Ember.Component.extend({
     }
 
     if (data.fixed) {
-      this.$().removeClass("hidden");
+      this.element.classList.remove("hidden");
     }
 
     if (data.title) {

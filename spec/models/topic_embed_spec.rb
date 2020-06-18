@@ -86,6 +86,36 @@ describe TopicEmbed do
         expect(post.cook_method).to eq(Post.cook_methods[:regular])
       end
     end
+
+    describe 'embedded content truncation' do
+      MAX_LENGTH_BEFORE_TRUNCATION = 100
+
+      let(:long_content) { "<p>#{'a' * MAX_LENGTH_BEFORE_TRUNCATION}</p>\n<p>more</p>" }
+
+      it 'truncates the imported post when truncation is enabled' do
+        SiteSetting.embed_truncate = true
+        post = TopicEmbed.import(user, url, title, long_content)
+
+        expect(post.raw).not_to include(long_content)
+      end
+
+      it 'keeps everything in the imported post when truncation is disabled' do
+        SiteSetting.embed_truncate = false
+        post = TopicEmbed.import(user, url, title, long_content)
+
+        expect(post.raw).to include(long_content)
+      end
+
+      it 'looks at first div when there is no paragraph' do
+
+        no_para = "<div><h>testing it</h></div>"
+
+        SiteSetting.embed_truncate = true
+        post = TopicEmbed.import(user, url, title, no_para)
+
+        expect(post.raw).to include("testing it")
+      end
+    end
   end
 
   context '.topic_id_for_embed' do
@@ -119,6 +149,7 @@ describe TopicEmbed do
       before do
         file.stubs(:read).returns contents
         TopicEmbed.stubs(:open).returns file
+        stub_request(:head, url)
       end
 
       it "doesn't scrub the title by default" do
@@ -147,6 +178,7 @@ describe TopicEmbed do
         SiteSetting.embed_classname_whitelist = 'emoji, foo'
         file.stubs(:read).returns contents
         TopicEmbed.stubs(:open).returns file
+        stub_request(:head, url)
         response = TopicEmbed.find_remote(url)
       end
 
@@ -183,6 +215,7 @@ describe TopicEmbed do
       before(:each) do
         file.stubs(:read).returns contents
         TopicEmbed.stubs(:open).returns file
+        stub_request(:head, url)
         response = TopicEmbed.find_remote(url)
       end
 
@@ -205,6 +238,7 @@ describe TopicEmbed do
         SiteSetting.embed_classname_whitelist = ''
         file.stubs(:read).returns contents
         TopicEmbed.stubs(:open).returns file
+        stub_request(:head, url)
         response = TopicEmbed.find_remote(url)
       end
 
@@ -232,9 +266,8 @@ describe TopicEmbed do
       let!(:file) { StringIO.new }
 
       before do
-        file.stubs(:read).returns contents
-        TopicEmbed.stubs(:open)
-          .with('http://eviltrout.com/test/%D9%85%D8%A7%D9%87%DB%8C', allow_redirections: :safe).returns file
+        stub_request(:head, url)
+        stub_request(:get, url).to_return(body: contents).then.to_raise
       end
 
       it "doesn't throw an error" do
@@ -250,14 +283,20 @@ describe TopicEmbed do
       let!(:file) { StringIO.new }
 
       before do
-        file.stubs(:read).returns contents
-        TopicEmbed.stubs(:open)
-          .with('http://example.com/hello%20world', allow_redirections: :safe).returns file
+        stub_request(:head, url)
+        stub_request(:get, url).to_return(body: contents).then.to_raise
       end
 
       it "doesn't throw an error" do
         response = TopicEmbed.find_remote(url)
         expect(response.title).to eq("Hello World!")
+      end
+    end
+
+    context "non-http URL" do
+      let(:url) { '/test.txt' }
+      it "throws an error" do
+        expect { TopicEmbed.find_remote(url) }.to raise_error(URI::InvalidURIError)
       end
     end
 
@@ -273,10 +312,21 @@ describe TopicEmbed do
       end
 
       it "handles mailto links" do
+        stub_request(:head, url)
         response = TopicEmbed.find_remote(url)
         expect(response.body).to have_tag('a', with: { href: 'mailto:foo%40example.com' })
         expect(response.body).to have_tag('a', with: { href: 'mailto:bar@example.com' })
       end
+    end
+  end
+
+  describe '.absolutize_urls' do
+    let(:invalid_url) { 'http://source.com/#double#anchor' }
+    let(:contents) { "hello world new post <a href='/hello'>hello</a>" }
+
+    it "does not attempt absolutizing on a bad URI" do
+      raw = TopicEmbed.absolutize_urls(invalid_url, contents)
+      expect(raw).to eq(contents)
     end
   end
 

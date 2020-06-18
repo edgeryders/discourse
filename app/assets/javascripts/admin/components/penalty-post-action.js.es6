@@ -1,34 +1,40 @@
-import computed from "ember-addons/ember-computed-decorators";
+import discourseComputed from "discourse-common/utils/decorators";
+import { equal } from "@ember/object/computed";
+import Component from "@ember/component";
+import { afterRender } from "discourse-common/utils/decorators";
 
 const ACTIONS = ["delete", "delete_replies", "edit", "none"];
 
-export default Ember.Component.extend({
+export default Component.extend({
   postId: null,
   postAction: null,
   postEdit: null,
 
-  @computed
+  @discourseComputed
   penaltyActions() {
     return ACTIONS.map(id => {
       return { id, name: I18n.t(`admin.user.penalty_post_${id}`) };
     });
   },
 
-  editing: Ember.computed.equal("postAction", "edit"),
+  editing: equal("postAction", "edit"),
 
   actions: {
-    penaltyChanged() {
-      let postAction = this.postAction;
+    penaltyChanged(postAction) {
+      this.set("postAction", postAction);
 
       // If we switch to edit mode, jump to the edit textarea
       if (postAction === "edit") {
-        Ember.run.scheduleOnce("afterRender", () => {
-          let $elem = this.$();
-          let body = $elem.closest(".modal-body");
-          body.scrollTop(body.height());
-          $elem.find(".post-editor").focus();
-        });
+        this._focusEditTextarea();
       }
     }
+  },
+
+  @afterRender
+  _focusEditTextarea() {
+    const elem = this.element;
+    const body = elem.closest(".modal-body");
+    body.scrollTo(0, body.clientHeight);
+    elem.querySelector(".post-editor").focus();
   }
 });

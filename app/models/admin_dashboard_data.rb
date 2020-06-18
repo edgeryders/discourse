@@ -1,7 +1,5 @@
 # frozen_string_literal: true
 
-require_dependency 'mem_info'
-
 class AdminDashboardData
   include StatsCacheable
 
@@ -65,16 +63,16 @@ class AdminDashboardData
   end
 
   def self.set_problems_started
-    existing_time = $redis.get(problems_started_key)
-    $redis.setex(problems_started_key, 14.days.to_i, existing_time || Time.zone.now.to_s)
+    existing_time = Discourse.redis.get(problems_started_key)
+    Discourse.redis.setex(problems_started_key, 14.days.to_i, existing_time || Time.zone.now.to_s)
   end
 
   def self.clear_problems_started
-    $redis.del problems_started_key
+    Discourse.redis.del problems_started_key
   end
 
   def self.problems_started_at
-    s = $redis.get(problems_started_key)
+    s = Discourse.redis.get(problems_started_key)
     s ? Time.zone.parse(s) : nil
   end
 
@@ -86,7 +84,9 @@ class AdminDashboardData
     @problem_messages = [
       'dashboard.bad_favicon_url',
       'dashboard.poll_pop3_timeout',
-      'dashboard.poll_pop3_auth_error'
+      'dashboard.poll_pop3_auth_error',
+      'dashboard.deprecated_api_usage',
+      'dashboard.update_mail_receiver'
     ]
 
     add_problem_check :rails_env_check, :host_names_check, :force_https_check,
@@ -96,7 +96,7 @@ class AdminDashboardData
                       :image_magick_check, :failing_emails_check,
                       :subfolder_ends_in_slash_check,
                       :pop3_polling_configuration, :email_polling_errored_recently,
-                      :out_of_date_themes, :unreachable_themes
+                      :out_of_date_themes, :unreachable_themes, :watched_words_check
 
     add_problem_check do
       sidekiq_check || queue_size_check
@@ -109,19 +109,19 @@ class AdminDashboardData
   end
 
   def self.problem_message_check(i18n_key)
-    $redis.get(problem_message_key(i18n_key)) ? I18n.t(i18n_key, base_path: Discourse.base_path) : nil
+    Discourse.redis.get(problem_message_key(i18n_key)) ? I18n.t(i18n_key, base_path: Discourse.base_path) : nil
   end
 
   def self.add_problem_message(i18n_key, expire_seconds = nil)
     if expire_seconds.to_i > 0
-      $redis.setex problem_message_key(i18n_key), expire_seconds.to_i, 1
+      Discourse.redis.setex problem_message_key(i18n_key), expire_seconds.to_i, 1
     else
-      $redis.set problem_message_key(i18n_key), 1
+      Discourse.redis.set problem_message_key(i18n_key), 1
     end
   end
 
   def self.clear_problem_message(i18n_key)
-    $redis.del problem_message_key(i18n_key)
+    Discourse.redis.del problem_message_key(i18n_key)
   end
 
   def self.problem_message_key(i18n_key)
@@ -222,6 +222,17 @@ class AdminDashboardData
   def force_https_check
     return unless @opts[:check_force_https]
     I18n.t('dashboard.force_https_warning', base_path: Discourse.base_path) unless SiteSetting.force_https
+  end
+
+  def watched_words_check
+    WatchedWord.actions.keys.each do |action|
+      begin
+        WordWatcher.word_matcher_regexp(action, raise_errors: true)
+      rescue RegexpError => e
+        return I18n.t('dashboard.watched_word_regexp_error', base_path: Discourse.base_path, action: action)
+      end
+    end
+    nil
   end
 
   def out_of_date_themes

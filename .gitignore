@@ -33,6 +33,7 @@ config/secrets.yml
 # Ignore the default SQLite database and db dumps
 *.sql
 *.sql.gz
+!/spec/fixtures/**/*.sql
 /db/*.sqlite3
 /db/structure.sql
 /db/schema.rb
@@ -47,7 +48,7 @@ bootsnap-compile-cache/
 
 # Ignore plugins except for the bundled ones.
 /plugins/*
-!/plugins/lazyYT/
+!/plugins/lazy-yt/
 !/plugins/poll/
 !/plugins/discourse-adplugin
 !/plugins/discourse-details/
@@ -56,6 +57,7 @@ bootsnap-compile-cache/
 !/plugins/discourse-presence
 !/plugins/discourse-local-dates
 !/plugins/discourse-migratepassword
+!/plugins/discourse-internet-explorer
 /plugins/*/auto_generated/
 
 /spec/fixtures/plugins/my_plugin/auto_generated
@@ -131,6 +133,9 @@ vendor/bundle/*
 # Vagrant
 .vagrant
 
+# ignore auto-generated plugin js assets
+/app/assets/javascripts/plugins/*
+
 
 !/plugins/edgeryders-communities-navigation
 !/plugins/edgeryders-multisite
@@ -140,4 +145,5 @@ vendor/bundle/*
 !/plugins/edgeryders-permit-api-cors
 !/plugins/discourse-events
 !/plugins/discourse-webkit-components
+!/plugins/discourse-graphryder
 

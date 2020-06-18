@@ -24,8 +24,8 @@ class TopicRetriever
 
     # Throttle other users to once every 60 seconds
     retrieved_key = "retrieved_topic"
-    if $redis.setnx(retrieved_key, "1")
-      $redis.expire(retrieved_key, 60)
+    if Discourse.redis.setnx(retrieved_key, "1")
+      Discourse.redis.expire(retrieved_key, 60)
       return false
     end
 
@@ -35,12 +35,6 @@ class TopicRetriever
   def perform_retrieve
     # It's possible another process or job found the embed already. So if that happened bail out.
     return if TopicEmbed.where(embed_url: @embed_url).exists?
-
-    # First check RSS if that is enabled
-    if SiteSetting.feed_polling_enabled?
-      Jobs::PollFeed.new.execute({})
-      return if TopicEmbed.where(embed_url: @embed_url).exists?
-    end
 
     fetch_http
   end

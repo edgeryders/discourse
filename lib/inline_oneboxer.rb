@@ -1,7 +1,5 @@
 # frozen_string_literal: true
 
-require_dependency 'retrieve_title'
-
 class InlineOneboxer
 
   MIN_TITLE_LENGTH = 2
@@ -16,11 +14,11 @@ class InlineOneboxer
   end
 
   def self.purge(url)
-    Rails.cache.delete(cache_key(url))
+    Discourse.cache.delete(cache_key(url))
   end
 
   def self.cache_lookup(url)
-    Rails.cache.read(cache_key(url))
+    Discourse.cache.read(cache_key(url))
   end
 
   def self.lookup(url, opts = nil)
@@ -35,11 +33,11 @@ class InlineOneboxer
     return unless url
 
     if route = Discourse.route_for(url)
-      if route[:controller] == "topics" &&
-        route[:action] == "show" &&
-        topic = Topic.where(id: route[:topic_id].to_i).first
-
-        return onebox_for(url, topic.title, opts) if Guardian.new.can_see?(topic)
+      if route[:controller] == "topics"
+        if topic = Oneboxer.local_topic(url, route, opts)
+          opts[:skip_cache] = true
+          return onebox_for(url, topic.title, opts)
+        end
       end
     end
 
@@ -72,7 +70,7 @@ class InlineOneboxer
       title: title && Emoji.gsub_emoji_to_unicode(title)
     }
     unless opts[:skip_cache]
-      Rails.cache.write(cache_key(url), onebox, expires_in: 1.day)
+      Discourse.cache.write(cache_key(url), onebox, expires_in: 1.day)
     end
 
     onebox
