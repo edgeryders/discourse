@@ -79,6 +79,9 @@ Discourse::Application.configure do
       Bullet.rails_logger = true
     end
   end
+
+  config.hosts << "m1.test"
+  config.hosts << "m2.test"
 end
 
 
