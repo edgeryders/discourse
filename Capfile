@@ -33,8 +33,10 @@ require 'capistrano/rails'
 # require 'capistrano/rails/migrations'
 # require 'capistrano/rails/assets'
 require 'capistrano/bundler'
+
 require 'capistrano/sidekiq'
-require 'capistrano/sidekiq/monit'
+install_plugin Capistrano::Sidekiq  # Default sidekiq tasks
+install_plugin Capistrano::Sidekiq::Systemd
 
 
 # IMPORTANT: capistrano-puma must be required after capistrano-chruby or it won't detect chruby usage.

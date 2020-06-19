@@ -179,9 +179,10 @@ GEM
     capistrano-rails (1.5.0)
       capistrano (~> 3.1)
       capistrano-bundler (~> 1.1)
-    capistrano-sidekiq (1.0.2)
+    capistrano-sidekiq (2.0.0.beta4)
       capistrano (>= 3.9.0)
-      sidekiq (>= 3.4)
+      capistrano-bundler
+      sidekiq (>= 6.0)
     cbor (0.5.9.6)
     certified (1.0.0)
     chunky_png (1.3.11)
@@ -607,7 +608,7 @@ DEPENDENCIES
   capistrano-bundler (~> 1.2)
   capistrano-chruby
   capistrano-rails (~> 1.3)
-  capistrano-sidekiq
+  capistrano-sidekiq (= 2.0.0.beta4)
   capistrano3-puma!
   cbor
   certified
@@ -719,4 +720,4 @@ DEPENDENCIES
   yaml-lint
 
 BUNDLED WITH
-   1.17.3
+   2.1.4

@@ -15,9 +15,12 @@ set :linked_dirs, fetch(:linked_dirs, []).push('log', 'tmp/pids', 'tmp/cache', '
 
 
 # https://github.com/capistrano/chruby
-set :chruby_ruby, 'ruby-2.5.3'
+set :chruby_ruby, 'ruby-2.7.1'
 # Workaround for capistrano bug: https://github.com/capistrano/chruby/issues/7#issuecomment-214770540
-set :default_env, { path: '/opt/rubies/ruby-2.5.3/lib/ruby/gems/2.5.0/bin:/opt/rubies/ruby-2.5.3/bin:$PATH' }
+set :default_env, { path: '/opt/rubies/ruby-2.7.1/lib/ruby/gems/2.7.0/bin:/opt/rubies/ruby-2.7.1/bin:$PATH' }
+# set :default_env, { path: '/home/discourse/production_multisite/shared/bundle/ruby/2.7.0/bin:/opt/rubies/ruby-2.7.1/lib/ruby/gems/2.7.0/bin:/opt/rubies/ruby-2.7.1/bin:$PATH' }
+
+
 
 
 # https://github.com/capistrano/rails
@@ -49,7 +52,13 @@ set :puma_daemonize, true
 
 
 # https://github.com/seuros/capistrano-sidekiq
+# set :init_system, :systemd
+
+
+# https://github.com/seuros/capistrano-sidekiq
 set :sidekiq_queue, %w(critical default low)
+# set :sidekiq_service_unit_user, :system
+
 # set :sidekiq_config,        "#{current_path}/config/sidekiq.yml"
 # set :sidekiq_default_hooks, -> { true }
 # set :sidekiq_pid, -> { File.join(shared_path, 'tmp', 'pids', 'sidekiq.pid') }

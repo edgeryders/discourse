@@ -296,7 +296,7 @@ group :development do
   # https://github.com/seuros/capistrano-puma
   gem 'capistrano3-puma', git: 'https://github.com/edgeryders/capistrano-puma.git'
   # https://github.com/seuros/capistrano-sidekiq
-  gem 'capistrano-sidekiq', require: false
+  gem 'capistrano-sidekiq', '2.0.0.beta4' #, require: false
   # https://github.com/capistrano/bundler
   gem 'capistrano-bundler', '~> 1.2'
 end
