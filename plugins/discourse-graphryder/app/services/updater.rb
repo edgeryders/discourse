@@ -26,6 +26,19 @@ module Graphryder
         end
       end
 
+      ::TopicTag.class_eval do
+        after_save :graphryder_sync
+
+        def graphryder_sync
+          ::Graphryder::Query.instance.perform "
+            MERGE (topic:topic {id:#{topic_id}})
+            MERGE (tag:tag {id:#{tag_id}})
+            MERGE (topic)-[:REFERS_TO]->(tag)
+            RETURN topic, tag
+          "
+        end
+      end
+
       ::Topic.class_eval do
         after_save :graphryder_sync
 
@@ -46,18 +59,12 @@ module Graphryder
       ::Post.class_eval do
         after_save :graphryder_sync
 
-        def graphryder_label
-          [topic_id, post_number].join('_')
-        end
-
-        def graphryder_parent_label
-          [topic_id, reply_to_post_number].join('_') if reply_to_post_number
-        end
-
         def graphryder_sync
           ::Graphryder::Query.instance.perform "
             MERGE (post:post {id:#{id}})
-            SET post.label = '#{graphryder_label}',
+            SET post.label = '#{id}',
+                post.topic_id = '#{topic_id}',
+                post.number = '#{post_number}',
                 post.content = '#{cooked}',
                 post.timestamp = '#{updated_at}',
                 post.url = '#{url}'
@@ -66,9 +73,9 @@ module Graphryder
             MERGE (user)-[:AUTHORSHIP]->(post)
             MERGE (post)-[:COMMENTS]->(topic)
             #{"
-              MERGE (parent:post {label:#{graphryder_parent_label}})
+              MERGE (parent:post {topic_id:#{topic_id}, post_number:#{reply_to_post_number}})
               MERGE (post)-[:COMMENTS]->(parent)
-            " if graphryder_parent_label}
+            " if reply_to_post_number}
             RETURN post
           "
         end

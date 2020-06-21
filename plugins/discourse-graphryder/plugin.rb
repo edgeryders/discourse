@@ -10,12 +10,18 @@ after_initialize do
       engine_name 'graphryder'
       isolate_namespace Graphryder
 
-      path = File.expand_path File.dirname(__dir__)
-      Discourse.redis.call(
-        'module',
-        'load',
-        "#{path}/discourse-graphryder/redisgraph.so"
-      ) unless Discourse.redis.call('module', 'list').find { |_, name, _, _| name == 'graph' }
+      if !Discourse.redis.call('module', 'list').find { |_, name, _, _| name == 'graph' }
+        # path = File.expand_path File.dirname(__dir__)
+        # Discourse.redis.call(
+        #   'module',
+        #   'load',
+        #   "#{path}/discourse-graphryder/redisgraph.so"
+        # )
+        warn [
+          "Redis does not have RedisGraph installed as a module,",
+          "please install it before using the discourse-graphryder plugin."
+        ].join("\n")
+      end
 
 
       def self.require_path(path)
