@@ -14,6 +14,11 @@ set :linked_files, fetch(:linked_files, []).push('config/discourse.conf', 'confi
 set :linked_dirs, fetch(:linked_dirs, []).push('log', 'tmp/pids', 'tmp/cache', 'tmp/sockets', 'public/system', 'public/backups', 'public/uploads')
 
 
+set :bundler_path, '/home/discourse/production_multisite/shared/bundle/ruby/2.7.0/bin/bundle'
+# https://github.com/capistrano/bundler
+append :linked_dirs, '.bundle'
+
+
 # https://github.com/capistrano/chruby
 set :chruby_ruby, 'ruby-2.7.1'
 # Workaround for capistrano bug: https://github.com/capistrano/chruby/issues/7#issuecomment-214770540
@@ -52,12 +57,12 @@ set :puma_daemonize, true
 
 
 # https://github.com/seuros/capistrano-sidekiq
-# set :init_system, :systemd
-
-
-# https://github.com/seuros/capistrano-sidekiq
 set :sidekiq_queue, %w(critical default low)
-# set :sidekiq_service_unit_user, :system
+set :sidekiq_service_unit_name, 'sidekiq_multisite'
+set :sidekiq_service_unit_user, :user
+set :sidekiq_enable_lingering, false
+set :sidekiq_lingering_user, 'discourse'
+
 
 # set :sidekiq_config,        "#{current_path}/config/sidekiq.yml"
 # set :sidekiq_default_hooks, -> { true }
