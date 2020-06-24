@@ -65,7 +65,7 @@ module Graphryder
             SET post.label = '#{id}',
                 post.topic_id = '#{topic_id}',
                 post.number = '#{post_number}',
-                post.content = '#{cooked}',
+                post.content = '#{cooked.gsub("\'", "’")}',
                 post.timestamp = '#{updated_at}',
                 post.url = '#{url}'
             MERGE (user:user {id:#{user_id}})

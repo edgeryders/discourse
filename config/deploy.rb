@@ -14,9 +14,9 @@ set :linked_files, fetch(:linked_files, []).push('config/discourse.conf', 'confi
 set :linked_dirs, fetch(:linked_dirs, []).push('log', 'tmp/pids', 'tmp/cache', 'tmp/sockets', 'public/system', 'public/backups', 'public/uploads')
 
 
-set :bundler_path, '/home/discourse/production_multisite/shared/bundle/ruby/2.7.0/bin/bundle'
+# set :bundler_path, '/home/discourse/production_multisite/shared/bundle/ruby/2.7.0/bin/bundle'
 # https://github.com/capistrano/bundler
-append :linked_dirs, '.bundle'
+# append :linked_dirs, '.bundle'
 
 
 # https://github.com/capistrano/chruby

@@ -292,7 +292,7 @@ group :development do
   # https://github.com/capistrano/rails
   gem "capistrano-rails", "~> 1.5", require: false
   # https://github.com/capistrano/chruby
-  gem 'capistrano-chruby', require: false
+  gem 'capistrano-chruby' #, require: false
   # https://github.com/seuros/capistrano-puma
   gem 'capistrano3-puma', git: 'https://github.com/edgeryders/capistrano-puma.git'
   # https://github.com/seuros/capistrano-sidekiq
