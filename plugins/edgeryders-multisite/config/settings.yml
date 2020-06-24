@@ -9,6 +9,9 @@ security:
   force_https:
     default: true
     shadowed_by_global: true
+  content_security_policy:
+    default: false
+    shadowed_by_global: true
 login:
   enable_sso:
     client: true
