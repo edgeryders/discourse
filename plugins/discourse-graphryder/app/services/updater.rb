@@ -46,7 +46,7 @@ module Graphryder
           ::Graphryder::Query.instance.perform "
             MERGE (topic:topic {id:#{id}})
             SET topic.label = '#{id}',
-                topic.title = '#{title}',
+                topic.title = '#{title.gsub("\'", "’")}',
                 topic.timestamp = '#{updated_at}',
                 topic.url = '#{url}'
             MERGE (user:user {id:#{user_id}})
@@ -107,7 +107,7 @@ module Graphryder
           ::Graphryder::Query.instance.perform "
             MERGE (annotation:annotation {id:#{id}})
             SET annotation.label = '#{id}',
-                annotation.quote = '#{quote}',
+                annotation.quote = '#{quote.gsub("\'", "’")}',
                 annotation.timestamp = '#{updated_at}'
             MERGE (user:user {id:#{creator_id}})
             MERGE (user)-[:AUTHORSHIP]->(annotation)
