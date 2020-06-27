@@ -284,15 +284,15 @@ gem 'administrate-field-belongs_to_search'
 # damingo (Github ID), 2018-11-27
 group :development do
   # https://github.com/capistrano/capistrano
-  gem 'capistrano', '~> 3.8', require: false
+  gem "capistrano", "~> 3.14", require: false
   # https://github.com/capistrano/rails
-  gem 'capistrano-rails', '~> 1.3', require: false
+  gem "capistrano-rails", "~> 1.5", require: false
   # https://github.com/capistrano/chruby
-  gem 'capistrano-chruby', require: false
+  gem 'capistrano-chruby' #, require: false
   # https://github.com/seuros/capistrano-puma
   gem 'capistrano3-puma', git: 'https://github.com/edgeryders/capistrano-puma.git'
   # https://github.com/seuros/capistrano-sidekiq
-  gem 'capistrano-sidekiq', require: false
+  gem 'capistrano-sidekiq', '2.0.0.beta4' #, require: false
   # https://github.com/capistrano/bundler
-  gem 'capistrano-bundler', '~> 1.2'
+  gem 'capistrano-bundler', '~> 1.6'
 end

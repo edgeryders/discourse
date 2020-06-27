@@ -1,6 +1,50 @@
+GIT
+  remote: https://github.com/edgeryders/administrate-field-nested_has_many.git
+  revision: 1b941abaddd1aa55bafb51d1138bfb5ed2585bed
+  branch: master
+  specs:
+    administrate-field-nested_has_many (1.1.0)
+      administrate (> 0.8)
+      cocoon (~> 1.2, >= 1.2.11)
+
+GIT
+  remote: https://github.com/edgeryders/annotator_store-gem
+  revision: 735665585e03048b74268302e99ecaca78af298b
+  branch: master
+  specs:
+    annotator_store (1.0.0)
+      administrate (= 0.12.0)
+      administrate-field-belongs_to_search
+      ancestry
+      deep_cloneable (~> 3.0.0)
+      jbuilder
+      kaminari (= 1.1.1)
+      rails (>= 4.0)
+      redcarpet
+
+GIT
+  remote: https://github.com/edgeryders/capistrano-puma.git
+  revision: cf0c6a4624f14ec71e2f0918d48a5393adc4470f
+  specs:
+    capistrano3-puma (3.1.1)
+      capistrano (~> 3.7)
+      capistrano-bundler
+      puma (~> 3.4)
+
 GEM
   remote: https://rubygems.org/
   specs:
+    actioncable (6.0.3.1)
+      actionpack (= 6.0.3.1)
+      nio4r (~> 2.0)
+      websocket-driver (>= 0.6.1)
+    actionmailbox (6.0.3.1)
+      actionpack (= 6.0.3.1)
+      activejob (= 6.0.3.1)
+      activerecord (= 6.0.3.1)
+      activestorage (= 6.0.3.1)
+      activesupport (= 6.0.3.1)
+      mail (>= 2.7.1)
     actionmailer (6.0.3.1)
       actionpack (= 6.0.3.1)
       actionview (= 6.0.3.1)
@@ -14,6 +58,12 @@ GEM
       rack-test (>= 0.6.3)
       rails-dom-testing (~> 2.0)
       rails-html-sanitizer (~> 1.0, >= 1.2.0)
+    actiontext (6.0.3.1)
+      actionpack (= 6.0.3.1)
+      activerecord (= 6.0.3.1)
+      activestorage (= 6.0.3.1)
+      activesupport (= 6.0.3.1)
+      nokogiri (>= 1.8.5)
     actionview (6.0.3.1)
       activesupport (= 6.0.3.1)
       builder (~> 3.1)
@@ -32,6 +82,11 @@ GEM
     activerecord (6.0.3.1)
       activemodel (= 6.0.3.1)
       activesupport (= 6.0.3.1)
+    activestorage (6.0.3.1)
+      actionpack (= 6.0.3.1)
+      activejob (= 6.0.3.1)
+      activerecord (= 6.0.3.1)
+      marcel (~> 0.3.1)
     activesupport (6.0.3.1)
       concurrent-ruby (~> 1.0, >= 1.0.2)
       i18n (>= 0.7, < 2)
@@ -40,10 +95,32 @@ GEM
       zeitwerk (~> 2.2, >= 2.2.2)
     addressable (2.7.0)
       public_suffix (>= 2.0.2, < 5.0)
+    administrate (0.12.0)
+      actionpack (>= 4.2)
+      actionview (>= 4.2)
+      activerecord (>= 4.2)
+      autoprefixer-rails (>= 6.0)
+      datetime_picker_rails (~> 0.0.7)
+      jquery-rails (>= 4.0)
+      kaminari (>= 1.0)
+      momentjs-rails (~> 2.8)
+      sassc-rails (~> 2.1)
+      selectize-rails (~> 0.6)
+    administrate-field-belongs_to_search (0.7.0)
+      administrate (>= 0.3, < 1.0)
+      jbuilder (~> 2)
+      rails (>= 4.2, < 7.0)
+      selectize-rails (~> 0.6)
+    airbrussh (1.4.0)
+      sshkit (>= 1.6.1, != 1.7.0)
+    ancestry (3.0.7)
+      activerecord (>= 3.2.0)
     annotate (3.1.1)
       activerecord (>= 3.2, < 7.0)
       rake (>= 10.4, < 14.0)
     ast (2.4.1)
+    autoprefixer-rails (9.8.4)
+      execjs
     aws-eventstream (1.1.0)
     aws-partitions (1.329.0)
     aws-sdk-core (3.99.1)
@@ -66,6 +143,7 @@ GEM
     barber (0.12.2)
       ember-source (>= 1.0, < 3.1)
       execjs (>= 1.2, < 3)
+    bcrypt (3.1.3)
     better_errors (2.7.1)
       coderay (>= 1.0.0)
       erubi (>= 1.0.0)
@@ -79,9 +157,27 @@ GEM
       activesupport (>= 3.0.0)
       uniform_notifier (~> 1.11)
     byebug (11.1.3)
+    capistrano (3.14.1)
+      airbrussh (>= 1.0.0)
+      i18n
+      rake (>= 10.0.0)
+      sshkit (>= 1.9.0)
+    capistrano-bundler (1.6.0)
+      capistrano (~> 3.1)
+    capistrano-chruby (0.1.2)
+      capistrano (~> 3.0)
+      sshkit (~> 1.3)
+    capistrano-rails (1.5.0)
+      capistrano (~> 3.1)
+      capistrano-bundler (~> 1.1)
+    capistrano-sidekiq (2.0.0.beta4)
+      capistrano (>= 3.9.0)
+      capistrano-bundler
+      sidekiq (>= 6.0)
     cbor (0.5.9.6)
     certified (1.0.0)
     chunky_png (1.3.11)
+    cocoon (1.2.14)
     coderay (1.1.3)
     colored2 (3.1.2)
     concurrent-ruby (1.1.6)
@@ -95,7 +191,11 @@ GEM
     crass (1.0.6)
     css_parser (1.7.1)
       addressable
+    datetime_picker_rails (0.0.7)
+      momentjs-rails (>= 2.8.1)
     debug_inspector (0.0.3)
+    deep_cloneable (3.0.0)
+      activerecord (>= 3.1.0, < 7)
     diff-lcs (1.4.1)
     diffy (3.3.0)
     discourse-ember-source (3.12.2.0)
@@ -151,6 +251,8 @@ GEM
       concurrent-ruby (~> 1.0)
     image_size (1.5.0)
     in_threads (1.5.4)
+    jbuilder (2.10.0)
+      activesupport (>= 5.0.0)
     jmespath (1.4.0)
     jquery-rails (4.4.0)
       rails-dom-testing (>= 1, < 3)
@@ -160,6 +262,18 @@ GEM
     json-schema (2.8.1)
       addressable (>= 2.4)
     jwt (2.2.1)
+    kaminari (1.1.1)
+      activesupport (>= 4.1.0)
+      kaminari-actionview (= 1.1.1)
+      kaminari-activerecord (= 1.1.1)
+      kaminari-core (= 1.1.1)
+    kaminari-actionview (1.1.1)
+      actionview
+      kaminari-core (= 1.1.1)
+    kaminari-activerecord (1.1.1)
+      activerecord
+      kaminari-core (= 1.1.1)
+    kaminari-core (1.1.1)
     kgio (2.11.3)
     libv8 (7.3.492.27.1)
     listen (3.2.1)
@@ -181,11 +295,14 @@ GEM
     lz4-ruby (0.3.3)
     mail (2.7.1)
       mini_mime (>= 0.1.1)
+    marcel (0.3.3)
+      mimemagic (~> 0.3.2)
     maxminddb (0.1.22)
     memory_profiler (0.9.14)
     message_bus (3.3.1)
       rack (>= 1.1.3)
     method_source (1.0.0)
+    mimemagic (0.3.5)
     mini_mime (1.0.2)
     mini_portile2 (2.4.0)
     mini_racer (0.2.14)
@@ -198,11 +315,16 @@ GEM
     minitest (5.14.1)
     mocha (1.11.2)
     mock_redis (0.24.0)
+    momentjs-rails (2.20.1)
+      railties (>= 3.1)
     msgpack (1.3.3)
     multi_json (1.14.1)
     multi_xml (0.6.0)
     multipart-post (2.1.1)
     mustache (1.1.1)
+    net-scp (3.0.0)
+      net-ssh (>= 2.6.5, < 7.0.0)
+    net-ssh (6.1.0)
     nio4r (2.5.2)
     nokogiri (1.10.9)
       mini_portile2 (~> 2.4.0)
@@ -265,8 +387,7 @@ GEM
     pry-rails (0.3.9)
       pry (>= 0.10.4)
     public_suffix (4.0.5)
-    puma (4.3.5)
-      nio4r (~> 2.0)
+    puma (3.12.6)
     r2 (0.2.7)
     rack (2.2.2)
     rack-mini-profiler (2.0.2)
@@ -275,6 +396,21 @@ GEM
       rack
     rack-test (1.1.0)
       rack (>= 1.0, < 3)
+    rails (6.0.3.1)
+      actioncable (= 6.0.3.1)
+      actionmailbox (= 6.0.3.1)
+      actionmailer (= 6.0.3.1)
+      actionpack (= 6.0.3.1)
+      actiontext (= 6.0.3.1)
+      actionview (= 6.0.3.1)
+      activejob (= 6.0.3.1)
+      activemodel (= 6.0.3.1)
+      activerecord (= 6.0.3.1)
+      activestorage (= 6.0.3.1)
+      activesupport (= 6.0.3.1)
+      bundler (>= 1.3.0)
+      railties (= 6.0.3.1)
+      sprockets-rails (>= 2.0.0)
     rails-dom-testing (2.0.3)
       activesupport (>= 4.2.0)
       nokogiri (>= 1.6)
@@ -305,6 +441,7 @@ GEM
       msgpack (>= 0.4.3)
       optimist (>= 3.0.0)
     rchardet (1.8.0)
+    redcarpet (3.5.0)
     redis (4.2.1)
     redis-namespace (1.7.0)
       redis (>= 3.0.4)
@@ -387,6 +524,7 @@ GEM
     seed-fu (2.3.9)
       activerecord (>= 3.1)
       activesupport (>= 3.1)
+    selectize-rails (0.12.6)
     shoulda-matchers (4.3.0)
       activesupport (>= 4.2.0)
     sidekiq (6.0.7)
@@ -406,6 +544,9 @@ GEM
       activesupport (>= 4.0)
       sprockets (>= 3.0.0)
     sshkey (2.0.0)
+    sshkit (1.21.0)
+      net-scp (>= 1.1.2)
+      net-ssh (>= 2.8.0)
     stackprof (0.2.15)
     test-prof (0.11.3)
     thor (1.0.1)
@@ -423,6 +564,7 @@ GEM
       kgio (~> 2.6)
       raindrops (~> 0.7)
     uniform_notifier (1.13.0)
+    unix-crypt (1.3.0)
     webmock (3.8.3)
       addressable (>= 2.3.6)
       crack (>= 0.3.2)
@@ -430,6 +572,9 @@ GEM
     webpush (1.0.0)
       hkdf (~> 0.2)
       jwt (~> 2.0)
+    websocket-driver (0.7.2)
+      websocket-extensions (>= 0.1.0)
+    websocket-extensions (0.1.5)
     yaml-lint (0.0.10)
     zeitwerk (2.3.0)
 
@@ -446,15 +591,25 @@ DEPENDENCIES
   activerecord (= 6.0.3.1)
   activesupport (= 6.0.3.1)
   addressable
+  administrate-field-belongs_to_search
+  administrate-field-nested_has_many!
   annotate
+  annotator_store!
   aws-sdk-s3
   aws-sdk-sns
   barber
+  bcrypt (= 3.1.3)
   better_errors
   binding_of_caller
   bootsnap
   bullet
   byebug
+  capistrano (~> 3.14)
+  capistrano-bundler (~> 1.6)
+  capistrano-chruby
+  capistrano-rails (~> 1.5)
+  capistrano-sidekiq (= 2.0.0.beta4)
+  capistrano3-puma!
   cbor
   certified
   colored2
@@ -481,6 +636,7 @@ DEPENDENCIES
   htmlentities
   http_accept_language
   json
+  kaminari (= 1.1.1)
   listen
   lograge
   logstash-event
@@ -558,6 +714,7 @@ DEPENDENCIES
   uglifier
   unf
   unicorn
+  unix-crypt (= 1.3.0)
   webmock
   webpush
   yaml-lint

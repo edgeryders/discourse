@@ -15,9 +15,10 @@ set :linked_dirs, fetch(:linked_dirs, []).push('log', 'tmp/pids', 'tmp/cache', '
 
 
 # https://github.com/capistrano/chruby
-set :chruby_ruby, 'ruby-2.5.3'
+set :chruby_ruby, 'ruby-2.7.1'
 # Workaround for capistrano bug: https://github.com/capistrano/chruby/issues/7#issuecomment-214770540
-set :default_env, { path: '/opt/rubies/ruby-2.5.3/lib/ruby/gems/2.5.0/bin:/opt/rubies/ruby-2.5.3/bin:$PATH' }
+set :default_env, { path: '/opt/rubies/ruby-2.7.1/lib/ruby/gems/2.7.0/bin:/opt/rubies/ruby-2.7.1/bin:$PATH' }
+# set :default_env, { path: '/home/discourse/production_multisite/shared/bundle/ruby/2.7.0/bin:/opt/rubies/ruby-2.7.1/lib/ruby/gems/2.7.0/bin:/opt/rubies/ruby-2.7.1/bin:$PATH' }
 
 
 # https://github.com/capistrano/rails
@@ -49,17 +50,12 @@ set :puma_daemonize, true
 
 
 # https://github.com/seuros/capistrano-sidekiq
-set :sidekiq_queue, %w(critical default low)
-# set :sidekiq_config,        "#{current_path}/config/sidekiq.yml"
-# set :sidekiq_default_hooks, -> { true }
-# set :sidekiq_pid, -> { File.join(shared_path, 'tmp', 'pids', 'sidekiq.pid') }
-# set :sidekiq_env, -> { fetch(:rack_env, fetch(:rails_env, fetch(:stage))) }
-# set :sidekiq_log, -> { File.join(shared_path, 'log', 'sidekiq.log') }
-# set :sidekiq_timeout, -> { 10 }
-# set :sidekiq_role, -> { :app }
-# set :sidekiq_processes, -> { 1 }
-# set :sidekiq_options_per_process, -> { nil }
-# set :sidekiq_user, -> { nil }
+set :sidekiq_queue, %w(critical default low ultra_low)
+set :sidekiq_service_unit_name, 'sidekiq_production'
+set :sidekiq_service_unit_user, :user
+set :sidekiq_enable_lingering, false
+set :sidekiq_lingering_user, 'discourse'
+
 
 
 # # Rbenv, Chruby, and RVM integration
@@ -68,6 +64,3 @@ set :sidekiq_queue, %w(critical default low)
 # set :chruby_map_bins, fetch(:chruby_map_bins).to_a.concat(%w{ sidekiq sidekiqctl })
 # # Bundler integration
 # set :bundle_bins, fetch(:bundle_bins).to_a.concat(%w(sidekiq sidekiqctl))
-
-# See: https://github.com/seuros/capistrano-puma/issues/188
-append :chruby_map_bins, 'puma', 'pumactl'

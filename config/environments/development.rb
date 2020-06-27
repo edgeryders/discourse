@@ -93,4 +93,6 @@ Discourse::Application.configure do
       Bullet.rails_logger = true
     end
   end
+
+  config.hosts << "dc.test"
 end
