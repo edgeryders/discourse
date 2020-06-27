@@ -117,7 +117,13 @@ module DiscourseNarrativeBot
       }
     }
 
-    SEARCH_ANSWER = ':herb:'.freeze
+    def self.badge_name
+      BADGE_NAME
+    end
+
+    def self.search_answer
+      ':herb:'
+    end
 
     def self.reset_trigger
       I18n.t('discourse_narrative_bot.new_user_narrative.reset_trigger')
@@ -152,7 +158,7 @@ module DiscourseNarrativeBot
       raw = <<~RAW
       #{post.raw}
 
-      #{I18n.t("#{I18N_KEY}.search.hidden_message", i18n_post_args)}
+      #{I18n.t("#{I18N_KEY}.search.hidden_message", i18n_post_args.merge(search_answer: NewUserNarrative.search_answer))}
       RAW
 
       PostRevisor.new(post, topic).revise!(
@@ -206,7 +212,9 @@ module DiscourseNarrativeBot
       end
 
       if @data[:topic_id]
-        opts = opts.merge(topic_id: @data[:topic_id])
+        opts = opts
+          .merge(topic_id: @data[:topic_id])
+          .except(:title, :target_usernames, :archetype)
       end
 
       post = reply_to(@post, raw, opts)
@@ -229,8 +237,10 @@ module DiscourseNarrativeBot
       return unless valid_topic?(@post.topic_id)
       return unless @post.user_id == self.discobot_user.id
 
+      profile_page_url = url_helpers(:user_url, username: @user.username)
+      bookmark_url = "#{profile_page_url}/activity/bookmarks"
       raw = <<~RAW
-        #{I18n.t("#{I18N_KEY}.bookmark.reply", i18n_post_args(profile_page_url: url_helpers(:user_url, username: @user.username)))}
+        #{I18n.t("#{I18N_KEY}.bookmark.reply", i18n_post_args(bookmark_url: bookmark_url))}
 
         #{instance_eval(&@next_instructions)}
       RAW
@@ -316,7 +326,7 @@ module DiscourseNarrativeBot
 
       cooked = @post.post_analyzer.cook(@post.raw, {})
 
-      if Nokogiri::HTML.fragment(cooked).css("img").size > 0
+      if Nokogiri::HTML5.fragment(cooked).css("img").size > 0
         set_state_data(:post_id, @post.id)
 
         if get_state_data(:liked)
@@ -356,7 +366,7 @@ module DiscourseNarrativeBot
       post_topic_id = @post.topic_id
       return unless valid_topic?(post_topic_id)
 
-      if Nokogiri::HTML.fragment(@post.cooked).css("b", "strong", "em", "i", ".bbcode-i", ".bbcode-b").size > 0
+      if Nokogiri::HTML5.fragment(@post.cooked).css("b", "strong", "em", "i", ".bbcode-i", ".bbcode-b").size > 0
         raw = <<~RAW
           #{I18n.t("#{I18N_KEY}.formatting.reply", i18n_post_args)}
 
@@ -380,7 +390,7 @@ module DiscourseNarrativeBot
       post_topic_id = @post.topic_id
       return unless valid_topic?(post_topic_id)
 
-      doc = Nokogiri::HTML.fragment(@post.cooked)
+      doc = Nokogiri::HTML5.fragment(@post.cooked)
 
       if doc.css(".quote").size > 0
         raw = <<~RAW
@@ -406,7 +416,7 @@ module DiscourseNarrativeBot
       post_topic_id = @post.topic_id
       return unless valid_topic?(post_topic_id)
 
-      doc = Nokogiri::HTML.fragment(@post.cooked)
+      doc = Nokogiri::HTML5.fragment(@post.cooked)
 
       if doc.css(".emoji").size > 0
         raw = <<~RAW
@@ -495,7 +505,7 @@ module DiscourseNarrativeBot
       post_topic_id = @post.topic_id
       return unless valid_topic?(post_topic_id)
 
-      if @post.raw.match(/#{SEARCH_ANSWER}/)
+      if @post.raw.match(/#{NewUserNarrative.search_answer}/)
         fake_delay
         reply_to(@post, I18n.t("#{I18N_KEY}.search.reply", i18n_post_args(search_url: url_helpers(:search_url))))
       else

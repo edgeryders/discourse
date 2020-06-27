@@ -1,79 +1,86 @@
 // Styles for the topic admin menu
 
-.show-topic-admin {
-  position: fixed;
-  top: 120px;
-  right: 10px;
-  z-index: z("dropdown");
-  height: 35px;
-}
+.topic-admin-popup-menu {
+  @include breakpoint(mobile-extra-large) {
+    width: calc(100% - 20px);
+    margin: 0 10px;
+    padding: 0;
+    padding-bottom: env(safe-area-inset-bottom);
+    z-index: z("modal", "popover");
 
-.popup-menu {
-  background-color: $secondary;
-  width: 215px;
-  padding: 10px;
-  border: 1px solid $primary-low;
-  z-index: z("dropdown");
-  box-shadow: shadow("card");
-
-  ul {
-    list-style: none;
-    margin: 10px 0 0 0;
+    @keyframes slideUp {
+      0% {
+        transform: translateY(100%);
+      }
+      100% {
+        transform: translateY(0);
+      }
+    }
+    animation: slideUp 0.3s;
   }
 
-  .btn {
-    text-align: left;
-  }
-
-  button {
-    width: 100%;
-    margin-bottom: 5px;
+  .mobile-view & {
+    z-index: z("modal", "popover");
   }
 }
 
 .modal-body.feature-topic {
-  padding: 5px;
-  max-height: 500px;
+  max-height: 70vh !important ;
+  padding: 0 1em;
   input.date-picker {
     margin: 0;
   }
-  hr {
-    margin: 10px 0;
-  }
   .feature-section {
     display: block;
+    padding: 1.25em 0;
+    &:not(:last-of-type) {
+      border-bottom: 1px solid $primary-low;
+    }
     .badge-wrapper {
       margin-right: 0;
     }
     .desc {
       display: inline-block;
       vertical-align: middle;
-      margin-left: 10px;
       p:first-of-type {
         margin: 0;
       }
       p {
         margin: 10px 0 0;
+        max-width: 31em;
       }
     }
     .with-validation {
       position: relative;
+
+      > span {
+        display: flex;
+        align-items: flex-start;
+        > .d-icon {
+          padding-top: 0.75em;
+          margin-right: 0.5em;
+        }
+      }
     }
   }
 }
 
+.feature-topic-modal {
+  .d-modal-cancel {
+    margin-left: 0;
+  }
+}
+
 .desktop-view .feature-topic-modal {
-  .feature-topic {
-    overflow: visible;
-  }
-
-  .modal-inner-container {
-    min-width: 700px;
-  }
-
   .pin-until {
     position: relative;
     display: inline-block;
+  }
+  .modal-inner-container {
+    overflow: visible;
+  }
+  .modal-footer {
+    background: $secondary;
   }
 }
 
@@ -82,7 +89,12 @@
     display: block;
     clear: both;
     max-width: 90%;
-    margin: 0 10px;
+    margin: 0;
+  }
+  .badge-wrapper {
+    white-space: nowrap;
+    overflow: hidden;
+    max-width: 19em;
   }
 }
 

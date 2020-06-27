@@ -21,8 +21,8 @@ require 'action_mailer/railtie'
 require 'sprockets/railtie'
 
 # Plugin related stuff
+require_relative '../lib/plugin_initialization_guard'
 require_relative '../lib/discourse_event'
-require_relative '../lib/discourse_plugin'
 require_relative '../lib/discourse_plugin_registry'
 
 require_relative '../lib/plugin_gem'
@@ -34,10 +34,21 @@ unless Rails.env.test? && ENV['LOAD_PLUGINS'] != "1"
   require_relative '../lib/custom_setting_providers'
 end
 GlobalSetting.load_defaults
+if GlobalSetting.try(:cdn_url).present? && GlobalSetting.cdn_url !~ /^https?:\/\//
+  STDERR.puts "WARNING: Your CDN URL does not begin with a protocol like `https://` - this is probably not going to work"
+end
 
 if ENV['SKIP_DB_AND_REDIS'] == '1'
   GlobalSetting.skip_db = true
   GlobalSetting.skip_redis = true
+end
+
+if !GlobalSetting.skip_db?
+  require 'rails_failover/active_record'
+end
+
+if !GlobalSetting.skip_redis?
+  require 'rails_failover/redis'
 end
 
 require 'pry-rails' if Rails.env.development?
@@ -72,7 +83,6 @@ module Discourse
     # confused here if we load the deps without `lib` it thinks
     # discourse.rb is under the discourse folder incorrectly
     require_dependency 'lib/discourse'
-    require_dependency 'lib/es6_module_transpiler/rails'
     require_dependency 'lib/js_locale_helper'
 
     # tiny file needed by site settings
@@ -88,19 +98,32 @@ module Discourse
       end
     end
 
+    # we skip it cause we configure it in the initializer
+    # the railstie for message_bus would insert it in the
+    # wrong position
+    config.skip_message_bus_middleware = true
+    config.skip_multisite_middleware = true
+    config.skip_rails_failover_active_record_middleware = true
+
     # Disable so this is only run manually
     # we may want to change this later on
     # issue is image_optim crashes on missing dependencies
     config.assets.image_optim = false
 
-    # Custom directories with classes and modules you want to be autoloadable.
-    config.autoload_paths += Dir["#{config.root}/app/serializers"]
-    config.autoload_paths += Dir["#{config.root}/lib/validators/"]
-    config.autoload_paths += Dir["#{config.root}/app"]
+    config.autoloader = :zeitwerk
 
-    if Rails.env.development? && !Sidekiq.server?
-      config.autoload_paths += Dir["#{config.root}/lib"]
-    end
+    # Custom directories with classes and modules you want to be autoloadable.
+    config.autoload_paths += Dir["#{config.root}/app"]
+    config.autoload_paths += Dir["#{config.root}/app/jobs"]
+    config.autoload_paths += Dir["#{config.root}/app/serializers"]
+    config.autoload_paths += Dir["#{config.root}/lib"]
+    config.autoload_paths += Dir["#{config.root}/lib/active_record/connection_adapters"]
+    config.autoload_paths += Dir["#{config.root}/lib/common_passwords"]
+    config.autoload_paths += Dir["#{config.root}/lib/highlight_js"]
+    config.autoload_paths += Dir["#{config.root}/lib/i18n"]
+    config.autoload_paths += Dir["#{config.root}/lib/validators/"]
+
+    Rails.autoloaders.main.ignore(Dir["#{config.root}/app/models/reports"])
 
     # Only load the plugins named here, in the order given (default is alphabetical).
     # :all can be used as a placeholder for all plugins not explicitly named.
@@ -125,25 +148,27 @@ module Discourse
     config.assets.precompile += %w{
       vendor.js
       admin.js
-      preload-store.js
+      browser-detect.js
       browser-update.js
       break_string.js
       ember_jquery.js
       pretty-text-bundle.js
       wizard-application.js
       wizard-vendor.js
-      plugin.js
-      plugin-third-party.js
       markdown-it-bundle.js
       service-worker.js
       google-tag-manager.js
       google-universal-analytics.js
-      preload-application-data.js
+      start-discourse.js
       print-page.js
       omniauth-complete.js
       activate-account.js
       auto-redirect.js
       wizard-start.js
+      locales/i18n.js
+      discourse/app/lib/webauthn.js
+      confirm-new-email/confirm-new-email.js
+      confirm-new-email/bootstrap.js
       onpopstate-handler.js
       embed-application.js
     }
@@ -159,8 +184,13 @@ module Discourse
     # the exclusion list does not include hbs so you double compile all this stuff
     initializer :fix_sprockets_loose_file_searcher, after: :set_default_precompile do |app|
       app.config.assets.precompile.delete(Sprockets::Railtie::LOOSE_APP_ASSETS)
+
+      # We don't want application from node_modules, only from the root
+      app.config.assets.precompile.delete(/(?:\/|\\|\A)application\.(css|js)$/)
+      app.config.assets.precompile += ['application.js']
+
       start_path = ::Rails.root.join("app/assets").to_s
-      exclude = ['.es6', '.hbs', '.js', '.css', '']
+      exclude = ['.es6', '.hbs', '.hbr', '.js', '.css', '']
       app.config.assets.precompile << lambda do |logical_path, filename|
         filename.start_with?(start_path) &&
         !exclude.include?(File.extname(logical_path))
@@ -215,7 +245,7 @@ module Discourse
     # supports etags (post 1.7)
     config.middleware.delete Rack::ETag
 
-    unless Rails.env.development?
+    if !(Rails.env.development? || ENV['SKIP_ENFORCE_HOSTNAME'] == "1")
       require 'middleware/enforce_hostname'
       config.middleware.insert_after Rack::MethodOverride, Middleware::EnforceHostname
     end
@@ -226,16 +256,26 @@ module Discourse
     require 'middleware/discourse_public_exceptions'
     config.exceptions_app = Middleware::DiscoursePublicExceptions.new(Rails.public_path)
 
-    # Our templates shouldn't start with 'discourse/templates'
-    config.handlebars.templates_root = 'discourse/templates'
-    config.handlebars.raw_template_namespace = "Discourse.RAW_TEMPLATES"
+    # Our templates shouldn't start with 'discourse/app/templates'
+    config.handlebars.templates_root = {
+      'discourse/app/templates' => '',
+      'select-kit/addon/templates' => 'select-kit/templates/'
+    }
+
+    config.handlebars.raw_template_namespace = "__DISCOURSE_RAW_TEMPLATES"
+    Sprockets.register_mime_type 'text/x-handlebars', extensions: ['.hbr']
+    Sprockets.register_transformer 'text/x-handlebars', 'application/javascript', Ember::Handlebars::Template
+
+    require 'discourse_js_processor'
+
+    Sprockets.register_mime_type 'application/javascript', extensions: ['.js', '.es6', '.js.es6'], charset: :unicode
+    Sprockets.register_postprocessor 'application/javascript', DiscourseJsProcessor
 
     require 'discourse_redis'
     require 'logster/redis_store'
-    require 'freedom_patches/redis'
     # Use redis for our cache
     config.cache_store = DiscourseRedis.new_redis_store
-    $redis = DiscourseRedis.new
+    $redis = DiscourseRedis.new # rubocop:disable Style/GlobalVars
     Logster.store = Logster::RedisStore.new(DiscourseRedis.new)
 
     # we configure rack cache on demand in an initializer
@@ -258,7 +298,13 @@ module Discourse
         Discourse.activate_plugins!
       end
     else
-      Discourse.activate_plugins!
+      plugin_initialization_guard do
+        Discourse.activate_plugins!
+      end
+    end
+
+    Discourse.find_plugin_js_assets(include_disabled: true).each do |file|
+      config.assets.precompile << "#{file}.js"
     end
 
     require_dependency 'stylesheet/manager'
@@ -285,11 +331,10 @@ module Discourse
       # Ensure that Discourse event triggers for web hooks are loaded
       require_dependency 'web_hook'
 
-      # So open id logs somewhere sane
-      OpenID::Util.logger = Rails.logger
-
       # Load plugins
-      Discourse.plugins.each(&:notify_after_initialize)
+      plugin_initialization_guard do
+        Discourse.plugins.each(&:notify_after_initialize)
+      end
 
       # we got to clear the pool in case plugins connect
       ActiveRecord::Base.connection_handler.clear_active_connections!
@@ -301,7 +346,14 @@ module Discourse
 
         ActionView::Base.precompiled_asset_checker = -> logical_path do
           default_checker[logical_path] ||
-            %w{qunit.js qunit.css test_helper.css test_helper.js wizard/test/test_helper.js}.include?(logical_path)
+            %w{qunit.js
+              qunit.css
+              test_helper.css
+              test_helper.js
+              wizard/test/test_helper.js
+            }.include?(logical_path) ||
+            logical_path =~ /\/node_modules/ ||
+            logical_path =~ /\/dist/
         end
       end
     end
@@ -313,10 +365,5 @@ module Discourse
     config.generators do |g|
       g.test_framework :rspec, fixture: false
     end
-
-    # we have a monkey_patch we need to require early... prior to connection
-    # init
-    require 'freedom_patches/reaper'
-
   end
 end

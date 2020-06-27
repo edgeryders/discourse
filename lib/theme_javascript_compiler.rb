@@ -64,7 +64,7 @@ class ThemeJavascriptCompiler
       }
 
       function manipulateNode(node) {
-        // Magically add theme id as the first param for each of these helpers
+        // Magically add theme id as the first param for each of these helpers)
         if (node.path.parts && ["theme-i18n", "theme-prefix", "theme-setting"].includes(node.path.parts[0])) {
           if(node.params.length === 1){
             node.params.unshift({
@@ -134,10 +134,16 @@ class ThemeJavascriptCompiler
 
     def discourse_extension
       <<~JS
-        Ember.HTMLBars.registerPlugin('ast', function(){
-          return { name: 'theme-template-manipulator',
-          visitor: { SubExpression: manipulateNode, MustacheStatement: manipulateNode, PathExpression: manipulatePath}
-        }});
+        Ember.HTMLBars.registerPlugin('ast', function() {
+          return {
+            name: 'theme-template-manipulator',
+            visitor: {
+              SubExpression: manipulateNode,
+              MustacheStatement: manipulateNode,
+              PathExpression: manipulatePath
+            }
+          }
+        });
       JS
     end
   end
@@ -180,14 +186,18 @@ class ThemeJavascriptCompiler
     raise CompileError.new e.instance_variable_get(:@error) # e.message contains the entire template, which could be very long
   end
 
+  def raw_template_name(name)
+    name = name.sub(/\.(raw|hbr)$/, '')
+    name.inspect
+  end
+
   def append_raw_template(name, hbs_template)
-    name = name.sub(/\.raw$/, '').inspect
     compiled = RawTemplatePrecompiler.new(@theme_id).compile(hbs_template)
     @content << <<~JS
       (function() {
-        if ('Discourse' in window) {
-          Discourse.RAW_TEMPLATES[#{name}] = requirejs('discourse-common/lib/raw-handlebars').template(#{compiled});
-        }
+        const addRawTemplate = requirejs('discourse-common/lib/raw-templates').addRawTemplate;
+        const template = requirejs('discourse-common/lib/raw-handlebars').template(#{compiled});
+        addRawTemplate(#{raw_template_name(name)}, template);
       })();
     JS
   rescue Barber::PrecompilerError => e
@@ -202,10 +212,10 @@ class ThemeJavascriptCompiler
     @content << script + "\n"
   end
 
-  def append_module(script, name)
-    script.prepend theme_variables
-    template = Tilt::ES6ModuleTranspilerTemplate.new {}
-    @content << template.module_transpile(script, "", name)
+  def append_module(script, name, include_variables: true)
+    script = "#{theme_variables}#{script}" if include_variables
+    transpiler = DiscourseJsProcessor::Transpiler.new
+    @content << transpiler.perform(script, "", name)
   rescue MiniRacer::RuntimeError => ex
     raise CompileError.new ex.message
   end
@@ -227,7 +237,7 @@ class ThemeJavascriptCompiler
   end
 
   def transpile(es6_source, version)
-    template = Tilt::ES6ModuleTranspilerTemplate.new {}
+    transpiler = DiscourseJsProcessor::Transpiler.new(skip_module: true)
     wrapped = <<~PLUGIN_API_JS
       (function() {
         if ('Discourse' in window && typeof Discourse._registerPluginCode === 'function') {
@@ -244,7 +254,7 @@ class ThemeJavascriptCompiler
       })();
     PLUGIN_API_JS
 
-    template.babel_transpile(wrapped)
+    transpiler.perform(wrapped)
   rescue MiniRacer::RuntimeError => ex
     raise CompileError.new ex.message
   end

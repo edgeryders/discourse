@@ -1,8 +1,12 @@
 # frozen_string_literal: true
 
-require_dependency 'enum'
-
 class Group < ActiveRecord::Base
+  # TODO(2021-05-26): remove
+  self.ignored_columns = %w{
+    automatic_membership_retroactive
+    flair_url
+  }
+
   include HasCustomFields
   include AnonCacheInvalidator
   include HasDestroyedWebHook
@@ -23,6 +27,8 @@ class Group < ActiveRecord::Base
   has_many :group_histories, dependent: :destroy
   has_many :category_reviews, class_name: 'Category', foreign_key: :reviewable_by_group_id, dependent: :nullify
   has_many :reviewables, foreign_key: :reviewable_by_group_id, dependent: :nullify
+
+  belongs_to :flair_upload, class_name: 'Upload'
 
   has_and_belongs_to_many :web_hooks
 
@@ -50,8 +56,6 @@ class Group < ActiveRecord::Base
   end
 
   def remove_review_groups
-    puts self.id!
-    Category.where(review_group_id: self.id).update_all(review_group_id: nil)
     Category.where(review_group_id: self.id).update_all(review_group_id: nil)
   end
 
@@ -60,7 +64,6 @@ class Group < ActiveRecord::Base
   validate :automatic_membership_email_domains_format_validator
   validate :incoming_email_validator
   validate :can_allow_membership_requests, if: :allow_membership_requests
-  validates :flair_url, url: true, if: Proc.new { |g| g.flair_url && g.flair_url.exclude?('fa-') }
   validate :validate_grant_trust_level, if: :will_save_change_to_grant_trust_level?
 
   AUTO_GROUPS = {
@@ -83,15 +86,19 @@ class Group < ActiveRecord::Base
     only_admins: 1,
     mods_and_admins: 2,
     members_mods_and_admins: 3,
+    owners_mods_and_admins: 4,
     everyone: 99
   }
+
+  VALID_DOMAIN_REGEX = /\A[a-z0-9]+([\-\.]{1}[a-z0-9]+)*\.[a-z]{2,24}(:[0-9]{1,5})?(\/.*)?\Z/i
 
   def self.visibility_levels
     @visibility_levels = Enum.new(
       public: 0,
-      members: 1,
-      staff: 2,
-      owners: 3
+      logged_on_users: 1,
+      members: 2,
+      staff: 3,
+      owners: 4
     )
   end
 
@@ -105,49 +112,105 @@ class Group < ActiveRecord::Base
       groups = groups.where("groups.id > 0")
     end
 
-    unless user&.admin
+    if !user&.admin
       sql = <<~SQL
         groups.id IN (
-          SELECT g.id FROM groups g WHERE g.visibility_level = :public
+          SELECT id
+            FROM groups
+           WHERE visibility_level = :public
 
           UNION ALL
 
-          SELECT g.id FROM groups g
-          JOIN group_users gu ON gu.group_id = g.id AND
-                                 gu.user_id = :user_id
-          WHERE g.visibility_level = :members
+          SELECT id
+            FROM groups
+           WHERE visibility_level = :logged_on_users
+             AND :user_id IS NOT NULL
 
           UNION ALL
 
-          SELECT g.id FROM groups g
-          LEFT JOIN group_users gu ON gu.group_id = g.id AND
-                                 gu.user_id = :user_id AND
-                                 gu.owner
-          WHERE g.visibility_level = :staff AND (gu.id IS NOT NULL OR :is_staff)
+          SELECT g.id
+            FROM groups g
+            JOIN group_users gu ON gu.group_id = g.id AND gu.user_id = :user_id
+           WHERE g.visibility_level = :members
 
           UNION ALL
 
-          SELECT g.id FROM groups g
-          JOIN group_users gu ON gu.group_id = g.id AND
-                                 gu.user_id = :user_id AND
-                                 gu.owner
-          WHERE g.visibility_level = :owners
+          SELECT g.id
+            FROM groups g
+       LEFT JOIN group_users gu ON gu.group_id = g.id AND gu.user_id = :user_id AND gu.owner
+           WHERE g.visibility_level = :staff
+             AND (gu.id IS NOT NULL OR :is_staff)
 
+          UNION ALL
+
+          SELECT g.id
+            FROM groups g
+            JOIN group_users gu ON gu.group_id = g.id AND gu.user_id = :user_id AND gu.owner
+           WHERE g.visibility_level = :owners
         )
       SQL
 
-      groups = groups.where(
-        sql,
-        Group.visibility_levels.to_h.merge(user_id: user&.id, is_staff: !!user&.staff?)
-      )
-
+      params = Group.visibility_levels.to_h.merge(user_id: user&.id, is_staff: !!user&.staff?)
+      groups = groups.where(sql, params)
     end
 
     groups
   }
 
-  scope :mentionable, lambda { |user|
-    where(self.mentionable_sql_clause,
+  scope :members_visible_groups, Proc.new { |user, order, opts|
+    groups = self.order(order || "name ASC")
+
+    if !opts || !opts[:include_everyone]
+      groups = groups.where("groups.id > 0")
+    end
+
+    if !user&.admin
+      sql = <<~SQL
+        groups.id IN (
+          SELECT id
+            FROM groups
+           WHERE members_visibility_level = :public
+
+          UNION ALL
+
+          SELECT id
+            FROM groups
+           WHERE members_visibility_level = :logged_on_users
+             AND :user_id IS NOT NULL
+
+          UNION ALL
+
+          SELECT g.id
+            FROM groups g
+            JOIN group_users gu ON gu.group_id = g.id AND gu.user_id = :user_id
+           WHERE g.members_visibility_level = :members
+
+          UNION ALL
+
+          SELECT g.id
+            FROM groups g
+       LEFT JOIN group_users gu ON gu.group_id = g.id AND gu.user_id = :user_id AND gu.owner
+           WHERE g.members_visibility_level = :staff
+             AND (gu.id IS NOT NULL OR :is_staff)
+
+          UNION ALL
+
+          SELECT g.id
+            FROM groups g
+            JOIN group_users gu ON gu.group_id = g.id AND gu.user_id = :user_id AND gu.owner
+           WHERE g.members_visibility_level = :owners
+        )
+      SQL
+
+      params = Group.visibility_levels.to_h.merge(user_id: user&.id, is_staff: !!user&.staff?)
+      groups = groups.where(sql, params)
+    end
+
+    groups
+  }
+
+  scope :mentionable, lambda { |user, include_public: true|
+    where(self.mentionable_sql_clause(include_public: include_public),
       levels: alias_levels(user),
       user_id: user&.id
     )
@@ -158,50 +221,57 @@ class Group < ActiveRecord::Base
           (
             messageable_level = #{ALIAS_LEVELS[:members_mods_and_admins]} AND id in (
             SELECT group_id FROM group_users WHERE user_id = :user_id)
+          ) OR (
+            messageable_level = #{ALIAS_LEVELS[:owners_mods_and_admins]} AND id in (
+            SELECT group_id FROM group_users WHERE user_id = :user_id AND owner IS TRUE)
           )", levels: alias_levels(user), user_id: user && user.id)
   }
 
-  def self.mentionable_sql_clause
-    <<~SQL
-    mentionable_level in (:levels)
-    OR (
-      mentionable_level = #{ALIAS_LEVELS[:members_mods_and_admins]}
-      AND id in (
-        SELECT group_id FROM group_users WHERE user_id = :user_id)
+  def self.mentionable_sql_clause(include_public: true)
+    clause = +<<~SQL
+      mentionable_level in (:levels)
+      OR (
+        mentionable_level = #{ALIAS_LEVELS[:members_mods_and_admins]}
+        AND id in (
+          SELECT group_id FROM group_users WHERE user_id = :user_id)
+      ) OR (
+        mentionable_level = #{ALIAS_LEVELS[:owners_mods_and_admins]}
+        AND id in (
+          SELECT group_id FROM group_users WHERE user_id = :user_id AND owner IS TRUE)
       )
-    SQL
+      SQL
+
+    if include_public
+      clause << "OR visibility_level = #{Group.visibility_levels[:public]}"
+    end
+
+    clause
   end
 
   def self.alias_levels(user)
-    levels = [ALIAS_LEVELS[:everyone]]
-
-    if user && user.admin?
-      levels = [ALIAS_LEVELS[:everyone],
-                ALIAS_LEVELS[:only_admins],
-                ALIAS_LEVELS[:mods_and_admins],
-                ALIAS_LEVELS[:members_mods_and_admins]]
-    elsif user && user.moderator?
-      levels = [ALIAS_LEVELS[:everyone],
-                ALIAS_LEVELS[:mods_and_admins],
-                ALIAS_LEVELS[:members_mods_and_admins]]
+    if user&.admin?
+      [
+        ALIAS_LEVELS[:everyone],
+        ALIAS_LEVELS[:only_admins],
+        ALIAS_LEVELS[:mods_and_admins],
+        ALIAS_LEVELS[:members_mods_and_admins],
+        ALIAS_LEVELS[:owners_mods_and_admins],
+      ]
+    elsif user&.moderator?
+      [
+        ALIAS_LEVELS[:everyone],
+        ALIAS_LEVELS[:mods_and_admins],
+        ALIAS_LEVELS[:members_mods_and_admins],
+        ALIAS_LEVELS[:owners_mods_and_admins],
+      ]
+    else
+      [ALIAS_LEVELS[:everyone]]
     end
-
-    levels
-  end
-
-  def self.plugin_editable_group_custom_fields
-    @plugin_editable_group_custom_fields ||= {}
   end
 
   def self.register_plugin_editable_group_custom_field(custom_field_name, plugin)
-    plugin_editable_group_custom_fields[custom_field_name] = plugin
-  end
-
-  def self.editable_group_custom_fields
-    plugin_editable_group_custom_fields.reduce([]) do |fields, (k, v)|
-      next(fields) unless v.enabled?
-      fields << k
-    end.uniq
+    Discourse.deprecate("Editable group custom fields should be registered using the plugin API", since: "v2.4.0.beta4", drop_from: "v2.5.0")
+    DiscoursePluginRegistry.register_editable_group_custom_field(custom_field_name, plugin)
   end
 
   def downcase_incoming_email
@@ -290,6 +360,25 @@ class Group < ActiveRecord::Base
     (10..19).to_a
   end
 
+  def set_message_default_notification_levels!(topic, ignore_existing: false)
+    group_users.pluck(:user_id, :notification_level).each do |user_id, notification_level|
+      next if user_id == -1
+      next if user_id == topic.user_id
+      next if ignore_existing && TopicUser.where(user_id: user_id, topic_id: topic.id).exists?
+
+      action =
+        case notification_level
+        when TopicUser.notification_levels[:tracking] then "track!"
+        when TopicUser.notification_levels[:regular]  then "regular!"
+        when TopicUser.notification_levels[:muted]    then "mute!"
+        when TopicUser.notification_levels[:watching] then "watch!"
+        else "track!"
+        end
+
+      topic.notifier.public_send(action, user_id)
+    end
+  end
+
   def self.refresh_automatic_group!(name)
     return unless id = AUTO_GROUPS[name]
 
@@ -323,6 +412,8 @@ class Group < ActiveRecord::Base
     when :moderators
       group.update!(messageable_level: ALIAS_LEVELS[:everyone])
     end
+
+    group.update!(visibility_level: Group.visibility_levels[:logged_on_users]) if group.visibility_level == Group.visibility_levels[:public]
 
     # Remove people from groups they don't belong in.
     remove_subquery =
@@ -523,8 +614,18 @@ class Group < ActiveRecord::Base
 
   PUBLISH_CATEGORIES_LIMIT = 10
 
-  def add(user)
-    self.users.push(user) unless self.users.include?(user)
+  def add(user, notify: false, automatic: false)
+    return self if self.users.include?(user)
+
+    self.users.push(user)
+
+    if notify
+      Notification.create!(
+        notification_type: Notification.types[:membership_request_accepted],
+        user_id: user.id,
+        data: { group_id: id, group_name: name }.to_json
+      )
+    end
 
     if self.categories.count < PUBLISH_CATEGORIES_LIMIT
       MessageBus.publish('/categories', {
@@ -534,12 +635,17 @@ class Group < ActiveRecord::Base
       Discourse.request_refresh!(user_ids: [user.id])
     end
 
+    DiscourseEvent.trigger(:user_added_to_group, user, self, automatic: automatic)
+
     self
   end
 
   def remove(user)
-    self.group_users.where(user: user).each(&:destroy)
+    result = self.group_users.where(user: user).each(&:destroy)
+    return false if result.blank?
     user.update_columns(primary_group_id: nil) if user.primary_group_id == self.id
+    DiscourseEvent.trigger(:user_removed_from_group, user, self)
+    true
   end
 
   def add_owner(user)
@@ -617,9 +723,9 @@ class Group < ActiveRecord::Base
   end
 
   def self.member_of(groups, user)
-    groups.joins(
-      "LEFT JOIN group_users gu ON gu.group_id = groups.id
-    ").where("gu.user_id = ?", user.id)
+    groups
+      .joins("LEFT JOIN group_users gu ON gu.group_id = groups.id ")
+      .where("gu.user_id = ?", user.id)
   end
 
   def self.owner_of(groups, user)
@@ -637,10 +743,18 @@ class Group < ActiveRecord::Base
     end
   end
 
+  def flair_type
+    return :icon if flair_icon.present?
+    return :image if flair_upload_id.present?
+  end
+
+  def flair_url
+    flair_icon.presence || flair_upload&.short_path
+  end
+
   protected
 
   def name_format_validator
-
     return if !name_changed?
 
     # avoid strip! here, it works now
@@ -662,12 +776,10 @@ class Group < ActiveRecord::Base
   def automatic_membership_email_domains_format_validator
     return if self.automatic_membership_email_domains.blank?
 
-    domains = self.automatic_membership_email_domains.split("|")
-    domains.each do |domain|
-      domain.sub!(/^https?:\/\//, '')
-      domain.sub!(/\/.*$/, '')
-      self.errors.add :base, (I18n.t('groups.errors.invalid_domain', domain: domain)) unless domain =~ /\A[a-z0-9]+([\-\.]{1}[a-z0-9]+)*\.[a-z]{2,24}(:[0-9]{1,5})?(\/.*)?\Z/i
+    domains = Group.get_valid_email_domains(self.automatic_membership_email_domains) do |domain|
+      self.errors.add :base, (I18n.t('groups.errors.invalid_domain', domain: domain))
     end
+
     self.automatic_membership_email_domains = domains.join("|")
   end
 
@@ -683,7 +795,7 @@ class Group < ActiveRecord::Base
   end
 
   def automatic_group_membership
-    if self.automatic_membership_retroactive
+    if self.automatic_membership_email_domains.present?
       Jobs.enqueue(:automatic_group_membership, group_id: self.id)
     end
   end
@@ -734,6 +846,32 @@ class Group < ActiveRecord::Base
     end
   end
 
+  def self.automatic_membership_users(domains, group_id = nil)
+    pattern = "@(#{domains.gsub('.', '\.')})$"
+
+    users = User.joins(:user_emails).where("user_emails.email ~* ?", pattern).activated.where(staged: false)
+    users = users.where("users.id NOT IN (SELECT user_id FROM group_users WHERE group_users.group_id = ?)", group_id) if group_id.present?
+
+    users
+  end
+
+  def self.get_valid_email_domains(value)
+    valid_domains = []
+
+    value.split("|").each do |domain|
+      domain.sub!(/^https?:\/\//, '')
+      domain.sub!(/\/.*$/, '')
+
+      if domain =~ Group::VALID_DOMAIN_REGEX
+        valid_domains << domain
+      else
+        yield domain if block_given?
+      end
+    end
+
+    valid_domains
+  end
+
   private
 
   def validate_grant_trust_level
@@ -779,13 +917,11 @@ end
 #  automatic                          :boolean          default(FALSE), not null
 #  user_count                         :integer          default(0), not null
 #  automatic_membership_email_domains :text
-#  automatic_membership_retroactive   :boolean          default(FALSE)
 #  primary_group                      :boolean          default(FALSE), not null
 #  title                              :string
 #  grant_trust_level                  :integer
 #  incoming_email                     :string
 #  has_messages                       :boolean          default(FALSE), not null
-#  flair_url                          :string
 #  flair_bg_color                     :string
 #  flair_color                        :string
 #  bio_raw                            :text
@@ -799,6 +935,10 @@ end
 #  membership_request_template        :text
 #  messageable_level                  :integer          default(0)
 #  mentionable_level                  :integer          default(0)
+#  publish_read_state                 :boolean          default(FALSE), not null
+#  members_visibility_level           :integer          default(0), not null
+#  flair_icon                         :string
+#  flair_upload_id                    :integer
 #
 # Indexes
 #

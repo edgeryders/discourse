@@ -3,9 +3,9 @@
 require 'excon'
 
 module Jobs
-  class EmitWebHookEvent < Jobs::Base
-    PING_EVENT = 'ping'.freeze
-    MAX_RETRY_COUNT = 4.freeze
+  class EmitWebHookEvent < ::Jobs::Base
+    PING_EVENT = 'ping'
+    MAX_RETRY_COUNT = 4
     RETRY_BACKOFF = 5
 
     def execute(args)
@@ -13,6 +13,8 @@ module Jobs
       @retry_count = args[:retry_count] || 0
       @web_hook = WebHook.find_by(id: @arguments[:web_hook_id])
       validate_arguments!
+
+      return if @web_hook.blank? # Web Hook was deleted
 
       unless ping_event?(@arguments[:event_type])
         validate_argument!(:payload)
@@ -31,7 +33,6 @@ module Jobs
     def validate_arguments!
       validate_argument!(:web_hook_id)
       validate_argument!(:event_type)
-      raise Discourse::InvalidParameters.new(:web_hook_id) if @web_hook.blank?
     end
 
     def validate_argument!(key)
@@ -93,7 +94,8 @@ module Jobs
         @retry_count += 1
         return if @retry_count > MAX_RETRY_COUNT
         delay = RETRY_BACKOFF**(@retry_count - 1)
-        Jobs.enqueue_in(delay.minutes, :emit_web_hook_event, @arguments)
+        @arguments[:retry_count] = @retry_count
+        ::Jobs.enqueue_in(delay.minutes, :emit_web_hook_event, @arguments)
       end
     end
 
@@ -101,7 +103,7 @@ module Jobs
       MessageBus.publish("/web_hook_events/#{@web_hook.id}", {
         web_hook_event_id: web_hook_event.id,
         event_type: @arguments[:event_type]
-      }, user_ids: User.human_users.staff.pluck(:id))
+      }, group_ids: [Group::AUTO_GROUPS[:staff]])
     end
 
     def ping_event?(event_type)

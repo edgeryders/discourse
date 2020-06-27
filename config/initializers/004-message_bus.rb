@@ -17,12 +17,20 @@ end
 def setup_message_bus_env(env)
   return if env["__mb"]
 
+  ::Middleware::RequestTracker.populate_request_queue_seconds!(env)
+
+  if queue_time = env["REQUEST_QUEUE_SECONDS"]
+    if queue_time > (GlobalSetting.reject_message_bus_queue_seconds).to_f
+      raise RateLimiter::LimitExceeded, 30 + (rand * 120).to_i
+    end
+  end
+
   host = RailsMultisite::ConnectionManagement.host(env)
   RailsMultisite::ConnectionManagement.with_hostname(host) do
     extra_headers = {
       "Access-Control-Allow-Origin" => Discourse.base_url_no_prefix,
       "Access-Control-Allow-Methods" => "GET, POST",
-      "Access-Control-Allow-Headers" => "X-SILENCE-LOGGER, X-Shared-Session-Key, Dont-Chunk, Discourse-Visible"
+      "Access-Control-Allow-Headers" => "X-SILENCE-LOGGER, X-Shared-Session-Key, Dont-Chunk, Discourse-Present"
     }
 
     user = nil

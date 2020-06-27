@@ -2,6 +2,11 @@
   .modal-body {
     max-width: 475px;
     min-width: 320px;
+    padding: 0;
+  }
+
+  .modal-panel {
+    padding: 0.667em;
   }
 
   .modal-header {
@@ -20,7 +25,7 @@
     .title {
       font-size: $font-0;
       font-weight: normal;
-      margin-bottom: s(2);
+      margin-bottom: 8px;
 
       .post-date {
         color: $primary-medium;
@@ -39,16 +44,8 @@
       box-sizing: border-box;
     }
 
-    .topic-share-url-for-touch {
-      a {
-        word-break: break-all;
-        font-size: $font-up-1;
-      }
-    }
-
-    .topic-share-url-for-touch,
     .topic-share-url {
-      margin-bottom: s(2);
+      margin-bottom: 8px;
     }
 
     .sources {
@@ -59,30 +56,56 @@
 
       .social-link {
         font-size: $font-up-6;
-        margin-right: s(2);
+        margin-right: 8px;
       }
     }
   }
 }
 
-.share-and-invite.modal .invite.modal-panel {
+.share-and-invite.modal .invite.modal-panel,
+.invite-link.modal-panel {
   .error-message,
   .success-message {
-    margin-bottom: s(2);
+    margin-bottom: 8px;
   }
 
   .body {
     .invite-user-control,
     .group-access-control,
     .show-custom-message-control {
-      margin-bottom: s(4);
+      margin-bottom: 8px;
     }
 
     .instructions {
-      margin-bottom: s(2);
+      margin-bottom: 8px;
     }
 
     .email-or-username-input {
+      width: 100%;
+    }
+
+    .max-redemptions-allowed {
+      margin-bottom: 8px;
+
+      .max-redemptions-allowed-input {
+        width: 20%;
+        min-width: 100px;
+      }
+    }
+
+    .invite-link-expires-at .date-picker,
+    .time-input {
+      width: 150px;
+    }
+
+    .invite-user-input-wrapper {
+      display: flex;
+      div.ac-wrap {
+        flex: 1;
+      }
+    }
+
+    .invite-link-input {
       width: 100%;
     }
   }
@@ -92,7 +115,7 @@
     align-items: center;
 
     .btn-primary {
-      margin-right: s(2);
+      margin-right: 8px;
 
       &:last-child {
         margin-right: 0;

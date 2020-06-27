@@ -51,14 +51,6 @@ class Middleware::RequestTracker
     @app = app
   end
 
-  def self.log_request_on_site(data, host)
-    RailsMultisite::ConnectionManagement.with_hostname(host) do
-      unless Discourse.pg_readonly_mode?
-        log_request(data)
-      end
-    end
-  end
-
   def self.log_request(data)
     status = data[:status]
     track_view = data[:track_view]
@@ -105,7 +97,7 @@ class Middleware::RequestTracker
     track_view &&= env_track_view || (request.get? && !request.xhr? && headers["Content-Type"] =~ /text\/html/)
     track_view = !!track_view
 
-    {
+    h = {
       status: status,
       is_crawler: helper.is_crawler?,
       has_auth_cookie: helper.has_auth_cookie?,
@@ -114,16 +106,27 @@ class Middleware::RequestTracker
       track_view: track_view,
       timing: timing,
       queue_seconds: env['REQUEST_QUEUE_SECONDS']
-    }.tap do |h|
-      h[:user_agent] = env['HTTP_USER_AGENT'] if h[:is_crawler]
+    }
+
+    if h[:is_crawler]
+      user_agent = env['HTTP_USER_AGENT']
+      if user_agent && (user_agent.encoding != Encoding::UTF_8)
+        user_agent = user_agent.encode("utf-8")
+        user_agent.scrub!
+      end
+      h[:user_agent] = user_agent
     end
+
+    if cache = headers["X-Discourse-Cached"]
+      h[:cache] = cache
+    end
+    h
   end
 
   def log_request_info(env, result, info)
 
     # we got to skip this on error ... its just logging
     data = self.class.get_data(env, result, info) rescue nil
-    host = RailsMultisite::ConnectionManagement.host(env)
 
     if data
       if result && (headers = result[1])
@@ -134,9 +137,23 @@ class Middleware::RequestTracker
         @@detailed_request_loggers.each { |logger| logger.call(env, data) }
       end
 
-      log_later(data, host)
+      log_later(data)
     end
 
+  end
+
+  def self.populate_request_queue_seconds!(env)
+    if !env['REQUEST_QUEUE_SECONDS']
+      if queue_start = env['HTTP_X_REQUEST_START']
+        queue_start = if queue_start.start_with?("t=")
+          queue_start.split("t=")[1].to_f
+        else
+          queue_start.to_f / 1000.0
+        end
+        queue_time = (Time.now.to_f - queue_start)
+        env['REQUEST_QUEUE_SECONDS'] = queue_time
+      end
+    end
   end
 
   def call(env)
@@ -145,11 +162,7 @@ class Middleware::RequestTracker
 
     # doing this as early as possible so we have an
     # accurate counter
-    if queue_start = env['HTTP_X_REQUEST_START']
-      queue_start = queue_start.split("t=")[1].to_f
-      queue_time = (Time.now.to_f - queue_start)
-      env['REQUEST_QUEUE_SECONDS'] = queue_time
-    end
+    ::Middleware::RequestTracker.populate_request_queue_seconds!(env)
 
     request = Rack::Request.new(env)
 
@@ -234,8 +247,8 @@ class Middleware::RequestTracker
       limiter60 = RateLimiter.new(
         nil,
         "global_ip_limit_60_#{ip}",
-        GlobalSetting.max_reqs_per_ip_per_10_seconds,
-        10,
+        GlobalSetting.max_reqs_per_ip_per_minute,
+        60,
         global: true
       )
 
@@ -278,10 +291,11 @@ class Middleware::RequestTracker
     end
   end
 
-  def log_later(data, host)
-    Scheduler::Defer.later("Track view", _db = nil) do
-      self.class.log_request_on_site(data, host)
+  def log_later(data)
+    Scheduler::Defer.later("Track view") do
+      unless Discourse.pg_readonly_mode?
+        self.class.log_request(data)
+      end
     end
   end
-
 end

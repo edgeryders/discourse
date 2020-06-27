@@ -1,16 +1,8 @@
 # frozen_string_literal: true
 
 require 'rails_helper'
-require_dependency 'badge'
 
 describe Badge do
-  it { is_expected.to belong_to(:badge_type) }
-  it { is_expected.to belong_to(:badge_grouping) }
-  it { is_expected.to have_many(:user_badges).dependent(:destroy) }
-
-  it { is_expected.to validate_presence_of(:name) }
-  it { is_expected.to validate_presence_of(:badge_type) }
-  it { is_expected.to validate_uniqueness_of(:name) }
 
   it 'has a valid system attribute for new badges' do
     expect(Badge.create!(name: "test", badge_type_id: 1).system?).to be false
@@ -96,6 +88,41 @@ describe Badge do
     end
   end
 
+  describe '.find_system_badge_id_from_translation_key' do
+    let(:translation_key) { 'badges.regular.name' }
+
+    it 'uses a translation key to get a system badge id, mainly to find which badge a translation override corresponds to' do
+      expect(Badge.find_system_badge_id_from_translation_key(translation_key)).to eq(
+        Badge::Regular
+      )
+    end
+
+    context 'when the translation key is snake case' do
+      let(:translation_key) { 'badges.crazy_in_love.name' }
+
+      it 'works to get the badge' do
+        expect(Badge.find_system_badge_id_from_translation_key(translation_key)).to eq(
+          Badge::CrazyInLove
+        )
+      end
+    end
+
+    context 'when a translation key not for a badge is provided' do
+      let(:translation_key) { 'reports.flags.title' }
+      it 'returns nil' do
+        expect(Badge.find_system_badge_id_from_translation_key(translation_key)).to eq(nil)
+      end
+    end
+
+    context "when translation key doesn't match its class" do
+      let(:translation_key) { "badges.licensed.long_description" }
+
+      it "returns nil" do
+        expect(Badge.find_system_badge_id_from_translation_key(translation_key)).to eq(nil)
+      end
+    end
+  end
+
   context "First Quote" do
     let(:quoted_post_badge) do
       Badge.find(Badge::FirstQuote)
@@ -123,6 +150,21 @@ describe Badge do
       expect(user_badge.granted_at).to eq_time(post2.created_at)
 
     end
+  end
+
+  context "WikiEditor badge" do
+
+    it "is awarded" do
+      wiki_editor_badge = Badge.find(Badge::WikiEditor)
+      post = Fabricate(:post, wiki: true)
+      revisor = PostRevisor.new(post)
+      revisor.revise!(post.user, { raw: "I am editing a wiki" }, force_new_version: true)
+
+      BadgeGranter.backfill(wiki_editor_badge)
+
+      expect(UserBadge.where(user_id: post.user.id, badge_id: Badge::WikiEditor).count).to eq(1)
+    end
+
   end
 
   context "PopularLink badge" do

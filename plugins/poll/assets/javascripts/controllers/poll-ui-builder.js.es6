@@ -1,10 +1,12 @@
-import {
-  default as computed,
-  observes
-} from "ember-addons/ember-computed-decorators";
-import InputValidation from "discourse/models/input-validation";
+import I18n from "I18n";
+import Controller from "@ember/controller";
+import discourseComputed, { observes } from "discourse-common/utils/decorators";
+import EmberObject from "@ember/object";
 
-export default Ember.Controller.extend({
+export const BAR_CHART_TYPE = "bar";
+export const PIE_CHART_TYPE = "pie";
+
+export default Controller.extend({
   regularPollType: "regular",
   numberPollType: "number",
   multiplePollType: "multiple",
@@ -12,13 +14,27 @@ export default Ember.Controller.extend({
   alwaysPollResult: "always",
   votePollResult: "on_vote",
   closedPollResult: "on_close",
+  staffPollResult: "staff_only",
+  pollChartTypes: [
+    {
+      name: I18n.t("poll.ui_builder.poll_chart_type.bar"),
+      value: BAR_CHART_TYPE
+    },
+    {
+      name: I18n.t("poll.ui_builder.poll_chart_type.pie"),
+      value: PIE_CHART_TYPE
+    }
+  ],
+
+  pollType: null,
+  pollResult: null,
 
   init() {
     this._super(...arguments);
     this._setupPoll();
   },
 
-  @computed("regularPollType", "numberPollType", "multiplePollType")
+  @discourseComputed("regularPollType", "numberPollType", "multiplePollType")
   pollTypes(regularPollType, numberPollType, multiplePollType) {
     return [
       {
@@ -36,9 +52,24 @@ export default Ember.Controller.extend({
     ];
   },
 
-  @computed("alwaysPollResult", "votePollResult", "closedPollResult")
-  pollResults(alwaysPollResult, votePollResult, closedPollResult) {
-    return [
+  @discourseComputed("chartType", "pollType", "numberPollType")
+  isPie(chartType, pollType, numberPollType) {
+    return pollType !== numberPollType && chartType === PIE_CHART_TYPE;
+  },
+
+  @discourseComputed(
+    "alwaysPollResult",
+    "votePollResult",
+    "closedPollResult",
+    "staffPollResult"
+  )
+  pollResults(
+    alwaysPollResult,
+    votePollResult,
+    closedPollResult,
+    staffPollResult
+  ) {
+    let options = [
       {
         name: I18n.t("poll.ui_builder.poll_result.always"),
         value: alwaysPollResult
@@ -52,29 +83,48 @@ export default Ember.Controller.extend({
         value: closedPollResult
       }
     ];
+    if (this.get("currentUser.staff")) {
+      options.push({
+        name: I18n.t("poll.ui_builder.poll_result.staff"),
+        value: staffPollResult
+      });
+    }
+    return options;
   },
 
-  @computed("pollType", "regularPollType")
+  @discourseComputed("site.groups")
+  siteGroups(groups) {
+    return groups
+      .map(g => {
+        // prevents group "everyone" to be listed
+        if (g.id !== 0) {
+          return { name: g.name };
+        }
+      })
+      .filter(Boolean);
+  },
+
+  @discourseComputed("pollType", "regularPollType")
   isRegular(pollType, regularPollType) {
     return pollType === regularPollType;
   },
 
-  @computed("pollType", "pollOptionsCount", "multiplePollType")
+  @discourseComputed("pollType", "pollOptionsCount", "multiplePollType")
   isMultiple(pollType, count, multiplePollType) {
     return pollType === multiplePollType && count > 0;
   },
 
-  @computed("pollType", "numberPollType")
+  @discourseComputed("pollType", "numberPollType")
   isNumber(pollType, numberPollType) {
     return pollType === numberPollType;
   },
 
-  @computed("isRegular")
+  @discourseComputed("isRegular")
   showMinMax(isRegular) {
     return !isRegular;
   },
 
-  @computed("pollOptions")
+  @discourseComputed("pollOptions")
   pollOptionsCount(pollOptions) {
     if (pollOptions.length === 0) return 0;
 
@@ -87,7 +137,7 @@ export default Ember.Controller.extend({
     return length;
   },
 
-  @observes("isMultiple", "isNumber", "pollOptionsCount")
+  @observes("pollType", "pollOptionsCount")
   _setPollMax() {
     const isMultiple = this.isMultiple;
     const isNumber = this.isNumber;
@@ -100,7 +150,7 @@ export default Ember.Controller.extend({
     }
   },
 
-  @computed("isRegular", "isMultiple", "isNumber", "pollOptionsCount")
+  @discourseComputed("isRegular", "isMultiple", "isNumber", "pollOptionsCount")
   pollMinOptions(isRegular, isMultiple, isNumber, count) {
     if (isRegular) return;
 
@@ -114,7 +164,7 @@ export default Ember.Controller.extend({
     }
   },
 
-  @computed(
+  @discourseComputed(
     "isRegular",
     "isMultiple",
     "isNumber",
@@ -124,7 +174,7 @@ export default Ember.Controller.extend({
   )
   pollMaxOptions(isRegular, isMultiple, isNumber, count, pollMin, pollStep) {
     if (isRegular) return;
-    const pollMinInt = parseInt(pollMin) || 1;
+    const pollMinInt = parseInt(pollMin, 10) || 1;
 
     if (isMultiple) {
       return this._comboboxOptions(pollMinInt + 1, count + 1);
@@ -140,13 +190,13 @@ export default Ember.Controller.extend({
     }
   },
 
-  @computed("isNumber", "pollMax")
+  @discourseComputed("isNumber", "pollMax")
   pollStepOptions(isNumber, pollMax) {
     if (!isNumber) return;
-    return this._comboboxOptions(1, (parseInt(pollMax) || 1) + 1);
+    return this._comboboxOptions(1, (parseInt(pollMax, 10) || 1) + 1);
   },
 
-  @computed(
+  @discourseComputed(
     "isNumber",
     "showMinMax",
     "pollType",
@@ -156,7 +206,9 @@ export default Ember.Controller.extend({
     "pollMin",
     "pollMax",
     "pollStep",
+    "pollGroups",
     "autoClose",
+    "chartType",
     "date",
     "time"
   )
@@ -170,7 +222,9 @@ export default Ember.Controller.extend({
     pollMin,
     pollMax,
     pollStep,
+    pollGroups,
     autoClose,
+    chartType,
     date,
     time
   ) {
@@ -196,6 +250,11 @@ export default Ember.Controller.extend({
     if (pollMax) pollHeader += ` max=${pollMax}`;
     if (isNumber) pollHeader += ` step=${step}`;
     if (publicPoll) pollHeader += ` public=true`;
+    if (chartType && pollType !== "number")
+      pollHeader += ` chartType=${chartType}`;
+    if (pollGroups && pollGroups.length > 0) {
+      pollHeader += ` groups=${pollGroups}`;
+    }
     if (autoClose) {
       let closeDate = moment(
         date + " " + time,
@@ -213,11 +272,11 @@ export default Ember.Controller.extend({
       });
     }
 
-    output += "[/poll]";
+    output += "[/poll]\n";
     return output;
   },
 
-  @computed(
+  @discourseComputed(
     "pollOptionsCount",
     "isRegular",
     "isMultiple",
@@ -227,13 +286,13 @@ export default Ember.Controller.extend({
   )
   disableInsert(count, isRegular, isMultiple, isNumber, pollMin, pollMax) {
     return (
-      (isRegular && count < 2) ||
+      (isRegular && count < 1) ||
       (isMultiple && count < pollMin && pollMin >= pollMax) ||
-      (isNumber ? false : count < 2)
+      (isNumber ? false : count < 1)
     );
   },
 
-  @computed("pollMin", "pollMax")
+  @discourseComputed("pollMin", "pollMax")
   minMaxValueValidation(pollMin, pollMax) {
     let options = { ok: true };
 
@@ -244,10 +303,10 @@ export default Ember.Controller.extend({
       };
     }
 
-    return InputValidation.create(options);
+    return EmberObject.create(options);
   },
 
-  @computed("pollStep")
+  @discourseComputed("pollStep")
   minStepValueValidation(pollStep) {
     let options = { ok: true };
 
@@ -258,10 +317,10 @@ export default Ember.Controller.extend({
       };
     }
 
-    return InputValidation.create(options);
+    return EmberObject.create(options);
   },
 
-  @computed("disableInsert")
+  @discourseComputed("disableInsert")
   minNumOfOptionsValidation(disableInsert) {
     let options = { ok: true };
 
@@ -272,7 +331,7 @@ export default Ember.Controller.extend({
       };
     }
 
-    return InputValidation.create(options);
+    return EmberObject.create(options);
   },
 
   _comboboxOptions(start_index, end_index) {
@@ -283,13 +342,15 @@ export default Ember.Controller.extend({
 
   _setupPoll() {
     this.setProperties({
-      pollType: null,
+      pollType: this.get("pollTypes.firstObject.value"),
       publicPoll: false,
       pollOptions: "",
       pollMin: 1,
       pollMax: null,
       pollStep: 1,
       autoClose: false,
+      chartType: BAR_CHART_TYPE,
+      pollGroups: null,
       date: moment()
         .add(1, "day")
         .format("YYYY-MM-DD"),

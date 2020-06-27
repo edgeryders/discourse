@@ -11,26 +11,26 @@ class Barber::Precompiler
   def precompiler
     if !@precompiler
 
-      source = File.read("#{Rails.root}/app/assets/javascripts/discourse-common/lib/raw-handlebars.js.es6")
-      template = Tilt::ES6ModuleTranspilerTemplate.new {}
-      transpiled = template.babel_transpile(source)
+      source = File.read("#{Rails.root}/app/assets/javascripts/discourse-common/addon/lib/raw-handlebars.js")
+      transpiler = DiscourseJsProcessor::Transpiler.new(skip_module: true)
+      transpiled = transpiler.perform(source)
 
       # very hacky but lets us use ES6. I'm ashamed of this code -RW
-      transpiled = transpiled[0...transpiled.index('export ')]
+      transpiled = transpiled[transpiled.index('var RawHandlebars = ')...transpiled.index('export ')]
 
-      @precompiler = StringIO.new <<END
-      var __RawHandlebars;
-      (function() {
-        #{transpiled};
-        __RawHandlebars = RawHandlebars;
-      })();
+      @precompiler = StringIO.new <<~END
+        var __RawHandlebars;
+        (function() {
+          #{transpiled};
+          __RawHandlebars = RawHandlebars;
+        })();
 
-      Barber = {
-        precompile: function(string) {
-          return __RawHandlebars.precompile(string, false).toString();
-        }
-      };
-END
+        Barber = {
+          precompile: function(string) {
+            return __RawHandlebars.precompile(string, false).toString();
+          }
+        };
+      END
     end
 
     @precompiler
@@ -65,7 +65,11 @@ class Ember::Handlebars::Template
   end
 
   def global_template_target(namespace, module_name, config)
-    "#{namespace}[#{template_path(module_name, config).inspect}]"
+    # We need this for backward-compatibility reasons.
+    # Plugins may not have an app subdirectory.
+    path = template_path(module_name, config).inspect.gsub('discourse/templates/', '')
+
+    "#{namespace}[#{path}]"
   end
 
   # FIXME: Previously, ember-handlebars-templates uses the logical path which incorrectly
@@ -74,5 +78,11 @@ class Ember::Handlebars::Template
   def actual_name(input)
     actual_name = input[:name]
     input[:filename].include?('.raw') ? "#{actual_name}.raw" : actual_name
+  end
+
+  private
+
+  def handlebars?(filename)
+    filename.to_s =~ /\.raw\.(handlebars|hjs|hbs)/ || filename.to_s.ends_with?(".hbr") || filename.to_s.ends_with?(".hbr.erb")
   end
 end

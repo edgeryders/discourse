@@ -1,9 +1,9 @@
 # frozen_string_literal: true
 
 class SvgSpriteController < ApplicationController
-  skip_before_action :preload_json, :redirect_to_login_if_required, :check_xhr, :verify_authenticity_token, only: [:show, :search]
+  skip_before_action :preload_json, :redirect_to_login_if_required, :check_xhr, :verify_authenticity_token, only: [:show, :search, :svg_icon]
 
-  requires_login except: [:show]
+  requires_login except: [:show, :svg_icon]
 
   def show
 
@@ -38,5 +38,50 @@ class SvgSpriteController < ApplicationController
         render plain: data.inspect, disposition: nil, content_type: 'text/plain'
       end
     end
+  end
+
+  def icon_picker_search
+    RailsMultisite::ConnectionManagement.with_hostname(params[:hostname]) do
+      params.permit(:filter)
+      filter = params[:filter] || ""
+
+      icons = SvgSprite.icon_picker_search(filter)
+      render json: icons.take(200), root: false
+    end
+  end
+
+  def svg_icon
+    no_cookies
+
+    RailsMultisite::ConnectionManagement.with_hostname(params[:hostname]) do
+      params.permit(:color)
+      name = params.require(:name)
+      icon = SvgSprite.search(name)
+
+      if icon.blank?
+        render body: nil, status: 404
+      else
+        doc = Nokogiri.XML(icon)
+        doc.at_xpath("symbol").name = "svg"
+        doc.at_xpath("svg")['xmlns'] = "http://www.w3.org/2000/svg"
+        doc.at_xpath("svg")['fill'] = adjust_hex(params[:color]) if params[:color]
+
+        response.headers["Last-Modified"] = 1.years.ago.httpdate
+        response.headers["Content-Length"] = doc.to_s.bytesize.to_s
+        immutable_for 1.day
+
+        render plain: doc, disposition: nil, content_type: 'image/svg+xml'
+      end
+    end
+  end
+
+  private
+
+  def adjust_hex(hex)
+    if hex.size == 3
+      chars = hex.scan(/\w/)
+      hex = chars.zip(chars).flatten.join
+    end
+    "##{hex}"
   end
 end

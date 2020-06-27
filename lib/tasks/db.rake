@@ -32,7 +32,14 @@ end
 
 task 'db:create' => [:load_config] do |_, args|
   if MultisiteTestHelpers.create_multisite?
-    system("RAILS_ENV=test RAILS_DB=discourse_test_multisite rake db:create")
+    unless system("RAILS_ENV=test RAILS_DB=discourse_test_multisite rake db:create")
+
+      STDERR.puts "-" * 80
+      STDERR.puts "ERROR: Could not create multisite DB. A common cause of this is a plugin"
+      STDERR.puts "checking the column structure when initializing, which raises an error."
+      STDERR.puts "-" * 80
+      raise "Could not initialize discourse_test_multisite"
+    end
   end
 end
 
@@ -48,20 +55,164 @@ task 'db:drop' => [:load_config] do |_, args|
   end
 end
 
-# we need to run seed_fu every time we run rake db:migrate
-task 'db:migrate' => ['environment', 'set_locale'] do |_, args|
-  SeedFu.seed(DiscoursePluginRegistry.seed_paths)
+begin
+  Rake::Task["db:migrate"].clear
+  Rake::Task["db:rollback"].clear
+end
 
-  unless Discourse.skip_post_deployment_migrations?
-    puts
-    print "Optimizing site icons... "
-    SiteIconManager.ensure_optimized!
-    puts "Done"
+task 'db:rollback' => ['environment', 'set_locale'] do |_, args|
+  step = ENV["STEP"] ? ENV["STEP"].to_i : 1
+  ActiveRecord::Base.connection.migration_context.rollback(step)
+  Rake::Task['db:_dump'].invoke
+end
+
+# our optimized version of multisite migrate, we have many sites and we have seeds
+# this ensures we can run migrations concurrently to save huge amounts of time
+Rake::Task['multisite:migrate'].clear
+
+class StdOutDemux
+  def initialize(stdout)
+    @stdout = stdout
+    @data = {}
   end
 
-  if MultisiteTestHelpers.load_multisite?
-    system("rake db:schema:dump")
-    system("RAILS_DB=discourse_test_multisite rake db:schema:load")
+  def write(data)
+    (@data[Thread.current] ||= +"") << data
+  end
+
+  def close
+    finish_chunk
+  end
+
+  def finish_chunk
+    data = @data[Thread.current]
+    if data
+      @stdout.write(data)
+      @data.delete Thread.current
+    end
+  end
+
+  def flush
+    # Do nothing
+  end
+end
+
+task 'multisite:migrate' => ['db:load_config', 'environment', 'set_locale'] do |_, args|
+  if ENV["RAILS_ENV"] != "production"
+    raise "Multisite migrate is only supported in production"
+  end
+
+  concurrency = (ENV['MIGRATE_CONCURRENCY'].presence || "20").to_i
+
+  puts "Multisite migrator is running using #{concurrency} threads"
+  puts
+
+  exceptions = Queue.new
+
+  old_stdout = $stdout
+  $stdout = StdOutDemux.new($stdout)
+
+  SeedFu.quiet = true
+
+  def execute_concurently(concurrency, exceptions)
+    queue = Queue.new
+
+    RailsMultisite::ConnectionManagement.each_connection do |db|
+      queue << db
+    end
+
+    concurrency.times { queue << :done }
+
+    (1..concurrency).map do
+      Thread.new {
+        while true
+          db = queue.pop
+          break if db == :done
+
+          RailsMultisite::ConnectionManagement.with_connection(db) do
+            begin
+              yield(db) if block_given?
+            rescue => e
+              exceptions << [db, e]
+            ensure
+              begin
+                $stdout.finish_chunk
+              rescue => ex
+                STDERR.puts ex.inspect
+                STDERR.puts ex.backtrace
+              end
+            end
+          end
+        end
+      }
+    end.each(&:join)
+  end
+
+  execute_concurently(concurrency, exceptions) do |db|
+    puts "Migrating #{db}"
+    ActiveRecord::Tasks::DatabaseTasks.migrate
+  end
+
+  seed_paths = DiscoursePluginRegistry.seed_paths
+  SeedFu.seed(seed_paths, /001_refresh/)
+
+  execute_concurently(concurrency, exceptions) do |db|
+    puts "Seeding #{db}"
+    SeedFu.seed(seed_paths)
+
+    if !Discourse.skip_post_deployment_migrations? && ENV['SKIP_OPTIMIZE_ICONS'] != '1'
+      SiteIconManager.ensure_optimized!
+    end
+  end
+
+  $stdout = old_stdout
+
+  if exceptions.length > 0
+    STDERR.puts
+    STDERR.puts "-" * 80
+    STDERR.puts "#{exceptions.length} migrations failed!"
+    while !exceptions.empty?
+      db, e = exceptions.pop
+      STDERR.puts
+      STDERR.puts "Failed to migrate #{db}"
+      STDERR.puts e.inspect
+      STDERR.puts e.backtrace
+      STDERR.puts
+    end
+    exit 1
+  end
+
+  Rake::Task['db:_dump'].invoke
+end
+
+# we need to run seed_fu every time we run rake db:migrate
+task 'db:migrate' => ['load_config', 'environment', 'set_locale'] do |_, args|
+  migrations = ActiveRecord::Base.connection.migration_context.migrations
+  now_timestamp = Time.now.utc.strftime('%Y%m%d%H%M%S').to_i
+  epoch_timestamp = Time.at(0).utc.strftime('%Y%m%d%H%M%S').to_i
+
+  raise "Migration #{migrations.last.version} is timestamped in the future" if migrations.last.version > now_timestamp
+  raise "Migration #{migrations.first.version} is timestamped before the epoch" if migrations.first.version < epoch_timestamp
+
+  ActiveRecord::Tasks::DatabaseTasks.migrate
+
+  if !Discourse.is_parallel_test?
+    Rake::Task['db:_dump'].invoke
+  end
+
+  SeedFu.quiet = true
+
+  # Allows a plugin to exclude any specified seed data files from running
+  filter = DiscoursePluginRegistry.seedfu_filter.any? ?
+    /^(?!.*(#{DiscoursePluginRegistry.seedfu_filter.to_a.join("|")})).*$/ : nil
+
+  SeedFu.seed(DiscoursePluginRegistry.seed_paths, filter)
+
+  if !Discourse.skip_post_deployment_migrations? && ENV['SKIP_OPTIMIZE_ICONS'] != '1'
+    SiteIconManager.ensure_optimized!
+  end
+
+  if !Discourse.is_parallel_test? && MultisiteTestHelpers.load_multisite?
     system("RAILS_DB=discourse_test_multisite rake db:migrate")
   end
 end
@@ -119,10 +270,12 @@ task 'db:stats' => 'environment' do
       from pg_class
       where oid = ('public.' || table_name)::regclass
     ) AS row_estimate,
-    pg_size_pretty(pg_relation_size(quote_ident(table_name))) size
+    pg_size_pretty(pg_table_size(quote_ident(table_name))) table_size,
+    pg_size_pretty(pg_indexes_size(quote_ident(table_name))) index_size,
+    pg_size_pretty(pg_total_relation_size(quote_ident(table_name))) total_size
     from information_schema.tables
     where table_schema = 'public'
-    order by pg_relation_size(quote_ident(table_name)) DESC
+    order by pg_total_relation_size(quote_ident(table_name)) DESC
   SQL
 
   puts

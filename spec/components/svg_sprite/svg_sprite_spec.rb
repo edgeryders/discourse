@@ -29,6 +29,11 @@ describe SvgSprite do
     expect(SvgSprite.search("this-is-not-an-icon")).to eq(false)
   end
 
+  it 'can get a raw SVG for an icon' do
+    expect(SvgSprite.raw_svg("fa-heart")).to match(/svg.*svg/) # SVG inside SVG
+    expect(SvgSprite.raw_svg("this-is-not-an-icon")).to eq("")
+  end
+
   it 'can get a consistent version string' do
     version1 = SvgSprite.version
     version2 = SvgSprite.version
@@ -44,15 +49,41 @@ describe SvgSprite do
     expect(version1).not_to eq(version2)
   end
 
+  it 'version should be based on bundled output, not requested icons' do
+    theme = Fabricate(:theme)
+    fname = "custom-theme-icon-sprite.svg"
+    upload = UploadCreator.new(file_from_fixtures(fname), fname, for_theme: true).create_for(-1)
+
+    version1 = SvgSprite.version([theme.id])
+    bundle1 = SvgSprite.bundle([theme.id])
+
+    SiteSetting.svg_icon_subset = "my-custom-theme-icon"
+
+    version2 = SvgSprite.version([theme.id])
+    bundle2 = SvgSprite.bundle([theme.id])
+
+    # The contents of the bundle should not change, because the icon does not actually exist
+    expect(bundle1).to eq(bundle2)
+    # Therefore the version hash should not change
+    expect(version1).to eq(version2)
+
+    # Now add the icon to the theme
+    theme.set_field(target: :common, name: SvgSprite.theme_sprite_variable_name, upload_id: upload.id, type: :theme_upload_var)
+    theme.save!
+
+    version3 = SvgSprite.version([theme.id])
+    bundle3 = SvgSprite.bundle([theme.id])
+
+    # The version/bundle should be updated
+    expect(bundle3).not_to match(bundle2)
+    expect(version3).not_to match(version2)
+    expect(bundle3).to match(/my-custom-theme-icon/)
+  end
+
   it 'strips whitespace when processing icons' do
     Fabricate(:badge, name: 'Custom Icon Badge', icon: '  fab fa-facebook-messenger  ')
     expect(SvgSprite.all_icons).to include("fab-facebook-messenger")
     expect(SvgSprite.all_icons).not_to include("  fab-facebook-messenger  ")
-  end
-
-  it 'includes Font Awesome 4.7 icons from badges' do
-    Fabricate(:badge, name: 'Custom Icon Badge', icon: 'fa-gamepad')
-    expect(SvgSprite.all_icons).to include("gamepad")
   end
 
   it 'includes Font Awesome 5 icons from badges' do
@@ -102,8 +133,18 @@ describe SvgSprite do
     theme.update(component: true)
     theme.save!
     parent_theme = Fabricate(:theme)
-    parent_theme.add_child_theme!(theme)
+    parent_theme.add_relative_theme!(:child, theme)
     expect(SvgSprite.all_icons([parent_theme.id])).to include("dragon")
+  end
+
+  it 'includes icons defined in theme modifiers' do
+    theme = Fabricate(:theme)
+
+    expect(SvgSprite.all_icons([theme.id])).not_to include("dragon")
+
+    theme.theme_modifier_set.svg_icons = ["dragon"]
+    theme.save!
+    expect(SvgSprite.all_icons([theme.id])).to include("dragon")
   end
 
   it 'includes custom icons from a sprite in a theme' do
@@ -169,13 +210,8 @@ describe SvgSprite do
     expect(SvgSprite.all_icons).to include("fab-bandcamp")
   end
 
-  it "includes Font Awesome 4.7 icons as group flair" do
-    group = Fabricate(:group, flair_url: "fa-air-freshener")
-    expect(SvgSprite.bundle).to match(/air-freshener/)
-  end
-
-  it "includes Font Awesome 5 icons as group flair" do
-    group = Fabricate(:group, flair_url: "far fa-building")
-    expect(SvgSprite.bundle).to match(/building/)
+  it "includes Font Awesome icon from groups" do
+    group = Fabricate(:group, flair_icon: "far-building")
+    expect(SvgSprite.bundle).to match(/far-building/)
   end
 end

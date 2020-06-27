@@ -7,7 +7,7 @@ task 'plugin:install_all_official' do
   skip = Set.new([
     'customer-flair',
     'discourse-nginx-performance-report',
-    'lazyYT',
+    'lazy-yt',
     'poll'
   ])
 
@@ -15,6 +15,8 @@ task 'plugin:install_all_official' do
     'Canned Replies' => 'https://github.com/discourse/discourse-canned-replies',
     'discourse-perspective' => 'https://github.com/discourse/discourse-perspective-api'
   }
+
+  STDERR.puts "Allowing write to all repos!" if ENV['GIT_WRITE']
 
   Plugin::Metadata::OFFICIAL_PLUGINS.each do |name|
     next if skip.include? name
@@ -28,7 +30,6 @@ task 'plugin:install_all_official' do
     end
 
     if ENV['GIT_WRITE']
-      STDERR.puts "Allowing write to all repos!"
       repo = repo.gsub("https://github.com/", "git@github.com:")
       repo += ".git"
     end
@@ -144,4 +145,33 @@ task 'plugin:qunit', [:plugin, :timeout] do |t, args|
   cmd += "[#{args[:timeout]}]" if args[:timeout]
 
   sh cmd
+end
+
+desc 'run all migrations of a plugin'
+namespace 'plugin:migrate' do
+  def list_migrations(plugin_name)
+    plugin_root = File.join(Rails.root, "plugins", plugin_name)
+    migrations_root = File.join(plugin_root, "db", "{post_migrate,migrate}", "*.rb")
+    Dir[migrations_root]
+      .map do |migration_filename|
+        File.basename(migration_filename)[/(^.*?)_/, 1].to_i
+      end
+      .sort
+  end
+
+  def cmd(operation, migration_number)
+    "rails db:migrate:#{operation} LOAD_PLUGINS=1 VERSION=#{migration_number}"
+  end
+
+  task :down, [:plugin] do |t, args|
+    list_migrations(args[:plugin]).reverse.each do |migration_number|
+      sh cmd(:down, migration_number)
+    end
+  end
+
+  task :up, [:plugin] do |t, args|
+    list_migrations(args[:plugin]).each do |migration_number|
+      sh cmd(:up, migration_number)
+    end
+  end
 end

@@ -6,17 +6,30 @@ require_dependency 'plugin/metadata'
 require_dependency 'auth'
 
 class Plugin::CustomEmoji
+  CACHE_KEY ||= "plugin-emoji"
   def self.cache_key
-    @@cache_key ||= "plugin-emoji"
+    @@cache_key ||= CACHE_KEY
   end
 
   def self.emojis
     @@emojis ||= {}
   end
 
-  def self.register(name, url)
-    @@cache_key = Digest::SHA1.hexdigest(cache_key + name)[0..10]
-    emojis[name] = url
+  def self.clear_cache
+    @@cache_key = CACHE_KEY
+    @@emojis = {}
+    @@translations = {}
+  end
+
+  def self.register(name, url, group = Emoji::DEFAULT_GROUP)
+    @@cache_key = Digest::SHA1.hexdigest(cache_key + name + group)[0..10]
+    new_group = emojis[group] || {}
+    new_group[name] = url
+    emojis[group] = new_group
+  end
+
+  def self.unregister(name, group = Emoji::DEFAULT_GROUP)
+    emojis[group].delete(name)
   end
 
   def self.translations
@@ -45,6 +58,7 @@ class Plugin::Instance
    :styles,
    :themes,
    :csp_extensions,
+   :asset_filters
  ].each do |att|
     class_eval %Q{
       def #{att}
@@ -53,8 +67,19 @@ class Plugin::Instance
     }
   end
 
+  # If plugins provide `transpile_js: true` in their metadata we will
+  # transpile regular JS files in the assets folders. Going forward,
+  # all plugins should do this.
+  def transpile_js
+    metadata.try(:transpile_js) == "true"
+  end
+
   def seed_data
     @seed_data ||= HashWithIndifferentAccess.new({})
+  end
+
+  def seed_fu_filter(filter = nil)
+    @seed_fu_filter = filter
   end
 
   def self.find_all(parent_path)
@@ -76,6 +101,13 @@ class Plugin::Instance
     @metadata = metadata
     @path = path
     @idx = 0
+  end
+
+  def register_anonymous_cache_key(key, &block)
+    key_method = "key_#{key}"
+    add_to_class(Middleware::AnonymousCache::Helper, key_method, &block)
+    Middleware::AnonymousCache.cache_key_segments[key] = key_method
+    Middleware::AnonymousCache.compile_key_builder
   end
 
   def add_admin_route(label, location)
@@ -116,43 +148,45 @@ class Plugin::Instance
   end
 
   # Applies to all sites in a multisite environment. Ignores plugin.enabled?
-  def replace_flags
-    settings = ::FlagSettings.new
-    yield settings
+  def replace_flags(settings: ::FlagSettings.new)
+    next_flag_id = ReviewableScore.types.values.max + 1
+
+    yield(settings, next_flag_id)
 
     reloadable_patch do |plugin|
       ::PostActionType.replace_flag_settings(settings)
-    end
-  end
-
-  def whitelist_flag_post_custom_field(field)
-    reloadable_patch do |plugin|
-      ::FlagQuery.register_plugin_post_custom_field(field, plugin) # plugin.enabled? is checked at runtime
+      ::ReviewableScore.reload_types
     end
   end
 
   def whitelist_staff_user_custom_field(field)
-    reloadable_patch do |plugin|
-      ::User.register_plugin_staff_custom_field(field, plugin) # plugin.enabled? is checked at runtime
-    end
+    DiscoursePluginRegistry.register_staff_user_custom_field(field, self)
   end
 
   def whitelist_public_user_custom_field(field)
-    reloadable_patch do |plugin|
-      ::User.register_plugin_public_custom_field(field, plugin) # plugin.enabled? is checked at runtime
-    end
+    DiscoursePluginRegistry.register_public_user_custom_field(field, self)
   end
 
-  def register_editable_user_custom_field(field)
-    reloadable_patch do |plugin|
-      ::User.register_plugin_editable_user_custom_field(field, plugin) # plugin.enabled? is checked at runtime
+  def register_editable_user_custom_field(field, staff_only: false)
+    if staff_only
+      DiscoursePluginRegistry.register_staff_editable_user_custom_field(field, self)
+    else
+      DiscoursePluginRegistry.register_self_editable_user_custom_field(field, self)
     end
   end
 
   def register_editable_group_custom_field(field)
-    reloadable_patch do |plugin|
-      ::Group.register_plugin_editable_group_custom_field(field, plugin) # plugin.enabled? is checked at runtime
+    DiscoursePluginRegistry.register_editable_group_custom_field(field, self)
+  end
+
+  # Request a new size for topic thumbnails
+  # Will respect plugin enabled setting is enabled
+  # Size should be an array with two elements [max_width, max_height]
+  def register_topic_thumbnail_size(size)
+    if !(size.kind_of?(Array) && size.length == 2)
+      raise ArgumentError.new("Topic thumbnail dimension is not valid")
     end
+    DiscoursePluginRegistry.register_topic_thumbnail_size(size, self)
   end
 
   def custom_avatar_column(column)
@@ -245,9 +279,9 @@ class Plugin::Instance
   end
 
   # Add a permitted_create_param to Post, respecting if the plugin is enabled
-  def add_permitted_post_create_param(name)
+  def add_permitted_post_create_param(name, type = :string)
     reloadable_patch do |plugin|
-      ::Post.plugin_permitted_create_params[name] = plugin
+      ::Post.plugin_permitted_create_params[name] = { plugin: plugin, type: type }
     end
   end
 
@@ -268,7 +302,7 @@ class Plugin::Instance
     automatic_assets.each do |path, contents|
       write_asset(path, contents)
       paths << path
-      assets << [path]
+      assets << [path, nil, directory_name]
     end
 
     delete_extra_automatic_assets(paths)
@@ -385,6 +419,10 @@ class Plugin::Instance
     SeedFu.fixture_paths.concat(paths)
   end
 
+  def register_seedfu_filter(filter = nil)
+    DiscoursePluginRegistry.register_seedfu_filter(filter)
+  end
+
   def listen_for(event_name)
     return unless self.respond_to?(event_name)
     DiscourseEvent.on(event_name, &self.method(event_name))
@@ -406,6 +444,14 @@ class Plugin::Instance
     csp_extensions << extension
   end
 
+  # Register a block to run when adding css and js assets
+  # Two arguments will be passed: (type, request)
+  # Type is :css or :js. `request` is an instance of Rack::Request
+  # When using this, make sure to consider the effect on AnonymousCache
+  def register_asset_filter(&blk)
+    asset_filters << blk
+  end
+
   # @option opts [String] :name
   # @option opts [String] :nativeName
   # @option opts [String] :fallbackLocale
@@ -415,12 +461,14 @@ class Plugin::Instance
   end
 
   def register_custom_html(hash)
-    DiscoursePluginRegistry.custom_html ||= {}
     DiscoursePluginRegistry.custom_html.merge!(hash)
   end
 
   def register_html_builder(name, &block)
-    DiscoursePluginRegistry.register_html_builder(name, &block)
+    plugin = self
+    DiscoursePluginRegistry.register_html_builder(name) do |*args|
+      block.call(*args) if plugin.enabled?
+    end
   end
 
   def register_asset(file, opts = nil)
@@ -430,7 +478,7 @@ class Plugin::Instance
       full_path = File.dirname(path) << "/assets/" << file
     end
 
-    assets << [full_path, opts]
+    assets << [full_path, opts, directory_name]
   end
 
   def register_service_worker(file, opts = nil)
@@ -452,8 +500,9 @@ class Plugin::Instance
     DiscoursePluginRegistry.register_seed_path_builder(&block)
   end
 
-  def register_emoji(name, url)
-    Plugin::CustomEmoji.register(name, url)
+  def register_emoji(name, url, group = Emoji::DEFAULT_GROUP)
+    Plugin::CustomEmoji.register(name, url, group)
+    Emoji.clear_cache
   end
 
   def translate_emoji(from, to)
@@ -483,14 +532,26 @@ class Plugin::Instance
   def activate!
 
     if @path
+      root_dir_name = File.dirname(@path)
+
       # Automatically include all ES6 JS and hbs files
-      root_path = "#{File.dirname(@path)}/assets/javascripts"
+      root_path = "#{root_dir_name}/assets/javascripts"
       DiscoursePluginRegistry.register_glob(root_path, 'js.es6')
       DiscoursePluginRegistry.register_glob(root_path, 'hbs')
+      DiscoursePluginRegistry.register_glob(root_path, 'hbr')
 
-      admin_path = "#{File.dirname(@path)}/admin/assets/javascripts"
+      admin_path = "#{root_dir_name}/admin/assets/javascripts"
       DiscoursePluginRegistry.register_glob(admin_path, 'js.es6', admin: true)
       DiscoursePluginRegistry.register_glob(admin_path, 'hbs', admin: true)
+      DiscoursePluginRegistry.register_glob(admin_path, 'hbr', admin: true)
+
+      if transpile_js
+        DiscourseJsProcessor.plugin_transpile_paths << root_path.sub(Rails.root.to_s, '').sub(/^\/*/, '')
+        DiscourseJsProcessor.plugin_transpile_paths << admin_path.sub(Rails.root.to_s, '').sub(/^\/*/, '')
+
+        test_path = "#{root_dir_name}/test/javascripts"
+        DiscourseJsProcessor.plugin_transpile_paths << test_path.sub(Rails.root.to_s, '').sub(/^\/*/, '')
+      end
     end
 
     self.instance_eval File.read(path), path
@@ -518,7 +579,7 @@ class Plugin::Instance
     Rake.add_rakelib(File.dirname(path) + "/lib/tasks")
 
     # Automatically include migrations
-    migration_paths = Rails.configuration.paths["db/migrate"]
+    migration_paths = ActiveRecord::Tasks::DatabaseTasks.migrations_paths
     migration_paths << File.dirname(path) + "/db/migrate"
 
     unless Discourse.skip_post_deployment_migrations?
@@ -531,9 +592,29 @@ class Plugin::Instance
 
       Discourse::Utils.execute_command('mkdir', '-p', target)
       target << name.gsub(/\s/, "_")
-      # TODO a cleaner way of registering and unregistering
-      Discourse::Utils.execute_command('rm', '-f', target)
-      Discourse::Utils.execute_command('ln', '-s', public_data, target)
+
+      Discourse::Utils.atomic_ln_s(public_data, target)
+    end
+
+    ensure_directory(js_file_path)
+
+    contents = []
+    handlebars_includes.each { |hb| contents << "require_asset('#{hb}')" }
+    javascript_includes.each { |js| contents << "require_asset('#{js}')" }
+
+    each_globbed_asset do |f, is_dir|
+      contents << (is_dir ? "depend_on('#{f}')" : "require_asset('#{f}')")
+    end
+
+    if contents.present?
+      contents.insert(0, "<%")
+      contents << "%>"
+      Discourse::Utils.atomic_write_file(js_file_path, contents.join("\n"))
+    else
+      begin
+        File.delete(js_file_path)
+      rescue Errno::ENOENT
+      end
     end
   end
 
@@ -575,11 +656,7 @@ class Plugin::Instance
   end
 
   def enabled_site_setting_filter(filter = nil)
-    if filter
-      @enabled_setting_filter = filter
-    else
-      @enabled_setting_filter
-    end
+    STDERR.puts("`enabled_site_setting_filter` is deprecated")
   end
 
   def enabled_site_setting(setting = nil)
@@ -611,11 +688,15 @@ class Plugin::Instance
     if @path
       # Automatically include all ES6 JS and hbs files
       root_path = "#{File.dirname(@path)}/assets/javascripts"
+      admin_path = "#{File.dirname(@path)}/admin/assets/javascripts"
 
-      Dir.glob("#{root_path}/**/*") do |f|
+      Dir.glob(["#{root_path}/**/*", "#{admin_path}/**/*"]) do |f|
+        f_str = f.to_s
         if File.directory?(f)
           yield [f, true]
-        elsif f.to_s.ends_with?(".js.es6") || f.to_s.ends_with?(".hbs")
+        elsif f_str.ends_with?(".js.es6") || f_str.ends_with?(".hbs") || f_str.ends_with?(".hbr")
+          yield [f, false]
+        elsif transpile_js && f_str.ends_with?(".js")
           yield [f, false]
         end
       end
@@ -635,11 +716,40 @@ class Plugin::Instance
     end
   end
 
+  def directory_name
+    @directory_name ||= File.dirname(path).split("/").last
+  end
+
+  def css_asset_exists?(target = nil)
+    DiscoursePluginRegistry.stylesheets_exists?(directory_name, target)
+  end
+
+  def js_asset_exists?
+    File.exists?(js_file_path)
+  end
+
+  # Receives an array with two elements:
+  # 1. A symbol that represents the name of the value to filter.
+  # 2. A Proc that takes the existing ActiveRecord::Relation and the value received from the front-end.
+  def add_custom_reviewable_filter(filter)
+    reloadable_patch do
+      Reviewable.add_custom_filter(filter)
+    end
+  end
+
   protected
 
+  def self.js_path
+    File.expand_path "#{Rails.root}/app/assets/javascripts/plugins"
+  end
+
+  def js_file_path
+    @file_path ||= "#{Plugin::Instance.js_path}/#{directory_name}.js.erb"
+  end
+
   def register_assets!
-    assets.each do |asset, opts|
-      DiscoursePluginRegistry.register_asset(asset, opts)
+    assets.each do |asset, opts, plugin_directory_name|
+      DiscoursePluginRegistry.register_asset(asset, opts, plugin_directory_name)
     end
   end
 
@@ -685,6 +795,12 @@ class Plugin::Instance
           puts msg
         end
       end
+    end
+  end
+
+  def allow_new_queued_post_payload_attribute(attribute_name)
+    reloadable_patch do
+      NewPostManager.add_plugin_payload_attribute(attribute_name)
     end
   end
 

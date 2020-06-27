@@ -1,28 +1,20 @@
 .alert {
-  padding: 8px 32px 8px 16px;
+  padding: 0.5em 2.5em 0.5em 1em;
   background-color: $danger-low;
   color: $primary;
   position: relative;
+  margin-bottom: 1em;
 
   .close {
-    position: absolute;
-    top: 8px;
-    right: 8px;
-    line-height: $line-height-small;
     font-size: $font-up-3;
-    color: $primary-low-mid;
-    @include hover {
+    position: absolute;
+    top: 0.265em;
+    right: 0.66em;
+    .d-icon {
       color: $primary-medium;
-      cursor: pointer;
     }
   }
-  button.close {
-    padding: 0;
-    cursor: pointer;
-    background: transparent;
-    border: 0;
-    -webkit-appearance: none;
-  }
+
   &.alert-success {
     background-color: $success-low;
     color: $primary;
@@ -38,4 +30,8 @@
       color: $tertiary;
     }
   }
+}
+
+a.alert.clickable {
+  display: flex;
 }

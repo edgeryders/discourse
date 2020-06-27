@@ -17,13 +17,13 @@ describe Jobs::EmitWebHookEvent do
 
   it 'raises an error when there is no event type' do
     expect do
-      subject.execute(web_hook_id: 1, payload: {})
+      subject.execute(web_hook_id: post_hook.id, payload: {})
     end.to raise_error(Discourse::InvalidParameters)
   end
 
   it 'raises an error when there is no payload' do
     expect do
-      subject.execute(web_hook_id: 1, event_type: 'post')
+      subject.execute(web_hook_id: post_hook.id, event_type: 'post')
     end.to raise_error(Discourse::InvalidParameters)
   end
 
@@ -88,6 +88,19 @@ describe Jobs::EmitWebHookEvent do
             event_type: described_class::PING_EVENT
           )
         end.to change { Jobs::EmitWebHookEvent.jobs.size }.by(1)
+      end
+
+      it 'retries at most 5 times' do
+        Jobs.run_immediately!
+
+        expect(Jobs::EmitWebHookEvent::MAX_RETRY_COUNT + 1).to eq(5)
+
+        expect do
+          subject.execute(
+            web_hook_id: post_hook.id,
+            event_type: described_class::PING_EVENT
+          )
+        end.to change { WebHookEvent.count }.by(Jobs::EmitWebHookEvent::MAX_RETRY_COUNT + 1)
       end
 
       it 'does not retry for more than maximum allowed times' do
@@ -226,17 +239,16 @@ describe Jobs::EmitWebHookEvent do
       stub_request(:post, post_hook.payload_url)
         .to_return(body: 'OK', status: 200)
 
-      WebHookEventType.all.pluck(:name).each do |name|
-        web_hook_id = Fabricate("#{name}_web_hook").id
+      topic_event_type = WebHookEventType.all.first
+      web_hook_id = Fabricate("#{topic_event_type.name}_web_hook").id
 
-        expect do
-          subject.execute(
-            web_hook_id: web_hook_id,
-            event_type: name,
-            payload: { test: "some payload" }.to_json
-          )
-        end.to change(WebHookEvent, :count).by(1)
-      end
+      expect do
+        subject.execute(
+          web_hook_id: web_hook_id,
+          event_type: topic_event_type.name,
+          payload: { test: "some payload" }.to_json
+        )
+      end.to change(WebHookEvent, :count).by(1)
     end
 
     it 'sets up proper request headers' do
@@ -262,6 +274,27 @@ describe Jobs::EmitWebHookEvent do
       expect(event.status).to eq(200)
       expect(MultiJson.load(event.response_headers)['Test']).to eq('string')
       expect(event.response_body).to eq('OK')
+    end
+
+    it 'sets up proper request headers when an error raised' do
+      Excon::Connection.any_instance.expects(:post).raises("error")
+
+      subject.execute(
+        web_hook_id: post_hook.id,
+        event_type: described_class::PING_EVENT,
+        event_name: described_class::PING_EVENT,
+        payload: { test: "this payload shouldn't appear" }.to_json
+      )
+
+      event = WebHookEvent.last
+      headers = MultiJson.load(event.headers)
+      expect(headers['Content-Length']).to eq(13)
+      expect(headers['Host']).to eq("meta.discourse.org")
+      expect(headers['X-Discourse-Event-Id']).to eq(event.id)
+      expect(headers['X-Discourse-Event-Type']).to eq(described_class::PING_EVENT)
+      expect(headers['X-Discourse-Event']).to eq(described_class::PING_EVENT)
+      expect(headers['X-Discourse-Event-Signature']).to eq('sha256=162f107f6b5022353274eb1a7197885cfd35744d8d08e5bcea025d309386b7d6')
+      expect(event.payload).to eq(MultiJson.dump(ping: 'OK'))
     end
   end
 end

@@ -1,6 +1,7 @@
-/*jshint maxlen:10000000 */
+// discourse-skip-module
+
 Discourse.SiteSettingsOriginal = {
-  title: "Discourse Meta",
+  title: "QUnit Discourse Tests",
   site_logo_url: "/assets/logo.png",
   site_logo_url: "/assets/logo.png",
   site_logo_small_url: "/assets/logo-single.png",
@@ -13,7 +14,7 @@ Discourse.SiteSettingsOriginal = {
   ga_universal_domain_name: "auto",
   top_menu: "latest|new|unread|categories|top",
   post_menu: "like|share|flag|edit|bookmark|delete|admin|reply",
-  post_menu_hidden_items: "flag|edit|delete|admin",
+  post_menu_hidden_items: "flag|bookmark|edit|delete|admin",
   share_links: "twitter|facebook|email",
   category_colors:
     "BF1E2E|F1592A|F7941D|9EB83B|3AB54A|12A89D|25AAE2|0E76BD|652D90|92278F|ED207B|8C6238|231F20|27AA5B|B3B5B4|E45735",
@@ -93,11 +94,15 @@ Discourse.SiteSettingsOriginal = {
   enable_emoji: true,
   enable_emoji_shortcuts: true,
   emoji_set: "emoji_one",
+  enable_emoji_shortcuts: true,
+  enable_inline_emoji_translation: false,
   desktop_category_page_style: "categories_and_latest_topics",
   enable_mentions: true,
   enable_personal_messages: true,
-  unicode_usernames: false
+  unicode_usernames: false,
+  secure_media: false
 };
+
 Discourse.SiteSettings = jQuery.extend(
   true,
   {},

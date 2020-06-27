@@ -2,16 +2,19 @@
 
 module Jobs
 
-  class CleanUpUnusedStagedUsers < Jobs::Scheduled
+  class CleanUpUnusedStagedUsers < ::Jobs::Scheduled
     every 1.day
 
     def execute(args)
+      clean_up_after_days = SiteSetting.clean_up_unused_staged_users_after_days
+      return if clean_up_after_days <= 0
+
       destroyer = UserDestroyer.new(Discourse.system_user)
 
       User.joins("LEFT JOIN posts ON posts.user_id = users.id")
         .where("posts.user_id IS NULL")
-        .where(staged: true)
-        .where("users.created_at < ?", 1.year.ago)
+        .where(staged: true, admin: false, moderator: false)
+        .where("users.created_at < ?", clean_up_after_days.days.ago)
         .find_each do |user|
 
         begin

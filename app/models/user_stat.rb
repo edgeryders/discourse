@@ -4,8 +4,12 @@ class UserStat < ActiveRecord::Base
   belongs_to :user
   after_save :trigger_badges
 
+  # TODO(2021-05-13): Remove
+  self.ignored_columns = ["topic_reply_count"]
+
   def self.ensure_consistency!(last_seen = 1.hour.ago)
     reset_bounce_scores
+    update_distinct_badge_count
     update_view_counts(last_seen)
     update_first_unread(last_seen)
   end
@@ -126,13 +130,54 @@ class UserStat < ActiveRecord::Base
     SQL
   end
 
+  def self.update_distinct_badge_count(user_id = nil)
+    sql = <<~SQL
+      UPDATE user_stats
+      SET distinct_badge_count = x.distinct_badge_count
+      FROM (
+        SELECT users.id user_id, COUNT(distinct user_badges.badge_id) distinct_badge_count
+        FROM users
+        LEFT JOIN user_badges ON user_badges.user_id = users.id
+                              AND (user_badges.badge_id IN (SELECT id FROM badges WHERE enabled))
+        GROUP BY users.id
+      ) x
+      WHERE user_stats.user_id = x.user_id AND user_stats.distinct_badge_count <> x.distinct_badge_count
+    SQL
+
+    sql = sql + " AND user_stats.user_id = #{user_id.to_i}" if user_id
+
+    DB.exec sql
+  end
+
+  def update_distinct_badge_count
+    self.class.update_distinct_badge_count(self.user_id)
+  end
+
   # topic_reply_count is a count of posts in other users' topics
-  def update_topic_reply_count
-    self.topic_reply_count = Topic
-      .joins("INNER JOIN posts ON topics.id = posts.topic_id AND topics.user_id <> posts.user_id")
-      .where("posts.deleted_at IS NULL AND posts.user_id = ?", self.user_id)
-      .distinct
-      .count
+  def calc_topic_reply_count!(max, start_time = nil)
+    sql = <<~SQL
+    SELECT COUNT(*) count
+    FROM (
+      SELECT DISTINCT posts.topic_id
+      FROM posts
+      INNER JOIN topics ON topics.id = posts.topic_id
+      WHERE posts.user_id = ?
+      AND topics.user_id <> posts.user_id
+      AND posts.deleted_at IS NULL AND topics.deleted_at IS NULL
+      AND topics.archetype <> 'private_message'
+      #{start_time.nil? ? '' : 'AND posts.created_at > ?'}
+      LIMIT ?
+    ) as user_topic_replies
+    SQL
+    if start_time.nil?
+      DB.query_single(sql, self.user_id, max).first
+    else
+      DB.query_single(sql, self.user_id, start_time, max).first
+    end
+  end
+
+  def any_posts
+    user.posts.exists?
   end
 
   MAX_TIME_READ_DIFF = 100
@@ -163,11 +208,11 @@ class UserStat < ActiveRecord::Base
   end
 
   def self.last_seen_cached(id)
-    $redis.get(last_seen_key(id))
+    Discourse.redis.get(last_seen_key(id))
   end
 
   def self.cache_last_seen(id, val)
-    $redis.setex(last_seen_key(id), MAX_TIME_READ_DIFF, val)
+    Discourse.redis.setex(last_seen_key(id), MAX_TIME_READ_DIFF, val)
   end
 
   protected
@@ -188,7 +233,6 @@ end
 #  posts_read_count         :integer          default(0), not null
 #  likes_given              :integer          default(0), not null
 #  likes_received           :integer          default(0), not null
-#  topic_reply_count        :integer          default(0), not null
 #  new_since                :datetime         not null
 #  read_faq                 :datetime
 #  first_post_created_at    :datetime
@@ -200,4 +244,5 @@ end
 #  flags_disagreed          :integer          default(0), not null
 #  flags_ignored            :integer          default(0), not null
 #  first_unread_at          :datetime         not null
+#  distinct_badge_count     :integer          default(0), not null
 #

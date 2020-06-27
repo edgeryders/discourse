@@ -1,10 +1,8 @@
 # frozen_string_literal: true
 
-require_dependency 'flag_query'
-
 module Jobs
 
-  class PendingReviewablesReminder < Jobs::Scheduled
+  class PendingReviewablesReminder < ::Jobs::Scheduled
     every 1.hour
 
     attr_reader :sent_reminder
@@ -39,19 +37,19 @@ module Jobs
     end
 
     def self.last_notified_id
-      $redis.get(last_notified_key).to_i
+      Discourse.redis.get(last_notified_key).to_i
     end
 
     def self.last_notified_id=(arg)
-      $redis.set(last_notified_key, arg)
+      Discourse.redis.set(last_notified_key, arg)
     end
 
     def self.last_notified_key
-      "last_notified_reviewable_id".freeze
+      "last_notified_reviewable_id"
     end
 
     def self.clear_key
-      $redis.del(last_notified_key)
+      Discourse.redis.del(last_notified_key)
     end
 
     def active_moderator_usernames

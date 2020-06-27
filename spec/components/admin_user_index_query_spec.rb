@@ -1,7 +1,6 @@
 # frozen_string_literal: true
 
 require 'rails_helper'
-require_dependency 'admin_user_index_query'
 
 describe AdminUserIndexQuery do
   def real_users(query)
@@ -30,7 +29,7 @@ describe AdminUserIndexQuery do
     end
 
     it "allows custom ordering asc" do
-      query = ::AdminUserIndexQuery.new(order: "trust_level", ascending: true)
+      query = ::AdminUserIndexQuery.new(order: "trust_level", asc: true)
       expect(query.find_users_query.to_sql).to match("trust_level ASC")
     end
 
@@ -40,7 +39,7 @@ describe AdminUserIndexQuery do
     end
 
     it "allows custom ordering and direction for stats" do
-      query = ::AdminUserIndexQuery.new(order: "topics_viewed", ascending: true)
+      query = ::AdminUserIndexQuery.new(order: "topics_viewed", asc: true)
       expect(query.find_users_query.to_sql).to match("topics_entered ASC")
     end
   end
@@ -92,18 +91,6 @@ describe AdminUserIndexQuery do
 
   end
 
-  describe 'with a suspected user' do
-    fab!(:user) { Fabricate(:active_user, created_at: 1.day.ago) }
-    fab!(:bot) { Fabricate(:active_user, id: -10, created_at: 1.day.ago) }
-
-    it 'finds the suspected user' do
-      bot
-      user
-      query = AdminUserIndexQuery.new(query: 'suspect')
-      expect(query.find_users).to eq([user])
-    end
-  end
-
   describe "with a pending user" do
 
     fab!(:user) { Fabricate(:user, active: true, approved: false) }
@@ -131,7 +118,7 @@ describe AdminUserIndexQuery do
     end
 
     it "shows nil values first with asc" do
-      users = ::AdminUserIndexQuery.new(order: "last_emailed", ascending: true).find_users
+      users = ::AdminUserIndexQuery.new(order: "last_emailed", asc: true).find_users
 
       expect(users.where('users.id > -2').count).to eq(2)
       expect(users.where('users.id > -2').order('users.id asc').first.username).to eq("system")

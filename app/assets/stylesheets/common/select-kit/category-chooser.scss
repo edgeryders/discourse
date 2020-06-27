@@ -22,9 +22,11 @@
         }
 
         .topic-count {
-          font-size: $font-down-2;
-          color: $primary;
+          font-size: $font-down-1;
+          color: $primary-medium;
           white-space: nowrap;
+          margin-left: 0.5em;
+          font-weight: normal;
         }
 
         .category-status {

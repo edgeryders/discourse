@@ -15,7 +15,16 @@ class ApplicationRequest < ActiveRecord::Base
 
   include CachedCounting
 
+  def self.disable
+    @disabled = true
+  end
+
+  def self.enable
+    @disabled = false
+  end
+
   def self.increment!(type, opts = nil)
+    return if @disabled
     perform_increment!(redis_key(type), opts)
   end
 
@@ -52,7 +61,7 @@ class ApplicationRequest < ActiveRecord::Base
 
     req_types.each do |req_type, _|
       key = redis_key(req_type, date)
-      $redis.del key
+      Discourse.redis.del key
     end
   end
 
@@ -63,7 +72,7 @@ class ApplicationRequest < ActiveRecord::Base
     req_type_id = req_types[req_type]
 
     # a poor man's upsert
-    id = where(date: date, req_type: req_type_id).pluck(:id).first
+    id = where(date: date, req_type: req_type_id).pluck_first(:id)
     id ||= create!(date: date, req_type: req_type_id, count: 0).id
 
   rescue # primary key violation

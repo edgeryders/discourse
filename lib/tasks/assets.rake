@@ -57,7 +57,7 @@ task 'assets:precompile:css' => 'environment' do
         STDERR.puts "Compiling css for #{db} #{Time.zone.now}"
         begin
           Stylesheet::Manager.precompile_css
-        rescue PG::UndefinedColumn, ActiveModel::MissingAttributeError => e
+        rescue PG::UndefinedColumn, ActiveModel::MissingAttributeError, NoMethodError => e
           STDERR.puts "#{e.class} #{e.message}: #{e.backtrace.join("\n")}"
           STDERR.puts "Skipping precompilation of CSS cause schema is old, you are precompiling prior to running migrations."
         end
@@ -68,6 +68,14 @@ task 'assets:precompile:css' => 'environment' do
   end
 end
 
+task 'assets:flush_sw' => 'environment' do
+  begin
+    # Pending due to test failures.
+  rescue
+    STDERR.puts "Warning: unable to flush service worker script"
+  end
+end
+
 def assets_path
   "#{Rails.root}/public/assets"
 end
@@ -75,18 +83,14 @@ end
 def compress_node(from, to)
   to_path = "#{assets_path}/#{to}"
   assets = cdn_relative_path("/assets")
-  source_map_root = assets + ((d = File.dirname(from)) == "." ? "" : "/#{d}")
+  assets_additional_path = (d = File.dirname(from)) == "." ? "" : "/#{d}"
+  source_map_root = assets + assets_additional_path
   source_map_url = cdn_path "/assets/#{to}.map"
+  base_source_map = assets_path + assets_additional_path
 
-  cmd = if `uglifyjs -V`.match?(/2(.\d*){2}/)
-    <<~EOS
-    uglifyjs '#{assets_path}/#{from}' -p relative -m -c -o '#{to_path}' --source-map-root '#{source_map_root}' --source-map '#{assets_path}/#{to}.map' --source-map-url '#{source_map_url}'
-    EOS
-  else
-    <<~EOS
-    uglifyjs '#{assets_path}/#{from}' -m -c -o '#{to_path}' --source-map "root='#{source_map_root}',url='#{source_map_url}'" --output '#{to_path}'
-    EOS
-  end
+  cmd = <<~EOS
+    uglifyjs '#{assets_path}/#{from}' -m -c -o '#{to_path}' --source-map "base='#{base_source_map}',root='#{source_map_root}',url='#{source_map_url}'"
+  EOS
 
   STDERR.puts cmd
   result = `#{cmd} 2>&1`

@@ -2,6 +2,14 @@
 
 class BadgeGranter
 
+  def self.disable_queue
+    @queue_disabled = true
+  end
+
+  def self.enable_queue
+    @queue_disabled = false
+  end
+
   def initialize(badge, user, opts = {})
     @badge, @user, @opts = badge, user, opts
     @granted_by = opts[:granted_by] || Discourse.system_user
@@ -10,6 +18,28 @@ class BadgeGranter
 
   def self.grant(badge, user, opts = {})
     BadgeGranter.new(badge, user, opts).grant
+  end
+
+  def self.mass_grant(badge, users)
+    return unless badge.enabled?
+
+    system_user_id = Discourse.system_user.id
+    now = Time.zone.now
+    user_badges = users.map { |u| { badge_id: badge.id, user_id: u.id, granted_by_id: system_user_id, granted_at: now, created_at: now } }
+    granted_badges = UserBadge.insert_all(user_badges, returning: %i[user_id])
+
+    users.each do |user|
+      notification = send_notification(user.id, user.username, user.locale, badge)
+
+      DB.exec(
+        "UPDATE user_badges SET notification_id = :notification_id WHERE notification_id IS NULL AND user_id = :user_id AND badge_id = :badge_id",
+        notification_id: notification.id,
+        user_id: user.id,
+        badge_id: badge.id
+      )
+
+      UserBadge.update_featured_ranks!(user.id)
+    end
   end
 
   def grant
@@ -46,17 +76,9 @@ class BadgeGranter
 
         if SiteSetting.enable_badges?
           unless @badge.badge_type_id == BadgeType::Bronze && user_badge.granted_at < 2.days.ago
-            I18n.with_locale(@user.effective_locale) do
-              notification = @user.notifications.create(
-                notification_type: Notification.types[:granted_badge],
-                data: { badge_id: @badge.id,
-                        badge_name: @badge.display_name,
-                        badge_slug: @badge.slug,
-                        badge_title: @badge.allow_title,
-                        username: @user.username }.to_json
-              )
-              user_badge.update notification_id: notification.id
-            end
+            notification = self.class.send_notification(@user.id, @user.username, @user.effective_locale, @badge)
+
+            user_badge.update notification_id: notification.id
           end
         end
       end
@@ -72,16 +94,37 @@ class BadgeGranter
         StaffActionLogger.new(options[:revoked_by]).log_badge_revoke(user_badge)
       end
 
-      # If the user's title is the same as the badge name, remove their title.
-      if user_badge.user.title == user_badge.badge.name
+      # If the user's title is the same as the badge name OR the custom badge name, remove their title.
+      custom_badge_name = TranslationOverride.find_by(translation_key: user_badge.badge.translation_key)&.value
+      user_title_is_badge_name = user_badge.user.title == user_badge.badge.name
+      user_title_is_custom_badge_name = custom_badge_name.present? && user_badge.user.title == custom_badge_name
+
+      if user_title_is_badge_name || user_title_is_custom_badge_name
+        if options[:revoked_by]
+          StaffActionLogger.new(options[:revoked_by]).log_title_revoke(
+            user_badge.user,
+            revoke_reason: 'user title was same as revoked badge name or custom badge name',
+            previous_value: user_badge.user.title
+          )
+        end
         user_badge.user.title = nil
         user_badge.user.save!
       end
     end
   end
 
+  def self.revoke_all(badge)
+    custom_badge_names = TranslationOverride.where(translation_key: badge.translation_key).pluck(:value)
+
+    users = User.joins(:user_badges).where(user_badges: { badge_id: badge.id }).where(title: badge.name)
+    users = users.or(User.joins(:user_badges).where(title: custom_badge_names)) unless custom_badge_names.empty?
+    users.update_all(title: nil)
+
+    UserBadge.where(badge: badge).delete_all
+  end
+
   def self.queue_badge_grant(type, opt)
-    return unless SiteSetting.enable_badges
+    return if !SiteSetting.enable_badges || @queue_disabled
     payload = nil
 
     case type
@@ -111,17 +154,17 @@ class BadgeGranter
       }
     end
 
-    $redis.lpush queue_key, payload.to_json if payload
+    Discourse.redis.lpush queue_key, payload.to_json if payload
   end
 
   def self.clear_queue!
-    $redis.del queue_key
+    Discourse.redis.del queue_key
   end
 
   def self.process_queue!
     limit = 1000
     items = []
-    while limit > 0 && item = $redis.lpop(queue_key)
+    while limit > 0 && item = Discourse.redis.lpop(queue_key)
       items << JSON.parse(item)
       limit -= 1
     end
@@ -145,7 +188,7 @@ class BadgeGranter
   end
 
   def self.queue_key
-    "badge_queue".freeze
+    "badge_queue"
   end
 
   # Options:
@@ -188,13 +231,21 @@ class BadgeGranter
     BadgeGranter.contract_checks!(sql, opts)
 
     # hack to allow for params, otherwise sanitizer will trigger sprintf
-    count_sql = "SELECT COUNT(*) count FROM (#{sql}) q WHERE :backfill = :backfill"
+    count_sql = <<~SQL
+      SELECT COUNT(*) count
+                 FROM (
+                        #{sql}
+                      ) q
+                WHERE :backfill = :backfill
+    SQL
     grant_count = DB.query_single(count_sql, params).first.to_i
 
     grants_sql = if opts[:target_posts]
       <<~SQL
         SELECT u.id, u.username, q.post_id, t.title, q.granted_at
-          FROM (#{sql}) q
+          FROM (
+                 #{sql}
+               ) q
           JOIN users u on u.id = q.user_id
      LEFT JOIN badge_posts p on p.id = q.post_id
      LEFT JOIN topics t on t.id = p.topic_id
@@ -204,7 +255,9 @@ class BadgeGranter
     else
       <<~SQL
         SELECT u.id, u.username, q.granted_at
-         FROM (#{sql}) q
+         FROM (
+                #{sql}
+              ) q
          JOIN users u on u.id = q.user_id
         WHERE :backfill = :backfill
         LIMIT 10
@@ -259,13 +312,15 @@ class BadgeGranter
 
     sql = <<~SQL
       DELETE FROM user_badges
-       WHERE id IN (
-         SELECT ub.id
-           FROM user_badges ub
-      LEFT JOIN (#{badge.query}) q ON q.user_id = ub.user_id
-         #{post_clause}
-         WHERE ub.badge_id = :id AND q.user_id IS NULL
-      )
+        WHERE id IN (
+          SELECT ub.id
+          FROM user_badges ub
+          LEFT JOIN (
+            #{badge.query}
+          ) q ON q.user_id = ub.user_id
+          #{post_clause}
+          WHERE ub.badge_id = :id AND q.user_id IS NULL
+        )
     SQL
 
     DB.exec(
@@ -279,9 +334,11 @@ class BadgeGranter
 
     sql = <<~SQL
       WITH w as (
-        INSERT INTO user_badges(badge_id, user_id, granted_at, granted_by_id, post_id)
-        SELECT :id, q.user_id, q.granted_at, -1, #{post_id_field}
-          FROM (#{badge.query}) q
+        INSERT INTO user_badges(badge_id, user_id, granted_at, granted_by_id, created_at, post_id)
+        SELECT :id, q.user_id, q.granted_at, -1, current_timestamp, #{post_id_field}
+          FROM (
+                 #{badge.query}
+               ) q
      LEFT JOIN user_badges ub ON ub.badge_id = :id AND ub.user_id = q.user_id
         #{post_clause}
         /*where*/
@@ -320,29 +377,9 @@ class BadgeGranter
 
       # old bronze badges do not matter
       next if badge.badge_type_id == BadgeType::Bronze && row.granted_at < 2.days.ago
-
-      # Try to use user locale in the badge notification if possible without too much resources
-      notification_locale = if SiteSetting.allow_user_locale && row.locale.present?
-        row.locale
-      else
-        SiteSetting.default_locale
-      end
-
       next if row.staff && badge.awarded_for_trust_level?
 
-      notification = I18n.with_locale(notification_locale) do
-        Notification.create!(
-          user_id: row.user_id,
-          notification_type: Notification.types[:granted_badge],
-          data: {
-            badge_id: badge.id,
-            badge_name: badge.display_name,
-            badge_slug: badge.slug,
-            badge_title: badge.allow_title,
-            username: row.username
-          }.to_json
-        )
-      end
+      notification = send_notification(row.user_id, row.username, row.locale, badge)
 
       DB.exec(
         "UPDATE user_badges SET notification_id = :notification_id WHERE id = :id",
@@ -374,6 +411,31 @@ class BadgeGranter
               badges.id IN (SELECT badge_id FROM user_badges ub where ub.user_id = users.id)
         )
     SQL
+  end
+
+  def self.notification_locale(locale)
+    use_default_locale = !SiteSetting.allow_user_locale || locale.blank?
+    use_default_locale ? SiteSetting.default_locale : locale
+  end
+
+  def self.send_notification(user_id, username, locale, badge)
+    notification = I18n.with_locale(notification_locale(locale)) do
+      Notification.create!(
+        user_id: user_id,
+        notification_type: Notification.types[:granted_badge],
+        data: {
+          badge_id: badge.id,
+          badge_name: badge.display_name,
+          badge_slug: badge.slug,
+          badge_title: badge.allow_title,
+          username: username
+        }.to_json
+      )
+    end
+
+    DiscourseEvent.trigger(:user_badge_granted, badge, user_id)
+
+    notification
   end
 
 end

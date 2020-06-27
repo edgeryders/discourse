@@ -228,7 +228,7 @@ describe UserMerger do
     [group1, group2, group3].each do |g|
       owner = [group1, group3].include?(g)
       expect(GroupUser.where(group_id: g.id, user_id: target_user.id, owner: owner).count).to eq(1)
-      expect(Group.where(id: g.id).pluck(:user_count).first).to eq(2)
+      expect(Group.where(id: g.id).pluck_first(:user_count)).to eq(2)
     end
     expect(GroupUser.where(user_id: source_user.id).count).to eq(0)
   end
@@ -251,7 +251,8 @@ describe UserMerger do
   end
 
   it "updates invites" do
-    invite1 = Fabricate(:invite, invited_by: walter, user: source_user)
+    invite1 = Fabricate(:invite, invited_by: walter)
+    Fabricate(:invited_user, invite: invite1, user: source_user)
     invite2 = Fabricate(:invite, invited_by: source_user)
     invite3 = Fabricate(:invite, invited_by: source_user)
     invite3.trash!(source_user)
@@ -260,7 +261,7 @@ describe UserMerger do
 
     [invite1, invite2, invite3].each { |x| x.reload }
 
-    expect(invite1.user).to eq(target_user)
+    expect(invite1.invited_users.first.user).to eq(target_user)
     expect(invite2.invited_by).to eq(target_user)
     expect(invite3.invited_by).to eq(target_user)
     expect(invite3.deleted_by).to eq(target_user)
@@ -989,12 +990,20 @@ describe UserMerger do
     expect(User.find_by_username(source_user.username)).to be_nil
   end
 
+  it "works even when email domains are restricted" do
+    SiteSetting.email_domains_whitelist = "example.com|work.com"
+    source_user.update_attribute(:admin, true)
+
+    expect(User.find_by_username(source_user.username)).to be_present
+    merge_users!
+    expect(User.find_by_username(source_user.username)).to be_nil
+  end
+
   it "deletes external auth infos of source user" do
     UserAssociatedAccount.create(user_id: source_user.id, provider_name: "facebook", provider_uid: "1234")
     GithubUserInfo.create(user_id: source_user.id, screen_name: "example", github_user_id: "examplel123123")
     Oauth2UserInfo.create(user_id: source_user.id, uid: "example", provider: "example")
     SingleSignOnRecord.create(user_id: source_user.id, external_id: "example", last_payload: "looks good")
-    UserOpenId.create(user_id: source_user.id, email: source_user.email, url: "http://example.com/openid", active: true)
 
     merge_users!
 
@@ -1002,7 +1011,6 @@ describe UserMerger do
     expect(GithubUserInfo.where(user_id: source_user.id).count).to eq(0)
     expect(Oauth2UserInfo.where(user_id: source_user.id).count).to eq(0)
     expect(SingleSignOnRecord.where(user_id: source_user.id).count).to eq(0)
-    expect(UserOpenId.where(user_id: source_user.id).count).to eq(0)
   end
 
   it "deletes auth tokens" do

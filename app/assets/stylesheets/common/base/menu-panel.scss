@@ -7,10 +7,7 @@
   }
 
   .panel-body {
-    position: absolute;
-    top: 3px;
-    bottom: 37px;
-    width: 97%;
+    width: 100%;
   }
 }
 .header-cloak {
@@ -51,6 +48,7 @@
     touch-action: pan-y pinch-zoom;
     overflow-y: auto;
     overflow-x: hidden;
+    max-height: 100vh;
   }
 
   .badge-notification {
@@ -68,13 +66,19 @@
 .menu-panel {
   li,
   li.heading {
-    a {
+    a.widget-link,
+    a.categories-link {
       padding: 0.25em 0.5em;
       display: block;
+      color: $primary;
       &:hover,
       &:focus {
         background-color: $highlight-medium;
         outline: none;
+      }
+
+      .d-icon {
+        color: $primary-medium;
       }
     }
 
@@ -98,6 +102,10 @@
       &:hover,
       &:focus {
         background: transparent;
+
+        .category-name {
+          color: $primary;
+        }
       }
     }
     .badge-notification {
@@ -109,8 +117,6 @@
       line-height: $line-height-large;
     }
     .badge-wrapper {
-      overflow: hidden;
-      text-overflow: ellipsis;
       &.bar,
       &.bullet {
         color: $primary;
@@ -137,15 +143,20 @@
 
   span.badge-category {
     max-width: 100px;
-    overflow: hidden;
-    text-overflow: ellipsis;
+  }
+
+  div.discourse-tags {
+    font-size: $font-down-1;
   }
 }
 
 .user-menu {
-  .notifications {
+  .quick-access-panel {
     width: 100%;
     display: table;
+    margin-top: -1px;
+    border-top: 1px solid $primary-low;
+    padding-top: 0.5em;
 
     h3 {
       padding: 0 0.4em;
@@ -160,6 +171,7 @@
     .icon {
       color: $primary-high;
     }
+
     li {
       background-color: $tertiary-low;
 
@@ -181,8 +193,18 @@
 
       a {
         padding: 0;
+
         > div {
           overflow: hidden; // clears the text from wrapping below icons
+          overflow-wrap: anywhere;
+          @supports not (overflow-wrap: anywhere) {
+            word-break: break-word;
+          }
+
+          // Truncate items with more than 2 lines.
+          display: -webkit-box;
+          -webkit-line-clamp: 2;
+          -webkit-box-orient: vertical;
         }
       }
 
@@ -192,11 +214,15 @@
       }
     }
     li:not(.show-all) {
-      padding: 0.25em 0.5em;
+      padding: 0;
+
+      a {
+        display: flex;
+        padding: 0.25em 0.5em;
+      }
       .d-icon {
-        float: left;
-        margin-right: 5px;
         padding-top: 0.2em;
+        margin-right: 0.5em;
       }
     }
     .is-warning {
@@ -210,8 +236,8 @@
     .none {
       padding-top: 5px;
     }
-    .spinner-container.visible {
-      min-height: 30px;
+    .spinner-container {
+      min-height: 2em;
     }
     .spinner {
       width: 20px;
@@ -219,9 +245,12 @@
       border-width: 2px;
       margin: 0 auto;
     }
-    .show-all .btn {
+    .show-all a {
       width: 100%;
-      padding: 2px 0;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 30px;
       color: dark-light-choose($primary-medium, $secondary-high);
       background: blend-primary-secondary(5%);
       &:hover {
@@ -231,42 +260,74 @@
     }
     /* as a big ol' click target, don't let text inside be selected */
     @include unselectable;
+
+    &.quick-access-profile {
+      li:not(.show-all) a {
+        color: $primary;
+        .d-icon {
+          color: $primary-medium;
+        }
+
+        // accounts for menu "ears" 4px + border 1px
+        padding: 0.25em calc(0.5em + 4px + 1px);
+      }
+    }
   }
 
-  .logout-link,
   .dismiss-link {
     display: inline-block;
-  }
-  .dismiss-link {
     float: right;
-  }
-}
-
-.notifications .logout {
-  padding: 0.25em;
-  &:hover {
-    background-color: $highlight-medium;
   }
 }
 
 div.menu-links-header {
   width: 100%;
-  display: table;
-  border-collapse: separate;
-  border-spacing: 0 0.5em;
   .menu-links-row {
+    box-sizing: border-box;
     display: flex;
+    z-index: 2;
+    // Tabs should have "ears".
+    padding: 0 4px;
+
     li {
       display: inline-flex;
       align-items: center;
       flex-wrap: wrap;
       &.user {
         margin-right: auto;
+        flex: 1 1 0;
+        overflow: hidden;
       }
       &.glyphs {
-        flex-wrap: wrap;
+        flex-wrap: nowrap;
         text-align: right;
-        max-width: 65%; //IE11
+
+        a {
+          // Expand the click area a bit.
+          padding-left: 0.6em;
+          padding-right: 0.6em;
+        }
+      }
+
+      a {
+        // This is to make sure active and inactive tab icons have the same
+        // size. `box-sizing` does not work and I have no idea why.
+        border: 1px solid transparent;
+        &:not(.active):hover {
+          border-bottom: 0;
+          margin-top: -1px;
+        }
+      }
+
+      a.active {
+        border: 1px solid dark-light-choose($primary-low, $secondary-medium);
+        border-bottom: 1px solid $secondary;
+        position: relative;
+
+        &:focus,
+        &:hover {
+          background-color: inherit;
+        }
       }
     }
   }
@@ -279,12 +340,21 @@ div.menu-links-header {
     padding: 0.3em 0.5em;
   }
   a.user-activity-link {
-    max-width: 150px;
-    display: block;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    margin: -0.5em 0;
+    box-sizing: border-box;
+    align-items: center;
+    display: flex;
+    max-width: 100%;
+
+    // `overflow: hidden` on `.user-activity-link` would hide the `::after`
+    // pseudo element (used to create the tab-looking effect). Sets `overflow:
+    // hidden` on the child username label instead.
+    overflow: visible;
+
+    span.d-label {
+      display: block;
+      @include ellipsis;
+    }
+
     @include breakpoint(mobile-medium) {
       max-width: 125px;
     }
@@ -307,6 +377,6 @@ div.menu-links-header {
   }
 
   .d-icon-user {
-    margin-right: 0.2em;
+    margin-right: 0.475em;
   }
 }

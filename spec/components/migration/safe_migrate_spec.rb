@@ -1,7 +1,6 @@
 # frozen_string_literal: true
 
 require 'rails_helper'
-require_dependency 'migration/safe_migrate'
 
 describe Migration::SafeMigrate do
   before do
@@ -14,8 +13,8 @@ describe Migration::SafeMigrate do
   end
 
   def migrate_up(path)
-    migrations = ActiveRecord::MigrationContext.new(path).migrations
-    ActiveRecord::Migrator.new(:up, migrations, migrations.first.version).run
+    migrations = ActiveRecord::MigrationContext.new(path, ActiveRecord::SchemaMigration).migrations
+    ActiveRecord::Migrator.new(:up, migrations, ActiveRecord::SchemaMigration, migrations.first.version).run
   end
 
   it "bans all table removal" do
@@ -100,18 +99,28 @@ describe Migration::SafeMigrate do
   end
 
   describe 'for a post deployment migration' do
-    it 'should not ban unsafe migrations' do
-      user = Fabricate(:user)
+    it 'should not ban unsafe migrations using up' do
       Migration::SafeMigrate::SafeMigration.enable_safe!
 
-      path = File.expand_path "#{Rails.root}/spec/fixtures/db/post_migrate"
+      path = File.expand_path "#{Rails.root}/spec/fixtures/db/post_migrate/drop_table"
 
       output = capture_stdout do
         migrate_up(path)
       end
 
       expect(output).to include("drop_table(:email_logs)")
-      expect(user.reload).to eq(user)
+    end
+
+    it 'should not ban unsafe migrations using change' do
+      Migration::SafeMigrate::SafeMigration.enable_safe!
+
+      path = File.expand_path "#{Rails.root}/spec/fixtures/db/post_migrate/change"
+
+      output = capture_stdout do
+        migrate_up(path)
+      end
+
+      expect(output).to include("drop_table(:email_logs)")
     end
   end
 end

@@ -22,28 +22,32 @@ he:
       public:
         title: "ההצבעות הן <strong>ציבוריות</strong>."
       results:
+        groups:
+          title: "עליך להיות חבר בקבוצה %{groups} כדי להצביע לסקר הזה."
         vote:
           title: "התוצאות יופיעו לאחר <strong>ההצבעה</strong>."
         closed:
           title: "התוצאות יופיעו לאחר <strong>הסגירה</strong>."
+        staff:
+          title: "התוצאות זמינות לחברי <strong>סגל</strong> בלבד."
       multiple:
         help:
           at_least_min_options:
-            one: "נא לבחור באפשרות <strong>אחת</strong> לפחות"
-            two: "נא לבחור ב־<strong>%{count}</strong> אפשרויות לפחות"
-            many: "נא לבחור ב־<strong>%{count}</strong> אפשרויות לפחות"
-            other: "נא לבחור ב־<strong>%{count}</strong> אפשרויות לפחות"
+            one: "יש לבחור באפשרות <strong>%{count}</strong> לפחות."
+            two: "יש לבחור <strong>%{count}</strong> אפשרויות לפחות."
+            many: "יש לבחור <strong>%{count}</strong> אפשרויות לפחות."
+            other: "יש לבחור <strong>%{count}</strong> אפשרויות לפחות."
           up_to_max_options:
-            one: "נא לבחור עד אפשרות <strong>אחת</strong>."
-            two: "נא לבחור עד <strong>%{count}</strong> אפשרויות"
-            many: "נא לבחור עד <strong>%{count}</strong> אפשרויות"
-            other: "נא לבחור עד <strong>%{count}</strong> אפשרויות"
+            one: "יש לבחור אפשרות <strong>%{count}</strong> לכל היותר."
+            two: "יש לבחור עד <strong>%{count}</strong> אפשרויות."
+            many: "יש לבחור עד <strong>%{count}</strong> אפשרויות."
+            other: "יש לבחור עד <strong>%{count}</strong> אפשרויות."
           x_options:
-            one: "נא לבחור באפשרות אחת"
-            two: "נא לבחור <strong>%{count}</strong> אפשרויות"
-            many: "נא לבחור <strong>%{count}</strong> אפשרויות"
-            other: "נא לבחור <strong>%{count}</strong> אפשרויות"
-          between_min_and_max_options: "נא לבחור בין <strong>%{min}</strong> ל־<strong>%{max}</strong> אפשרויות"
+            one: "יש לבחור באפשרות <strong>%{count}</strong>."
+            two: "יש לבחור <strong>%{count}</strong> אפשרויות."
+            many: "יש לבחור <strong>%{count}</strong> אפשרויות."
+            other: "יש לבחור <strong>%{count}</strong> אפשרויות."
+          between_min_and_max_options: "נא לבחור בין <strong>%{min}</strong> ל־<strong>%{max}</strong> אפשרויות."
       cast-votes:
         title: "להצביע"
         label: "להצביע עכשיו!"
@@ -52,7 +56,16 @@ he:
         label: "הצגת תוצאות"
       hide-results:
         title: "חזרה להצבעות שלך"
-        label: "הסתרת תוצאות"
+        label: "הצגת הצבעה"
+      group-results:
+        title: "קיבוץ הצבעות לפי משתמש"
+        label: "הצגת פילוח"
+      ungroup-results:
+        title: "שקלול כל ההצבעות"
+        label: "הסתרת הפילוח"
+      export-results:
+        title: "ייצוא תוצאות הסקר"
+        label: "ייצוא"
       open:
         title: "פתיחת הסקר"
         label: "פתיחה"
@@ -67,11 +80,12 @@ he:
       error_while_toggling_status: " חלה שגיאה בשינוי המצב של סקר זה, עמך הסליחה."
       error_while_casting_votes: "חלה שגיאה בהצבעתך, עמך הסליחה."
       error_while_fetching_voters: "חלה שגיאה בהצגת המצביעים, עמך הסליחה."
+      error_while_exporting_results: "אירעה שגיאה בייצוא תוצאות הסקר."
       ui_builder:
         title: בניית סקר
         insert: הכנסת סקר
         help:
-          options_count: יש להכניס 2 אפשרויות לפחות
+          options_count: יש למלא אפשרות אחת לפחות
           invalid_values: הערך המזערי חייב להיות קטן מהערך המרבי.
           min_step_value: ערך הצעד המזערי הוא 1
         poll_type:
@@ -84,6 +98,13 @@ he:
           always: גלוי תמיד
           vote: בהליכי הצבעה
           closed: כאשר סגור
+          staff: סגל בלבד
+        poll_groups:
+          label: קבוצות מורשות
+        poll_chart_type:
+          label: סוג תרשים
+          bar: עמודות
+          pie: עוגה
         poll_config:
           max: מרבי
           min: מזערי
@@ -91,6 +112,6 @@ he:
         poll_public:
           label: להציג מי המצביעים
         poll_options:
-          label: נא להכניס אפשרות בחירה אחת בכל שורה
+          label: נא למלא אפשרות בחירה אחת בכל שורה
         automatic_close:
           label: לסגור את הסקר אוטומטית

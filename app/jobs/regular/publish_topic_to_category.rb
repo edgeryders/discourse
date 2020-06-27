@@ -1,9 +1,7 @@
 # frozen_string_literal: true
 
-require_dependency 'topic_publisher'
-
 module Jobs
-  class PublishTopicToCategory < Jobs::Base
+  class PublishTopicToCategory < ::Jobs::Base
     def execute(args)
       topic_timer = TopicTimer.find_by(id: args[:topic_timer_id] || args[:topic_status_update_id])
       return if topic_timer.blank?
@@ -14,6 +12,8 @@ module Jobs
       TopicTimer.transaction do
         TopicPublisher.new(topic, Discourse.system_user, topic_timer.category_id).publish!
       end
+
+      Topic.find(topic.id).inherit_auto_close_from_category
     end
   end
 end

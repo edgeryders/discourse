@@ -2,7 +2,6 @@
 # frozen_string_literal: true
 
 require 'rails_helper'
-require_dependency 'post_destroyer'
 
 # TODO - test pinning, create_moderator_post
 
@@ -60,7 +59,7 @@ describe TopicStatusUpdater do
     Fabricate(:post, topic: topic)
 
     topic.set_or_create_timer(
-      TopicTimer.types[:close], '10', based_on_last_post: true
+      TopicTimer.types[:close], nil, based_on_last_post: true, duration: 10
     )
 
     TopicStatusUpdater.new(topic, admin).update!("autoclosed", true)

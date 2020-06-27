@@ -1,7 +1,6 @@
 # frozen_string_literal: true
 
 require 'rails_helper'
-require_dependency 'user'
 
 describe User do
   let(:user) { Fabricate(:user) }
@@ -65,6 +64,11 @@ describe User do
         expect(user).to_not be_valid
         expect(user.errors.full_messages.first)
           .to include(user_error_message(:name, :same_as_password))
+      end
+
+      it "doesn't raise an error if the name is longer than the max password length" do
+        user.name = 'x' * (User.max_password_length + 1)
+        expect(user).to be_valid
       end
     end
 
@@ -157,6 +161,40 @@ describe User do
       SiteSetting.send_welcome_message = false
       Jobs.expects(:enqueue).with(:send_system_message, user_id: user.id, message_type: 'welcome_user').never
       user.enqueue_welcome_message('welcome_user')
+    end
+  end
+
+  context 'enqueue_staff_welcome_message' do
+    let!(:first_admin) { Fabricate(:admin) }
+    let(:user) { Fabricate(:user) }
+
+    it 'enqueues message for admin' do
+      expect {
+        user.grant_admin!
+      }.to change { Jobs::SendSystemMessage.jobs.count }.by 1
+    end
+
+    it 'enqueues message for moderator' do
+      expect {
+        user.grant_moderation!
+      }.to change { Jobs::SendSystemMessage.jobs.count }.by 1
+    end
+
+    it 'skips the message if already an admin' do
+      user.update(admin: true)
+      expect {
+        user.grant_admin!
+      }.to change { Jobs::SendSystemMessage.jobs.count }.by 0
+    end
+  end
+
+  context '.set_default_tags_preferences' do
+    let(:tag) { Fabricate(:tag) }
+
+    it "should set default tag preferences when new user created" do
+      SiteSetting.default_tags_watching = tag.name
+      user = Fabricate(:user)
+      expect(TagUser.exists?(tag_id: tag.id, user_id: user.id, notification_level: TagUser.notification_levels[:watching])).to be_truthy
     end
   end
 
@@ -849,7 +887,6 @@ describe User do
   end
 
   describe "previous_visit_at" do
-
     let(:user) { Fabricate(:user) }
     let!(:first_visit_date) { Time.zone.now }
     let!(:second_visit_date) { 2.hours.from_now }
@@ -858,6 +895,10 @@ describe User do
     before do
       SiteSetting.active_user_rate_limit_secs = 0
       SiteSetting.previous_visit_timeout_hours = 1
+    end
+
+    after do
+      reset_last_seen_cache!(user)
     end
 
     it "should act correctly" do
@@ -875,36 +916,82 @@ describe User do
       # second visit
       user.update_last_seen!(second_visit_date)
       user.reload
-      expect(user.previous_visit_at).to be_within_one_second_of(first_visit_date)
+      expect(user.previous_visit_at).to eq_time(first_visit_date)
 
       # third visit
       user.update_last_seen!(third_visit_date)
       user.reload
-      expect(user.previous_visit_at).to be_within_one_second_of(second_visit_date)
+      expect(user.previous_visit_at).to eq_time(second_visit_date)
     end
 
   end
 
   describe "update_last_seen!" do
-    let (:user) { Fabricate(:user) }
+    let(:user) { Fabricate(:user) }
     let!(:first_visit_date) { Time.zone.now }
     let!(:second_visit_date) { 2.hours.from_now }
+
+    after do
+      reset_last_seen_cache!(user)
+    end
 
     it "should update the last seen value" do
       expect(user.last_seen_at).to eq nil
       user.update_last_seen!(first_visit_date)
-      expect(user.reload.last_seen_at).to be_within_one_second_of(first_visit_date)
+      expect(user.reload.last_seen_at).to eq_time(first_visit_date)
     end
 
     it "should update the first seen value if it doesn't exist" do
       user.update_last_seen!(first_visit_date)
-      expect(user.reload.first_seen_at).to be_within_one_second_of(first_visit_date)
+      expect(user.reload.first_seen_at).to eq_time(first_visit_date)
     end
 
     it "should not update the first seen value if it doesn't exist" do
       user.update_last_seen!(first_visit_date)
       user.update_last_seen!(second_visit_date)
-      expect(user.reload.first_seen_at).to be_within_one_second_of(first_visit_date)
+      expect(user.reload.first_seen_at).to eq_time(first_visit_date)
+    end
+  end
+
+  describe "update_timezone_if_missing" do
+    let(:timezone) { nil }
+
+    it "does nothing if timezone is nil" do
+      user.update_timezone_if_missing(timezone)
+      expect(user.reload.user_option.timezone).to eq(nil)
+    end
+
+    context "if timezone is provided" do
+      context "if the timezone is valid" do
+        let(:timezone) { "Australia/Melbourne" }
+        context "if no timezone exists on user option" do
+          it "sets the timezone for the user" do
+            user.update_timezone_if_missing(timezone)
+            expect(user.reload.user_option.timezone).to eq(timezone)
+          end
+        end
+      end
+
+      context "if the timezone is not valid" do
+        let(:timezone) { "Jupiter" }
+        context "if no timezone exists on user option" do
+          it "does not set the timezone for the user" do
+            user.update_timezone_if_missing(timezone)
+            expect(user.reload.user_option.timezone).to eq(nil)
+          end
+        end
+      end
+
+      context "if a timezone already exists on user option" do
+        before do
+          user.user_option.update_attribute(:timezone, "America/Denver")
+        end
+
+        it "does not update the timezone" do
+          user.update_timezone_if_missing(timezone)
+          expect(user.reload.user_option.timezone).to eq("America/Denver")
+        end
+      end
     end
   end
 
@@ -920,58 +1007,53 @@ describe User do
     end
 
     describe 'with no previous values' do
-      let!(:date) { Time.zone.now }
-
-      before do
-        freeze_time date
-        user.update_last_seen!
-      end
-
       after do
-        $redis.flushall
+        reset_last_seen_cache!(user)
+        unfreeze_time
+        reset_last_seen_cache!(user)
       end
 
       it "updates last_seen_at" do
-        expect(user.last_seen_at).to be_within_one_second_of(date)
+        date = freeze_time
+        user.update_last_seen!
+
+        expect(user.last_seen_at).to eq_time(date)
       end
 
       it "should have 0 for days_visited" do
+        user.update_last_seen!
         user.reload
+
         expect(user.user_stat.days_visited).to eq(1)
       end
 
       it "should log a user_visit with the date" do
-        expect(user.user_visits.first.visited_at).to eq(date.to_date)
+        date = freeze_time
+        user.update_last_seen!
+
+        expect(user.user_visits.first.visited_at).to eq_time(date.to_date)
       end
 
       context "called twice" do
-
-        before do
-          freeze_time date
+        it "doesn't increase days_visited twice" do
+          freeze_time
           user.update_last_seen!
           user.update_last_seen!
           user.reload
-        end
 
-        it "doesn't increase days_visited twice" do
           expect(user.user_stat.days_visited).to eq(1)
         end
-
       end
 
       describe "after 3 days" do
-        let!(:future_date) { 3.days.from_now }
-
-        before do
-          freeze_time future_date
-          user.update_last_seen!
-        end
-
         it "should log a second visited_at record when we log an update later" do
+          user.update_last_seen!
+          future_date = freeze_time(3.days.from_now)
+          user.update_last_seen!
+
           expect(user.user_visits.count).to eq(2)
         end
       end
-
     end
   end
 
@@ -1126,56 +1208,6 @@ describe User do
     end
   end
 
-  describe 'api keys' do
-    fab!(:admin) { Fabricate(:admin) }
-    fab!(:other_admin) { Fabricate(:admin) }
-    fab!(:user) { Fabricate(:user) }
-
-    describe '.generate_api_key' do
-
-      it "generates an api key when none exists, and regenerates when it does" do
-        expect(user.api_key).to be_blank
-
-        # Generate a key
-        api_key = user.generate_api_key(admin)
-        expect(api_key.user).to eq(user)
-        expect(api_key.key).to be_present
-        expect(api_key.created_by).to eq(admin)
-
-        user.reload
-        expect(user.api_key).to eq(api_key)
-
-        # Regenerate a key. Keeps the same record, updates the key
-        new_key = user.generate_api_key(other_admin)
-        expect(new_key.id).to eq(api_key.id)
-        expect(new_key.key).to_not eq(api_key.key)
-        expect(new_key.created_by).to eq(other_admin)
-      end
-
-    end
-
-    describe '.revoke_api_key' do
-
-      it "revokes an api key when exists" do
-        expect(user.api_key).to be_blank
-
-        # Revoke nothing does nothing
-        user.revoke_api_key
-        user.reload
-        expect(user.api_key).to be_blank
-
-        # When a key is present it is removed
-        user.generate_api_key(admin)
-        user.reload
-        user.revoke_api_key
-        user.reload
-        expect(user.api_key).to be_blank
-      end
-
-    end
-
-  end
-
   describe "posted too much in topic" do
     let!(:user) { Fabricate(:user, trust_level: TrustLevel[0]) }
     let!(:topic) { Fabricate(:post).topic }
@@ -1250,6 +1282,16 @@ describe User do
 
   end
 
+  describe "#custom_gravatar" do
+    before do
+      SiteSetting.gravatar_base_url = "seccdn.libravatar.org"
+    end
+
+    it "returns a gravatar url as set in the settings" do
+      expect(User.gravatar_template("em@il.com")).to eq("//seccdn.libravatar.org/avatar/6dc2fde946483a1d8a84b89345a1b638.png?s={size}&r=pg&d=identicon")
+    end
+  end
+
   describe "#letter_avatar_color" do
     before do
       SiteSetting.restrict_letter_avatar_colors = "2F70AC|ED207B|AAAAAA|77FF33"
@@ -1297,6 +1339,9 @@ describe User do
       let!(:user) { Fabricate(:user) }
       let!(:now) { Time.zone.now }
       before { user.update_last_seen!(now) }
+      after do
+        reset_last_seen_cache!(user)
+      end
 
       it "with existing UserVisit record, increments the posts_read value" do
         expect {
@@ -1514,48 +1559,60 @@ describe User do
     end
   end
 
-  describe "number_of_flags_given" do
-
+  describe 'staff info' do
     fab!(:user) { Fabricate(:user) }
-    fab!(:moderator) { Fabricate(:moderator) }
 
-    it "doesn't count disagreed flags" do
-      post_agreed = Fabricate(:post)
-      PostActionCreator.inappropriate(user, post_agreed).reviewable.perform(moderator, :agree_and_keep)
+    describe "#number_of_flags_given" do
+      fab!(:moderator) { Fabricate(:moderator) }
 
-      post_deferred = Fabricate(:post)
-      PostActionCreator.inappropriate(user, post_deferred).reviewable.perform(moderator, :ignore)
+      it "doesn't count disagreed flags" do
+        post_agreed = Fabricate(:post)
+        PostActionCreator.inappropriate(user, post_agreed).reviewable.perform(moderator, :agree_and_keep)
 
-      post_disagreed = Fabricate(:post)
-      PostActionCreator.inappropriate(user, post_disagreed).reviewable.perform(moderator, :disagree)
+        post_deferred = Fabricate(:post)
+        PostActionCreator.inappropriate(user, post_deferred).reviewable.perform(moderator, :ignore)
 
-      expect(user.number_of_flags_given).to eq(2)
+        post_disagreed = Fabricate(:post)
+        PostActionCreator.inappropriate(user, post_disagreed).reviewable.perform(moderator, :disagree)
+
+        expect(user.number_of_flags_given).to eq(2)
+      end
     end
 
-  end
+    describe "number_of_deleted_posts" do
+      fab!(:moderator) { Fabricate(:moderator) }
 
-  describe "number_of_deleted_posts" do
+      it "counts all the posts" do
+        # at least 1 "unchanged" post
+        Fabricate(:post, user: user)
 
-    fab!(:user) { Fabricate(:user, id: 2) }
-    fab!(:moderator) { Fabricate(:moderator) }
+        post_deleted_by_moderator = Fabricate(:post, user: user)
+        PostDestroyer.new(moderator, post_deleted_by_moderator).destroy
 
-    it "counts all the posts" do
-      # at least 1 "unchanged" post
-      Fabricate(:post, user: user)
+        post_deleted_by_user = Fabricate(:post, user: user, post_number: 2)
+        PostDestroyer.new(user, post_deleted_by_user).destroy
 
-      post_deleted_by_moderator = Fabricate(:post, user: user)
-      PostDestroyer.new(moderator, post_deleted_by_moderator).destroy
+        # fake stub deletion
+        post_deleted_by_user.update_columns(updated_at: 2.days.ago)
+        PostDestroyer.destroy_stubs
 
-      post_deleted_by_user = Fabricate(:post, user: user, post_number: 2)
-      PostDestroyer.new(user, post_deleted_by_user).destroy
-
-      # fake stub deletion
-      post_deleted_by_user.update_columns(updated_at: 2.days.ago)
-      PostDestroyer.destroy_stubs
-
-      expect(user.number_of_deleted_posts).to eq(2)
+        expect(user.number_of_deleted_posts).to eq(2)
+      end
     end
 
+    describe '#number_of_rejected_posts' do
+      it 'counts rejected posts' do
+        Fabricate(:reviewable_queued_post, created_by: user, status: Reviewable.statuses[:rejected])
+
+        expect(user.number_of_rejected_posts).to eq(1)
+      end
+
+      it 'ignore non-rejected posts' do
+        Fabricate(:reviewable_queued_post, created_by: user, status: Reviewable.statuses[:approved])
+
+        expect(user.number_of_rejected_posts).to eq(0)
+      end
+    end
   end
 
   describe "new_user?" do
@@ -1705,15 +1762,12 @@ describe User do
 
   describe "#featured_user_badges" do
     fab!(:user) { Fabricate(:user) }
-    let!(:user_badge_tl1) { UserBadge.create(badge_id: 1, user: user, granted_by: Discourse.system_user, granted_at: Time.now) }
-    let!(:user_badge_tl2) { UserBadge.create(badge_id: 2, user: user, granted_by: Discourse.system_user, granted_at: Time.now) }
+    let!(:user_badge_tl1) { UserBadge.create(badge_id: Badge::BasicUser, user: user, granted_by: Discourse.system_user, granted_at: Time.now) }
+    let!(:user_badge_tl2) { UserBadge.create(badge_id: Badge::Member, user: user, granted_by: Discourse.system_user, granted_at: Time.now) }
+    let!(:user_badge_like) { UserBadge.create(badge_id: Badge::FirstLike, user: user, granted_by: Discourse.system_user, granted_at: Time.now) }
 
-    it 'should display highest trust level badge first' do
-      expect(user.featured_user_badges[0].badge_id).to eq(2)
-    end
-
-    it 'should display only 1 trust level badge' do
-      expect(user.featured_user_badges.length).to eq(1)
+    it 'should display badges in the correct order' do
+      expect(user.featured_user_badges.map(&:badge_id)).to eq([Badge::Member, Badge::FirstLike, Badge::BasicUser])
     end
   end
 
@@ -1757,7 +1811,7 @@ describe User do
   end
 
   describe '#publish_notifications_state' do
-    it 'should publish the right message' do
+    it 'should publish the right message sorted by ID desc' do
       notification = Fabricate(:notification, user: user)
       notification2 = Fabricate(:notification, user: user, read: true)
 
@@ -1766,8 +1820,41 @@ describe User do
       end.first
 
       expect(message.data[:recent]).to eq([
-                                            [notification2.id, true], [notification.id, false]
-                                          ])
+        [notification2.id, true], [notification.id, false]
+      ])
+    end
+
+    it 'floats the unread high priority notifications to the top' do
+      notification = Fabricate(:notification, user: user)
+      notification2 = Fabricate(:notification, user: user, read: true)
+      notification3 = Fabricate(:notification, user: user, notification_type: Notification.types[:private_message])
+      notification4 = Fabricate(:notification, user: user, notification_type: Notification.types[:bookmark_reminder])
+
+      message = MessageBus.track_publish("/notification/#{user.id}") do
+        user.publish_notifications_state
+      end.first
+
+      expect(message.data[:recent]).to eq([
+        [notification4.id, false], [notification3.id, false],
+        [notification2.id, true], [notification.id, false]
+      ])
+    end
+
+    it "has the correct counts" do
+      notification = Fabricate(:notification, user: user)
+      notification2 = Fabricate(:notification, user: user, read: true)
+      notification3 = Fabricate(:notification, user: user, notification_type: Notification.types[:private_message])
+      notification4 = Fabricate(:notification, user: user, notification_type: Notification.types[:bookmark_reminder])
+
+      message = MessageBus.track_publish("/notification/#{user.id}") do
+        user.publish_notifications_state
+      end.first
+
+      expect(message.data[:unread_notifications]).to eq(1)
+      # NOTE: because of deprecation this will be equal to unread_high_priority_notifications,
+      #       to be remonved in 2.5
+      expect(message.data[:unread_private_messages]).to eq(2)
+      expect(message.data[:unread_high_priority_notifications]).to eq(2)
     end
   end
 
@@ -1799,6 +1886,7 @@ describe User do
   end
 
   describe "#unread_notifications" do
+    fab!(:user) { Fabricate(:user) }
     before do
       User.max_unread_notifications = 3
     end
@@ -1808,52 +1896,57 @@ describe User do
     end
 
     it "limits to MAX_UNREAD_NOTIFICATIONS" do
-      user = Fabricate(:user)
-
       4.times do
         Notification.create!(user_id: user.id, notification_type: 1, read: false, data: '{}')
       end
 
       expect(user.unread_notifications).to eq(3)
     end
+
+    it "does not include high priority notifications" do
+      Notification.create!(user_id: user.id, notification_type: 1, read: false, data: '{}')
+      Notification.create!(user_id: user.id, notification_type: Notification.types[:private_message], read: false, data: '{}')
+      Notification.create!(user_id: user.id, notification_type: Notification.types[:bookmark_reminder], read: false, data: '{}')
+
+      expect(user.unread_notifications).to eq(1)
+    end
   end
 
-  describe "#unstage" do
-    let!(:staged_user) { Fabricate(:staged, email: 'staged@account.com', active: true, username: 'staged1', name: 'Stage Name') }
-    let(:params) { { email: 'staged@account.com', active: true, username: 'unstaged1', name: 'Foo Bar' } }
+  describe "#unread_high_priority_notifications" do
+    fab!(:user) { Fabricate(:user) }
 
-    it "correctyl unstages a user" do
-      user = User.unstage(params)
+    it "only returns an unread count of PM and bookmark reminder notifications" do
+      Notification.create!(user_id: user.id, notification_type: 1, read: false, data: '{}')
+      Notification.create!(user_id: user.id, notification_type: Notification.types[:private_message], read: false, data: '{}')
+      Notification.create!(user_id: user.id, notification_type: Notification.types[:bookmark_reminder], read: false, data: '{}')
 
-      expect(user.id).to eq(staged_user.id)
-      expect(user.username).to eq('unstaged1')
-      expect(user.name).to eq('Foo Bar')
-      expect(user.active).to eq(false)
-      expect(user.email).to eq('staged@account.com')
+      expect(user.unread_high_priority_notifications).to eq(2)
     end
+  end
 
-    it "returns nil when the user cannot be unstaged" do
-      Fabricate(:coding_horror)
-      expect(User.unstage(email: 'jeff@somewhere.com')).to be_nil
-      expect(User.unstage(email: 'no@account.com')).to be_nil
+  describe "#unstage!" do
+    let!(:user) { Fabricate(:staged, email: 'staged@account.com', active: true, username: 'staged1', name: 'Stage Name') }
+
+    it "correctly unstages a user" do
+      user.unstage!
+      expect(user.staged).to eq(false)
     end
 
     it "removes all previous notifications during unstaging" do
       Fabricate(:notification, user: user)
       Fabricate(:private_message_notification, user: user)
-      user.reload
-
       expect(user.total_unread_notifications).to eq(2)
-      user = User.unstage(params)
+
+      user.unstage!
+      user.reload
       expect(user.total_unread_notifications).to eq(0)
+      expect(user.staged).to eq(false)
     end
 
     it "triggers an event" do
-      unstaged_user = nil
-      event = DiscourseEvent.track_events { unstaged_user = User.unstage(params) }.first
-
+      event = DiscourseEvent.track_events { user.unstage! }.first
       expect(event[:event_name]).to eq(:user_unstaged)
-      expect(event[:params].first).to eq(unstaged_user)
+      expect(event[:params].first).to eq(user)
     end
   end
 
@@ -1940,8 +2033,8 @@ describe User do
     it "sets a random avatar when selectable avatars is enabled" do
       avatar1 = Fabricate(:upload)
       avatar2 = Fabricate(:upload)
-      SiteSetting.selectable_avatars_enabled = true
       SiteSetting.selectable_avatars = [avatar1.url, avatar2.url].join("\n")
+      SiteSetting.selectable_avatars_enabled = true
 
       user = Fabricate(:user)
       expect(user.uploaded_avatar_id).not_to be(nil)
@@ -1996,11 +2089,35 @@ describe User do
       expect(user.user_profile.reload.badge_granted_title).to eq(false)
 
       badge.update!(allow_title: true)
+      user.badges.reload
       user.update!(title: badge.name)
       expect(user.user_profile.reload.badge_granted_title).to eq(true)
+      expect(user.user_profile.reload.granted_title_badge_id).to eq(badge.id)
 
       user.update!(title: nil)
       expect(user.user_profile.reload.badge_granted_title).to eq(false)
+      expect(user.user_profile.granted_title_badge_id).to eq(nil)
+    end
+
+    context 'when a custom badge name has been set and it matches the title' do
+      let(:customized_badge_name) { 'Merit Badge' }
+
+      before do
+        TranslationOverride.upsert!(I18n.locale, Badge.i18n_key(badge.name), customized_badge_name)
+      end
+
+      it 'sets badge_granted_title correctly' do
+        BadgeGranter.grant(badge, user)
+
+        badge.update!(allow_title: true)
+        user.update!(title: customized_badge_name)
+        expect(user.user_profile.reload.badge_granted_title).to eq(true)
+        expect(user.user_profile.reload.granted_title_badge_id).to eq(badge.id)
+      end
+
+      after do
+        TranslationOverride.revert!(I18n.locale, Badge.i18n_key(badge.name))
+      end
     end
   end
 
@@ -2107,6 +2224,7 @@ describe User do
       UserAction.create!(user_id: user.id, action_type: UserAction::LIKE)
       UserAction.create!(user_id: -1, action_type: UserAction::LIKE, target_user_id: user.id)
       UserAction.create!(user_id: -1, action_type: UserAction::LIKE, acting_user_id: user.id)
+      Developer.create!(user_id: user.id)
 
       user.reload
 
@@ -2116,6 +2234,7 @@ describe User do
       expect(UserAction.where(target_user_id: user.id).length).to eq(0)
       expect(UserAction.where(acting_user_id: user.id).length).to eq(0)
       expect(PostAction.with_deleted.where(user_id: user.id).length).to eq(0)
+      expect(Developer.where(user_id: user.id).length).to eq(0)
     end
   end
 
@@ -2168,6 +2287,131 @@ describe User do
           expect(User.system_avatar_template("बहुत")).to eq("https://#{Discourse.current_hostname}/%E0%A4%AC%E0%A4%B9%E0%A5%81%E0%A4%A4.png")
         end
       end
+    end
+  end
+
+  describe "Second-factor authenticators" do
+    describe "#totps" do
+      it "only includes enabled totp 2FA" do
+        enabled_totp_2fa = Fabricate(:user_second_factor_totp, user: user, name: 'Enabled TOTP', enabled: true)
+        disabled_totp_2fa = Fabricate(:user_second_factor_totp, user: user, name: 'Disabled TOTP', enabled: false)
+
+        expect(user.totps.map(&:id)).to eq([enabled_totp_2fa.id])
+      end
+    end
+
+    describe "#security_keys" do
+      it "only includes enabled security_key 2FA" do
+        enabled_security_key_2fa = Fabricate(:user_security_key_with_random_credential, user: user, name: 'Enabled YubiKey', enabled: true)
+        disabled_security_key_2fa = Fabricate(:user_security_key_with_random_credential, user: user, name: 'Disabled YubiKey', enabled: false)
+
+        expect(user.security_keys.map(&:id)).to eq([enabled_security_key_2fa.id])
+      end
+    end
+  end
+
+  describe 'Secure identifier for a user which is a string other than the ID used to identify the user in some cases e.g. security keys' do
+    describe '#create_or_fetch_secure_identifier' do
+      context 'if the user already has a secure identifier' do
+        let(:sec_ident) { SecureRandom.hex(20) }
+        before do
+          user.update(secure_identifier: sec_ident)
+        end
+
+        it 'returns the identifier' do
+          expect(user.create_or_fetch_secure_identifier).to eq(sec_ident)
+        end
+      end
+
+      context 'if the user already does not have a secure identifier' do
+        it 'creates one' do
+          expect(user.secure_identifier).to eq(nil)
+          user.create_or_fetch_secure_identifier
+          expect(user.reload.secure_identifier).not_to eq(nil)
+        end
+      end
+    end
+  end
+
+  describe 'Granting admin or moderator status' do
+    it 'approves the associated reviewable when granting admin status' do
+      reviewable_user = Fabricate(:reviewable_user)
+
+      reviewable_user.target.grant_admin!
+
+      expect(reviewable_user.reload.status).to eq Reviewable.statuses[:approved]
+    end
+
+    it 'does nothing when the user is already approved' do
+      reviewable_user = Fabricate(:reviewable_user)
+      reviewable_user.perform(Discourse.system_user, :approve_user)
+
+      reviewable_user.target.grant_admin!
+
+      expect(reviewable_user.reload.status).to eq Reviewable.statuses[:approved]
+    end
+
+    it 'approves the associated reviewable when granting moderator status' do
+      reviewable_user = Fabricate(:reviewable_user)
+
+      reviewable_user.target.grant_moderation!
+
+      expect(reviewable_user.reload.status).to eq Reviewable.statuses[:approved]
+    end
+
+    it 'approves the user if there is no reviewable' do
+      user = Fabricate(:user, approved: false)
+
+      user.grant_admin!
+
+      expect(user.approved).to eq(true)
+    end
+  end
+
+  describe "#recent_time_read" do
+    fab!(:user) { Fabricate(:user) }
+    fab!(:user2) { Fabricate(:user) }
+
+    before_all do
+      UserVisit.create(user_id: user.id, visited_at: 1.minute.ago, posts_read: 1, mobile: false, time_read: 10)
+      UserVisit.create(user_id: user.id, visited_at: 2.days.ago, posts_read: 1, mobile: false, time_read: 20)
+      UserVisit.create(user_id: user.id, visited_at: 1.week.ago, posts_read: 1, mobile: false, time_read: 30)
+      UserVisit.create(user_id: user.id, visited_at: 1.year.ago, posts_read: 1, mobile: false, time_read: 40) # Old, should be ignored
+      UserVisit.create(user_id: user2.id, visited_at: 1.minute.ago, posts_read: 1, mobile: false, time_read: 50)
+    end
+
+    it "calculates correctly" do
+      expect(user.recent_time_read).to eq(60)
+      expect(user2.recent_time_read).to eq(50)
+    end
+
+    it "preloads correctly" do
+      User.preload_recent_time_read([user, user2])
+
+      expect(user.instance_variable_get(:@recent_time_read)).to eq(60)
+      expect(user2.instance_variable_get(:@recent_time_read)).to eq(50)
+
+      expect(user.recent_time_read).to eq(60)
+      expect(user2.recent_time_read).to eq(50)
+    end
+  end
+
+  def reset_last_seen_cache!(user)
+    Discourse.redis.del("user:#{user.id}:#{Time.zone.now.to_date}")
+  end
+
+  describe ".encoded_username" do
+    it "doesn't encoded ASCII usernames" do
+      user = Fabricate(:user, username: "John")
+      expect(user.encoded_username).to eq("John")
+      expect(user.encoded_username(lower: true)).to eq("john")
+    end
+
+    it "encodes Unicode characters" do
+      SiteSetting.unicode_usernames = true
+      user = Fabricate(:user, username: "Löwe")
+      expect(user.encoded_username).to eq("L%C3%B6we")
+      expect(user.encoded_username(lower: true)).to eq("l%C3%B6we")
     end
   end
 end

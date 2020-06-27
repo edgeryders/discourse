@@ -1,13 +1,17 @@
 # frozen_string_literal: true
 
 require 'rails_helper'
-require_dependency 'topic_retriever'
 
 describe TopicRetriever do
 
   let(:embed_url) { "http://eviltrout.com/2013/02/10/why-discourse-uses-emberjs.html" }
   let(:author_username) { "eviltrout" }
   let(:topic_retriever) { TopicRetriever.new(embed_url, author_username: author_username) }
+
+  it "can initialize without optional parameters" do
+    t = TopicRetriever.new(embed_url)
+    expect(t).to be_present
+  end
 
   describe "#retrieve" do
     context "when host is invalid" do

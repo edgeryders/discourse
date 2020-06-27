@@ -13,7 +13,7 @@ class UserBadgesController < ApplicationController
     grant_count = nil
 
     if params[:username]
-      user_id = User.where(username_lower: params[:username].downcase).pluck(:id).first
+      user_id = User.where(username_lower: params[:username].downcase).pluck_first(:id)
       user_badges = user_badges.where(user_id: user_id) if user_id
       grant_count = badge.user_badges.where(user_id: user_id).count
     end
@@ -33,6 +33,7 @@ class UserBadgesController < ApplicationController
     params.permit [:grouped]
 
     user = fetch_user_from_params(include_inactive: current_user.try(:staff?) || (current_user && SiteSetting.show_inactive_accounts))
+    raise Discourse::NotFound unless guardian.can_see_profile?(user)
     user_badges = user.user_badges
 
     if params[:grouped]

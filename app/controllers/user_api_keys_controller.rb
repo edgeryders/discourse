@@ -71,7 +71,6 @@ class UserApiKeysController < ApplicationController
       client_id: params[:client_id],
       user_id: current_user.id,
       push_url: params[:push_url],
-      key: SecureRandom.hex,
       scopes: scopes
     )
 
@@ -93,9 +92,12 @@ class UserApiKeysController < ApplicationController
     end
 
     if params[:auth_redirect]
-      redirect_path = +"#{params[:auth_redirect]}?payload=#{CGI.escape(@payload)}"
-      redirect_path << "&oneTimePassword=#{CGI.escape(otp_payload)}" if scopes.include?("one_time_password")
-      redirect_to(redirect_path)
+      uri = URI.parse(params[:auth_redirect])
+      query_attributes = [uri.query, "payload=#{CGI.escape(@payload)}"]
+      query_attributes << "oneTimePassword=#{CGI.escape(otp_payload)}" if scopes.include?("one_time_password")
+      uri.query = query_attributes.compact.join('&')
+
+      redirect_to(uri.to_s)
     else
       respond_to do |format|
         format.html { render :show }
@@ -143,7 +145,7 @@ class UserApiKeysController < ApplicationController
     revoke_key = find_key if params[:id]
 
     if current_key = request.env['HTTP_USER_API_KEY']
-      request_key = UserApiKey.find_by(key: current_key)
+      request_key = UserApiKey.with_key(current_key).first
       revoke_key ||= request_key
       if request_key && request_key.id != revoke_key.id && !request_key.scopes.include?("write")
         raise Discourse::InvalidAccess
@@ -164,7 +166,7 @@ class UserApiKeysController < ApplicationController
 
   def find_key
     key = UserApiKey.find(params[:id])
-    raise Discourse::InvalidAccess unless current_user.admin || key.user_id = current_user.id
+    raise Discourse::InvalidAccess unless current_user.admin || key.user_id == current_user.id
     key
   end
 
@@ -202,7 +204,7 @@ class UserApiKeysController < ApplicationController
     raise Discourse::InvalidAccess unless UserApiKey.allowed_scopes.superset?(Set.new(["one_time_password"]))
 
     otp = SecureRandom.hex
-    $redis.setex "otp_#{otp}", 10.minutes, username
+    Discourse.redis.setex "otp_#{otp}", 10.minutes, username
 
     Base64.encode64(public_key.public_encrypt(otp))
   end

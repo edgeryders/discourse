@@ -1,7 +1,6 @@
 # frozen_string_literal: true
 
 require 'rails_helper'
-require_dependency 'user'
 
 describe UserSerializer do
 
@@ -15,6 +14,10 @@ describe UserSerializer do
     it "doesn't serialize untrusted attributes" do
       untrusted_attributes.each { |attr| expect(json).not_to have_key(attr) }
     end
+
+    it "doesn't serialize group_users" do
+      expect(json[:group_users]).to be_nil
+    end
   end
 
   context "as current user" do
@@ -25,9 +28,10 @@ describe UserSerializer do
       SiteSetting.default_other_new_topic_duration_minutes = 60 * 24
 
       user = Fabricate.build(:user,
-                              user_profile: Fabricate.build(:user_profile),
-                              user_option: UserOption.new(dynamic_favicon: true),
-                              user_stat: UserStat.new
+                             id: 1,
+                             user_profile: Fabricate.build(:user_profile),
+                             user_option: UserOption.new(dynamic_favicon: true),
+                             user_stat: UserStat.new
                             )
 
       json = UserSerializer.new(user, scope: Guardian.new(user), root: false).as_json
@@ -37,12 +41,14 @@ describe UserSerializer do
       expect(json[:user_option][:auto_track_topics_after_msecs]).to eq(0)
       expect(json[:user_option][:notification_level_when_replying]).to eq(3)
 
+      expect(json[:group_users]).to eq([])
     end
   end
 
   context "with a user" do
+    let(:scope) { Guardian.new }
     fab!(:user) { Fabricate(:user) }
-    let(:serializer) { UserSerializer.new(user, scope: Guardian.new, root: false) }
+    let(:serializer) { UserSerializer.new(user, scope: scope, root: false) }
     let(:json) { serializer.as_json }
     fab!(:upload) { Fabricate(:upload) }
     fab!(:upload2) { Fabricate(:upload) }
@@ -165,6 +171,68 @@ describe UserSerializer do
         expect(json[:bio_cooked]).to eq 'my cooked bio'
       end
     end
+
+    describe "second_factor_enabled" do
+      let(:scope) { Guardian.new(user) }
+      it "is false by default" do
+        expect(json[:second_factor_enabled]).to eq(false)
+      end
+
+      context "when totp enabled" do
+        before do
+          User.any_instance.stubs(:totp_enabled?).returns(true)
+        end
+
+        it "is true" do
+          expect(json[:second_factor_enabled]).to eq(true)
+        end
+      end
+
+      context "when security_keys enabled" do
+        before do
+          User.any_instance.stubs(:security_keys_enabled?).returns(true)
+        end
+
+        it "is true" do
+          expect(json[:second_factor_enabled]).to eq(true)
+        end
+      end
+    end
+
+    describe "ignored and muted" do
+      fab!(:viewing_user) { Fabricate(:user) }
+      let(:scope) { Guardian.new(viewing_user) }
+
+      it 'returns false values for muted and ignored' do
+        expect(json[:ignored]).to eq(false)
+        expect(json[:muted]).to eq(false)
+      end
+
+      context 'when ignored' do
+        before do
+          Fabricate(:ignored_user, user: viewing_user, ignored_user: user)
+          viewing_user.reload
+        end
+
+        it 'returns true for ignored' do
+          expect(json[:ignored]).to eq(true)
+          expect(json[:muted]).to eq(false)
+        end
+      end
+
+      context 'when muted' do
+        before do
+          Fabricate(:muted_user, user: viewing_user, muted_user: user)
+          viewing_user.reload
+        end
+
+        it 'returns true for muted' do
+          expect(json[:muted]).to eq(true)
+          expect(json[:ignored]).to eq(false)
+        end
+      end
+
+    end
   end
 
   context "with custom_fields" do
@@ -195,10 +263,10 @@ describe UserSerializer do
       end
 
       after do
-        User.plugin_public_user_custom_fields.clear
+        DiscoursePluginRegistry.reset!
       end
 
-      it "serializes the fields listed in plugin_public_user_custom_fields" do
+      it "serializes the fields listed in public_user_custom_fields" do
         expect(json[:custom_fields]['public_field']).to eq(user.custom_fields['public_field'])
         expect(json[:custom_fields]['secret_field']).to eq(nil)
       end

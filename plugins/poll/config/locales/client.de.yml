@@ -18,22 +18,14 @@ de:
       public:
         title: "Stimmen sind <strong>öffentlich</strong>."
       results:
+        groups:
+          title: "Du musst ein Mitglied von %{groups} sein, um an dieser Umfrage teilnehmen zu können."
         vote:
           title: "Ergebnisse werden <strong>nach Stimmabgabe</strong> angezeigt."
         closed:
           title: "Ergebnisse werden angezeigt <strong>nach Ende der Abstimmung</strong>."
-      multiple:
-        help:
-          at_least_min_options:
-            one: "Du musst mindestens <strong>%{count}</strong> Option auswählen."
-            other: "Du musst mindestens <strong>%{count}</strong> Optionen auswählen."
-          up_to_max_options:
-            one: "Du kannst bis zu <strong>%{count}</strong> Option auswählen."
-            other: "Du kannst bis zu <strong>%{count}</strong> Optionen auswählen."
-          x_options:
-            one: "Bitte wähle <strong>%{count}</strong> Option."
-            other: "Bitte wähle <strong>%{count}</strong> Optionen."
-          between_min_and_max_options: "Bitte wähle zwischen <strong>%{min}</strong> und <strong>%{max}</strong> Optionen."
+        staff:
+          title: "Ergebnisse werden nur <strong>Team</strong> Mitgliedern angezeigt."
       cast-votes:
         title: "Gib deine Stimmen ab"
         label: "Jetzt abstimmen!"
@@ -42,7 +34,16 @@ de:
         label: "Ergebnisse anzeigen"
       hide-results:
         title: "Zurück zur Umfrage"
-        label: "Ergebnisse ausblenden"
+        label: "Zeige Stimme"
+      group-results:
+        title: "Gruppen-Stimmen nach Benutzer-Feld"
+        label: "Zeige Aufgliederung"
+      ungroup-results:
+        title: "Kombiniere alle Stimmen"
+        label: "Aufgliederung ausblenden"
+      export-results:
+        title: "Abstimmungsergebnisse exportieren"
+        label: "Exportieren"
       open:
         title: "Umfrage starten"
         label: "Starten"
@@ -57,11 +58,12 @@ de:
       error_while_toggling_status: "Entschuldige, beim Wechseln des Status dieser Umfrage ist ein Fehler aufgetreten."
       error_while_casting_votes: "Entschuldige, beim Abgeben deiner Stimme ist ein Fehler aufgetreten."
       error_while_fetching_voters: "Entschuldige, beim Anzeigen der Teilnehmer ist ein Fehler aufgetreten."
+      error_while_exporting_results: "Leider ist beim Exportieren der Umfrageergebnisse ein Fehler aufgetreten."
       ui_builder:
         title: Umfrage erstellen
         insert: Umfrage einfügen
         help:
-          options_count: Gib mindestens 2 Optionen ein
+          options_count: Geben Sie mindestens 1 Option ein
           invalid_values: Der Minimalwert muss kleiner sein als der Maximalwert.
           min_step_value: Die minimale Schrittweite beträgt 1.
         poll_type:
@@ -74,6 +76,11 @@ de:
           always: Immer sichtbar
           vote: Nach Stimmabgabe
           closed: Nach Ende der Abstimmung
+          staff: Nur Teammitglieder
+        poll_groups:
+          label: Zugelassene Gruppen
+        poll_chart_type:
+          label: Diagrammtyp
         poll_config:
           max: max.
           min: min.

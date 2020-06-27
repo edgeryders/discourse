@@ -15,11 +15,6 @@ bg:
         one: "общ брой гласове"
         other: "общо гласове"
       average_rating: "Средна отценка: <strong>%{average}</strong>."
-      multiple:
-        help:
-          at_least_min_options:
-            one: "Избери поне <strong>%{count}</strong> отговора"
-            other: "Избери поне <strong>%{count}</strong> отговора"
       cast-votes:
         title: "Изчислете вашите гласове"
         label: "Гласувай сега!"
@@ -28,7 +23,8 @@ bg:
         label: "Покажи резултатите"
       hide-results:
         title: "Обратно към вашите гласове"
-        label: "Скрий резултатите"
+      export-results:
+        label: "Експорт "
       open:
         title: "Отвори гласуването"
         label: "Отвори"

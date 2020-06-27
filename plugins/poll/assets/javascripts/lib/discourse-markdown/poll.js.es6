@@ -1,4 +1,5 @@
 /*eslint no-bitwise:0 */
+import I18n from "I18n";
 
 const DATA_PREFIX = "data-poll-";
 const DEFAULT_POLL_NAME = "poll";
@@ -10,6 +11,8 @@ const WHITELISTED_ATTRIBUTES = [
   "order",
   "public",
   "results",
+  "chartType",
+  "groups",
   "status",
   "step",
   "type"

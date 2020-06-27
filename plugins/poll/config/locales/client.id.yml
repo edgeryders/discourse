@@ -13,15 +13,6 @@ id:
       total_votes:
         other: "jumlah suara"
       average_rating: "Rata-rata rating: <strong>%{average}</strong>."
-      multiple:
-        help:
-          at_least_min_options:
-            other: "Pilih setidaknya <strong>%{count}</strong> pilihan"
-          up_to_max_options:
-            other: "Pilih sampai <strong<%{count}</strong> pilihan"
-          x_options:
-            other: "Pilih <strong>%{count}</strong> pilihan"
-          between_min_and_max_options: "Pilih antara <strong>%{min}</strong> dan <strong>%{max}</strong> pilihan"
       cast-votes:
         title: "Gunakan suaramu"
         label: "Pilih sekarang!"
@@ -30,13 +21,15 @@ id:
         label: "Lihat hasil"
       hide-results:
         title: "Kembali ke suaramu"
-        label: "Sembunyikan hasil"
       open:
         title: "Buka Polling"
         label: "Buka"
-        confirm: "Apakah Anda yakin  ingin membuka akun ini?"
+        confirm: "Apakah Anda yakin ingin membuka akun ini?"
       close:
         title: "Tutup polling"
         label: "Tutup"
-        confirm: "Apakah Anda yakin  ingin menutup akun ini?"
+        confirm: "Apakah Anda yakin ingin menutup akun ini?"
       error_while_toggling_status: "Maaf, telah terjadi kesalahan pengalihan status dari pemilihan ini."
+      ui_builder:
+        poll_type:
+          label: Tipe

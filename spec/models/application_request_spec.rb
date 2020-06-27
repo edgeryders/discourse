@@ -4,11 +4,12 @@ require 'rails_helper'
 
 describe ApplicationRequest do
   before do
+    ApplicationRequest.enable
     ApplicationRequest.last_flush = Time.now.utc
-    $redis.flushall
   end
 
   after do
+    ApplicationRequest.disable
     ApplicationRequest.clear_cache!
   end
 
@@ -28,15 +29,15 @@ describe ApplicationRequest do
       inc(:http_total)
       inc(:http_total)
 
-      $redis.without_namespace.stubs(:incr).raises(Redis::CommandError.new("READONLY"))
-      $redis.without_namespace.stubs(:eval).raises(Redis::CommandError.new("READONLY"))
+      Discourse.redis.without_namespace.stubs(:incr).raises(Redis::CommandError.new("READONLY"))
+      Discourse.redis.without_namespace.stubs(:eval).raises(Redis::CommandError.new("READONLY"))
 
       # flush will be deferred no error raised
       inc(:http_total, autoflush: 3)
       ApplicationRequest.write_cache!
 
-      $redis.without_namespace.unstub(:incr)
-      $redis.without_namespace.unstub(:eval)
+      Discourse.redis.without_namespace.unstub(:incr)
+      Discourse.redis.without_namespace.unstub(:eval)
 
       inc(:http_total, autoflush: 3)
       expect(ApplicationRequest.http_total.first.count).to eq(3)
@@ -44,7 +45,7 @@ describe ApplicationRequest do
   end
 
   it 'logs nothing for an unflushed increment' do
-    ApplicationRequest.increment!(:anon)
+    ApplicationRequest.increment!(:page_view_anon)
     expect(ApplicationRequest.count).to eq(0)
   end
 
@@ -90,7 +91,7 @@ describe ApplicationRequest do
 
   it 'clears cache correctly' do
     # otherwise we have test pollution
-    inc(:anon)
+    inc(:page_view_anon)
     ApplicationRequest.clear_cache!
     ApplicationRequest.write_cache!
 

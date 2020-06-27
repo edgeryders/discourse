@@ -3,8 +3,10 @@
 Fabricator(:notification) do
   transient :post
   notification_type Notification.types[:mentioned]
+  high_priority false
   user
   topic { |attrs| attrs[:post]&.topic || Fabricate(:topic, user: attrs[:user]) }
+  post_number { |attrs| attrs[:post]&.post_number }
   data '{"poison":"ivy","killer":"croc"}'
 end
 
@@ -16,6 +18,7 @@ end
 
 Fabricator(:private_message_notification, from: :notification) do
   notification_type Notification.types[:private_message]
+  high_priority true
   data do |attrs|
     post = attrs[:post] || Fabricate(:post, topic: attrs[:topic], user: attrs[:user])
     {
@@ -25,6 +28,23 @@ Fabricator(:private_message_notification, from: :notification) do
       original_username: post.user.username,
       revision_number: nil,
       display_username: post.user.username
+    }.to_json
+  end
+end
+
+Fabricator(:bookmark_reminder_notification, from: :notification) do
+  notification_type Notification.types[:bookmark_reminder]
+  high_priority true
+  data do |attrs|
+    post = attrs[:post] || Fabricate(:post, topic: attrs[:topic], user: attrs[:user])
+    {
+      topic_title: attrs[:topic].title,
+      original_post_id: post.id,
+      original_post_type: post.post_type,
+      original_username: post.user.username,
+      revision_number: nil,
+      display_username: post.user.username,
+      bookmark_name: "Check out Mr Freeze's opinion here"
     }.to_json
   end
 end
@@ -54,6 +74,34 @@ Fabricator(:posted_notification, from: :notification) do
       original_username: post.user.username,
       revision_number: nil,
       display_username: post.user.username
+    }.to_json
+  end
+end
+
+Fabricator(:mentioned_notification, from: :notification) do
+  notification_type Notification.types[:mentioned]
+  data do |attrs|
+    {
+      topic_title: attrs[:topic].title,
+      original_post_id: attrs[:post].id,
+      original_post_type: attrs[:post].post_type,
+      original_username: attrs[:post].user.username,
+      revision_number: nil,
+      display_username: attrs[:post].user.username
+    }.to_json
+  end
+end
+
+Fabricator(:watching_first_post_notification, from: :notification) do
+  notification_type Notification.types[:watching_first_post]
+  data do |attrs|
+    {
+      topic_title: attrs[:topic].title,
+      original_post_id: attrs[:post].id,
+      original_post_type: attrs[:post].post_type,
+      original_username: attrs[:post].user.username,
+      revision_number: nil,
+      display_username: attrs[:post].user.username
     }.to_json
   end
 end

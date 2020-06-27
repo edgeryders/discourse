@@ -1,8 +1,6 @@
 # frozen_string_literal: true
 
 require 'uri'
-require_dependency 'slug'
-require_dependency 'discourse'
 
 class TopicLink < ActiveRecord::Base
 
@@ -110,7 +108,7 @@ class TopicLink < ActiveRecord::Base
   end
 
   def self.extract_from(post)
-    return if post.blank? || post.whisper?
+    return if post.blank? || post.whisper? || post.user_id.blank?
 
     current_urls = []
     reflected_ids = []
@@ -121,7 +119,7 @@ class TopicLink < ActiveRecord::Base
         uri = UrlHelper.relaxed_parse(u.url)
         [u, uri]
       end
-      .reject { |_, p| p.nil? || "mailto".freeze == p.scheme }
+      .reject { |_, p| p.nil? || "mailto" == p.scheme }
       .uniq { |_, p| p }
       .each do |link, parsed|
 
@@ -142,9 +140,12 @@ class TopicLink < ActiveRecord::Base
 
   end
 
-  # Crawl a link's title after it's saved
+  def self.crawl_link_title(topic_link_id)
+    Jobs.enqueue(:crawl_topic_link, topic_link_id: topic_link_id)
+  end
+
   def crawl_link_title
-    Jobs.enqueue(:crawl_topic_link, topic_link_id: id)
+    TopicLink.crawl_link_title(id)
   end
 
   def self.duplicate_lookup(topic)
@@ -169,16 +170,108 @@ class TopicLink < ActiveRecord::Base
 
   private
 
+  # This pattern is used to create topic links very efficiently with minimal
+  # errors under heavy concurrent use
+  #
+  # It avoids a SELECT to find out if the record is there and minimizes all
+  # the work it needs to do in case a record is missing
+  #
+  # It handles calling the required callback and has parity with Rails implementation
+  #
+  # Usually we would rely on ActiveRecord but in this case we have had lots of churn
+  # around creation of topic links leading to hard to debug log messages in production
+  #
+  def self.safe_create_topic_link(
+    post_id:,
+    user_id:,
+    topic_id:,
+    url:,
+    domain: nil,
+    internal: false,
+    link_topic_id: nil,
+    link_post_id: nil,
+    quote: false,
+    extension: nil,
+    reflection: false
+  )
+
+    domain ||= Discourse.current_hostname
+
+    sql = <<~SQL
+      WITH new_row AS(
+        INSERT INTO topic_links(
+          post_id,
+          user_id,
+          topic_id,
+          url,
+          domain,
+          internal,
+          link_topic_id,
+          link_post_id,
+          quote,
+          extension,
+          reflection,
+          created_at,
+          updated_at
+        ) VALUES (
+          :post_id,
+          :user_id,
+          :topic_id,
+          :url,
+          :domain,
+          :internal,
+          :link_topic_id,
+          :link_post_id,
+          :quote,
+          :extension,
+          :reflection,
+          :now,
+          :now
+        )
+        ON CONFLICT DO NOTHING
+        RETURNING id
+      )
+      SELECT COALESCE(
+        (SELECT id FROM new_row),
+        (SELECT id FROM topic_links WHERE post_id = :post_id AND topic_id = :topic_id AND url = :url)
+      ), (SELECT id FROM new_row) IS NOT NULL
+    SQL
+
+    topic_link_id, new_record = DB.query_single(sql,
+      post_id: post_id,
+      user_id: user_id,
+      topic_id: topic_id,
+      url: url,
+      domain: domain,
+      internal: internal,
+      link_topic_id: link_topic_id,
+      link_post_id: link_post_id,
+      quote: quote,
+      extension: extension,
+      reflection: reflection,
+      now: Time.now
+    )
+
+    if new_record
+      DB.after_commit do
+        crawl_link_title(topic_link_id)
+      end
+    end
+
+    topic_link_id
+  end
+
   def self.ensure_entry_for(post, link, parsed)
     url = link.url
     internal = false
     topic_id = nil
     post_number = nil
+    topic = nil
 
     if upload = Upload.get_from_url(url)
       internal = Discourse.store.internal?
       # Store the same URL that will be used in the cooked version of the post
-      url = UrlHelper.cook_url(upload.url)
+      url = UrlHelper.cook_url(upload.url, secure: upload.secure?)
     elsif route = Discourse.route_for(parsed)
       internal = true
 
@@ -187,9 +280,11 @@ class TopicLink < ActiveRecord::Base
 
       topic_id = route[:topic_id].to_i
       post_number = route[:post_number] || 1
+      topic_slug = route[:id]
 
       # Store the canonical URL
       topic = Topic.find_by(id: topic_id)
+      topic ||= Topic.find_by(slug: topic_slug) if topic_slug
       topic_id = nil unless topic
 
       if topic.present?
@@ -199,62 +294,50 @@ class TopicLink < ActiveRecord::Base
     end
 
     # Skip linking to ourselves
-    return nil if topic_id == post.topic_id
+    return nil if topic&.id == post.topic_id
 
     reflected_post = nil
-    if post_number && topic_id
-      reflected_post = Post.find_by(topic_id: topic_id, post_number: post_number.to_i)
+    if post_number && topic
+      reflected_post = Post.find_by(topic_id: topic.id, post_number: post_number.to_i)
     end
 
     url = url[0...TopicLink.max_url_length]
     return nil if parsed && parsed.host && parsed.host.length > TopicLink.max_domain_length
 
-    unless TopicLink.exists?(topic_id: post.topic_id, post_id: post.id, url: url)
-      file_extension = File.extname(parsed.path)[1..10].downcase unless parsed.path.nil? || File.extname(parsed.path).empty?
-      begin
-        TopicLink.create!(post_id: post.id,
-                          user_id: post.user_id,
-                          topic_id: post.topic_id,
-                          url: url,
-                          domain: parsed.host || Discourse.current_hostname,
-                          internal: internal,
-                          link_topic_id: topic_id,
-                          link_post_id: reflected_post.try(:id),
-                          quote: link.is_quote,
-                          extension: file_extension)
-      rescue ActiveRecord::RecordNotUnique
-        # it's fine
-      end
-    end
+    file_extension = File.extname(parsed.path)[1..10].downcase unless parsed.path.nil? || File.extname(parsed.path).empty?
+
+    safe_create_topic_link(
+      post_id: post.id,
+      user_id: post.user_id,
+      topic_id: post.topic_id,
+      url: url,
+      domain: parsed.host,
+      internal: internal,
+      link_topic_id: topic&.id,
+      link_post_id: reflected_post.try(:id),
+      quote: link.is_quote,
+      extension: file_extension,
+    )
 
     reflected_id = nil
 
     # Create the reflection if we can
-    if topic_id.present?
-      topic = Topic.find_by(id: topic_id)
+    if topic && post.topic && topic.archetype != 'private_message' && post.topic.archetype != 'private_message' && post.topic.visible?
+      prefix = Discourse.base_url_no_prefix
+      reflected_url = "#{prefix}#{post.topic.relative_url(post.post_number)}"
 
-      if topic && post.topic && topic.archetype != 'private_message' && post.topic.archetype != 'private_message' && post.topic.visible?
-        prefix = Discourse.base_url_no_prefix
-        reflected_url = "#{prefix}#{post.topic.relative_url(post.post_number)}"
-        tl = TopicLink.find_by(topic_id: topic_id,
-                               post_id: reflected_post.try(:id),
-                               url: reflected_url)
+      reflected_id = safe_create_topic_link(
+        user_id: post.user_id,
+        topic_id: topic&.id,
+        post_id: reflected_post&.id,
+        url: reflected_url,
+        domain: Discourse.current_hostname,
+        reflection: true,
+        internal: true,
+        link_topic_id: post.topic_id,
+        link_post_id: post.id
+      )
 
-        unless tl
-          tl = TopicLink.create(user_id: post.user_id,
-                                topic_id: topic_id,
-                                post_id: reflected_post.try(:id),
-                                url: reflected_url,
-                                domain: Discourse.current_hostname,
-                                reflection: true,
-                                internal: true,
-                                link_topic_id: post.topic_id,
-                                link_post_id: post.id)
-
-        end
-
-        reflected_id = tl.id if tl.persisted?
-      end
     end
 
     [url, reflected_id]

@@ -53,9 +53,7 @@
     font-size: $font-0;
     margin-right: 8px;
     display: inline-block;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+    @include ellipsis;
     vertical-align: middle;
     a {
       color: dark-light-choose($primary-high, $secondary-low);
@@ -118,6 +116,12 @@
   a {
     word-wrap: break-word;
   }
+
+  del,
+  ins {
+    text-decoration: none;
+  }
+
   ins {
     background-color: dark-light-choose(
       $success-low,
@@ -211,8 +215,7 @@ aside.quote {
     @include post-aside;
 
     color: dark-light-choose($primary-high, $secondary-low);
-    // IE will screw up the blockquote underneath if bottom padding is 0px
-    padding: 12px 12px 1px 12px;
+    padding: 12px 12px 0px 12px;
     // blockquote is underneath this and has top margin
     .avatar {
       margin-right: 7px;
@@ -261,10 +264,23 @@ blockquote {
   }
 }
 
+.small-user-list .unknown {
+  display: inline-block;
+  background-color: $primary-low;
+  width: 25px;
+  height: 25px;
+  border-radius: 50%;
+  vertical-align: middle;
+  margin-right: 0.25em;
+}
+
 .post-hidden {
-  opacity: 0.5; // opacity sets a new z-index context,
-  position: relative; // so the positioning is required,
-  z-index: z("base"); // otherwise post controls are stacked too low
+  .topic-avatar,
+  .cooked,
+  .topic-meta-data,
+  .post-actions {
+    opacity: 0.5;
+  }
 }
 
 .topic-post.staged {
@@ -365,6 +381,7 @@ blockquote {
   td {
     vertical-align: top;
     padding: 1px;
+    word-wrap: anywhere;
   }
 
   .topic-links {
@@ -464,7 +481,8 @@ blockquote {
 .user-card-avatar,
 .topic-map .poster,
 .user-profile-avatar,
-.user-image {
+.user-image,
+.latest-topic-list-item {
   .avatar-flair {
     display: flex;
     align-items: center;
@@ -479,7 +497,8 @@ blockquote {
 .topic-avatar .avatar-flair,
 .avatar-flair-preview .avatar-flair,
 .collapsed-info .user-profile-avatar .avatar-flair,
-.user-image .avatar-flair {
+.user-image .avatar-flair,
+.latest-topic-list-item .avatar-flair {
   background-size: 20px 20px;
   width: 20px;
   height: 20px;
@@ -552,8 +571,18 @@ blockquote {
   .cooked {
     overflow: hidden;
   }
+  .group-request {
+    border-top: 1px solid $primary-low;
+    padding-top: 0.5em;
+  }
   &.highlighted {
     animation: background-fade-highlight 2.5s ease-out;
+  }
+  .deleted & {
+    // Disable so the deleted background is visible immediately
+    &.highlighted {
+      animation: none;
+    }
   }
 }
 
@@ -596,21 +625,49 @@ pre {
   }
 }
 
-kbd {
-  background-color: $secondary;
-  border: 1px solid $primary-low;
-  border-radius: 3px;
-  box-shadow: shadow("kbd");
-  background: dark-light-choose(#fafafa, #333);
-  border: 1px solid dark-light-choose(#ccc, #555);
-  border-bottom: medium none dark-light-choose(#fff, #000);
+.copy-codeblocks {
+  display: block;
+  position: relative;
+  overflow: visible;
 
+  .copy-cmd {
+    position: absolute;
+    top: 0;
+    right: 0;
+    min-height: 0;
+    font-size: $font-down-2;
+    min-height: 0;
+    font-size: $font-down-2;
+    user-select: none;
+
+    &.copied {
+      .d-icon {
+        color: $tertiary;
+      }
+    }
+
+    .d-icon {
+      pointer-events: none;
+      margin-right: 0;
+    }
+  }
+}
+
+kbd {
+  align-items: center;
+  background: dark-light-choose(#fafafa, #303030);
+  border: 1px solid dark-light-choose(#d0d0d0, #505050);
+  border-bottom-width: 2px;
+  border-radius: 3px;
+  box-sizing: border-box;
   color: $primary;
-  display: inline-block;
+  display: inline-flex;
   font-size: $font-down-1;
+  justify-content: center;
   line-height: $line-height-large;
-  margin: 0 0.1em;
-  padding: 0.1em 0.6em;
+  margin: 0 0.15em;
+  min-width: 24px;
+  padding: 0.15em 0.6em;
 
   // don't allow more than 3 nested elements to prevent FF from crashing
   // cf. http://what.thedailywtf.com/t/nested-elements/7927
@@ -639,7 +696,8 @@ blockquote > *:last-child {
   font-size: $font-down-1;
 }
 
-.who-liked {
+.who-liked,
+.who-read {
   transition: height 0.5s;
   a {
     margin: 0 0.25em 0.5em 0;
@@ -757,19 +815,34 @@ blockquote > *:last-child {
   }
 }
 
-a.mention,
-a.mention-group {
-  padding: 2px 4px;
-  color: dark-light-choose($primary-high, $secondary-low);
-  background: $primary-low;
-  border-radius: 8px;
+a.mention {
+  align-items: baseline;
+  display: inline-flex;
   font-weight: bold;
   font-size: 0.93em;
+  color: dark-light-choose($primary-high, $secondary-low);
+  padding: 1px 4px;
+  background: $primary-low;
+  border-radius: 8px;
 }
 
-.popup-menu {
-  h3 {
-    margin-top: 0;
+span.mention {
+  font-weight: bold;
+  font-size: 0.93em;
+  color: $primary;
+}
+
+a.mention-group {
+  font-weight: bold;
+  font-size: 0.93em;
+  color: $primary;
+
+  &.notify,
+  .small-action-desc & {
+    color: dark-light-choose($primary-high, $secondary-low);
+    padding: 2px 4px;
+    background: $primary-low;
+    border-radius: 8px;
   }
 }
 
@@ -825,12 +898,15 @@ a.mention-group {
   }
 }
 
-.broken-image,
-.large-image {
+.broken-image {
+  display: inline-flex;
   color: dark-light-choose($primary-low-mid, $secondary-high);
   border: 1px solid $primary-low;
   font-size: $font-up-5;
-  padding: 16px;
+
+  .d-icon {
+    margin: 16px;
+  }
 }
 
 /* below standard tablet portrait ----------- */
@@ -905,11 +981,15 @@ a.mention-group {
 }
 
 .post-notice {
+  align-items: center;
   background-color: $tertiary-low;
   border-top: 1px solid $primary-low;
-  color: $primary;
+  display: flex;
+  max-width: calc(
+    #{$topic-body-width} + (#{$topic-body-width-padding} * 2) + #{$topic-avatar-width} -
+      (0.8em * 2)
+  );
   padding: 0.8em;
-  max-width: calc(#{$topic-body-width} + #{$topic-avatar-width} - 0.1em);
 
   &.old {
     background-color: unset;
@@ -921,8 +1001,6 @@ a.mention-group {
   }
 
   p {
-    display: flex;
-    align-items: center;
     margin: 0;
   }
 
@@ -931,4 +1009,66 @@ a.mention-group {
     color: $primary-high;
     margin-right: 0.65em;
   }
+}
+
+#topic-footer-buttons {
+  padding: 0.5em 0;
+
+  .topic-footer-main-buttons {
+    margin: 0 0 -0.5em 0;
+    display: flex;
+    flex-wrap: wrap;
+
+    > .btn {
+      margin: 0 0.5em 0.5em 0;
+      display: inline-flex;
+      align-items: center;
+
+      .d-button-label {
+        display: flex;
+        flex: 1 0 auto;
+        align-items: center;
+      }
+    }
+
+    .topic-admin-menu-button-container {
+      display: inline-flex;
+    }
+
+    .topic-admin-menu-button-container > span:not(:empty) {
+      margin: 0 0.5em 0.5em 0;
+    }
+  }
+
+  .pinned-button:not(.is-hidden) + .topic-notifications-button {
+    margin-top: 0;
+  }
+
+  .pinned-button,
+  .topic-notifications-button {
+    margin: 1em 0;
+
+    .reason {
+      color: $primary-high;
+      display: inline-flex;
+      margin: 0;
+      align-items: center;
+
+      .text {
+        margin-left: 0.5em;
+      }
+    }
+  }
+}
+
+.post-admin-menu {
+  display: inline-flex;
+  flex-direction: column;
+  box-sizing: border-box;
+  width: auto;
+  max-width: 320px;
+  position: absolute;
+  text-align: left;
+  bottom: -2px;
+  right: 15px;
 }

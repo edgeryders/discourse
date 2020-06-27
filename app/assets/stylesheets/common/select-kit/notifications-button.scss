@@ -2,14 +2,13 @@
   &.dropdown-select-box {
     &.notifications-button {
       .select-kit-body {
-        min-width: 550px;
-        max-width: 550px;
+        max-width: 400px;
       }
 
       .select-kit-row {
         .icons {
-          -ms-flex-item-align: start;
           align-self: flex-start;
+          margin-right: 0.75em;
         }
       }
     }

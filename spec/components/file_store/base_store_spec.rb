@@ -1,7 +1,6 @@
 # frozen_string_literal: true
 
 require 'rails_helper'
-require_dependency 'file_store/base_store'
 
 RSpec.describe FileStore::BaseStore do
   fab!(:upload) { Fabricate(:upload, id: 9999, sha1: Digest::SHA1.hexdigest('9999')) }
@@ -48,12 +47,11 @@ RSpec.describe FileStore::BaseStore do
 
   describe '#download' do
     before do
-      `rm -rf #{FileStore::BaseStore::CACHE_DIR}`
-
       SiteSetting.enable_s3_uploads = true
       SiteSetting.s3_upload_bucket = "s3-upload-bucket"
       SiteSetting.s3_access_key_id = "some key"
       SiteSetting.s3_secret_access_key = "some secret key"
+      SiteSetting.s3_region = "us-east-1"
 
       stub_request(:get, upload_s3.url).to_return(status: 200, body: "Hello world")
     end
@@ -82,6 +80,19 @@ RSpec.describe FileStore::BaseStore do
     it "should return the file when s3 cdn enabled" do
       SiteSetting.s3_cdn_url = "https://cdn.s3.amazonaws.com"
       stub_request(:get, Discourse.store.cdn_url(upload_s3.url)).to_return(status: 200, body: "Hello world")
+
+      file = store.download(upload_s3)
+
+      expect(file.class).to eq(File)
+    end
+
+    it "should return the file when secure media are enabled" do
+      SiteSetting.login_required = true
+      SiteSetting.secure_media = true
+
+      stub_request(:head, "https://s3-upload-bucket.s3.amazonaws.com/")
+      signed_url = Discourse.store.signed_url_for_path(upload_s3.url)
+      stub_request(:get, signed_url).to_return(status: 200, body: "Hello world")
 
       file = store.download(upload_s3)
 

@@ -3,20 +3,24 @@
     {{#if editingName}}
       {{text-field value=model.name autofocus="true"}}
       {{d-button action=(action "finishedEditingName") class="btn-primary submit-edit" icon="check"}}
-      {{d-button action=(action "cancelEditingName") class="btn-default cancel-edit" icon="times"}}
+      {{d-button action=(action "cancelEditingName") class="cancel-edit" icon="times"}}
     {{else}}
-      {{model.name}} <a {{action "startEditingName"}}>{{d-icon "pencil-alt"}}</a>
+      <span>{{model.name}}</span>
+      {{d-button
+        action=(action "startEditingName")
+        icon="pencil-alt"
+      }}
     {{/if}}
   </div>
 
   {{#each model.errors as |error|}}
     <div class="alert alert-error">
-      <button class="close" data-dismiss="alert">×</button>
+      <button type="button" class="close" data-dismiss="alert" aria-label={{i18n "modal.dismiss_error"}}>×</button>
       {{error}}
     </div>
   {{/each}}
 
-  {{#unless model.enabled}}
+  {{#unless model.supported}}
     <div class="alert alert-error">
       {{i18n "admin.customize.theme.required_version.error"}}
       {{#if model.remote_theme.minimum_discourse_version}}
@@ -25,6 +29,26 @@
       {{#if model.remote_theme.maximum_discourse_version}}
         {{i18n "admin.customize.theme.required_version.maximum" version=model.remote_theme.maximum_discourse_version}}
       {{/if}}
+    </div>
+  {{/unless}}
+
+  {{#unless model.enabled}}
+    <div class="alert alert-error">
+      {{#if model.disabled_by}}
+        {{i18n "admin.customize.theme.disabled_by"}}
+        {{#user-link user=model.disabled_by}}
+          {{avatar model.disabled_by imageSize="tiny"}}
+          {{model.disabled_by.username}}
+        {{/user-link}}
+        {{format-date model.disabled_at leaveAgo="true"}}
+      {{else}}
+        {{i18n "admin.customize.theme.disabled"}}
+      {{/if}}
+      {{d-button
+        class="btn-default"
+        action=(action "enableComponent")
+        icon="check"
+        label="admin.customize.theme.enable"}}
     </div>
   {{/unless}}
 
@@ -39,16 +63,16 @@
 
     {{#if model.remote_theme.remote_url}}
       {{#if sourceIsHttp}}
-        <a class="remote-url" href="{{model.remote_theme.remote_url}}">{{i18n "admin.customize.theme.source_url"}} {{d-icon "link"}}</a>
+        <a class="remote-url" href={{remoteThemeLink}}>{{i18n "admin.customize.theme.source_url"}}{{d-icon "link"}}</a>
       {{else}}
         <div class="remote-url"><code>{{model.remote_theme.remote_url}}</code></div>
       {{/if}}
     {{/if}}
     {{#if model.remote_theme.about_url}}
-    <a class="url about-url" href="{{model.remote_theme.about_url}}">{{i18n "admin.customize.theme.about_theme"}} {{d-icon "link"}}</a>
+      <a class="url about-url" href={{model.remote_theme.about_url}}>{{i18n "admin.customize.theme.about_theme"}}{{d-icon "link"}}</a>
     {{/if}}
     {{#if model.remote_theme.license_url}}
-      <a class="url license-url" href="{{model.remote_theme.license_url}}">{{i18n "admin.customize.theme.license"}} {{d-icon "link"}}</a>
+      <a class="url license-url" href={{model.remote_theme.license_url}}>{{i18n "admin.customize.theme.license"}}{{d-icon "link"}}</a>
     {{/if}}
 
     {{#if model.description}}
@@ -65,7 +89,7 @@
 
         {{#if showRemoteError}}
           <div class="error-message">
-            {{d-icon "exclamation-triangle"}} {{I18n "admin.customize.theme.repo_unreachable"}}
+            {{d-icon "exclamation-triangle"}} {{i18n "admin.customize.theme.repo_unreachable"}}
           </div>
           <div class="raw-error">
             <code>{{model.remoteError}}</code>
@@ -73,56 +97,70 @@
         {{/if}}
 
         {{#if model.remote_theme.commits_behind}}
-          {{#d-button action=(action "updateToLatest") icon="download" class='btn-primary'}}{{i18n "admin.customize.theme.update_to_latest"}}{{/d-button}}
+          {{#d-button action=(action "updateToLatest") icon="download" class="btn-primary"}}{{i18n "admin.customize.theme.update_to_latest"}}{{/d-button}}
         {{else}}
           {{#d-button action=(action "checkForThemeUpdates") icon="sync" class="btn-default"}}{{i18n "admin.customize.theme.check_for_updates"}}{{/d-button}}
         {{/if}}
 
-        <span class='status-message'>
-            {{#if updatingRemote}}
-              {{i18n 'admin.customize.theme.updating'}}
-            {{else}}
-              {{#if model.remote_theme.commits_behind}}
-                {{i18n 'admin.customize.theme.commits_behind' count=model.remote_theme.commits_behind}}
-                {{#if model.remote_theme.github_diff_link}}
-                  <a href="{{model.remote_theme.github_diff_link}}">
-                    {{i18n 'admin.customize.theme.compare_commits'}}
-                  </a>
-                {{/if}}
-              {{else}}
-                {{#unless showRemoteError}}
-                  {{i18n 'admin.customize.theme.up_to_date'}} {{format-date model.remote_theme.updated_at leaveAgo="true"}}
-                {{/unless}}
+        <span class="status-message">
+          {{#if updatingRemote}}
+            {{i18n "admin.customize.theme.updating"}}
+          {{else}}
+            {{#if model.remote_theme.commits_behind}}
+              {{i18n "admin.customize.theme.commits_behind" count=model.remote_theme.commits_behind}}
+              {{#if model.remote_theme.github_diff_link}}
+                <a href={{model.remote_theme.github_diff_link}}>
+                  {{i18n "admin.customize.theme.compare_commits"}}
+                </a>
               {{/if}}
+            {{else}}
+              {{#unless showRemoteError}}
+                {{i18n "admin.customize.theme.up_to_date"}} {{format-date model.remote_theme.updated_at leaveAgo="true"}}
+              {{/unless}}
             {{/if}}
-          </span>
+          {{/if}}
+        </span>
       {{else}}
-        <span class='status-message'>
+        <span class="status-message">
           {{d-icon "info-circle"}} {{i18n "admin.customize.theme.imported_from_archive"}}
         </span>
       {{/if}}
     </div>
+  {{else}}
+    <div class="control-unit">
+      <span class="heading">{{i18n "admin.customize.theme.creator"}}</span>
+      <span>
+        {{#user-link user=model.user}}
+          {{format-username model.user.username}}
+        {{/user-link}}
+      </span>
+    </div>
   {{/if}}
 
   {{#unless model.component}}
-    <div class="control-unit">
-      <div class="mini-title">{{i18n "admin.customize.theme.color_scheme"}}</div>
-      <div class="description">{{i18n "admin.customize.theme.color_scheme_select"}}</div>
-      <div class="control">
-        {{color-palettes
-          content=colorSchemes
-          filterable=true
-          forceEscape=true
-          value=colorSchemeId
-          icon="paint-brush"}}
+    {{#d-section class="form-horizontal theme settings"}}
+      <div class="row setting">
+        <div class="setting-label">
+          {{i18n "admin.customize.theme.color_scheme"}}
+        </div>
+        <div class="setting-value">
+          {{color-palettes
+            content=colorSchemes
+            filterable=true
+            forceEscape=true
+            value=colorSchemeId
+            icon="paint-brush"}}
 
-         {{#if colorSchemeChanged}}
-            {{d-button action=(action "changeScheme") class="btn-primary submit-edit" icon="check"}}
-            {{d-button action=(action "cancelChangeScheme") class="btn-default cancel-edit" icon="times"}}
-         {{/if}}
+          <div class="desc">{{i18n "admin.customize.theme.color_scheme_select"}}</div>
+        </div>
+        <div class="setting-controls">
+          {{#if colorSchemeChanged}}
+            {{d-button action=(action "changeScheme") class="ok submit-edit" icon="check"}}
+            {{d-button action=(action "cancelChangeScheme") class="cancel cancel-edit" icon="times"}}
+          {{/if}}
+        </div>
       </div>
-      {{#link-to 'adminCustomize.colors' class="btn btn-default edit"}}{{i18n 'admin.customize.colors.edit'}}{{/link-to}}
-    </div>
+    {{/d-section}}
   {{/unless}}
 
   {{#if parentThemes}}
@@ -130,10 +168,24 @@
       <div class="mini-title">{{i18n "admin.customize.theme.component_of"}}</div>
       <ul>
         {{#each parentThemes as |theme|}}
-          <li>{{#link-to 'adminCustomizeThemes.show' theme replace=true}}{{theme.name}}{{/link-to}}</li>
+          <li>{{#link-to "adminCustomizeThemes.show" theme replace=true}}{{theme.name}}{{/link-to}}</li>
         {{/each}}
       </ul>
     </div>
+  {{/if}}
+
+  {{#if model.component}}
+    {{#d-section class="form-horizontal theme settings"}}
+      <div class="row setting">
+        {{theme-setting-relatives-selector setting=relativesSelectorSettingsForComponent model=model class="theme-setting"}}
+      </div>
+    {{/d-section}}
+  {{else}}
+    {{#d-section class="form-horizontal theme settings"}}
+      <div class="row setting">
+        {{theme-setting-relatives-selector setting=relativesSelectorSettingsForTheme model=model class="theme-setting"}}
+      </div>
+    {{/d-section}}
   {{/if}}
 
   <div class="control-unit">
@@ -151,20 +203,23 @@
       </div>
     {{/if}}
 
-    {{#d-button action=(action "editTheme") class="btn btn-default edit"}}{{i18n 'admin.customize.theme.edit_css_html'}}{{/d-button}}
+    {{d-button
+      class="btn-default edit"
+      action=(action "editTheme")
+      label="admin.customize.theme.edit_css_html"}}
   </div>
 
   <div class="control-unit">
     <div class="mini-title">{{i18n "admin.customize.theme.uploads"}}</div>
     {{#if model.uploads}}
-      <ul class='removable-list'>
+      <ul class="removable-list">
         {{#each model.uploads as |upload|}}
-        <li>
-          <span class='col'>${{upload.name}}: <a href={{upload.url}} target='_blank'>{{upload.filename}}</a></span>
-          <span class='col'>
-            {{d-button action=(action "removeUpload") actionParam=upload class="second btn-default btn-default cancel-edit" icon="times"}}
-          </span>
-        </li>
+          <li>
+            <span class="col">${{upload.name}}: <a href={{upload.url}} rel="noopener noreferrer" target="_blank">{{upload.filename}}</a></span>
+            <span class="col">
+              {{d-button action=(action "removeUpload") actionParam=upload class="second btn-default btn-default cancel-edit" icon="times"}}
+            </span>
+          </li>
         {{/each}}
       </ul>
     {{else}}
@@ -172,6 +227,26 @@
     {{/if}}
     {{#d-button action=(action "addUploadModal") class="btn-default" icon="plus"}}{{i18n "admin.customize.theme.add"}}{{/d-button}}
   </div>
+
+  {{#if extraFiles.length}}
+    <div class="control-unit">
+      <div class="mini-title">{{i18n "admin.customize.theme.extra_files"}}</div>
+      <details>
+        <summary>
+          {{#if model.remote_theme}}
+            {{i18n "admin.customize.theme.extra_files_remote"}}
+          {{else}}
+            {{i18n "admin.customize.theme.extra_files_upload"}}
+          {{/if}}
+        </summary>
+        <ul>
+          {{#each extraFiles as |extraFile|}}
+            <li>{{extraFile.name}}</li>
+          {{/each}}
+        </ul>
+      </details>
+    </div>
+  {{/if}}
 
   {{#if hasSettings}}
     <div class="control-unit">
@@ -195,31 +270,26 @@
     </div>
   {{/if}}
 
-  {{#if availableChildThemes}}
-    <div class="control-unit">
-      <div class="mini-title">
-        {{d-icon "puzzle-piece"}}
-        {{i18n "admin.customize.theme.theme_components"}}
-      </div>
-      {{#if model.childThemes.length}}
-        <ul class='removable-list'>
-          {{#each model.childThemes as |child|}}
-            <li>{{#link-to 'adminCustomizeThemes.show' child replace=true class='col'}}{{child.name}}{{/link-to}} {{d-button action=(action "removeChildTheme") actionParam=child class="btn-default cancel-edit col" icon="times"}}</li>
-          {{/each}}
-        </ul>
-      {{/if}}
-      {{#if selectableChildThemes}}
-        <div class="description">
-          {{combo-box forceEscape=true filterable=true content=selectableChildThemes value=selectedChildThemeId none="admin.customize.theme.select_component"}}
-          {{#d-button action=(action "addChildTheme") icon="plus" disabled=addButtonDisabled class="btn-default add-component-button"}}{{i18n "admin.customize.theme.add"}}{{/d-button}}
-        </div>
-      {{/if}}
-    </div>
-  {{/if}}
-
-  <a href='{{previewUrl}}' title="{{i18n 'admin.customize.explain_preview'}}" target='_blank' class='btn btn-default'>{{d-icon 'desktop'}}{{i18n 'admin.customize.theme.preview'}}</a>
-  <a class="btn btn-default export" target="_blank" href={{downloadUrl}}>{{d-icon "download"}} {{i18n 'admin.export_json.button_text'}}</a>
+  <a href={{previewUrl}} title={{i18n "admin.customize.explain_preview"}} rel="noopener noreferrer" target="_blank" class="btn btn-default">{{d-icon "desktop"}}{{i18n "admin.customize.theme.preview"}}</a>
+  <a class="btn btn-default export" rel="noopener noreferrer" target="_blank" href={{downloadUrl}}>{{d-icon "download"}} {{i18n "admin.export_json.button_text"}}</a>
 
   {{d-button action=(action "switchType") label="admin.customize.theme.convert" icon=convertIcon class="btn-default btn-normal" title=convertTooltip}}
+
+  {{#if model.component}}
+    {{#if model.enabled}}
+      {{d-button
+        class="btn-default"
+        action=(action "disableComponent")
+        icon="ban"
+        label="admin.customize.theme.disable"}}
+    {{else}}
+      {{d-button
+        class="btn-default"
+        action=(action "enableComponent")
+        icon="check"
+        label="admin.customize.theme.enable"}}
+    {{/if}}
+  {{/if}}
+
   {{d-button action=(action "destroy") label="admin.customize.delete" icon="trash-alt" class="btn-danger"}}
 </div>

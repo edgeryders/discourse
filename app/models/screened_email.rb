@@ -1,7 +1,5 @@
 # frozen_string_literal: true
 
-require_dependency 'screening_model'
-
 # A ScreenedEmail record represents an email address that is being watched,
 # typically when creating a new User account. If the email of the signup form
 # (or some other form) matches a ScreenedEmail record, an action can be
@@ -20,11 +18,24 @@ class ScreenedEmail < ActiveRecord::Base
     self.email = email.downcase
   end
 
+  def self.canonical(email)
+    name, domain = email.split('@', 2)
+    name = name.gsub(/\+.*/, '')
+    if ['gmail.com', 'googlemail.com'].include?(domain.downcase)
+      name = name.gsub('.', '')
+    end
+    "#{name}@#{domain}".downcase
+  end
+
   def self.block(email, opts = {})
-    find_by_email(Email.downcase(email)) || create(opts.slice(:action_type, :ip_address).merge(email: email))
+    email = canonical(email)
+    find_by_email(email) || create!(opts.slice(:action_type, :ip_address).merge(email: email))
   end
 
   def self.should_block?(email)
+
+    email = canonical(email)
+
     screened_emails = ScreenedEmail.order(created_at: :desc).limit(100)
 
     distances = {}

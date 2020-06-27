@@ -1,14 +1,16 @@
 {{#d-modal-body title="admin.user.silence_modal_title"}}
   {{#conditional-loading-spinner condition=loadingUser}}
 
-    <div class='until-controls'>
+    <div class="until-controls">
       <label>
         {{future-date-input
           class="silence-until"
           label="admin.user.silence_duration"
           includeFarFuture=true
           clearable=false
-          input=silenceUntil}}
+          input=silenceUntil
+          onChangeInput=(action (mut silenceUntil))
+        }}
       </label>
     </div>
 

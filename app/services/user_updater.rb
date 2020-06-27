@@ -40,7 +40,8 @@ class UserUpdater
     :homepage_id,
     :hide_profile_and_presence,
     :text_size,
-    :title_count_mode
+    :title_count_mode,
+    :timezone
   ]
 
   def initialize(actor, user)
@@ -51,11 +52,17 @@ class UserUpdater
 
   def update(attributes = {})
     user_profile = user.user_profile
-    user_profile.location = attributes.fetch(:location) { user_profile.location }
     user_profile.dismissed_banner_key = attributes[:dismissed_banner_key] if attributes[:dismissed_banner_key].present?
-    user_profile.website = format_url(attributes.fetch(:website) { user_profile.website })
     unless SiteSetting.enable_sso && SiteSetting.sso_overrides_bio
       user_profile.bio_raw = attributes.fetch(:bio_raw) { user_profile.bio_raw }
+    end
+
+    unless SiteSetting.enable_sso && SiteSetting.sso_overrides_location
+      user_profile.location = attributes.fetch(:location) { user_profile.location }
+    end
+
+    unless SiteSetting.enable_sso && SiteSetting.sso_overrides_website
+      user_profile.website = format_url(attributes.fetch(:website) { user_profile.website })
     end
 
     if attributes[:profile_background_upload_url] == ""
@@ -80,6 +87,19 @@ class UserUpdater
       attributes[:title] != user.title &&
       guardian.can_grant_title?(user, attributes[:title])
       user.title = attributes[:title]
+    end
+
+    if SiteSetting.user_selected_primary_groups &&
+      attributes[:primary_group_id] &&
+      attributes[:primary_group_id] != user.primary_group_id &&
+      guardian.can_use_primary_group?(user, attributes[:primary_group_id])
+
+      user.primary_group_id = attributes[:primary_group_id]
+    elsif SiteSetting.user_selected_primary_groups &&
+      attributes[:primary_group_id] &&
+      attributes[:primary_group_id].blank?
+
+      user.primary_group_id = nil
     end
 
     CATEGORY_IDS.each do |attribute, level|
@@ -154,6 +174,9 @@ class UserUpdater
           attributes.fetch(:name) { '' }
         )
       end
+    rescue Addressable::URI::InvalidURIError => e
+      # Prevent 500 for crazy url input
+      return saved
     end
 
     DiscourseEvent.trigger(:user_updated, user) if saved

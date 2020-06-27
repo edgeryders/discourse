@@ -2,7 +2,7 @@
 
 # See http://unicorn.bogomips.org/Unicorn/Configurator.html
 
-if ENV["LOGSTASH_UNICORN_URI"]
+if (ENV["LOGSTASH_UNICORN_URI"] || "").length > 0
   require_relative '../lib/discourse_logstash_logger'
   logger DiscourseLogstashLogger.logger(uri: ENV['LOGSTASH_UNICORN_URI'], type: :unicorn)
 end
@@ -15,7 +15,7 @@ worker_processes (ENV["UNICORN_WORKERS"] || 3).to_i
 working_directory discourse_path
 
 # listen "#{discourse_path}/tmp/sockets/unicorn.sock"
-listen (ENV["UNICORN_PORT"] || 3000).to_i
+listen "#{(ENV["UNICORN_BIND_ALL"] ? "" : "127.0.0.1:")}#{(ENV["UNICORN_PORT"] || 3000).to_i}"
 
 if !File.exist?("#{discourse_path}/tmp/pids")
   FileUtils.mkdir_p("#{discourse_path}/tmp/pids")
@@ -53,26 +53,15 @@ initialized = false
 before_fork do |server, worker|
 
   unless initialized
-    # load up the yaml for the localization bits, in master process
-    I18n.t(:posts)
-
-    # load up all models and schema
-    (ActiveRecord::Base.connection.tables - %w[schema_migrations versions]).each do |table|
-      table.classify.constantize.first rescue nil
-    end
-
-    # router warm up
-    Rails.application.routes.recognize_path('abc') rescue nil
-
-    # preload discourse version
-    Discourse.git_version
-    Discourse.git_branch
-    Discourse.full_version
+    Discourse.preload_rails!
 
     # V8 does not support forking, make sure all contexts are disposed
     ObjectSpace.each_object(MiniRacer::Context) { |c| c.dispose }
 
     # get rid of rubbish so we don't share it
+    # longer term we will use compact! here
+    GC.start
+    GC.start
     GC.start
 
     initialized = true
@@ -104,6 +93,13 @@ before_fork do |server, worker|
       Signal.trap("SIGTSTP") do
         STDERR.puts "#{Time.now}: Issuing stop to sidekiq"
         Demon::Sidekiq.stop
+      end
+
+      # Trap USR1, so we can re-issue to sidekiq workers
+      # but chain the default unicorn implementation as well
+      old_handler = Signal.trap("USR1") do
+        Demon::Sidekiq.kill("USR1")
+        old_handler.call
       end
 
       class ::Unicorn::HttpServer
@@ -141,9 +137,9 @@ before_fork do |server, worker|
 
         def check_sidekiq_heartbeat
           @sidekiq_heartbeat_interval ||= 30.minutes
-          @sidekiq_next_heartbeat_check ||= Time.new.to_i + @sidekiq_heartbeat_interval
+          @sidekiq_next_heartbeat_check ||= Time.now.to_i + @sidekiq_heartbeat_interval
 
-          if @sidekiq_next_heartbeat_check < Time.new.to_i
+          if @sidekiq_next_heartbeat_check < Time.now.to_i
 
             last_heartbeat = Jobs::RunHeartbeat.last_heartbeat
             restart = false
@@ -153,20 +149,20 @@ before_fork do |server, worker|
               restart = true
             end
 
-            if last_heartbeat < Time.new.to_i - @sidekiq_heartbeat_interval
+            if last_heartbeat < Time.now.to_i - @sidekiq_heartbeat_interval
               STDERR.puts "Sidekiq heartbeat test failed, restarting"
               Rails.logger.warn "Sidekiq heartbeat test failed, restarting"
 
               restart = true
             end
-            @sidekiq_next_heartbeat_check = Time.new.to_i + @sidekiq_heartbeat_interval
+            @sidekiq_next_heartbeat_check = Time.now.to_i + @sidekiq_heartbeat_interval
 
             if restart
               Demon::Sidekiq.restart
               sleep 10
               force_kill_rogue_sidekiq
             end
-            $redis._client.disconnect
+            Discourse.redis.close
           end
         end
 
@@ -181,7 +177,7 @@ before_fork do |server, worker|
 
   end
 
-  $redis._client.disconnect
+  Discourse.redis.close
 
   # Throttle the master from forking too quickly by sleeping.  Due
   # to the implementation of standard Unix signal handlers, this

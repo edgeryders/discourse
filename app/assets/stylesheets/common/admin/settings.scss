@@ -37,6 +37,9 @@
           width: 100% !important; // !important overrides hard-coded mobile width of 68px
         }
       }
+      .image-uploader {
+        display: flex;
+      }
       .uploaded-image-preview {
         background-size: contain;
         background-repeat: no-repeat;
@@ -71,7 +74,7 @@
         position: relative;
         line-height: $line-height-small;
         cursor: default;
-        border: 1px dashed #aaa;
+        border: 1px dashed $primary-low-mid;
         border-radius: 3px;
         background-clip: padding-box;
         -moz-user-select: none;
@@ -90,11 +93,20 @@
       color: $danger;
     }
     .desc {
-      color: dark-light-choose($primary-medium, $secondary-medium);
+      color: $primary-medium;
     }
     h3 {
       font-size: $font-0;
       font-weight: normal;
+    }
+
+    &.color {
+      .color-picker {
+        display: flex;
+        .picker + .sp-replacer {
+          border-left: none;
+        }
+      }
     }
   }
   .setting.overridden {

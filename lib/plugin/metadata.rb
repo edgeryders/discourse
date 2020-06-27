@@ -15,12 +15,12 @@ class Plugin::Metadata
     "discourse-akismet",
     "discourse-assign",
     "discourse-auto-deactivate",
-    "discourse-backup-uploads-to-s3",
     "discourse-bbcode",
     "discourse-bbcode-color",
     "discourse-cakeday",
     "discourse-canned-replies",
     "discourse-calendar",
+    "discourse-categories-suppressed",
     "discourse-characters-required",
     "discourse-chat-integration",
     "discourse-checklist",
@@ -60,7 +60,7 @@ class Plugin::Metadata
     "discourse-sitemap",
     "discourse-solved",
     "discourse-spoiler-alert",
-    "discourse-staff-notes",
+    "discourse-user-notes",
     "discourse-styleguide",
     "discourse-tooltips",
     "discourse-translator",
@@ -68,12 +68,18 @@ class Plugin::Metadata
     "discourse-voting",
     "discourse-yearly-review",
     "discourse-openid-connect",
+    "discourse-restricted-replies",
+    "discourse-rss-polling",
+    "discourse-zendesk-plugin",
     "docker_manager",
-    "lazyYT",
-    "poll"
+    "lazy-yt",
+    "poll",
+    "discourse-unsupported-browser",
+    "discourse-fontawesome-pro",
+    "discourse-staff-alias",
   ])
 
-  FIELDS ||= [:name, :about, :version, :authors, :url, :required_version]
+  FIELDS ||= [:name, :about, :version, :authors, :url, :required_version, :transpile_js]
   attr_accessor(*FIELDS)
 
   def self.parse(text)

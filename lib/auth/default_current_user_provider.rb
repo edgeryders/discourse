@@ -1,8 +1,5 @@
 # frozen_string_literal: true
 
-require_dependency "auth/current_user_provider"
-require_dependency "rate_limiter"
-
 class Auth::DefaultCurrentUserProvider
 
   CURRENT_USER_KEY ||= "_DISCOURSE_CURRENT_USER"
@@ -12,6 +9,7 @@ class Auth::DefaultCurrentUserProvider
   HEADER_API_USERNAME ||= "HTTP_API_USERNAME"
   HEADER_API_USER_EXTERNAL_ID ||= "HTTP_API_USER_EXTERNAL_ID"
   HEADER_API_USER_ID ||= "HTTP_API_USER_ID"
+  PARAMETER_USER_API_KEY ||= "user_api_key"
   USER_API_KEY ||= "HTTP_USER_API_KEY"
   USER_API_CLIENT_ID ||= "HTTP_USER_API_CLIENT_ID"
   API_KEY_ENV ||= "_DISCOURSE_API"
@@ -20,6 +18,38 @@ class Auth::DefaultCurrentUserProvider
   PATH_INFO ||= "PATH_INFO"
   COOKIE_ATTEMPTS_PER_MIN ||= 10
   BAD_TOKEN ||= "_DISCOURSE_BAD_TOKEN"
+
+  PARAMETER_API_PATTERNS ||= [
+    {
+      method: :get,
+      route: [
+        "posts#latest",
+        "posts#user_posts_feed",
+        "groups#posts_feed",
+        "groups#mentions_feed",
+        "list#user_topics_feed",
+        "list#category_feed",
+        "topics#feed",
+        "badges#show",
+        "tags#tag_feed",
+        "tags#show",
+        *[:latest, :unread, :new, :read, :posted, :bookmarks].map { |f| "list##{f}_feed" },
+        *[:all, :yearly, :quarterly, :monthly, :weekly, :daily].map { |p| "list#top_#{p}_feed" },
+        *[:latest, :unread, :new, :read, :posted, :bookmarks].map { |f| "tags#show_#{f}" }
+      ],
+      format: :rss
+    },
+    {
+      method: :get,
+      route: "users#bookmarks",
+      format: :ics
+    },
+    {
+      method: :post,
+      route: "admin/email#handle_mail",
+      format: "*"
+    }
+  ]
 
   # do all current user initialization here
   def initialize(env)
@@ -33,7 +63,7 @@ class Auth::DefaultCurrentUserProvider
 
     # bypass if we have the shared session header
     if shared_key = @env['HTTP_X_SHARED_SESSION_KEY']
-      uid = $redis.get("shared_session_key_#{shared_key}")
+      uid = Discourse.redis.get("shared_session_key_#{shared_key}")
       user = nil
       if uid
         user = User.find_by(id: uid.to_i)
@@ -45,7 +75,15 @@ class Auth::DefaultCurrentUserProvider
     request = @request
 
     user_api_key = @env[USER_API_KEY]
-    api_key = @env.blank? ? nil : @env[HEADER_API_KEY] || request[API_KEY]
+    api_key = @env[HEADER_API_KEY]
+
+    if !@env.blank? && request[PARAMETER_USER_API_KEY] && api_parameter_allowed?
+      user_api_key ||= request[PARAMETER_USER_API_KEY]
+    end
+
+    if !@env.blank? && request[API_KEY] && api_parameter_allowed?
+      api_key ||= request[API_KEY]
+    end
 
     auth_token = request.cookies[TOKEN_COOKIE] unless user_api_key || api_key
 
@@ -55,11 +93,17 @@ class Auth::DefaultCurrentUserProvider
       limiter = RateLimiter.new(nil, "cookie_auth_#{request.ip}", COOKIE_ATTEMPTS_PER_MIN , 60)
 
       if limiter.can_perform?
-        @user_token = UserAuthToken.lookup(auth_token,
-                                           seen: true,
-                                           user_agent: @env['HTTP_USER_AGENT'],
-                                           path: @env['REQUEST_PATH'],
-                                           client_ip: @request.ip)
+        @user_token = begin
+          UserAuthToken.lookup(
+            auth_token,
+            seen: true,
+            user_agent: @env['HTTP_USER_AGENT'],
+            path: @env['REQUEST_PATH'],
+            client_ip: @request.ip
+          )
+        rescue ActiveRecord::ReadOnlyError
+          nil
+        end
 
         current_user = @user_token.try(:user)
       end
@@ -121,9 +165,11 @@ class Auth::DefaultCurrentUserProvider
 
     if current_user && should_update_last_seen?
       u = current_user
+      ip = request.ip
+
       Scheduler::Defer.later "Updating Last Seen" do
         u.update_last_seen!
-        u.update_ip_address!(request.ip)
+        u.update_ip_address!(ip)
       end
     end
 
@@ -145,6 +191,7 @@ class Auth::DefaultCurrentUserProvider
                                client_ip: @request.ip,
                                path: @env['REQUEST_PATH'])
           cookies[TOKEN_COOKIE] = cookie_hash(@user_token.unhashed_auth_token)
+          DiscourseEvent.trigger(:user_session_refreshed, user)
         end
       end
     end
@@ -164,9 +211,12 @@ class Auth::DefaultCurrentUserProvider
       impersonate: opts[:impersonate])
 
     cookies[TOKEN_COOKIE] = cookie_hash(@user_token.unhashed_auth_token)
-    unstage_user(user)
+    user.unstage!
     make_developer_admin(user)
     enable_bootstrap_mode(user)
+
+    UserAuthToken.enforce_session_count_limit!(user.id)
+
     @env[CURRENT_USER_KEY] = user
   end
 
@@ -183,13 +233,6 @@ class Auth::DefaultCurrentUserProvider
     end
 
     hash
-  end
-
-  def unstage_user(user)
-    if user.staged
-      user.unstage
-      user.save
-    end
   end
 
   def make_developer_admin(user)
@@ -252,7 +295,7 @@ class Auth::DefaultCurrentUserProvider
     api = !!(@env[API_KEY_ENV]) || !!(@env[USER_API_KEY_ENV])
 
     if @request.xhr? || api
-      @env["HTTP_DISCOURSE_VISIBLE".freeze] == "true".freeze
+      @env["HTTP_DISCOURSE_PRESENT"] == "true"
     else
       true
     end
@@ -261,7 +304,7 @@ class Auth::DefaultCurrentUserProvider
   protected
 
   def lookup_user_api_user_and_update_key(user_api_key, client_id)
-    if api_key = UserApiKey.where(key: user_api_key, revoked_at: nil).includes(:user).first
+    if api_key = UserApiKey.active.with_key(user_api_key).includes(:user).first
       unless api_key.allow?(@env)
         raise Discourse::InvalidAccess
       end
@@ -284,7 +327,7 @@ class Auth::DefaultCurrentUserProvider
   end
 
   def lookup_api_user(api_key_value, request)
-    if api_key = ApiKey.where(key: api_key_value).includes(:user).first
+    if api_key = ApiKey.active.with_key(api_key_value).includes(:user).first
       api_username = header_api_key? ? @env[HEADER_API_USERNAME] : request[API_USERNAME]
 
       if api_key.allowed_ips.present? && !api_key.allowed_ips.any? { |ip| ip.include?(request.ip) }
@@ -292,19 +335,43 @@ class Auth::DefaultCurrentUserProvider
         return nil
       end
 
-      if api_key.user
-        api_key.user if !api_username || (api_key.user.username_lower == api_username.downcase)
-      elsif api_username
-        User.find_by(username_lower: api_username.downcase)
-      elsif user_id = header_api_key? ? @env[HEADER_API_USER_ID] : request["api_user_id"]
-        User.find_by(id: user_id.to_i)
-      elsif external_id = header_api_key? ? @env[HEADER_API_USER_EXTERNAL_ID] : request["api_user_external_id"]
-        SingleSignOnRecord.find_by(external_id: external_id.to_s).try(:user)
+      user =
+        if api_key.user
+          api_key.user if !api_username || (api_key.user.username_lower == api_username.downcase)
+        elsif api_username
+          User.find_by(username_lower: api_username.downcase)
+        elsif user_id = header_api_key? ? @env[HEADER_API_USER_ID] : request["api_user_id"]
+          User.find_by(id: user_id.to_i)
+        elsif external_id = header_api_key? ? @env[HEADER_API_USER_EXTERNAL_ID] : request["api_user_external_id"]
+          SingleSignOnRecord.find_by(external_id: external_id.to_s).try(:user)
+        end
+
+      if user
+        api_key.update_columns(last_used_at: Time.zone.now)
       end
+
+      user
     end
   end
 
   private
+
+  # By default we only allow headers for sending API credentials
+  # However, in some scenarios it is essential to send them via url parameters
+  # so we need to add some exceptions
+  def api_parameter_allowed?
+    request_method = @env["REQUEST_METHOD"]&.downcase&.to_sym
+    request_format = @env['action_dispatch.request.formats']&.first&.symbol
+
+    path_params = @env['action_dispatch.request.path_parameters']
+    request_route = "#{path_params[:controller]}##{path_params[:action]}" if path_params
+
+    PARAMETER_API_PATTERNS.any? do |p|
+      (p[:method] == "*" || Array(p[:method]).include?(request_method)) &&
+      (p[:format] == "*" || Array(p[:format]).include?(request_format)) &&
+      (p[:route] == "*" || Array(p[:route]).include?(request_route))
+    end
+  end
 
   def header_api_key?
     !!@env[HEADER_API_KEY]
@@ -315,7 +382,7 @@ class Auth::DefaultCurrentUserProvider
 
     RateLimiter.new(
       nil,
-      "admin_api_min_#{api_key}",
+      "admin_api_min_#{ApiKey.hash_key(api_key)}",
       GlobalSetting.max_admin_api_reqs_per_key_per_minute,
       60
     ).performed!

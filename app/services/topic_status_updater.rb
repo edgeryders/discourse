@@ -42,6 +42,10 @@ TopicStatusUpdater = Struct.new(:topic, :user) do
       DiscourseEvent.trigger(:topic_closed, topic)
     end
 
+    if status.visible? && status.disabled?
+      UserProfile.remove_featured_topic_from_all_profiles(topic)
+    end
+
     if @topic_status_update
       if status.manually_closing_topic? || status.closing_topic?
         topic.delete_topic_timer(TopicTimer.types[:close])
@@ -85,7 +89,7 @@ TopicStatusUpdater = Struct.new(:topic, :user) do
   def message_for_autoclosed(locale_key)
     num_minutes =
       if @topic_status_update&.based_on_last_post
-        @topic_status_update.duration.hours
+        (@topic_status_update.duration || 0).hours
       elsif @topic_status_update&.created_at
         Time.zone.now - @topic_status_update.created_at
       else

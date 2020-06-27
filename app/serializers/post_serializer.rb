@@ -4,7 +4,6 @@ class PostSerializer < BasicPostSerializer
 
   # To pass in additional information we might need
   INSTANCE_VARS ||= [
-    :topic_view,
     :parent_post,
     :add_raw,
     :add_title,
@@ -27,6 +26,7 @@ class PostSerializer < BasicPostSerializer
              :quote_count,
              :incoming_link_count,
              :reads,
+             :readers_count,
              :score,
              :yours,
              :topic_id,
@@ -47,8 +47,14 @@ class PostSerializer < BasicPostSerializer
              :link_counts,
              :read,
              :user_title,
+             :title_is_group,
              :reply_to_user,
              :bookmarked,
+             :bookmark_reminder_at,
+             :bookmark_id,
+             :bookmark_reminder_type,
+             :bookmark_name,
+             :bookmark_delete_when_reminder_sent,
              :raw,
              :actions_summary,
              :moderator?,
@@ -207,6 +213,14 @@ class PostSerializer < BasicPostSerializer
     object&.user&.title
   end
 
+  def title_is_group
+    object&.user&.title == object.user&.primary_group&.title
+  end
+
+  def include_title_is_group?
+    object&.user&.title.present?
+  end
+
   def trust_level
     object&.user&.trust_level
   end
@@ -216,10 +230,6 @@ class PostSerializer < BasicPostSerializer
       username: object.reply_to_user.username,
       avatar_template: object.reply_to_user.avatar_template
     }
-  end
-
-  def bookmarked
-    true
   end
 
   def deleted_by
@@ -309,8 +319,60 @@ class PostSerializer < BasicPostSerializer
     !(SiteSetting.suppress_reply_when_quoting && object.reply_quoted?) && object.reply_to_user
   end
 
+  # this atrtribute is not even included unless include_bookmarked? is true,
+  # which is why it is always true if included
+  def bookmarked
+    true
+  end
+
   def include_bookmarked?
-    actions.present? && actions.keys.include?(PostActionType.types[:bookmark])
+    post_bookmark.present?
+  end
+
+  def include_bookmark_reminder_at?
+    include_bookmarked?
+  end
+
+  def include_bookmark_reminder_type?
+    include_bookmarked?
+  end
+
+  def include_bookmark_name?
+    include_bookmarked?
+  end
+
+  def include_bookmark_delete_when_reminder_sent?
+    include_bookmarked?
+  end
+
+  def include_bookmark_id?
+    include_bookmarked?
+  end
+
+  def post_bookmark
+    return nil if @topic_view.blank?
+    @post_bookmark ||= @topic_view.user_post_bookmarks.find { |bookmark| bookmark.post_id == object.id }
+  end
+
+  def bookmark_reminder_at
+    post_bookmark&.reminder_at
+  end
+
+  def bookmark_reminder_type
+    return if post_bookmark.blank?
+    Bookmark.reminder_types[post_bookmark.reminder_type].to_s
+  end
+
+  def bookmark_name
+    post_bookmark&.name
+  end
+
+  def bookmark_delete_when_reminder_sent
+    post_bookmark&.delete_when_reminder_sent
+  end
+
+  def bookmark_id
+    post_bookmark&.id
   end
 
   def include_display_username?
@@ -368,7 +430,7 @@ class PostSerializer < BasicPostSerializer
   end
 
   def notice_type
-    post_custom_fields["notice_type"]
+    post_custom_fields[Post::NOTICE_TYPE]
   end
 
   def include_notice_type?
@@ -389,7 +451,7 @@ class PostSerializer < BasicPostSerializer
   end
 
   def notice_args
-    post_custom_fields["notice_args"]
+    post_custom_fields[Post::NOTICE_ARGS]
   end
 
   def include_notice_args?
@@ -488,14 +550,6 @@ private
 
   def post_actions
     @post_actions ||= (@topic_view&.all_post_actions || {})[object.id]
-  end
-
-  def post_custom_fields
-    @post_custom_fields ||= if @topic_view
-      (@topic_view.post_custom_fields || {})[object.id] || {}
-    else
-      object.custom_fields
-    end
   end
 
 end

@@ -1,12 +1,9 @@
 # frozen_string_literal: true
 
-require_dependency 'email/sender'
-require_dependency 'user_notifications'
-
 module Jobs
 
   # Asynchronously send an email to a user
-  class UserEmail < Jobs::Base
+  class UserEmail < ::Jobs::Base
     include Skippable
 
     sidekiq_options queue: 'low'
@@ -29,16 +26,17 @@ module Jobs
       notification = nil
       type = args[:type]
       user = User.find_by(id: args[:user_id])
-      to_address = args[:to_address].presence || user.try(:email).presence || "no_email_found"
+      to_address = args[:to_address].presence || user&.primary_email&.email.presence || "no_email_found"
 
       set_skip_context(type, args[:user_id], to_address, args[:post_id])
 
-      return skip(SkippedEmailLog.reason_types[:user_email_no_user]) unless user
+      return skip(SkippedEmailLog.reason_types[:user_email_no_user]) if !user
+      return skip(SkippedEmailLog.reason_types[:user_email_no_email]) if to_address == "no_email_found"
 
       if args[:post_id].present?
         post = Post.find_by(id: args[:post_id])
 
-        unless post.present?
+        if post.blank?
           return skip(SkippedEmailLog.reason_types[:user_email_post_not_found])
         end
 
@@ -156,7 +154,7 @@ module Jobs
       raise Discourse::InvalidParameters.new("type=#{type}") unless UserNotifications.respond_to?(type)
 
       email_args[:email_token] = email_token if email_token.present?
-      email_args[:new_email] = user.email if type.to_s == "notify_old_email"
+      email_args[:new_email] = args[:new_email] || user.email if type.to_s == "notify_old_email" || type.to_s == "notify_old_email_add"
 
       if args[:client_ip] && args[:user_agent]
         email_args[:client_ip] = args[:client_ip]
@@ -192,7 +190,7 @@ module Jobs
       when Net::SMTPServerBusy
         1.hour + (rand(30) * (count + 1))
       else
-        Jobs::UserEmail.seconds_to_delay(count)
+        ::Jobs::UserEmail.seconds_to_delay(count)
       end
     end
 
@@ -228,7 +226,7 @@ module Jobs
 
         already_read = user.user_option.email_level != UserOption.email_level_types[:always] && PostTiming.exists?(topic_id: post.topic_id, post_number: post.post_number, user_id: user.id)
         if already_read
-          return SkippedEmailLog.reason_types[:user_email_already_read]
+          SkippedEmailLog.reason_types[:user_email_already_read]
         end
       else
         false

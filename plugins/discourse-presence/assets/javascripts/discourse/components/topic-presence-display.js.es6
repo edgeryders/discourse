@@ -1,59 +1,27 @@
-import {
-  default as computed,
-  on
-} from "ember-addons/ember-computed-decorators";
-import {
-  keepAliveDuration,
-  bufferTime
-} from "discourse/plugins/discourse-presence/discourse/components/composer-presence-display";
+import Component from "@ember/component";
+import { gt } from "@ember/object/computed";
+import { inject as service } from "@ember/service";
+import discourseComputed, { on } from "discourse-common/utils/decorators";
+import { TOPIC_TYPE } from "discourse/plugins/discourse-presence/discourse/lib/presence";
 
-const MB_GET_LAST_MESSAGE = -2;
+export default Component.extend({
+  topic: null,
+  presenceManager: service(),
 
-export default Ember.Component.extend({
-  topicId: null,
-  presenceUsers: null,
-
-  clear() {
-    if (!this.isDestroyed) this.set("presenceUsers", []);
+  @discourseComputed("topic.id")
+  users(topicId) {
+    return this.presenceManager.users(topicId);
   },
 
-  @on("didInsertElement")
-  _inserted() {
-    this.clear();
+  shouldDisplay: gt("users.length", 0),
 
-    this.messageBus.subscribe(
-      this.channel,
-      message => {
-        if (!this.isDestroyed) this.set("presenceUsers", message.users);
-        this._clearTimer = Ember.run.debounce(
-          this,
-          "clear",
-          keepAliveDuration + bufferTime
-        );
-      },
-      MB_GET_LAST_MESSAGE
-    );
+  @on("didInsertElement")
+  subscribe() {
+    this.presenceManager.subscribe(this.get("topic.id"), TOPIC_TYPE);
   },
 
   @on("willDestroyElement")
   _destroyed() {
-    Ember.run.cancel(this._clearTimer);
-    this.messageBus.unsubscribe(this.channel);
-  },
-
-  @computed("topicId")
-  channel(topicId) {
-    return `/presence/topic/${topicId}`;
-  },
-
-  @computed("presenceUsers", "currentUser.{id,ignored_users}")
-  users(users, currentUser) {
-    const ignoredUsers = currentUser.ignored_users || [];
-    return (users || []).filter(
-      user =>
-        user.id !== currentUser.id && !ignoredUsers.includes(user.username)
-    );
-  },
-
-  shouldDisplay: Ember.computed.gt("users.length", 0)
+    this.presenceManager.unsubscribe(this.get("topic.id"), TOPIC_TYPE);
+  }
 });

@@ -20,13 +20,13 @@ describe Admin::StaffActionLogsController do
 
       get "/admin/logs/staff_action_logs.json", params: { action_id: UserHistory.actions[:delete_topic] }
 
-      json = JSON.parse(response.body)
+      json = response.parsed_body
       expect(response.status).to eq(200)
 
       expect(json["staff_action_logs"].length).to eq(1)
       expect(json["staff_action_logs"][0]["action_name"]).to eq("delete_topic")
 
-      expect(json["user_history_actions"]).to include(
+      expect(json["extras"]["user_history_actions"]).to include(
         "id" => 'delete_topic', "action_id" => UserHistory.actions[:delete_topic]
       )
     end
@@ -38,14 +38,14 @@ describe Admin::StaffActionLogsController do
 
       get "/admin/logs/staff_action_logs.json", params: { limit: 3 }
 
-      json = JSON.parse(response.body)
+      json = response.parsed_body
       expect(response.status).to eq(200)
       expect(json["staff_action_logs"].length).to eq(3)
       expect(json["staff_action_logs"][0]["new_value"]).to eq("value 4")
 
       get "/admin/logs/staff_action_logs.json", params: { limit: 3, page: 1 }
 
-      json = JSON.parse(response.body)
+      json = response.parsed_body
       expect(response.status).to eq(200)
       expect(json["staff_action_logs"].length).to eq(1)
       expect(json["staff_action_logs"][0]["new_value"]).to eq("value 1")
@@ -59,8 +59,8 @@ describe Admin::StaffActionLogsController do
       it 'Uses the custom_staff id' do
         get "/admin/logs/staff_action_logs.json", params: {}
 
-        json = JSON.parse(response.body)
-        action = json['user_history_actions'].first
+        json = response.parsed_body
+        action = json['extras']['user_history_actions'].first
 
         expect(action['id']).to eq plugin_extended_action.to_s
         expect(action['action_id']).to eq UserHistory.actions[:custom_staff]
@@ -84,11 +84,18 @@ describe Admin::StaffActionLogsController do
       get "/admin/logs/staff_action_logs/#{record.id}/diff.json"
       expect(response.status).to eq(200)
 
-      parsed = JSON.parse(response.body)
+      parsed = response.parsed_body
       expect(parsed["side_by_side"]).to include("up")
       expect(parsed["side_by_side"]).to include("down")
 
       expect(parsed["side_by_side"]).not_to include("omit-dupe")
+    end
+
+    it 'is not erroring when current value is empty' do
+      theme = Fabricate(:theme)
+      StaffActionLogger.new(admin).log_theme_destroy(theme)
+      get "/admin/logs/staff_action_logs/#{UserHistory.last.id}/diff.json"
+      expect(response.status).to eq(200)
     end
   end
 end

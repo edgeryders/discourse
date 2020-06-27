@@ -1,7 +1,6 @@
 # frozen_string_literal: true
 
 require 'rails_helper'
-require_dependency 'crawler_detection'
 
 describe CrawlerDetection do
 
@@ -48,10 +47,13 @@ describe CrawlerDetection do
       crawler! "LogicMonitor SiteMonitor/1.0"
       crawler! "Java/1.8.0_151"
       crawler! "Mozilla/5.0 (compatible; Yahoo! Slurp; http://help.yahoo.com/help/us/ysearch/slurp)"
+      crawler! "Mozilla/5.0 (Linux; Android 6.0.1; Nexus 5 Build/MRA58N) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/74.0.3694.0 Mobile Safari/537.36 Chrome-Lighthouse"
     end
 
     it "returns true when VIA header contains 'web.archive.org'" do
-      crawler!("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_14_4) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/74.0.3729.169 Safari/537.36", "HTTP/1.0 web.archive.org (Wayback Save Page)")
+      crawler! "Mozilla/5.0 (compatible; archive.org_bot +http://archive.org/details/archive.org_bot)"
+      crawler! "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_14_4) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/74.0.3729.169 Safari/537.36", "HTTP/1.0 web.archive.org (Wayback Save Page)"
+      crawler! "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/74.0.3729.169 Safari/537.36", "Mozilla/5.0 (compatible; archive.org_bot; Wayback Machine Live Record; http://archive.org/details/archive.org_bot), 1.1 warcprox"
     end
 
     it "returns false for non-crawler user agents" do

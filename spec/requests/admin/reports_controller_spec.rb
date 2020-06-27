@@ -27,7 +27,7 @@ describe Admin::ReportsController do
           }
 
           expect(response.status).to eq(200)
-          expect(JSON.parse(response.body)["reports"].count).to eq(2)
+          expect(response.parsed_body["reports"].count).to eq(2)
         end
       end
 
@@ -42,9 +42,27 @@ describe Admin::ReportsController do
             }
 
             expect(response.status).to eq(200)
-            expect(JSON.parse(response.body)["reports"].count).to eq(2)
-            expect(JSON.parse(response.body)["reports"][0]["type"]).to eq("topics")
-            expect(JSON.parse(response.body)["reports"][1]["type"]).to eq("not_found")
+            expect(response.parsed_body["reports"].count).to eq(2)
+            expect(response.parsed_body["reports"][0]["type"]).to eq("topics")
+            expect(response.parsed_body["reports"][1]["type"]).to eq("not_found")
+          end
+        end
+
+        context "invalid start or end dates" do
+          it "doesn't return 500 error" do
+            get "/admin/reports/bulk.json", params: {
+              reports: {
+                topics: { limit: 10, start_date: "2015-0-1" }
+              }
+            }
+            expect(response.status).to eq(400)
+
+            get "/admin/reports/bulk.json", params: {
+              reports: {
+                topics: { limit: 10, end_date: "2015-0-1" }
+              }
+            }
+            expect(response.status).to eq(400)
           end
         end
       end
@@ -74,7 +92,7 @@ describe Admin::ReportsController do
             get "/admin/reports/topics.json"
 
             expect(response.status).to eq(200)
-            expect(JSON.parse(response.body)["report"]["total"]).to eq(1)
+            expect(response.parsed_body["report"]["total"]).to eq(1)
           end
         end
       end
@@ -89,7 +107,7 @@ describe Admin::ReportsController do
 
           expect(response.status).to eq(200)
 
-          report = JSON.parse(response.body)["report"]
+          report = response.parsed_body["report"]
 
           expect(report["type"]).to eq('topics')
           expect(report["data"].count).to eq(1)
@@ -108,7 +126,7 @@ describe Admin::ReportsController do
 
           expect(response.status).to eq(200)
 
-          report = JSON.parse(response.body)["report"]
+          report = response.parsed_body["report"]
 
           expect(report["type"]).to eq('signups')
           expect(report["data"].count).to eq(1)

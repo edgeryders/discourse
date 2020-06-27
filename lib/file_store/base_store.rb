@@ -9,7 +9,7 @@ module FileStore
       store_file(file, path)
     end
 
-    def store_optimized_image(file, optimized_image)
+    def store_optimized_image(file, optimized_image, content_type = nil, secure: false)
       path = get_path_for_optimized_image(optimized_image)
       store_file(file, path)
     end
@@ -31,7 +31,9 @@ module FileStore
     end
 
     def upload_path
-      File.join("uploads", RailsMultisite::ConnectionManagement.current_db)
+      path = File.join("uploads", RailsMultisite::ConnectionManagement.current_db)
+      return path if !Rails.env.test?
+      File.join(path, "test_#{ENV['TEST_ENV_NUMBER'].presence || '0'}")
     end
 
     def has_been_uploaded?(url)
@@ -54,6 +56,10 @@ module FileStore
       not_implemented
     end
 
+    def s3_upload_host
+      not_implemented
+    end
+
     def external?
       not_implemented
     end
@@ -70,14 +76,18 @@ module FileStore
       not_implemented
     end
 
-    def download(upload)
-      DistributedMutex.synchronize("download_#{upload.sha1}") do
+    def download(upload, max_file_size_kb: nil)
+      DistributedMutex.synchronize("download_#{upload.sha1}", validity: 3.minutes) do
         filename = "#{upload.sha1}#{File.extname(upload.original_filename)}"
         file = get_from_cache(filename)
 
         if !file
-          max_file_size_kb = [SiteSetting.max_image_size_kb, SiteSetting.max_attachment_size_kb].max.kilobytes
-          url = Discourse.store.cdn_url(upload.url)
+          max_file_size_kb ||= [SiteSetting.max_image_size_kb, SiteSetting.max_attachment_size_kb].max.kilobytes
+
+          url = upload.secure? ?
+            Discourse.store.signed_url_for_path(upload.url) :
+            Discourse.store.cdn_url(upload.url)
+
           url = SiteSetting.scheme + ":" + url if url =~ /^\/\//
           file = FileHelper.download(
             url,
@@ -111,14 +121,14 @@ module FileStore
           File.extname(upload.original_filename)
         end
 
-      get_path_for("original".freeze, upload.id, upload.sha1, extension)
+      get_path_for("original", upload.id, upload.sha1, extension)
     end
 
     def get_path_for_optimized_image(optimized_image)
       upload = optimized_image.upload
       version = optimized_image.version || 1
       extension = "_#{version}_#{optimized_image.width}x#{optimized_image.height}#{optimized_image.extension}"
-      get_path_for("optimized".freeze, upload.id, upload.sha1, extension)
+      get_path_for("optimized", upload.id, upload.sha1, extension)
     end
 
     CACHE_DIR ||= "#{Rails.root}/tmp/download_cache/"
@@ -138,8 +148,19 @@ module FileStore
       dir = File.dirname(path)
       FileUtils.mkdir_p(dir) unless Dir.exist?(dir)
       FileUtils.cp(file.path, path)
-      # keep latest 500 files
-      `ls -tr #{CACHE_DIR} | head -n -#{CACHE_MAXIMUM_SIZE} | awk '$0="#{CACHE_DIR}"$0' | xargs rm -f`
+
+      # Remove all but CACHE_MAXIMUM_SIZE most recent files
+      files = Dir.glob("#{CACHE_DIR}*")
+      files.sort_by! do |f|
+        begin
+          File.mtime(f)
+        rescue Errno::ENOENT
+          Time.new(0)
+        end
+      end
+      files.pop(CACHE_MAXIMUM_SIZE)
+
+      FileUtils.rm(files, force: true)
     end
 
     private

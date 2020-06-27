@@ -13,15 +13,6 @@ zh_TW:
       total_votes:
         other: "總票數"
       average_rating: "平均評分：<strong>%{average}</strong>。"
-      multiple:
-        help:
-          at_least_min_options:
-            other: "至少選擇 <strong>%{count}</strong> 個選項"
-          up_to_max_options:
-            other: "最多選擇 <strong>%{count}</strong> 個選項"
-          x_options:
-            other: "選擇 <strong>%{count}</strong> 個選項"
-          between_min_and_max_options: "選擇 <strong>%{min}</strong> 至 <strong>%{max}</strong> 個選項"
       cast-votes:
         title: "投你的票"
         label: "現在投票！"
@@ -30,7 +21,8 @@ zh_TW:
         label: "顯示結果"
       hide-results:
         title: "返回到你的投票"
-        label: "隱藏結果"
+      export-results:
+        label: "匯出"
       open:
         title: "開啟投票"
         label: "開啟"
@@ -46,7 +38,6 @@ zh_TW:
         title: 創建投票
         insert: 插入投票
         help:
-          options_count: 輸入至少 2 個選項
           invalid_values: 最小值必須比最大值小。
           min_step_value: 最小梯級階值為 1
         poll_type:

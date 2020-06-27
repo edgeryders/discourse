@@ -1,14 +1,5 @@
 # frozen_string_literal: true
 
-require_dependency 'new_post_manager'
-require_dependency 'post_creator'
-require_dependency 'post_action_destroyer'
-require_dependency 'post_destroyer'
-require_dependency 'post_merger'
-require_dependency 'distributed_memoizer'
-require_dependency 'new_post_result_serializer'
-require_dependency 'post_locker'
-
 class PostsController < ApplicationController
 
   requires_login except: [
@@ -115,6 +106,7 @@ class PostsController < ApplicationController
   def user_posts_feed
     params.require(:username)
     user = fetch_user_from_params
+    raise Discourse::NotFound unless guardian.can_see_profile?(user)
 
     posts = Post.public_posts
       .where(user_id: user.id)
@@ -204,7 +196,7 @@ class PostsController < ApplicationController
 
     if !guardian.public_send("can_edit?", post) &&
        post.user_id == current_user.id &&
-       post.edit_time_limit_expired?
+       post.edit_time_limit_expired?(current_user)
 
       return render_json_error(I18n.t('too_late_to_edit'))
     end
@@ -344,7 +336,7 @@ class PostsController < ApplicationController
     params.require(:post_ids)
     agree_with_first_reply_flag = (params[:agree_with_first_reply_flag] || true).to_s == "true"
 
-    posts = Post.where(id: post_ids_including_replies)
+    posts = Post.where(id: post_ids_including_replies).order(:id)
     raise Discourse::InvalidParameters.new(:post_ids) if posts.blank?
 
     # Make sure we can delete the posts
@@ -487,8 +479,8 @@ class PostsController < ApplicationController
     post = find_post_from_params
 
     if params[:notice].present?
-      post.custom_fields["notice_type"] = Post.notices[:custom]
-      post.custom_fields["notice_args"] = params[:notice]
+      post.custom_fields[Post::NOTICE_TYPE] = Post.notices[:custom]
+      post.custom_fields[Post::NOTICE_ARGS] = PrettyText.cook(params[:notice], features: { onebox: false })
       post.save_custom_fields
     else
       post.delete_post_notices
@@ -497,24 +489,13 @@ class PostsController < ApplicationController
     render body: nil
   end
 
-  def bookmark
-    if params[:bookmarked] == "true"
-      post = find_post_from_params
-      result = PostActionCreator.create(current_user, post, :bookmark)
-      return render_json_error(result) if result.failed?
-    else
-      post_action = PostAction.find_by(post_id: params[:post_id], user_id: current_user.id)
-      raise Discourse::NotFound unless post_action
+  def destroy_bookmark
+    params.require(:post_id)
 
-      post = Post.with_deleted.find_by(id: post_action&.post_id)
-      raise Discourse::NotFound unless post
+    bookmark_id = Bookmark.where(post_id: params[:post_id], user_id: current_user.id).pluck_first(:id)
+    result = BookmarkManager.new(current_user).destroy(bookmark_id)
 
-      result = PostActionDestroyer.destroy(current_user, post, :bookmark)
-      return render_json_error(result) if result.failed?
-    end
-
-    topic_user = TopicUser.get(post.topic, current_user)
-    render_json_dump(topic_bookmarked: topic_user.try(:bookmarked))
+    render json: success_json.merge(result)
   end
 
   def wiki
@@ -675,16 +656,28 @@ class PostsController < ApplicationController
       :topic_id,
       :archetype,
       :category,
+      # TODO remove together with 'targetUsername' deprecations
       :target_usernames,
+      :target_recipients,
       :reply_to_post_number,
       :auto_track,
       :typing_duration_msecs,
       :composer_open_duration_msecs,
-      :visible
+      :visible,
+      :draft_key
     ]
 
-    Post.plugin_permitted_create_params.each do |key, plugin|
-      permitted << key if plugin.enabled?
+    Post.plugin_permitted_create_params.each do |key, value|
+      if value[:plugin].enabled?
+        permitted <<  case value[:type]
+                      when :string
+                        key.to_sym
+                      when :array
+                        { key => [] }
+                      when :hash
+                        { key => {} }
+        end
+      end
     end
 
     # param munging for WordPress
@@ -748,13 +741,19 @@ class PostsController < ApplicationController
     result[:user_agent] = request.user_agent
     result[:referrer] = request.env["HTTP_REFERER"]
 
-    if usernames = result[:target_usernames]
-      usernames = usernames.split(",")
-      groups = Group.messageable(current_user).where('name in (?)', usernames).pluck('name')
-      usernames -= groups
-      emails = usernames.select { |user| user.match(/@/) }
-      usernames -= emails
-      result[:target_usernames] = usernames.join(",")
+    if recipients = result[:target_usernames]
+      Discourse.deprecate("`target_usernames` is deprecated, use `target_recipients` instead.", output_in_test: true)
+    else
+      recipients = result[:target_recipients]
+    end
+
+    if recipients
+      recipients = recipients.split(",").map(&:downcase)
+      groups = Group.messageable(current_user).where('lower(name) in (?)', recipients).pluck('lower(name)')
+      recipients -= groups
+      emails = recipients.select { |user| user.match(/@/) }
+      recipients -= emails
+      result[:target_usernames] = recipients.join(",")
       result[:target_emails] = emails.join(",")
       result[:target_group_names] = groups.join(",")
     end

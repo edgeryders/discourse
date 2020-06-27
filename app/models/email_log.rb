@@ -1,15 +1,15 @@
 # frozen_string_literal: true
 
-require_dependency 'distributed_mutex'
-
 class EmailLog < ActiveRecord::Base
   CRITICAL_EMAIL_TYPES ||= Set.new %w{
     account_created
     admin_login
     confirm_new_email
     confirm_old_email
+    confirm_old_email_add
     forgot_password
     notify_old_email
+    notify_old_email_add
     signup
     signup_after_approval
   }

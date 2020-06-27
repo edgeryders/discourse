@@ -1,7 +1,5 @@
 # frozen_string_literal: true
 
-require_dependency 'pinned_check'
-
 class ListableTopicSerializer < BasicTopicSerializer
 
   attributes :reply_count,
@@ -11,6 +9,7 @@ class ListableTopicSerializer < BasicTopicSerializer
              :last_posted_at,
              :bumped,
              :bumped_at,
+             :archetype,
              :unseen,
              :last_read_post_number,
              :unread,
@@ -25,9 +24,20 @@ class ListableTopicSerializer < BasicTopicSerializer
              :notification_level,
              :bookmarked,
              :liked,
-             :unicode_title
+             :unicode_title,
+             :unread_by_group_member,
+             :thumbnails
 
   has_one :last_poster, serializer: BasicUserSerializer, embed: :objects
+
+  def image_url
+    object.image_url
+  end
+
+  def thumbnails
+    extra_sizes = ThemeModifierHelper.new(request: scope.request).topic_thumbnail_sizes
+    object.thumbnail_info(enqueue_if_missing: true, extra_sizes: extra_sizes)
+  end
 
   def include_unicode_title?
     object.title.match?(/:[\w\-+]+:/)
@@ -60,6 +70,7 @@ class ListableTopicSerializer < BasicTopicSerializer
   def seen
     return true if !scope || !scope.user
     return true if object.user_data && !object.user_data.last_read_post_number.nil?
+    return true if object.category_user_data&.last_seen_at && object.created_at < object.category_user_data.last_seen_at
     return true if object.created_at < scope.user.user_option.treat_as_new_topic_start_date
     false
   end
@@ -110,7 +121,7 @@ class ListableTopicSerializer < BasicTopicSerializer
   alias :include_new_posts? :has_user_data
 
   def include_excerpt?
-    pinned || SiteSetting.always_include_topic_excerpts
+    pinned || SiteSetting.always_include_topic_excerpts || ThemeModifierHelper.new(request: scope.request).serialize_topic_excerpts
   end
 
   def pinned
@@ -119,6 +130,18 @@ class ListableTopicSerializer < BasicTopicSerializer
 
   def unpinned
     PinnedCheck.unpinned?(object, object.user_data)
+  end
+
+  def unread_by_group_member
+    # object#last_read_post_number is an attribute selected from a joined table.
+    # See TopicQuery#append_read_state for more information.
+    return false unless object.respond_to?(:last_read_post_number)
+
+    object.last_read_post_number < object.highest_post_number
+  end
+
+  def include_unread_by_group_member?
+    !!object.topic_list&.publish_read_state
   end
 
   protected

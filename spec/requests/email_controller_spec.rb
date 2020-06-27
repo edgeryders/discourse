@@ -151,7 +151,7 @@ RSpec.describe EmailController do
     describe 'when topic is public' do
       it 'should return the right response' do
         key = SecureRandom.hex
-        $redis.set(key, user.email)
+        Discourse.cache.write(key, user.email)
         get '/email/unsubscribed', params: { key: key, topic_id: topic.id }
         expect(response.status).to eq(200)
         expect(response.body).to include(topic.title)
@@ -161,26 +161,10 @@ RSpec.describe EmailController do
     describe 'when topic is private' do
       it 'should return the right response' do
         key = SecureRandom.hex
-        $redis.set(key, user.email)
+        Discourse.cache.write(key, user.email)
         get '/email/unsubscribed', params: { key: key, topic_id: private_topic.id }
         expect(response.status).to eq(200)
         expect(response.body).to_not include(private_topic.title)
-      end
-    end
-  end
-
-  context '#preferences_redirect' do
-    it 'requires you to be logged in' do
-      get "/email_preferences.json"
-      expect(response.status).to eq(403)
-    end
-
-    context 'when logged in' do
-      let!(:user) { sign_in(Fabricate(:user)) }
-
-      it 'redirects to your user preferences' do
-        get "/email_preferences.json"
-        expect(response).to redirect_to("/u/#{user.username}/preferences")
       end
     end
   end
@@ -231,7 +215,7 @@ RSpec.describe EmailController do
 
         navigate_to_unsubscribe
 
-        source = Nokogiri::HTML::fragment(response.body)
+        source = Nokogiri::HTML5::fragment(response.body)
         expect(source.css(".combobox option").map(&:inner_text)).to eq(slow_digest_frequencies)
       end
 
@@ -242,7 +226,7 @@ RSpec.describe EmailController do
 
         navigate_to_unsubscribe
 
-        source = Nokogiri::HTML::fragment(response.body)
+        source = Nokogiri::HTML5::fragment(response.body)
         expect(source.css(".combobox option[selected='selected']")[0]['value']).to eq(six_months_freq.to_s)
       end
 
@@ -253,7 +237,7 @@ RSpec.describe EmailController do
 
         navigate_to_unsubscribe
 
-        source = Nokogiri::HTML::fragment(response.body)
+        source = Nokogiri::HTML5::fragment(response.body)
         expect(source.css(".combobox option[selected='selected']")[0]['value']).to eq(never_frequency.to_s)
       end
     end

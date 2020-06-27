@@ -34,12 +34,16 @@ class Migration::SafeMigrate
     private
 
     def is_post_deploy_migration?
+      instance_methods = self.class.instance_methods(false)
+
       method =
-        if self.respond_to?(:up)
+        if instance_methods.include?(:up)
           :up
-        elsif self.respond_to?(:change)
+        elsif instance_methods.include?(:change)
           :change
         end
+
+      return false if !method
 
       self.method(method).source_location.first.include?(
         Discourse::DB_POST_MIGRATE_PATH
@@ -67,8 +71,13 @@ class Migration::SafeMigrate
     end
   end
 
+  def self.post_migration_path
+    Discourse::DB_POST_MIGRATE_PATH
+  end
+
   def self.enable!
     return if PG::Connection.method_defined?(:exec_migrator_unpatched)
+    return if ENV['RAILS_ENV'] == "production"
 
     PG::Connection.class_eval do
       alias_method :exec_migrator_unpatched, :exec
@@ -88,6 +97,8 @@ class Migration::SafeMigrate
 
   def self.disable!
     return if !PG::Connection.method_defined?(:exec_migrator_unpatched)
+    return if ENV['RAILS_ENV'] == "production"
+
     PG::Connection.class_eval do
       alias_method :exec, :exec_migrator_unpatched
       alias_method :async_exec, :async_exec_migrator_unpatched
@@ -98,6 +109,8 @@ class Migration::SafeMigrate
   end
 
   def self.patch_active_record!
+    return if ENV['RAILS_ENV'] == "production"
+
     ActiveSupport.on_load(:active_record) do
       ActiveRecord::Migration.prepend(SafeMigration)
     end

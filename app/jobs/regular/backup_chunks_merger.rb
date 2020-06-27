@@ -1,11 +1,8 @@
 # frozen_string_literal: true
 
-require_dependency "backup_restore/local_backup_store"
-require_dependency "backup_restore/backup_store"
-
 module Jobs
 
-  class BackupChunksMerger < Jobs::Base
+  class BackupChunksMerger < ::Jobs::Base
     sidekiq_options queue: 'critical', retry: false
 
     def execute(args)
@@ -35,7 +32,7 @@ module Jobs
       # push an updated list to the clients
       store = BackupRestore::BackupStore.create
       data = ActiveModel::ArraySerializer.new(store.files, each_serializer: BackupFileSerializer).as_json
-      MessageBus.publish("/admin/backups", data, user_ids: User.staff.pluck(:id))
+      MessageBus.publish("/admin/backups", data, group_ids: [Group::AUTO_GROUPS[:staff]])
     end
 
   end

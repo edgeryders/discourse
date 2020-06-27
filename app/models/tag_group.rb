@@ -13,6 +13,7 @@ class TagGroup < ActiveRecord::Base
 
   before_create :init_permissions
   before_save :apply_permissions
+  before_save :remove_parent_from_group
 
   after_commit { DiscourseTagging.clear_cache! }
 
@@ -36,11 +37,18 @@ class TagGroup < ActiveRecord::Base
     @permissions = TagGroup.resolve_permissions(permissions)
   end
 
-  def self.resolve_permissions(permissions)
-    everyone_group_id = Group::AUTO_GROUPS[:everyone]
-    full = TagGroupPermission.permission_types[:full]
+  # TODO: long term we can cache this if TONs of tag groups exist
+  def self.find_id_by_slug(slug)
+    self.pluck(:id, :name).each do |id, name|
+      if Slug.for(name) == slug
+        return id
+      end
+    end
+    nil
+  end
 
-    mapped = permissions.map do |group, permission|
+  def self.resolve_permissions(permissions)
+    permissions.map do |group, permission|
       group_id = Group.group_id_from_param(group)
       permission = TagGroupPermission.permission_types[permission] unless permission.is_a?(Integer)
       [group_id, permission]
@@ -64,6 +72,10 @@ class TagGroup < ActiveRecord::Base
       end
       @permissions = nil
     end
+  end
+
+  def remove_parent_from_group
+    tags.delete(parent_tag) if tags.include?(parent_tag)
   end
 
   def self.visible(guardian)

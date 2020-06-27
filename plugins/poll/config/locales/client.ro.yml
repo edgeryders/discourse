@@ -17,21 +17,6 @@ ro:
         few: "total voturi"
         other: "total voturi"
       average_rating: "Media: <strong>%{average}</strong>."
-      multiple:
-        help:
-          at_least_min_options:
-            one: "Trebuie să alegi minim <strong>o</strong> opţiune."
-            few: "Trebuie să alegi cel puțin <strong>%{count}</strong> opțiuni."
-            other: "Trebuie să alegi cel puțin <strong>%{count}</strong> opțiuni."
-          up_to_max_options:
-            one: "Poți alege maximum <strong>o</strong> opțiune."
-            few: "Poți alege până la <strong>%{count}</strong> opțiuni."
-            other: "Poți alege până la <strong>%{count}</strong> de opțiuni."
-          x_options:
-            one: "Trebuie să alegi <strong>o</strong> opțiune."
-            few: "Trebuie să alegi <strong>%{count}</strong> opțiuni."
-            other: "Trebuie să alegi <strong>%{count}</strong> opțiuni."
-          between_min_and_max_options: "Trebuie să alegi între minim <strong>%{min}</strong> și maxim <strong>%{max}</strong> opțiuni"
       cast-votes:
         title: "Exprimă-ți votul"
         label: "Votează acum!"
@@ -40,7 +25,8 @@ ro:
         label: "Afișează rezultate"
       hide-results:
         title: "Înapoi la voturile tale"
-        label: "Ascunde rezultate"
+      export-results:
+        label: "Exportă"
       open:
         title: "Deschide sondajul"
         label: "Deschide sondajul"
@@ -56,7 +42,6 @@ ro:
         title: Creează sondaj
         insert: Introdu sondaj
         help:
-          options_count: Trebuie să introduci cel puțin 2 opțiuni
           invalid_values: Valoarea minimă trebuie să fie mai mică decât valoarea maximă.
           min_step_value: Valoarea minimă a pasului este 1
         poll_type:

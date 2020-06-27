@@ -35,18 +35,18 @@ describe GlobalSetting do
       freeze_time Time.now
 
       token = GlobalSetting.safe_secret_key_base
-      $redis.without_namespace.del(GlobalSetting::REDIS_SECRET_KEY)
+      Discourse.redis.without_namespace.del(GlobalSetting::REDIS_SECRET_KEY)
       freeze_time Time.now + 20
 
       GlobalSetting.safe_secret_key_base
-      new_token = $redis.without_namespace.get(GlobalSetting::REDIS_SECRET_KEY)
+      new_token = Discourse.redis.without_namespace.get(GlobalSetting::REDIS_SECRET_KEY)
       expect(new_token).to eq(nil)
 
       freeze_time Time.now + 11
 
       GlobalSetting.safe_secret_key_base
 
-      new_token = $redis.without_namespace.get(GlobalSetting::REDIS_SECRET_KEY)
+      new_token = Discourse.redis.without_namespace.get(GlobalSetting::REDIS_SECRET_KEY)
       expect(new_token).to eq(token)
 
     end
@@ -86,7 +86,7 @@ describe GlobalSetting do
         GlobalSetting.expects(:redis_slave_port).returns(6379).at_least_once
         GlobalSetting.expects(:redis_slave_host).returns('0.0.0.0').at_least_once
 
-        expect(GlobalSetting.redis_config[:connector]).to eq(DiscourseRedis::Connector)
+        expect(GlobalSetting.redis_config[:connector]).to eq(RailsFailover::Redis::Connector)
       end
     end
   end

@@ -2,18 +2,45 @@
 
 require 'rails_helper'
 
-require_dependency 'jobs/scheduled/clean_up_uploads'
-
 describe Jobs::CleanUpUploads do
 
   def fabricate_upload(attributes = {})
     Fabricate(:upload, { created_at: 2.hours.ago }.merge(attributes))
   end
 
+  fab! :expired_upload do
+    fabricate_upload
+  end
+
   before do
     SiteSetting.clean_up_uploads = true
     SiteSetting.clean_orphan_uploads_grace_period_hours = 1
-    @upload = fabricate_upload
+
+    # pre-fabrication resets created_at, so re-expire the upload
+    expired_upload
+    freeze_time 2.hours.from_now
+
+    Jobs::CleanUpUploads.new.reset_last_cleanup!
+  end
+
+  it "only runs upload cleanup every grace period / 2 time" do
+
+    SiteSetting.clean_orphan_uploads_grace_period_hours = 48
+    expired = fabricate_upload(created_at: 49.hours.ago)
+    Jobs::CleanUpUploads.new.execute(nil)
+
+    expect(Upload.exists?(id: expired.id)).to eq(false)
+
+    upload = fabricate_upload(created_at: 72.hours.ago)
+    Jobs::CleanUpUploads.new.execute(nil)
+
+    expect(Upload.exists?(id: upload.id)).to eq(true)
+
+    freeze_time 25.hours.from_now
+
+    Jobs::CleanUpUploads.new.execute(nil)
+    expect(Upload.exists?(id: upload.id)).to eq(false)
+
   end
 
   it "deletes orphan uploads" do
@@ -21,7 +48,7 @@ describe Jobs::CleanUpUploads do
       Jobs::CleanUpUploads.new.execute(nil)
     end.to change { Upload.count }.by(-1)
 
-    expect(Upload.exists?(id: @upload.id)).to eq(false)
+    expect(Upload.exists?(id: expired_upload.id)).to eq(false)
   end
 
   describe 'when clean_up_uploads is disabled' do
@@ -39,7 +66,7 @@ describe Jobs::CleanUpUploads do
         Jobs::CleanUpUploads.new.execute(nil)
       end.to change { Upload.count }.by(-1)
 
-      expect(Upload.exists?(id: @upload.id)).to eq(true)
+      expect(Upload.exists?(id: expired_upload.id)).to eq(true)
       expect(Upload.exists?(id: upload2.id)).to eq(false)
     end
   end
@@ -100,58 +127,16 @@ describe Jobs::CleanUpUploads do
   end
 
   it "does not clean up uploads with URLs used in site settings" do
-    logo_upload = fabricate_upload
-    logo_small_upload = fabricate_upload
-    digest_logo_upload = fabricate_upload
-    mobile_logo_upload = fabricate_upload
-    large_icon_upload = fabricate_upload
-    default_opengraph_image_upload = fabricate_upload
-    twitter_summary_large_image_upload = fabricate_upload
-    favicon_upload = fabricate_upload
-    apple_touch_icon_upload = fabricate_upload
     avatar1_upload = fabricate_upload
     avatar2_upload = fabricate_upload
 
-    SiteSetting.logo_url = logo_upload.url
-    SiteSetting.logo_small_url = logo_small_upload.url
-    SiteSetting.digest_logo_url = digest_logo_upload.url
-    SiteSetting.mobile_logo_url = mobile_logo_upload.url
-    SiteSetting.large_icon_url = large_icon_upload.url
-    SiteSetting.default_opengraph_image_url = default_opengraph_image_upload.url
-
-    SiteSetting.twitter_summary_large_image_url =
-      twitter_summary_large_image_upload.url
-
-    SiteSetting.favicon_url = favicon_upload.url
-    SiteSetting.apple_touch_icon_url = apple_touch_icon_upload.url
     SiteSetting.selectable_avatars = [avatar1_upload.url, avatar2_upload.url].join("\n")
 
     Jobs::CleanUpUploads.new.execute(nil)
 
-    expect(Upload.exists?(id: @upload.id)).to eq(false)
-    expect(Upload.exists?(id: logo_upload.id)).to eq(true)
-    expect(Upload.exists?(id: logo_small_upload.id)).to eq(true)
-    expect(Upload.exists?(id: digest_logo_upload.id)).to eq(true)
-    expect(Upload.exists?(id: mobile_logo_upload.id)).to eq(true)
-    expect(Upload.exists?(id: large_icon_upload.id)).to eq(true)
-    expect(Upload.exists?(id: default_opengraph_image_upload.id)).to eq(true)
-    expect(Upload.exists?(id: twitter_summary_large_image_upload.id)).to eq(true)
-    expect(Upload.exists?(id: favicon_upload.id)).to eq(true)
-    expect(Upload.exists?(id: apple_touch_icon_upload.id)).to eq(true)
+    expect(Upload.exists?(id: expired_upload.id)).to eq(false)
     expect(Upload.exists?(id: avatar1_upload.id)).to eq(true)
     expect(Upload.exists?(id: avatar2_upload.id)).to eq(true)
-  end
-
-  it "does not clean up uploads in site settings when they use the CDN" do
-    Discourse.stubs(:asset_host).returns("//my.awesome.cdn")
-
-    logo_small_upload = fabricate_upload
-    SiteSetting.logo_small_url = "#{Discourse.asset_host}#{logo_small_upload.url}"
-
-    Jobs::CleanUpUploads.new.execute(nil)
-
-    expect(Upload.exists?(id: @upload.id)).to eq(false)
-    expect(Upload.exists?(id: logo_small_upload.id)).to eq(true)
   end
 
   it "does not delete profile background uploads" do
@@ -160,7 +145,7 @@ describe Jobs::CleanUpUploads do
 
     Jobs::CleanUpUploads.new.execute(nil)
 
-    expect(Upload.exists?(id: @upload.id)).to eq(false)
+    expect(Upload.exists?(id: expired_upload.id)).to eq(false)
     expect(Upload.exists?(id: profile_background_upload.id)).to eq(true)
   end
 
@@ -170,7 +155,7 @@ describe Jobs::CleanUpUploads do
 
     Jobs::CleanUpUploads.new.execute(nil)
 
-    expect(Upload.exists?(id: @upload.id)).to eq(false)
+    expect(Upload.exists?(id: expired_upload.id)).to eq(false)
     expect(Upload.exists?(id: card_background_upload.id)).to eq(true)
   end
 
@@ -180,7 +165,7 @@ describe Jobs::CleanUpUploads do
 
     Jobs::CleanUpUploads.new.execute(nil)
 
-    expect(Upload.exists?(id: @upload.id)).to eq(false)
+    expect(Upload.exists?(id: expired_upload.id)).to eq(false)
     expect(Upload.exists?(id: category_logo_upload.id)).to eq(true)
   end
 
@@ -190,7 +175,7 @@ describe Jobs::CleanUpUploads do
 
     Jobs::CleanUpUploads.new.execute(nil)
 
-    expect(Upload.exists?(id: @upload.id)).to eq(false)
+    expect(Upload.exists?(id: expired_upload.id)).to eq(false)
     expect(Upload.exists?(id: category_logo_upload.id)).to eq(true)
   end
 
@@ -200,7 +185,7 @@ describe Jobs::CleanUpUploads do
 
     Jobs::CleanUpUploads.new.execute(nil)
 
-    expect(Upload.exists?(id: @upload.id)).to eq(false)
+    expect(Upload.exists?(id: expired_upload.id)).to eq(false)
     expect(Upload.exists?(id: upload.id)).to eq(true)
   end
 
@@ -210,7 +195,7 @@ describe Jobs::CleanUpUploads do
 
     Jobs::CleanUpUploads.new.execute(nil)
 
-    expect(Upload.exists?(id: @upload.id)).to eq(false)
+    expect(Upload.exists?(id: expired_upload.id)).to eq(false)
     expect(Upload.exists?(id: upload.id)).to eq(true)
   end
 
@@ -220,7 +205,7 @@ describe Jobs::CleanUpUploads do
 
     Jobs::CleanUpUploads.new.execute(nil)
 
-    expect(Upload.exists?(id: @upload.id)).to eq(false)
+    expect(Upload.exists?(id: expired_upload.id)).to eq(false)
     expect(Upload.exists?(id: upload.id)).to eq(true)
   end
 
@@ -230,7 +215,7 @@ describe Jobs::CleanUpUploads do
 
     Jobs::CleanUpUploads.new.execute(nil)
 
-    expect(Upload.exists?(id: @upload.id)).to eq(false)
+    expect(Upload.exists?(id: expired_upload.id)).to eq(false)
     expect(Upload.exists?(id: upload.id)).to eq(true)
   end
 
@@ -252,7 +237,7 @@ describe Jobs::CleanUpUploads do
 
     Jobs::CleanUpUploads.new.execute(nil)
 
-    expect(Upload.exists?(id: @upload.id)).to eq(false)
+    expect(Upload.exists?(id: expired_upload.id)).to eq(false)
     expect(Upload.exists?(id: upload.id)).to eq(true)
     expect(Upload.exists?(id: upload2.id)).to eq(true)
     expect(Upload.exists?(id: upload3.id)).to eq(false)
@@ -266,9 +251,18 @@ describe Jobs::CleanUpUploads do
 
     Jobs::CleanUpUploads.new.execute(nil)
 
-    expect(Upload.exists?(id: @upload.id)).to eq(false)
+    expect(Upload.exists?(id: expired_upload.id)).to eq(false)
     expect(Upload.exists?(id: upload.id)).to eq(true)
     expect(Upload.exists?(id: upload2.id)).to eq(true)
+  end
+
+  it "does not delete uploads with an access control post ID (secure uploads)" do
+    upload = fabricate_upload(access_control_post_id: Fabricate(:post).id, secure: true)
+
+    Jobs::CleanUpUploads.new.execute(nil)
+
+    expect(Upload.exists?(id: expired_upload.id)).to eq(false)
+    expect(Upload.exists?(id: upload.id)).to eq(true)
   end
 
   it "does not delete custom emojis" do
@@ -277,7 +271,7 @@ describe Jobs::CleanUpUploads do
 
     Jobs::CleanUpUploads.new.execute(nil)
 
-    expect(Upload.exists?(id: @upload.id)).to eq(false)
+    expect(Upload.exists?(id: expired_upload.id)).to eq(false)
     expect(Upload.exists?(id: upload.id)).to eq(true)
   end
 
@@ -287,7 +281,7 @@ describe Jobs::CleanUpUploads do
 
     Jobs::CleanUpUploads.new.execute(nil)
 
-    expect(Upload.exists?(id: @upload.id)).to eq(false)
+    expect(Upload.exists?(id: expired_upload.id)).to eq(false)
     expect(Upload.exists?(id: csv_file.id)).to eq(true)
   end
 end

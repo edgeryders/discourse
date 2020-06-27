@@ -1,5 +1,4 @@
 # frozen_string_literal: true
-require_dependency 'search'
 
 class SearchIndexer
   INDEX_VERSION = 3
@@ -138,7 +137,12 @@ class SearchIndexer
     end
 
     category_name = topic.category&.name if topic
-    tag_names = topic.tags.pluck(:name).join(' ') if topic
+    if topic
+      tags = topic.tags.select(:id, :name)
+      unless tags.empty?
+        tag_names = (tags.map(&:name) + Tag.where(target_tag_id: tags.map(&:id)).pluck(:name)).join(' ')
+      end
+    end
 
     if Post === obj && obj.raw.present? &&
        (
@@ -187,7 +191,7 @@ class SearchIndexer
     def self.scrub(html, strip_diacritics: false)
       return +"" if html.blank?
 
-      document = Nokogiri::HTML("<div>#{html}</div>", nil, Encoding::UTF_8.to_s)
+      document = Nokogiri::HTML5("<div>#{html}</div>", nil, Encoding::UTF_8.to_s)
 
       nodes = document.css(
         "div.#{CookedPostProcessor::LIGHTBOX_WRAPPER_CSS_CLASS}"

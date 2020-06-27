@@ -299,6 +299,7 @@ describe OptimizedImage do
         SiteSetting.s3_upload_bucket = "s3-upload-bucket"
         SiteSetting.s3_access_key_id = "some key"
         SiteSetting.s3_secret_access_key = "some secret key"
+        SiteSetting.s3_region = "us-east-1"
 
         tempfile = Tempfile.new(["discourse-external", ".png"])
 
@@ -311,9 +312,10 @@ describe OptimizedImage do
         end
       end
 
-      context "when an error happened while generatign the thumbnail" do
+      context "when we have a bad file returned" do
         it "returns nil" do
-          OptimizedImage.expects(:resize).returns(false)
+          # tempfile is empty
+          # this can not be resized
           expect(OptimizedImage.create_for(s3_upload, 100, 200)).to eq(nil)
         end
       end
@@ -378,7 +380,7 @@ class FakeInternalStore
     upload.url
   end
 
-  def store_optimized_image(file, optimized_image)
+  def store_optimized_image(file, optimized_image, content_type = nil, secure: false)
     "/internally/stored/optimized/image#{optimized_image.extension}"
   end
 

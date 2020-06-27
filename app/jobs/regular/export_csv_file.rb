@@ -1,18 +1,19 @@
 # frozen_string_literal: true
 
 require 'csv'
-require_dependency 'system_message'
-require_dependency 'upload_creator'
 
 module Jobs
 
-  class ExportCsvFile < Jobs::Base
-    include ActionView::Helpers::NumberHelper
-
+  class ExportCsvFile < ::Jobs::Base
     sidekiq_options retry: false
 
+    attr_accessor :extra
+    attr_accessor :current_user
+    attr_accessor :entity
+
     HEADER_ATTRS_FOR ||= HashWithIndifferentAccess.new(
-      user_archive: ['topic_title', 'category', 'sub_category', 'is_pm', 'post', 'like_count', 'reply_count', 'url', 'created_at'],
+      user_archive: ['topic_title', 'categories', 'is_pm', 'post', 'like_count', 'reply_count', 'url', 'created_at'],
+      user_archive_profile: ['location', 'website', 'bio', 'views'],
       user_list: ['id', 'name', 'username', 'email', 'title', 'created_at', 'last_seen_at', 'last_posted_at', 'last_emailed_at', 'trust_level', 'approved', 'suspended_at', 'suspended_till', 'silenced_till', 'active', 'admin', 'moderator', 'ip_address', 'staged', 'secondary_emails'],
       user_stats: ['topics_entered', 'posts_read_count', 'time_read', 'topic_count', 'post_count', 'likes_given', 'likes_received'],
       user_profile: ['location', 'website', 'views'],
@@ -29,48 +30,61 @@ module Jobs
       @extra = HashWithIndifferentAccess.new(args[:args]) if args[:args]
       @current_user = User.find_by(id: args[:user_id])
 
-      export_method = :"#{@entity}_export"
-      raise Discourse::InvalidParameters.new(:entity) unless respond_to?(export_method)
+      entities = [{ name: @entity }]
+      entities << { name: "user_archive_profile" } if @entity === "user_archive"
 
-      file_name_prefix = if @entity == "user_archive"
-        "#{@entity.split('_').join('-')}-#{@current_user.username}-#{Time.now.strftime("%y%m%d-%H%M%S")}"
-      elsif @entity == "report" && @extra[:name].present?
-        "#{@extra[:name].split('_').join('-')}-#{Time.now.strftime("%y%m%d-%H%M%S")}"
-      else
-        "#{@entity.split('_').join('-')}-#{Time.now.strftime("%y%m%d-%H%M%S")}"
+      entities.each do |entity|
+        entity[:method] = :"#{entity[:name]}_export"
+        raise Discourse::InvalidParameters.new(:entity) unless respond_to?(entity[:method])
+
+        @timestamp ||= Time.now.strftime("%y%m%d-%H%M%S")
+        entity[:filename] =
+          if entity[:name] == "user_archive" || entity[:name] === "user_archive_profile"
+            "#{entity[:name].dasherize}-#{@current_user.username}-#{@timestamp}"
+          elsif entity[:name] == "report" && @extra[:name].present?
+            "#{@extra[:name].dasherize}-#{@timestamp}"
+          else
+            "#{entity[:name].dasherize}-#{@timestamp}"
+          end
       end
 
       export_title = if @entity == "report" && @extra[:name].present?
         I18n.t("reports.#{@extra[:name]}.title")
       else
-        @entity.split('_').join(' ').titleize
+        @entity.gsub('_', ' ').titleize
       end
 
-      user_export = UserExport.create(file_name: file_name_prefix, user_id: @current_user.id)
-      file_name = "#{file_name_prefix}-#{user_export.id}.csv"
-      absolute_path = "#{UserExport.base_directory}/#{file_name}"
+      filename = entities[0][:filename] # use first entity as a name for this export
+      user_export = UserExport.create(file_name: filename, user_id: @current_user.id)
+
+      filename = "#{filename}-#{user_export.id}"
+      dirname = "#{UserExport.base_directory}/#{filename}"
 
       # ensure directory exists
-      FileUtils.mkdir_p(UserExport.base_directory) unless Dir.exists?(UserExport.base_directory)
+      FileUtils.mkdir_p(dirname) unless Dir.exists?(dirname)
 
-      # write to CSV file
-      CSV.open(absolute_path, "w") do |csv|
-        csv << get_header
-        public_send(export_method).each { |d| csv << d }
+      # Generate a compressed CSV file
+      begin
+        entities.each do |entity|
+          CSV.open("#{dirname}/#{entity[:filename]}.csv", "w") do |csv|
+            csv << get_header(entity[:name]) if entity[:name] != "report"
+            public_send(entity[:method]).each { |d| csv << d }
+          end
+        end
+
+        zip_filename = Compression::Zip.new.compress(UserExport.base_directory, filename)
+      ensure
+        FileUtils.rm_rf(dirname)
       end
-
-      # compress CSV file
-      system('gzip', '-5', absolute_path)
 
       # create upload
       upload = nil
-      compressed_file_path = "#{absolute_path}.gz"
 
-      if File.exist?(compressed_file_path)
-        File.open(compressed_file_path) do |file|
+      if File.exist?(zip_filename)
+        File.open(zip_filename) do |file|
           upload = UploadCreator.new(
             file,
-            File.basename(compressed_file_path),
+            File.basename(zip_filename),
             type: 'csv_export',
             for_export: 'true'
           ).create_for(@current_user.id)
@@ -78,11 +92,11 @@ module Jobs
           if upload.persisted?
             user_export.update_columns(upload_id: upload.id)
           else
-            Rails.logger.warn("Failed to upload the file #{Discourse.base_uri}/export_csv/#{file_name}.gz")
+            Rails.logger.warn("Failed to upload the file #{zip_filename}")
           end
         end
 
-        File.delete(compressed_file_path)
+        File.delete(zip_filename)
       end
     ensure
       post = notify_user(upload, export_title)
@@ -104,6 +118,17 @@ module Jobs
         .with_deleted
         .each do |user_archive|
         yield get_user_archive_fields(user_archive)
+      end
+    end
+
+    def user_archive_profile_export
+      return enum_for(:user_archive_profile_export) unless block_given?
+
+      UserProfile
+        .where(user_id: @current_user.id)
+        .select(:location, :website, :bio_raw, :views)
+        .each do |user_profile|
+        yield get_user_archive_profile_fields(user_profile)
       end
     end
 
@@ -181,23 +206,60 @@ module Jobs
     def report_export
       return enum_for(:report_export) unless block_given?
 
-      @extra[:start_date] = @extra[:start_date].to_date.beginning_of_day if @extra[:start_date].is_a?(String)
-      @extra[:end_date] = @extra[:end_date].to_date.end_of_day if @extra[:end_date].is_a?(String)
-      @extra[:category_id] = @extra[:category_id].present? ? @extra[:category_id].to_i : nil
-      @extra[:group_id] = @extra[:group_id].present? ? @extra[:group_id].to_i : nil
-
-      report_hash = {}
-      Report.find(@extra[:name], @extra).data.each do |row|
-        report_hash[row[:x].to_s] = row[:y].to_s
+      # If dates are invalid consider then `nil`
+      if @extra[:start_date].is_a?(String)
+        @extra[:start_date] = @extra[:start_date].to_date.beginning_of_day rescue nil
+      end
+      if @extra[:end_date].is_a?(String)
+        @extra[:end_date] = @extra[:end_date].to_date.end_of_day rescue nil
       end
 
-      (@extra[:start_date].to_date..@extra[:end_date].to_date).each do |date|
-        yield [date.to_s(:db), report_hash.fetch(date.to_s, 0)]
+      @extra[:filters] = {}
+      @extra[:filters][:category] = @extra[:category].to_i if @extra[:category].present?
+      @extra[:filters][:group] = @extra[:group].to_i if @extra[:group].present?
+      @extra[:filters][:include_subcategories] = !!ActiveRecord::Type::Boolean.new.cast(@extra[:include_subcategories]) if @extra[:include_subcategories].present?
+
+      report = Report.find(@extra[:name], @extra)
+
+      header = []
+      titles = {}
+
+      report.labels.each do |label|
+        if label[:type] == :user
+          titles[label[:properties][:username]] = label[:title]
+          header << label[:properties][:username]
+        elsif label[:type] == :topic
+          titles[label[:properties][:id]] = label[:title]
+          header << label[:properties][:id]
+        else
+          titles[label[:property]] = label[:title]
+          header << label[:property]
+        end
       end
+
+      if report.modes == [:stacked_chart]
+        header = [:x]
+        data = {}
+
+        report.data.map do |series|
+          header << series[:label]
+          series[:data].each do |datapoint|
+            data[datapoint[:x]] ||= { x: datapoint[:x] }
+            data[datapoint[:x]][series[:label]] = datapoint[:y]
+          end
+        end
+
+        data = data.values
+      else
+        data = report.data
+      end
+
+      yield header.map { |k| titles[k] || k }
+      data.each { |row| yield row.values_at(*header).map(&:to_s) }
     end
 
-    def get_header
-      if @entity == 'user_list'
+    def get_header(entity)
+      if entity == 'user_list'
         header_array = HEADER_ATTRS_FOR['user_list'] + HEADER_ATTRS_FOR['user_stats'] + HEADER_ATTRS_FOR['user_profile']
         header_array.concat(HEADER_ATTRS_FOR['user_sso']) if SiteSetting.enable_sso
         user_custom_fields = UserField.all
@@ -208,7 +270,7 @@ module Jobs
         end
         header_array.push("group_names")
       else
-        header_array = HEADER_ATTRS_FOR[@entity]
+        header_array = HEADER_ATTRS_FOR[entity]
       end
 
       header_array
@@ -285,25 +347,22 @@ module Jobs
       user_archive = user_archive.as_json
       topic_data = Topic.with_deleted.find_by(id: user_archive['topic_id']) if topic_data.nil?
       return user_archive_array if topic_data.nil?
-      category = topic_data.category
-      sub_category_name = "-"
-      if category
-        category_name = category.name
-        if category.parent_category_id.present?
-          # sub category
-          if parent_category = Category.find_by(id: category.parent_category_id)
-            category_name = parent_category.name
-            sub_category_name = category.name
-          end
+
+      all_categories = Category.all.to_h { |category| [category.id, category] }
+
+      categories = "-"
+      if topic_data.category_id && category = all_categories[topic_data.category_id]
+        categories = [category.name]
+        while category.parent_category_id && category = all_categories[category.parent_category_id]
+          categories << category.name
         end
-      else
-        # PM
-        category_name = "-"
+        categories = categories.reverse.join("|")
       end
+
       is_pm = topic_data.archetype == "private_message" ? I18n.t("csv_export.boolean_yes") : I18n.t("csv_export.boolean_no")
       url = "#{Discourse.base_url}/t/#{topic_data.slug}/#{topic_data.id}/#{user_archive['post_number']}"
 
-      topic_hash = { "post" => user_archive['raw'], "topic_title" => topic_data.title, "category" => category_name, "sub_category" => sub_category_name, "is_pm" => is_pm, "url" => url }
+      topic_hash = { "post" => user_archive['raw'], "topic_title" => topic_data.title, "categories" => categories, "is_pm" => is_pm, "url" => url }
       user_archive.merge!(topic_hash)
 
       HEADER_ATTRS_FOR['user_archive'].each do |attr|
@@ -311,6 +370,23 @@ module Jobs
       end
 
       user_archive_array
+    end
+
+    def get_user_archive_profile_fields(user_profile)
+      user_archive_profile = []
+
+      HEADER_ATTRS_FOR['user_archive_profile'].each do |attr|
+        data =
+          if attr == 'bio'
+            user_profile.attributes['bio_raw']
+          else
+            user_profile.attributes[attr]
+          end
+
+          user_archive_profile.push(data)
+      end
+
+      user_archive_profile
     end
 
     def get_staff_action_fields(staff_action)
@@ -395,7 +471,7 @@ module Jobs
           SystemMessage.create_from_system_user(
             @current_user,
             :csv_export_succeeded,
-            download_link: "[#{upload.original_filename}|attachment](#{upload.short_url}) (#{number_to_human_size(upload.filesize)})",
+            download_link: UploadMarkdown.new(upload).attachment_markdown,
             export_title: export_title
           )
         else

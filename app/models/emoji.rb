@@ -6,14 +6,11 @@ class Emoji
 
   FITZPATRICK_SCALE ||= [ "1f3fb", "1f3fc", "1f3fd", "1f3fe", "1f3ff" ]
 
+  DEFAULT_GROUP ||= "default"
+
   include ActiveModel::SerializerSupport
 
-  attr_reader :path
-  attr_accessor :name, :url
-
-  def initialize(path = nil)
-    @path = path
-  end
+  attr_accessor :name, :url, :tonable, :group
 
   def self.all
     Discourse.cache.fetch(cache_key("all_emojis")) { standard | custom }
@@ -43,24 +40,39 @@ class Emoji
     Discourse.cache.fetch(cache_key("tonable_emojis")) { db['tonableEmojis'] }
   end
 
+  def self.custom?(name)
+    name = name.delete_prefix(':').delete_suffix(':')
+    Emoji.custom.detect { |e| e.name == name }.present?
+  end
+
   def self.exists?(name)
     Emoji[name].present?
   end
 
   def self.[](name)
-    Emoji.custom.detect { |e| e.name == name }
+    name = name.delete_prefix(':').delete_suffix(':')
+    is_toned = name.match?(/.+:t[1-6]/)
+    normalized_name = name.gsub(/(.+):t[1-6]/, '\1')
+
+    Emoji.all.detect do |e|
+      e.name == normalized_name &&
+      (!is_toned || (is_toned && e.tonable))
+    end
   end
 
   def self.create_from_db_item(emoji)
     name = emoji["name"]
     filename = emoji['filename'] || name
+
     Emoji.new.tap do |e|
       e.name = name
+      e.tonable = Emoji.tonable_emojis.include?(name)
       e.url = Emoji.url_for(filename)
     end
   end
 
   def self.url_for(name)
+    name = name.delete_prefix(':').delete_suffix(':').gsub(/(.+):t([1-6])/, '\1/\2')
     "#{Discourse.base_uri}/images/emoji/#{SiteSetting.emoji_set}/#{name}.png?v=#{EMOJI_VERSION}"
   end
 
@@ -94,15 +106,19 @@ class Emoji
         result << Emoji.new.tap do |e|
           e.name = emoji.name
           e.url = emoji.upload&.url
+          e.group = emoji.group || DEFAULT_GROUP
         end
       end
     end
 
-    Plugin::CustomEmoji.emojis.each do |name, url|
-      result << Emoji.new.tap do |e|
-        e.name = name
-        url = (Discourse.base_uri + url) if url[/^\/[^\/]/]
-        e.url = url
+    Plugin::CustomEmoji.emojis.each do |group, emojis|
+      emojis.each do |name, url|
+        result << Emoji.new.tap do |e|
+          e.name = name
+          url = (Discourse.base_uri + url) if url[/^\/[^\/]/]
+          e.url = url
+          e.group = group || DEFAULT_GROUP
+        end
       end
     end
 
@@ -110,7 +126,7 @@ class Emoji
   end
 
   def self.load_translations
-    db["translations"].merge(Plugin::CustomEmoji.translations)
+    db["translations"]
   end
 
   def self.base_directory
@@ -123,9 +139,10 @@ class Emoji
   end
 
   def self.replacement_code(code)
-    hexes = code.split('-'.freeze).map!(&:hex)
-    # Don't replace digits, letters and some symbols
-    hexes.pack("U*".freeze) if hexes[0] > 255
+    code
+      .split('-')
+      .map!(&:hex)
+      .pack("U*")
   end
 
   def self.unicode_replacements
@@ -136,7 +153,12 @@ class Emoji
 
       db['emojis'].each do |e|
         name = e['name']
-        next if name == 'tm'.freeze
+
+        # special cased as we prefer to keep these as symbols
+        next if name == 'registered'
+        next if name == 'copyright'
+        next if name == 'tm'
+        next if name == 'left_right_arrow'
 
         code = replacement_code(e['code'])
         next unless code
@@ -144,7 +166,7 @@ class Emoji
         replacements[code] = name
         if is_tonable_emojis.include?(name)
           fitzpatrick_scales.each_with_index do |scale, index|
-            toned_code = code.codepoints.insert(1, scale).pack("U*".freeze)
+            toned_code = code.codepoints.insert(1, scale).pack("U*")
             replacements[toned_code] = "#{name}:t#{index + 2}"
           end
         end

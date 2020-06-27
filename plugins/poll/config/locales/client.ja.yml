@@ -20,15 +20,6 @@ ja:
           title: "結果は<strong>投票</strong>したとき表示されます。"
         closed:
           title: "結果は<strong>クローズ</strong>したとき表示されます。"
-      multiple:
-        help:
-          at_least_min_options:
-            other: "少なくとも<strong>%{count}</strong>の選択肢を選んでください"
-          up_to_max_options:
-            other: "<strong>%{count}</strong>個まで選ぶことができます"
-          x_options:
-            other: "<strong>%{count}</strong>の選択肢を選んでください"
-          between_min_and_max_options: "<strong>%{min}</strong>から<strong>%{max}</strong>の選択肢を選んでください"
       cast-votes:
         title: "投票する"
         label: "投票する"
@@ -37,7 +28,8 @@ ja:
         label: "結果を表示"
       hide-results:
         title: "投票に戻る"
-        label: "結果を非表示にする"
+      export-results:
+        label: "エクスポート"
       open:
         title: "投票をオープンする"
         label: "オープン"
@@ -56,7 +48,6 @@ ja:
         title: 投票を作成
         insert: 投票の挿入
         help:
-          options_count: 少なくとも2つの選択肢を入力してください
           invalid_values: 最小値は最大値より小さくなければなりません。
           min_step_value: 最小ステップ単位は 1 です
         poll_type:

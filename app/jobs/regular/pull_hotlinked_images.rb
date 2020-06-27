@@ -1,12 +1,8 @@
 # frozen_string_literal: true
 
-require_dependency 'url_helper'
-require_dependency 'file_helper'
-require_dependency 'upload_creator'
-
 module Jobs
 
-  class PullHotlinkedImages < Jobs::Base
+  class PullHotlinkedImages < ::Jobs::Base
     sidekiq_options queue: 'low'
 
     def initialize
@@ -60,12 +56,17 @@ module Jobs
         src = original_src = node['src'] || node['href']
         src = "#{SiteSetting.force_https ? "https" : "http"}:#{src}" if src.start_with?("//")
 
-        if should_download_image?(src)
+        if should_download_image?(src, post)
           begin
             # have we already downloaded that file?
-            schemeless_src = remove_scheme(original_src)
+            schemeless_src = normalize_src(original_src)
 
             unless downloaded_images.include?(schemeless_src) || large_images.include?(schemeless_src) || broken_images.include?(schemeless_src)
+
+              # secure-media-uploads endpoint prevents anonymous downloads, so we
+              # need the presigned S3 URL here
+              src = Upload.signed_url_from_secure_media_url(src) if Upload.secure_media_url?(src)
+
               if hotlinked = download(src)
                 if File.size(hotlinked.path) <= @max_size
                   filename = File.basename(URI.parse(src).path)
@@ -74,29 +75,38 @@ module Jobs
 
                   if upload.persisted?
                     downloaded_urls[src] = upload.url
-                    downloaded_images[remove_scheme(src)] = upload.id
+                    downloaded_images[normalize_src(src)] = upload.id
                     has_downloaded_image = true
                   else
                     log(:info, "Failed to pull hotlinked image for post: #{post_id}: #{src} - #{upload.errors.full_messages.join("\n")}")
                   end
                 else
-                  large_images << remove_scheme(original_src)
+                  large_images << normalize_src(original_src)
                   has_new_large_image = true
                 end
               else
-                broken_images << remove_scheme(original_src)
+                broken_images << normalize_src(original_src)
                 has_new_broken_image = true
               end
             end
+
             # have we successfully downloaded that file?
             if downloaded_urls[src].present?
               escaped_src = Regexp.escape(original_src)
 
               replace_raw = ->(match, match_src, replacement, _index) {
-                if src.include?(match_src)
+
+                if normalize_src(src) == normalize_src(match_src)
+                  replacement =
+                    if replacement.include?(InlineUploads::PLACEHOLDER)
+                      replacement.sub(InlineUploads::PLACEHOLDER, upload.short_url)
+                    elsif replacement.include?(InlineUploads::PATH_PLACEHOLDER)
+                      replacement.sub(InlineUploads::PATH_PLACEHOLDER, upload.short_path)
+                    end
+
                   raw = raw.gsub(
                     match,
-                    replacement.sub(InlineUploads::PLACEHOLDER, upload.short_url)
+                    replacement
                   )
                 end
               }
@@ -140,31 +150,46 @@ module Jobs
 
       if start_raw == post.raw && raw != post.raw
         changes = { raw: raw, edit_reason: I18n.t("upload.edit_reason") }
-        post.revise(Discourse.system_user, changes, bypass_bump: true)
+        post.revise(Discourse.system_user, changes, bypass_bump: true, skip_staff_log: true)
       elsif has_downloaded_image || has_new_large_image || has_new_broken_image
-        post.trigger_post_process(bypass_bump: true)
+        post.trigger_post_process(
+          bypass_bump: true,
+          skip_pull_hotlinked_images: true # Avoid an infinite loop of job scheduling
+        )
       end
     end
 
     def extract_images_from(html)
-      doc = Nokogiri::HTML::fragment(html)
+      doc = Nokogiri::HTML5::fragment(html)
 
       doc.css("img[src], a.lightbox[href]") -
         doc.css("img.avatar") -
         doc.css(".lightbox img[src]")
     end
 
-    def should_download_image?(src)
+    def should_download_image?(src, post = nil)
       # make sure we actually have a url
       return false unless src.present?
 
-      # If file is on the forum or CDN domain
-      if Discourse.store.has_been_uploaded?(src) || src =~ /\A\/[^\/]/i
-        return false if src =~ /\/images\/emoji\//
+      local_bases = [
+        Discourse.base_url,
+        Discourse.asset_host,
+      ].compact.map { |s| normalize_src(s) }
+
+      if Discourse.store.has_been_uploaded?(src) || normalize_src(src).start_with?(*local_bases) || src =~ /\A\/[^\/]/i
+        return false if !(src =~ /\/uploads\// || Upload.secure_media_url?(src))
 
         # Someone could hotlink a file from a different site on the same CDN,
         # so check whether we have it in this database
-        return !Upload.get_from_url(src)
+        #
+        # if the upload already exists and is attached to a different post,
+        # or the original_sha1 is missing meaning it was created before secure
+        # media was enabled, then we definitely want to redownload again otherwise
+        # we end up reusing existing uploads which may be linked to many posts
+        # already.
+        upload = Upload.consider_for_reuse(Upload.get_from_url(src), post)
+
+        return !upload.present?
       end
 
       # Don't download non-local images unless site setting enabled
@@ -193,8 +218,13 @@ module Jobs
 
     private
 
-    def remove_scheme(src)
-      src.sub(/^https?:/i, "")
+    def normalize_src(src)
+      uri = Addressable::URI.heuristic_parse(src)
+      uri.normalize!
+      uri.scheme = nil
+      uri.to_s
+    rescue URI::Error, Addressable::URI::InvalidURIError
+      src
     end
   end
 

@@ -27,7 +27,16 @@ class DirectoryItem < ActiveRecord::Base
     period_types.each_key { |p| refresh_period!(p) }
   end
 
+  def self.last_updated_at(period_type)
+    val = Discourse.redis.get("directory_#{period_type}")
+    return nil if val.nil?
+
+    Time.zone.at(val.to_i)
+  end
+
   def self.refresh_period!(period_type, force: false)
+
+    Discourse.redis.set("directory_#{period_types[period_type]}", Time.zone.now.to_i)
 
     # Don't calculate it if the user directory is disabled
     return unless SiteSetting.enable_user_directory? || force
@@ -65,7 +74,8 @@ class DirectoryItem < ActiveRecord::Base
                     0
                 FROM users u
                 LEFT JOIN directory_items di ON di.user_id = u.id AND di.period_type = :period_type
-                WHERE di.id IS NULL AND u.id > 0 AND u.silenced_till IS NULL and u.active
+                WHERE di.id IS NULL AND u.id > 0 AND u.silenced_till IS NULL AND u.active
+                #{SiteSetting.must_approve_users ? 'AND u.approved' : ''}
       ", period_type: period_types[period_type]
 
       # Calculate new values and update records

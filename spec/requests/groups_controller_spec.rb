@@ -4,6 +4,7 @@ require 'rails_helper'
 
 describe GroupsController do
   fab!(:user) { Fabricate(:user) }
+  let(:other_user) { Fabricate(:user) }
   let(:group) { Fabricate(:group, users: [user]) }
   let(:moderator_group_id) { Group::AUTO_GROUPS[:moderators] }
   fab!(:admin) { Fabricate(:admin) }
@@ -11,7 +12,31 @@ describe GroupsController do
 
   describe '#index' do
     let(:staff_group) do
-      Fabricate(:group, name: '0000', visibility_level: Group.visibility_levels[:staff])
+      Fabricate(:group, name: 'staff_group', visibility_level: Group.visibility_levels[:staff])
+    end
+
+    it "ensures that groups can be paginated" do
+      50.times { Fabricate(:group) }
+
+      get "/groups.json"
+
+      expect(response.status).to eq(200)
+
+      body = response.parsed_body
+
+      expect(body["groups"].size).to eq(36)
+      expect(body["total_rows_groups"]).to eq(50)
+      expect(body["load_more_groups"]).to eq("/groups?page=1")
+
+      get "/groups.json", params: { page: 1 }
+
+      expect(response.status).to eq(200)
+
+      body = response.parsed_body
+
+      expect(body["groups"].size).to eq(14)
+      expect(body["total_rows_groups"]).to eq(50)
+      expect(body["load_more_groups"]).to eq("/groups?page=2")
     end
 
     context 'when group directory is disabled' do
@@ -19,24 +44,26 @@ describe GroupsController do
         SiteSetting.enable_group_directory = false
       end
 
-      it 'should deny access for an anon user' do
+      it 'should deny access for an anon' do
         get "/groups.json"
         expect(response.status).to eq(403)
       end
 
       it 'should deny access for a normal user' do
+        sign_in(user)
         get "/groups.json"
+
         expect(response.status).to eq(403)
       end
 
-      it 'should not deny access for an admin' do
+      it 'should allow access for an admin' do
         sign_in(admin)
         get "/groups.json"
 
         expect(response.status).to eq(200)
       end
 
-      it 'should not deny access for a moderator' do
+      it 'should allow access for a moderator' do
         sign_in(moderator)
         get "/groups.json"
 
@@ -45,69 +72,85 @@ describe GroupsController do
     end
 
     context 'searchable' do
-      it 'should return the right response' do
-        other_group = Fabricate(:group, name: 'testing')
+      it 'should return the searched groups' do
+        testing_group = Fabricate(:group, name: 'testing')
+
         get "/groups.json", params: { filter: 'test' }
 
         expect(response.status).to eq(200)
 
-        response_body = JSON.parse(response.body)
+        body = response.parsed_body
 
-        expect(response_body["groups"].first["id"]).to eq(other_group.id)
-
-        expect(response_body["load_more_groups"]).to eq(
-          "/groups?filter=test&page=1"
-        )
+        expect(body["groups"].first["id"]).to eq(testing_group.id)
+        expect(body["load_more_groups"]).to eq("/groups?filter=test&page=1")
       end
     end
 
     context 'sortable' do
-      let!(:other_group) { Fabricate(:group, name: "zzzzzz", users: [user]) }
-
-      %w{
-        desc
-        asc
-      }.each do |order|
-        context "#{order} order" do
-          it 'should return the right response' do
-            is_asc = order == 'asc'
-            params = { order: 'name' }
-            params.merge!(asc: true) if is_asc
-            group
-            get "/groups.json", params: params
-
-            expect(response.status).to eq(200)
-
-            group_ids = [moderator_group_id, group.id, other_group.id]
-            group_ids.reverse! if !is_asc
-
-            response_body = JSON.parse(response.body)
-
-            expect(response_body["groups"].map { |group| group["id"] })
-              .to eq(group_ids)
-
-            expect(response_body["load_more_groups"]).to eq(
-              "/groups?#{is_asc ? 'asc=true&' : '' }order=name&page=1"
-            )
-          end
-        end
+      before do
+        group
+        sign_in(user)
       end
 
-      context 'ascending order' do
-        it 'should return the right response' do
-          group
-          get "/groups.json", params: { order: 'name' }
+      let!(:other_group) { Fabricate(:group, name: "other_group", users: [user, other_user]) }
+
+      context "with default (descending) order" do
+        it "sorts by name" do
+          get "/groups.json", params: { order: "name" }
 
           expect(response.status).to eq(200)
 
-          response_body = JSON.parse(response.body)
+          body = response.parsed_body
 
-          expect(response_body["groups"].map { |group| group["id"] })
-            .to eq([other_group.id, group.id, moderator_group_id])
+          expect(body["groups"].map { |g| g["id"] }).to eq([
+            other_group.id, group.id, moderator_group_id
+          ])
 
-          expect(response_body["load_more_groups"]).to eq(
-            "/groups?order=name&page=1"
-          )
+          expect(body["load_more_groups"]).to eq("/groups?order=name&page=1")
+        end
+
+        it "sorts by user_count" do
+          get "/groups.json", params: { order: "user_count" }
+
+          expect(response.status).to eq(200)
+
+          body = response.parsed_body
+
+          expect(body["groups"].map { |g| g["id"] }).to eq([
+            other_group.id, group.id, moderator_group_id
+          ])
+
+          expect(body["load_more_groups"]).to eq("/groups?order=user_count&page=1")
+        end
+      end
+
+      context "with ascending order" do
+        it "sorts by name" do
+          get "/groups.json", params: { order: "name", asc: true }
+
+          expect(response.status).to eq(200)
+
+          body = response.parsed_body
+
+          expect(body["groups"].map { |g| g["id"] }).to eq([
+            moderator_group_id, group.id, other_group.id
+          ])
+
+          expect(body["load_more_groups"]).to eq("/groups?asc=true&order=name&page=1")
+        end
+
+        it "sorts by user_count" do
+          get "/groups.json", params: { order: "user_count", asc: "true" }
+
+          expect(response.status).to eq(200)
+
+          body = response.parsed_body
+
+          expect(body["groups"].map { |g| g["id"] }).to eq([
+            moderator_group_id, group.id, other_group.id
+          ])
+
+          expect(body["load_more_groups"]).to eq("/groups?asc=true&order=user_count&page=1")
         end
       end
     end
@@ -115,22 +158,28 @@ describe GroupsController do
     it 'should return the right response' do
       group
       staff_group
+
       get "/groups.json"
 
       expect(response.status).to eq(200)
 
-      response_body = JSON.parse(response.body)
+      body = response.parsed_body
 
-      group_ids = response_body["groups"].map { |g| g["id"] }
+      group_ids = body["groups"].map { |g| g["id"] }
 
-      expect(group_ids).to include(group.id)
-      expect(group_ids).to_not include(staff_group.id)
-      expect(response_body["load_more_groups"]).to eq("/groups?page=1")
-      expect(response_body["total_rows_groups"]).to eq(2)
+      expect(group_ids).to contain_exactly(group.id)
 
-      expect(response_body["extras"]["type_filters"].map(&:to_sym)).to eq(
+      expect(body["load_more_groups"]).to eq("/groups?page=1")
+      expect(body["total_rows_groups"]).to eq(1)
+      expect(body["extras"]["type_filters"].map(&:to_sym)).to eq(
         described_class::TYPE_FILTERS.keys - [:my, :owner, :automatic]
       )
+    end
+
+    it 'should return correct X-Robots-Tag header when allow_index_in_robots_txt is set to false' do
+      SiteSetting.allow_index_in_robots_txt = false
+      get "/groups"
+      expect(response.headers['X-Robots-Tag']).to eq('noindex, nofollow')
     end
 
     context 'viewing groups of another user' do
@@ -144,19 +193,71 @@ describe GroupsController do
       end
 
       it 'should return the right response' do
-        user2 = Fabricate(:user)
-        group
-        sign_in(user2)
+        u = Fabricate(:user)
+        m = Fabricate(:user)
+        o = Fabricate(:user)
 
-        get "/groups.json", params: { username: user.username }
+        levels = Group.visibility_levels.values
+
+        levels.product(levels).each { |group_level, members_level|
+          g = Fabricate(:group,
+            name: "#{group_level}_#{members_level}",
+            visibility_level: group_level,
+            members_visibility_level: members_level,
+            users: [u]
+          )
+
+          g.add(m) if group_level == Group.visibility_levels[:members] || members_level == Group.visibility_levels[:members]
+          g.add_owner(o) if group_level == Group.visibility_levels[:owners] || members_level == Group.visibility_levels[:owners]
+        }
+
+        # anonymous user
+        get "/groups.json", params: { username: u.username }
 
         expect(response.status).to eq(200)
+        group_names = response.parsed_body["groups"].map { |g| g["name"] }
+        expect(group_names).to contain_exactly("0_0")
 
-        response_body = JSON.parse(response.body)
+        # logged in user
+        sign_in(Fabricate(:user))
+        get "/groups.json", params: { username: u.username }
 
-        group_ids = response_body["groups"].map { |g| g["id"] }
+        expect(response.status).to eq(200)
+        group_names = response.parsed_body["groups"].map { |g| g["name"] }
+        expect(group_names).to contain_exactly("0_0", "0_1", "1_0", "1_1")
 
-        expect(group_ids).to contain_exactly(group.id)
+        # member of the group
+        sign_in(m)
+        get "/groups.json", params: { username: u.username }
+
+        expect(response.status).to eq(200)
+        group_names = response.parsed_body["groups"].map { |g| g["name"] }
+        expect(group_names).to contain_exactly("0_0", "0_1", "0_2", "1_0", "1_1", "1_2", "2_0", "2_1", "2_2")
+
+        # owner
+        sign_in(o)
+        get "/groups.json", params: { username: u.username }
+
+        expect(response.status).to eq(200)
+        group_names = response.parsed_body["groups"].map { |g| g["name"] }
+        expect(group_names).to contain_exactly("0_0", "0_1", "0_4", "1_0", "1_1", "1_4", "2_4", "3_4", "4_0", "4_1", "4_2", "4_3", "4_4")
+
+        # moderator
+        sign_in(moderator)
+        get "/groups.json", params: { username: u.username }
+
+        expect(response.status).to eq(200)
+        group_names = response.parsed_body["groups"].map { |g| g["name"] }
+        expect(group_names).to contain_exactly("0_0", "0_1", "0_3", "1_0", "1_1", "1_3", "3_0", "3_1", "3_3")
+
+        # admin
+        sign_in(admin)
+        get "/groups.json", params: { username: u.username }
+
+        expect(response.status).to eq(200)
+        group_names = response.parsed_body["groups"].map { |g| g["name"] }
+        all_group_names = levels.product(levels).map { |a, b| "#{a}_#{b}" }
+        expect(group_names).to contain_exactly(*all_group_names)
       end
     end
 
@@ -175,18 +276,18 @@ describe GroupsController do
 
         expect(response.status).to eq(200)
 
-        response_body = JSON.parse(response.body)
+        body = response.parsed_body
 
-        group_ids = response_body["groups"].map { |g| g["id"] }
-        group_body = response_body["groups"].find { |g| g["id"] == group.id }
+        group_ids = body["groups"].map { |g| g["id"] }
+        group_body = body["groups"].find { |g| g["id"] == group.id }
 
         expect(group_body["is_group_user"]).to eq(true)
         expect(group_body["is_group_owner"]).to eq(true)
         expect(group_ids).to include(group.id, staff_group.id)
-        expect(response_body["load_more_groups"]).to eq("/groups?page=1")
-        expect(response_body["total_rows_groups"]).to eq(10)
+        expect(body["load_more_groups"]).to eq("/groups?page=1")
+        expect(body["total_rows_groups"]).to eq(10)
 
-        expect(response_body["extras"]["type_filters"].map(&:to_sym)).to eq(
+        expect(body["extras"]["type_filters"].map(&:to_sym)).to eq(
           described_class::TYPE_FILTERS.keys
         )
       end
@@ -197,10 +298,10 @@ describe GroupsController do
 
           expect(response.status).to eq(200)
 
-          response_body = JSON.parse(response.body)
-          group_ids = response_body["groups"].map { |g| g["id"] }
+          body = response.parsed_body
+          group_ids = body["groups"].map { |g| g["id"] }
 
-          expect(response_body["total_rows_groups"]).to eq(expected_group_ids.count)
+          expect(body["total_rows_groups"]).to eq(expected_group_ids.count)
           expect(group_ids).to contain_exactly(*expected_group_ids)
         end
 
@@ -265,10 +366,11 @@ describe GroupsController do
 
       expect(response.status).to eq(200)
 
-      response_body = JSON.parse(response.body)
+      body = response.parsed_body
 
-      expect(response_body['group']['id']).to eq(group.id)
-      expect(response_body['extras']["visible_group_names"]).to eq([group.name])
+      expect(body['group']['id']).to eq(group.id)
+      expect(body['extras']["visible_group_names"]).to eq([group.name])
+      expect(response.headers['X-Robots-Tag']).to eq('noindex')
     end
 
     context 'as an admin' do
@@ -278,15 +380,15 @@ describe GroupsController do
 
         expect(response.status).to eq(200)
 
-        response_body = JSON.parse(response.body)
+        body = response.parsed_body
 
-        expect(response_body['group']['id']).to eq(group.id)
+        expect(body['group']['id']).to eq(group.id)
 
         groups = Group::AUTO_GROUPS.keys
         groups.delete(:everyone)
         groups.push(group.name)
 
-        expect(response_body['extras']["visible_group_names"])
+        expect(body['extras']["visible_group_names"])
           .to contain_exactly(*groups.map(&:to_s))
       end
     end
@@ -314,9 +416,9 @@ describe GroupsController do
 
         expect(response.status).to eq(200)
 
-        response_body = JSON.parse(response.body)['group']
+        body = response.parsed_body['group']
 
-        expect(response_body["id"]).to eq(group.id)
+        expect(body["id"]).to eq(group.id)
       end
     end
   end
@@ -331,13 +433,22 @@ describe GroupsController do
       expect(response.status).to eq(403)
     end
 
+    it "ensures the group members can be seen" do
+      sign_in(Fabricate(:user))
+      group.update!(members_visibility_level: Group.visibility_levels[:owners])
+
+      get "/groups/#{group.name}/posts.json"
+
+      expect(response.status).to eq(403)
+    end
+
     it "calls `posts_for` and responds with JSON" do
       sign_in(user)
       post = Fabricate(:post, user: user)
       get "/groups/#{group.name}/posts.json"
 
       expect(response.status).to eq(200)
-      expect(JSON.parse(response.body).first["id"]).to eq(post.id)
+      expect(response.parsed_body.first["id"]).to eq(post.id)
     end
   end
 
@@ -365,8 +476,15 @@ describe GroupsController do
       expect(response.status).to eq(403)
     end
 
-    it "ensures that membership can be paginated" do
+    it "ensures the group members can be seen" do
+      group.update!(members_visibility_level: Group.visibility_levels[:logged_on_users])
 
+      get "/groups/#{group.name}/members.json", params: { limit: 1 }
+
+      expect(response.status).to eq(403)
+    end
+
+    it "ensures that membership can be paginated" do
       freeze_time
 
       first_user = Fabricate(:user)
@@ -377,24 +495,24 @@ describe GroupsController do
       4.times { group.add(Fabricate(:user)) }
       usernames = group.users.map { |m| m.username }.sort
 
-      get "/groups/#{group.name}/members.json", params: { limit: 3 }
+      get "/groups/#{group.name}/members.json", params: { limit: 3, asc: true }
 
       expect(response.status).to eq(200)
 
-      members = JSON.parse(response.body)["members"]
+      members = response.parsed_body["members"]
 
       expect(members.map { |m| m['username'] }).to eq(usernames[0..2])
 
-      get "/groups/#{group.name}/members.json", params: { limit: 3, offset: 3 }
+      get "/groups/#{group.name}/members.json", params: { limit: 3, offset: 3, asc: true }
 
       expect(response.status).to eq(200)
 
-      members = JSON.parse(response.body)["members"]
+      members = response.parsed_body["members"]
 
       expect(members.map { |m| m['username'] }).to eq(usernames[3..5])
 
-      get "/groups/#{group.name}/members.json", params: { order: 'added_at', desc: true }
-      members = JSON.parse(response.body)["members"]
+      get "/groups/#{group.name}/members.json", params: { order: 'added_at' }
+      members = response.parsed_body["members"]
 
       expect(members.last['added_at']).to eq(first_user.created_at.as_json)
     end
@@ -405,7 +523,7 @@ describe GroupsController do
       get "/groups/#{group.name}/posts.rss"
 
       expect(response.status).to eq(200)
-      expect(response.content_type).to eq('application/rss+xml')
+      expect(response.media_type).to eq('application/rss+xml')
     end
   end
 
@@ -414,7 +532,7 @@ describe GroupsController do
       get "/groups/#{group.name}/mentions.rss"
 
       expect(response.status).to eq(200)
-      expect(response.content_type).to eq('application/rss+xml')
+      expect(response.media_type).to eq('application/rss+xml')
     end
 
     it 'fails when disabled' do
@@ -430,11 +548,16 @@ describe GroupsController do
     it "should return the right response" do
       sign_in(user)
 
+      group.update!(
+        mentionable_level: Group::ALIAS_LEVELS[:owners_mods_and_admins],
+        visibility_level: Group.visibility_levels[:logged_on_users]
+      )
+
       get "/groups/#{group.name}/mentionable.json"
       expect(response.status).to eq(200)
 
-      response_body = JSON.parse(response.body)
-      expect(response_body["mentionable"]).to eq(false)
+      body = response.parsed_body
+      expect(body["mentionable"]).to eq(false)
 
       group.update!(
         mentionable_level: Group::ALIAS_LEVELS[:everyone],
@@ -444,8 +567,19 @@ describe GroupsController do
       get "/groups/#{group.name}/mentionable.json"
       expect(response.status).to eq(200)
 
-      response_body = JSON.parse(response.body)
-      expect(response_body["mentionable"]).to eq(true)
+      body = response.parsed_body
+      expect(body["mentionable"]).to eq(true)
+
+      group.update!(
+        mentionable_level: Group::ALIAS_LEVELS[:nobody],
+        visibility_level: Group.visibility_levels[:public]
+      )
+
+      get "/groups/#{group.name}/mentionable.json"
+      expect(response.status).to eq(200)
+
+      body = response.parsed_body
+      expect(body["mentionable"]).to eq(true)
     end
   end
 
@@ -456,8 +590,8 @@ describe GroupsController do
       get "/groups/#{group.name}/messageable.json"
       expect(response.status).to eq(200)
 
-      response_body = JSON.parse(response.body)
-      expect(response_body["messageable"]).to eq(false)
+      body = response.parsed_body
+      expect(body["messageable"]).to eq(false)
 
       group.update!(
         messageable_level: Group::ALIAS_LEVELS[:everyone],
@@ -467,8 +601,8 @@ describe GroupsController do
       get "/groups/#{group.name}/messageable.json"
       expect(response.status).to eq(200)
 
-      response_body = JSON.parse(response.body)
-      expect(response_body["messageable"]).to eq(true)
+      body = response.parsed_body
+      expect(body["messageable"]).to eq(true)
     end
   end
 
@@ -492,7 +626,7 @@ describe GroupsController do
       end
 
       after do
-        Group.plugin_editable_group_custom_fields.clear
+        DiscoursePluginRegistry.reset!
       end
 
       it "only updates allowed user fields" do
@@ -506,7 +640,7 @@ describe GroupsController do
       end
 
       it "is secure when there are no registered editable fields" do
-        Group.plugin_editable_group_custom_fields.clear
+        DiscoursePluginRegistry.reset!
         put "/groups/#{@group.id}.json", params: { group: { custom_fields: { test: :hello1, test2: :hello2 } } }
 
         @group.reload
@@ -530,8 +664,7 @@ describe GroupsController do
           mentionable_level: 2,
           messageable_level: 2,
           default_notification_level: 0,
-          grant_trust_level: 0,
-          automatic_membership_retroactive: false
+          grant_trust_level: 0
         )
 
         expect do
@@ -541,14 +674,13 @@ describe GroupsController do
               messageable_level: 1,
               visibility_level: 1,
               automatic_membership_email_domains: 'test.org',
-              automatic_membership_retroactive: true,
               title: 'haha',
               primary_group: true,
               grant_trust_level: 1,
               incoming_email: 'test@mail.org',
               flair_bg_color: 'FFF',
               flair_color: 'BBB',
-              flair_url: 'fa-adjust',
+              flair_icon: 'fa-adjust',
               bio_raw: 'testing',
               full_name: 'awesome team',
               public_admission: true,
@@ -580,7 +712,6 @@ describe GroupsController do
         expect(group.messageable_level).to eq(1)
         expect(group.default_notification_level).to eq(1)
         expect(group.automatic_membership_email_domains).to eq(nil)
-        expect(group.automatic_membership_retroactive).to eq(false)
         expect(group.title).to eq('haha')
         expect(group.primary_group).to eq(false)
         expect(group.incoming_email).to eq(nil)
@@ -609,7 +740,7 @@ describe GroupsController do
       it 'should be able to update the group' do
         group.update!(
           visibility_level: 2,
-          automatic_membership_retroactive: false,
+          members_visibility_level: 2,
           grant_trust_level: 0
         )
 
@@ -620,9 +751,9 @@ describe GroupsController do
             incoming_email: 'test@mail.org',
             primary_group: true,
             automatic_membership_email_domains: 'test.org',
-            automatic_membership_retroactive: true,
             grant_trust_level: 2,
-            visibility_level: 1
+            visibility_level: 1,
+            members_visibility_level: 3
           }
         }
 
@@ -634,8 +765,8 @@ describe GroupsController do
         expect(group.incoming_email).to eq("test@mail.org")
         expect(group.primary_group).to eq(true)
         expect(group.visibility_level).to eq(1)
+        expect(group.members_visibility_level).to eq(3)
         expect(group.automatic_membership_email_domains).to eq('test.org')
-        expect(group.automatic_membership_retroactive).to eq(true)
         expect(group.grant_trust_level).to eq(2)
 
         expect(Jobs::AutomaticGroupMembership.jobs.first["args"].first["group_id"])
@@ -726,30 +857,30 @@ describe GroupsController do
 
     it "should allow members to be sorted by" do
       get "/groups/#{group.name}/members.json", params: {
-        order: 'last_seen_at', desc: true
+        order: 'last_seen_at'
       }
 
       expect(response.status).to eq(200)
 
-      members = JSON.parse(response.body)["members"]
+      members = response.parsed_body["members"]
 
       expect(members.map { |m| m["id"] }).to eq([user1.id, user2.id, user3.id])
 
-      get "/groups/#{group.name}/members.json", params: { order: 'last_seen_at' }
+      get "/groups/#{group.name}/members.json", params: { order: 'last_seen_at', asc: true }
 
       expect(response.status).to eq(200)
 
-      members = JSON.parse(response.body)["members"]
+      members = response.parsed_body["members"]
 
       expect(members.map { |m| m["id"] }).to eq([user2.id, user1.id, user3.id])
 
       get "/groups/#{group.name}/members.json", params: {
-        order: 'last_posted_at', desc: true
+        order: 'last_posted_at'
       }
 
       expect(response.status).to eq(200)
 
-      members = JSON.parse(response.body)["members"]
+      members = response.parsed_body["members"]
 
       expect(members.map { |m| m["id"] }).to eq([user2.id, user1.id, user3.id])
     end
@@ -759,7 +890,7 @@ describe GroupsController do
 
       expect(response.status).to eq(200)
 
-      members = JSON.parse(response.body)["members"]
+      members = response.parsed_body["members"]
 
       expect(members.map { |m| m["id"] })
         .to contain_exactly(user1.id, user2.id, user3.id)
@@ -773,7 +904,7 @@ describe GroupsController do
 
       get "/groups/#{group.name}/members.json", params: { requesters: true }
 
-      members = JSON.parse(response.body)["members"]
+      members = response.parsed_body["members"]
       expect(members.length).to eq(1)
       expect(members.first["username"]).to eq(user4.username)
       expect(members.first["reason"]).to eq(request4.reason)
@@ -788,7 +919,7 @@ describe GroupsController do
           get "/groups/#{group.name}/members.json", params: { filter: email }
 
           expect(response.status).to eq(200)
-          members = JSON.parse(response.body)["members"]
+          members = response.parsed_body["members"]
           expect(members).to eq([])
         end
       end
@@ -810,7 +941,7 @@ describe GroupsController do
             get "/groups/#{group.name}/members.json", params: { filter: filter }
 
             expect(response.status).to eq(200)
-            members = JSON.parse(response.body)["members"]
+            members = response.parsed_body["members"]
             expect(members.map { |m| m["id"] }).to contain_exactly(*ids)
           end
         end
@@ -823,7 +954,7 @@ describe GroupsController do
             get "/groups/#{group.name}/members.json", params: { filter: filter }
 
             expect(response.status).to eq(200)
-            members = JSON.parse(response.body)["members"]
+            members = response.parsed_body["members"]
             expect(members.map { |m| m["id"] }).to contain_exactly(user1.id)
           end
         end
@@ -965,7 +1096,7 @@ describe GroupsController do
 
           expect(response.status).to eq(422)
 
-          expect(JSON.parse(response.body)["errors"]).to include(I18n.t(
+          expect(response.parsed_body["errors"]).to include(I18n.t(
             "groups.errors.member_already_exist",
             username: "alice, bob",
             count: 2
@@ -978,7 +1109,7 @@ describe GroupsController do
 
         expect(response.status).to eq(422)
 
-        expect(JSON.parse(response.body)["errors"]).to include(I18n.t(
+        expect(response.parsed_body["errors"]).to include(I18n.t(
           "groups.errors.member_already_exist",
           username: user.username,
           count: 1
@@ -995,7 +1126,7 @@ describe GroupsController do
 
           expect(response.status).to eq(400)
 
-          body = JSON.parse(response.body)
+          body = response.parsed_body
 
           expect(body["error_type"]).to eq("invalid_parameters")
         end
@@ -1060,6 +1191,11 @@ describe GroupsController do
 
       it "raises an error if user to be removed is not found" do
         delete "/groups/#{group.id}/members.json", params: { user_id: -10 }
+        expect(response.status).to eq(400)
+      end
+
+      it "raises an error when removing a valid user but is not a member of that group" do
+        delete "/groups/#{group.id}/members.json", params: { user_id: -1 }
         expect(response.status).to eq(400)
       end
 
@@ -1185,15 +1321,32 @@ describe GroupsController do
           end
 
           it "only removes users in that group" do
-            expect do
-              delete "/groups/#{group1.id}/members.json",
-                params: { usernames: [user.username, user2.username].join(",") }
-            end.to change { group1.users.count }.by(-1)
+            delete "/groups/#{group1.id}/members.json",
+              params: { usernames: [user.username, user2.username].join(",") }
 
-            expect(response.status).to eq(200)
+            expect(response.status).to eq(400)
           end
         end
       end
+    end
+  end
+
+  describe "#handle_membership_request" do
+    before do
+      group.add_owner(user)
+      sign_in(user)
+    end
+
+    it "sends a private message when accepted" do
+      group_request = GroupRequest.create!(group: group, user: other_user)
+      expect { put "/groups/#{group.id}/handle_membership_request.json", params: { user_id: other_user.id, accept: true } }
+        .to change { Topic.count }.by(1)
+        .and change { Post.count }.by(1)
+
+      topic = Topic.last
+      expect(topic.archetype).to eq(Archetype.private_message)
+      expect(topic.title).to eq(I18n.t('groups.request_accepted_pm.title', group_name: group.name))
+      expect(topic.first_post.raw).to eq(I18n.t('groups.request_accepted_pm.body', group_name: group.name).strip)
     end
   end
 
@@ -1238,7 +1391,7 @@ describe GroupsController do
 
           expect(response.status).to eq(200)
 
-          result = JSON.parse(response.body)["logs"].last
+          result = response.parsed_body["logs"].find { |entry| entry["subject"] == "public_exit" }
 
           expect(result["action"]).to eq(GroupHistory.actions[1].to_s)
           expect(result["subject"]).to eq('public_exit')
@@ -1270,7 +1423,7 @@ describe GroupsController do
 
         expect(response.status).to eq(200)
 
-        result = JSON.parse(response.body)["logs"].first
+        result = response.parsed_body["logs"].first
 
         expect(result["action"]).to eq(GroupHistory.actions[3].to_s)
       end
@@ -1293,7 +1446,7 @@ describe GroupsController do
 
         expect(response.status).to eq(200)
 
-        logs = JSON.parse(response.body)["logs"]
+        logs = response.parsed_body["logs"]
 
         expect(logs.count).to eq(1)
         expect(logs.first["action"]).to eq(GroupHistory.actions[2].to_s)
@@ -1344,9 +1497,10 @@ describe GroupsController do
 
       post = Post.last
       topic = post.topic
-      body = JSON.parse(response.body)
+      body = response.parsed_body
 
       expect(body['relative_url']).to eq(topic.relative_url)
+      expect(post.topic.custom_fields['requested_group_id'].to_i).to eq(group.id)
       expect(post.user).to eq(user)
 
       expect(topic.title).to eq(I18n.t('groups.request_membership_pm.title',
@@ -1371,7 +1525,8 @@ describe GroupsController do
     before do
       group.update!(
         name: 'GOT',
-        full_name: 'Daenerys Targaryen'
+        full_name: 'Daenerys Targaryen',
+        visibility_level: Group.visibility_levels[:logged_on_users]
       )
 
       hidden_group
@@ -1391,7 +1546,7 @@ describe GroupsController do
         get '/groups/search.json'
 
         expect(response.status).to eq(200)
-        groups = JSON.parse(response.body)
+        groups = response.parsed_body
 
         expected_ids = Group::AUTO_GROUPS.map { |name, id| id }
         expected_ids.delete(Group::AUTO_GROUPS[:everyone])
@@ -1403,7 +1558,7 @@ describe GroupsController do
           get "/groups/search.json?term=#{term}"
 
           expect(response.status).to eq(200)
-          groups = JSON.parse(response.body)
+          groups = response.parsed_body
 
           expect(groups.length).to eq(1)
           expect(groups.first['id']).to eq(group.id)
@@ -1412,7 +1567,7 @@ describe GroupsController do
         get "/groups/search.json?term=KingOfTheNorth"
 
         expect(response.status).to eq(200)
-        groups = JSON.parse(response.body)
+        groups = response.parsed_body
 
         expect(groups).to eq([])
       end
@@ -1429,7 +1584,7 @@ describe GroupsController do
         get "/groups/search.json?term=north"
 
         expect(response.status).to eq(200)
-        groups = JSON.parse(response.body)
+        groups = response.parsed_body
 
         expect(groups.length).to eq(1)
         expect(groups.first['id']).to eq(hidden_group.id)
@@ -1443,7 +1598,7 @@ describe GroupsController do
         get '/groups/search.json?ignore_automatic=true'
 
         expect(response.status).to eq(200)
-        groups = JSON.parse(response.body)
+        groups = response.parsed_body
 
         expect(groups.length).to eq(2)
 
@@ -1497,7 +1652,7 @@ describe GroupsController do
       get "/groups/check-name.json", params: { group_name: 'test' }
 
       expect(response.status).to eq(200)
-      expect(JSON.parse(response.body)["available"]).to eq(true)
+      expect(response.parsed_body["available"]).to eq(true)
     end
   end
 end

@@ -7,11 +7,11 @@ module Stylesheet
     REDIS_KEY = "dev_last_used_theme_id"
 
     def self.theme_id=(v)
-      $redis.set(REDIS_KEY, v)
+      Discourse.redis.set(REDIS_KEY, v)
     end
 
     def self.theme_id
-      ($redis.get(REDIS_KEY) || SiteSetting.default_theme_id).to_i
+      (Discourse.redis.get(REDIS_KEY) || SiteSetting.default_theme_id).to_i
     end
 
     def self.watch(paths = nil)
@@ -44,6 +44,7 @@ module Stylesheet
           end
         rescue => e
           STDERR.puts "CSS change notifier crashed #{e}"
+          start
         end
       end
 
@@ -55,10 +56,41 @@ module Stylesheet
       @paths.each do |watch|
         Thread.new do
           begin
+            plugins_paths = Dir.glob("#{Rails.root}/plugins/*").map do |file|
+              if File.symlink?(file)
+                File.expand_path(File.readlink(file), "#{Rails.root}/plugins")
+              else
+                file
+              end
+            end.compact
+
             listener = Listen.to("#{root}/#{watch}", listener_opts) do |modified, added, _|
               paths = [modified, added].flatten
               paths.compact!
-              paths.map! { |long| long[(root.length + 1)..-1] }
+              paths.map! do |long|
+                plugin_name = nil
+                plugins_paths.each do |plugin_path|
+                  if long.include?(plugin_path)
+                    plugin_name = File.basename(plugin_path)
+                    break
+                  end
+                end
+
+                target = nil
+                if !plugin_name
+                  target_match = long.match(/admin|desktop|mobile|publish/)
+                  if target_match&.length
+                    target = target_match[0]
+                  end
+                end
+
+                {
+                  basename: File.basename(long),
+                  target: target,
+                  plugin_name: plugin_name
+                }
+              end
+
               process_change(paths)
             end
           rescue => e
@@ -70,27 +102,47 @@ module Stylesheet
       end
     end
 
+    def core_assets_refresh(target)
+      targets = target ? [target] : ["desktop", "mobile", "admin"]
+      Stylesheet::Manager.clear_core_cache!(targets)
+      message = targets.map! do |name|
+        Stylesheet::Manager.stylesheet_data(name.to_sym, Stylesheet::Watcher.theme_id)
+      end.flatten!
+      MessageBus.publish '/file-change', message
+    end
+
+    def plugin_assets_refresh(plugin_name)
+      Stylesheet::Manager.clear_plugin_cache!(plugin_name)
+      targets = [plugin_name]
+      targets.push("#{plugin_name}_mobile") if DiscoursePluginRegistry.stylesheets_exists?(plugin_name, :mobile)
+      targets.push("#{plugin_name}_desktop") if DiscoursePluginRegistry.stylesheets_exists?(plugin_name, :desktop)
+
+      message = targets.map! do |name|
+        Stylesheet::Manager.stylesheet_data(name.to_sym, Stylesheet::Watcher.theme_id)
+      end.flatten!
+      MessageBus.publish '/file-change', message
+    end
+
     def worker_loop
-      @queue.pop
+      path = @queue.pop
+
       while @queue.length > 0
         @queue.pop
       end
 
-      Stylesheet::Manager.cache.clear
-
-      message = ["desktop", "mobile", "admin"].map do |name|
-        Stylesheet::Manager.stylesheet_data(name.to_sym, Stylesheet::Watcher.theme_id)
-      end.flatten
-      MessageBus.publish '/file-change', message
+      if path[:plugin_name]
+        plugin_assets_refresh(path[:plugin_name])
+      else
+        core_assets_refresh(path[:target])
+      end
     end
 
     def process_change(paths)
       paths.each do |path|
-        if path =~ /\.(css|scss)$/
+        if path[:basename] =~ /\.(css|scss)$/
           @queue.push path
         end
       end
     end
-
   end
 end

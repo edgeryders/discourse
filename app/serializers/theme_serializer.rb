@@ -47,7 +47,7 @@ class BasicThemeSerializer < ApplicationSerializer
 end
 
 class RemoteThemeSerializer < ApplicationSerializer
-  attributes :id, :remote_url, :remote_version, :local_version, :commits_behind,
+  attributes :id, :remote_url, :remote_version, :local_version, :commits_behind, :branch,
              :remote_updated_at, :updated_at, :github_diff_link, :last_error_text, :is_git?,
              :license_url, :about_url, :authors, :theme_version, :minimum_discourse_version, :maximum_discourse_version
 
@@ -63,9 +63,11 @@ class RemoteThemeSerializer < ApplicationSerializer
 end
 
 class ThemeSerializer < BasicThemeSerializer
-  attributes :color_scheme, :color_scheme_id, :user_selectable, :remote_theme_id, :settings, :errors, :enabled?, :description
+  attributes :color_scheme, :color_scheme_id, :user_selectable, :remote_theme_id,
+             :settings, :errors, :supported?, :description, :enabled?, :disabled_at
 
   has_one :user, serializer: UserNameSerializer, embed: :object
+  has_one :disabled_by, serializer: UserNameSerializer, embed: :object
 
   has_many :theme_fields, serializer: ThemeFieldSerializer, embed: :objects
   has_many :child_themes, serializer: BasicThemeSerializer, embed: :objects
@@ -107,5 +109,13 @@ class ThemeSerializer < BasicThemeSerializer
 
   def description
     object.internal_translations.find  { |t| t.key == "theme_metadata.description" } &.value
+  end
+
+  def include_disabled_at?
+    object.component? && !object.enabled?
+  end
+
+  def include_disabled_by?
+    include_disabled_at?
   end
 end

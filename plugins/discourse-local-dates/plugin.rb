@@ -6,7 +6,6 @@
 # author: Joffrey Jaffeux
 hide_plugin if self.respond_to?(:hide_plugin)
 
-register_asset 'javascripts/discourse-local-dates.js.no-module.es6'
 register_asset 'stylesheets/common/discourse-local-dates.scss'
 register_asset 'moment.js', :vendored_core_pretty_text
 register_asset 'moment-timezone.js', :vendored_core_pretty_text
@@ -26,19 +25,21 @@ after_initialize do
   register_post_custom_field_type(DiscourseLocalDates::POST_CUSTOM_FIELD, :json)
 
   on(:before_post_process_cooked) do |doc, post|
-    dates =
-      doc.css('span.discourse-local-date').map do |cooked_date|
-        date = {}
-        cooked_date.attributes.values.each do |attribute|
-          data_name = attribute.name&.gsub('data-', '')
-          if data_name && %w[date time timezone recurring].include?(data_name)
-            unless attribute.value == 'undefined'
-              date[data_name] = CGI.escapeHTML(attribute.value || '')
-            end
+    dates = []
+
+    doc.css('span.discourse-local-date').map do |cooked_date|
+      next if cooked_date.ancestors("aside").length > 0
+      date = {}
+      cooked_date.attributes.values.each do |attribute|
+        data_name = attribute.name&.gsub('data-', '')
+        if data_name && %w[date time timezone recurring].include?(data_name)
+          unless attribute.value == 'undefined'
+            date[data_name] = CGI.escapeHTML(attribute.value || '')
           end
         end
-        date
       end
+      dates << date
+    end
 
     if dates.present?
       post.custom_fields[DiscourseLocalDates::POST_CUSTOM_FIELD] = dates
@@ -51,6 +52,12 @@ after_initialize do
 
   add_to_class(:post, :local_dates) do
     custom_fields[DiscourseLocalDates::POST_CUSTOM_FIELD] || []
+  end
+
+  on(:reduce_excerpt) do |fragment, post|
+    fragment.css('.discourse-local-date').each do |container|
+      container.content = "#{container.content} (UTC)"
+    end
   end
 
   on(:reduce_cooked) do |fragment|

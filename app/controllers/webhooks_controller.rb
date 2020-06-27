@@ -15,13 +15,13 @@ class WebhooksController < ActionController::Base
     events.each do |event|
       message_id = (event["smtp-id"] || "").tr("<>", "")
       to_address = event["email"]
-      if event["event"] == "bounce".freeze
+      if event["event"] == "bounce"
         if event["status"]["4."]
           process_bounce(message_id, to_address, SiteSetting.soft_bounce_score)
         else
           process_bounce(message_id, to_address, SiteSetting.hard_bounce_score)
         end
-      elsif event["event"] == "dropped".freeze
+      elsif event["event"] == "dropped"
         process_bounce(message_id, to_address, SiteSetting.hard_bounce_score)
       end
     end
@@ -34,7 +34,7 @@ class WebhooksController < ActionController::Base
     events.each do |event|
       message_id = event["CustomID"]
       to_address = event["email"]
-      if event["event"] == "bounce".freeze
+      if event["event"] == "bounce"
         if event["hard_bounce"]
           process_bounce(message_id, to_address, SiteSetting.hard_bounce_score)
         else
@@ -58,6 +58,23 @@ class WebhooksController < ActionController::Base
       when "soft_bounce"
         process_bounce(message_id, to_address, SiteSetting.soft_bounce_score)
       end
+    end
+
+    success
+  end
+
+  def postmark
+    # see https://postmarkapp.com/developer/webhooks/bounce-webhook#bounce-webhook-data
+    # and https://postmarkapp.com/developer/api/bounce-api#bounce-types
+
+    message_id = params["MessageID"]
+    to_address = params["Email"]
+    type = params["Type"]
+    case type
+    when "HardBounce", "SpamNotification", "SpamComplaint"
+      process_bounce(message_id, to_address, SiteSetting.hard_bounce_score)
+    when "SoftBounce"
+      process_bounce(message_id, to_address, SiteSetting.soft_bounce_score)
     end
 
     success
@@ -119,8 +136,8 @@ class WebhooksController < ActionController::Base
 
     # prevent replay attacks
     key = "mailgun_token_#{token}"
-    return false unless $redis.setnx(key, 1)
-    $redis.expire(key, 10.minutes)
+    return false unless Discourse.redis.setnx(key, 1)
+    Discourse.redis.expire(key, 10.minutes)
 
     # ensure timestamp isn't too far from current time
     return false if (Time.at(timestamp.to_i) - Time.now).abs > 12.hours.to_i
@@ -139,9 +156,9 @@ class WebhooksController < ActionController::Base
     # only handle soft bounces, because hard bounces are also handled
     # by the "dropped" event and we don't want to increase bounce score twice
     # for the same message
-    if event == "bounced".freeze && params["error"]["4."]
+    if event == "bounced" && params["error"]["4."]
       process_bounce(message_id, to_address, SiteSetting.soft_bounce_score)
-    elsif event == "dropped".freeze
+    elsif event == "dropped"
       process_bounce(message_id, to_address, SiteSetting.hard_bounce_score)
     end
 
@@ -157,10 +174,10 @@ class WebhooksController < ActionController::Base
     to_address = data["recipient"]
     severity = data["severity"]
 
-    if data["event"] == "failed".freeze
-      if severity == "temporary".freeze
+    if data["event"] == "failed"
+      if severity == "temporary"
         process_bounce(message_id, to_address, SiteSetting.soft_bounce_score)
-      elsif severity == "permanent".freeze
+      elsif severity == "permanent"
         process_bounce(message_id, to_address, SiteSetting.hard_bounce_score)
       end
     end

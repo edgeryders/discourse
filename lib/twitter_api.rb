@@ -93,7 +93,7 @@ class TwitterApi
     end
 
     unless defined? BASE_URL
-      BASE_URL = 'https://api.twitter.com'.freeze
+      BASE_URL = 'https://api.twitter.com'
     end
 
     def twitter_get(uri)
@@ -121,7 +121,7 @@ class TwitterApi
 
     def bearer_token_credentials
       Base64.strict_encode64(
-        "#{URI::encode(consumer_key)}:#{URI::encode(consumer_secret)}"
+        "#{UrlHelper.encode_component(consumer_key)}:#{UrlHelper.encode_component(consumer_secret)}"
       )
     end
 

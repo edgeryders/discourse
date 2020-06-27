@@ -1,7 +1,6 @@
 # frozen_string_literal: true
 
 require 'rails_helper'
-require_dependency 'site_settings/type_supervisor'
 
 describe SiteSettings::TypeSupervisor do
   let :provider_local do
@@ -82,6 +81,15 @@ describe SiteSettings::TypeSupervisor do
       end
       it "'group_list' should be at the right position" do
         expect(SiteSettings::TypeSupervisor.types[:group_list]).to eq(20)
+      end
+      it "'tag_list' should be at the right position" do
+        expect(SiteSettings::TypeSupervisor.types[:tag_list]).to eq(21)
+      end
+      it "'color' should be at the right position" do
+        expect(SiteSettings::TypeSupervisor.types[:color]).to eq(22)
+      end
+      it "'simple_list' should be at the right position" do
+        expect(SiteSettings::TypeSupervisor.types[:simple_list]).to eq(23)
       end
     end
   end

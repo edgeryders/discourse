@@ -10,6 +10,8 @@ class BasicPostSerializer < ApplicationSerializer
              :cooked,
              :cooked_hidden
 
+  attr_accessor :topic_view
+
   def name
     object.user && object.user.name
   end
@@ -44,6 +46,14 @@ class BasicPostSerializer < ApplicationSerializer
 
   def include_name?
     SiteSetting.enable_names?
+  end
+
+  def post_custom_fields
+    @post_custom_fields ||= if @topic_view
+      (@topic_view.post_custom_fields || {})[object.id] || {}
+    else
+      object.custom_fields
+    end
   end
 
 end

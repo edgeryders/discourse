@@ -162,14 +162,40 @@ describe Wizard::Builder do
       end
     end
 
-    describe "when the default them hass been override" do
+    describe "when the default theme has been override and the color scheme doesn't have a base scheme" do
+      let(:color_scheme) { Fabricate(:color_scheme, base_scheme_id: nil) }
+
+      before do
+        SiteSetting.default_theme_id = theme.id
+        theme.update(color_scheme: color_scheme)
+      end
+
+      it 'fallbacks to the color scheme name' do
+        expect(field.required).to eq(false)
+        expect(field.value).to eq(color_scheme.name)
+      end
+    end
+
+    describe "when the default theme has been overridden by a theme without a color scheme" do
       before do
         theme.set_default!
       end
 
       it 'should set the right default values' do
         expect(field.required).to eq(false)
-        expect(field.value).to eq(nil)
+        expect(field.value).to eq("Light")
+      end
+    end
+
+    describe "when the default theme has been overridden by a theme with a color scheme" do
+      before do
+        theme.update(color_scheme_id: ColorScheme.find_by_name("Dark").id)
+        theme.set_default!
+      end
+
+      it 'should set the right default values' do
+        expect(field.required).to eq(false)
+        expect(field.value).to eq("Dark")
       end
     end
   end

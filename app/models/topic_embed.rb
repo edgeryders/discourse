@@ -1,8 +1,5 @@
 # frozen_string_literal: true
 
-require_dependency 'nokogiri'
-require_dependency 'url_helper'
-
 class TopicEmbed < ActiveRecord::Base
   include Trashable
 
@@ -36,8 +33,8 @@ class TopicEmbed < ActiveRecord::Base
     if SiteSetting.embed_truncate
       contents = first_paragraph_from(contents)
     end
-    contents ||= +''
-    contents << imported_from_html(url)
+    contents ||= ''
+    contents = +contents << imported_from_html(url)
 
     url = normalize_url(url)
 
@@ -56,12 +53,18 @@ class TopicEmbed < ActiveRecord::Base
           Post.cook_methods[:raw_html]
         end
 
-        creator = PostCreator.new(user,
-                                  title: title,
-                                  raw: absolutize_urls(url, contents),
-                                  skip_validations: true,
-                                  cook_method: cook_method,
-                                  category: eh.try(:category_id))
+        create_args = {
+          title: title,
+          raw: absolutize_urls(url, contents),
+          skip_validations: true,
+          cook_method: cook_method,
+          category: eh.try(:category_id)
+        }
+        if SiteSetting.embed_unlisted?
+          create_args[:visible] = false
+        end
+
+        creator = PostCreator.new(user, create_args)
         post = creator.create
         if post.present?
           TopicEmbed.create!(topic_id: post.topic_id,
@@ -88,13 +91,11 @@ class TopicEmbed < ActiveRecord::Base
           post.reload
         end
 
-        if content_sha1 != embed.content_sha1
-          post.revise(
-            user,
-            { raw: absolutize_urls(url, contents) },
-            skip_validations: true,
-            bypass_rate_limiter: true
-          )
+        if (content_sha1 != embed.content_sha1) || (title && title != post&.topic&.title)
+          changes = { raw: absolutize_urls(url, contents) }
+          changes[:title] = title if title.present?
+
+          post.revise(user, changes, skip_validations: true, bypass_rate_limiter: true)
           embed.update!(content_sha1: content_sha1)
         end
       end
@@ -108,6 +109,15 @@ class TopicEmbed < ActiveRecord::Base
 
     url = UrlHelper.escape_uri(url)
     original_uri = URI.parse(url)
+    fd = FinalDestination.new(
+      url,
+      validate_uri: true,
+      max_redirects: 5
+    )
+
+    url = fd.resolve
+    return if url.blank?
+
     opts = {
       tags: %w[div p code pre h1 h2 h3 b em i strong a img ul li ol blockquote],
       attributes: %w[href src class],
@@ -125,7 +135,7 @@ class TopicEmbed < ActiveRecord::Base
       return
     end
 
-    raw_doc = Nokogiri::HTML(html)
+    raw_doc = Nokogiri::HTML5(html)
     auth_element = raw_doc.at('meta[@name="author"]')
     if auth_element.present?
       response.author = User.where(username_lower: auth_element[:content].strip).first
@@ -141,7 +151,7 @@ class TopicEmbed < ActiveRecord::Base
       title.strip!
     end
     response.title = title
-    doc = Nokogiri::HTML(read_doc.content)
+    doc = Nokogiri::HTML5(read_doc.content)
 
     tags = { 'img' => 'src', 'script' => 'src', 'a' => 'href' }
     doc.search(tags.keys.join(',')).each do |node|
@@ -189,11 +199,15 @@ class TopicEmbed < ActiveRecord::Base
   # Convert any relative URLs to absolute. RSS is annoying for this.
   def self.absolutize_urls(url, contents)
     url = normalize_url(url)
-    uri = URI(UrlHelper.escape_uri(url))
+    begin
+      uri = URI(UrlHelper.escape_uri(url))
+    rescue URI::Error
+      return contents
+    end
     prefix = "#{uri.scheme}://#{uri.host}"
-    prefix << ":#{uri.port}" if uri.port != 80 && uri.port != 443
+    prefix += ":#{uri.port}" if uri.port != 80 && uri.port != 443
 
-    fragment = Nokogiri::HTML.fragment("<div>#{contents}</div>")
+    fragment = Nokogiri::HTML5.fragment("<div>#{contents}</div>")
     fragment.css('a').each do |a|
       href = a['href']
       if href.present? && href.start_with?('/')
@@ -211,11 +225,11 @@ class TopicEmbed < ActiveRecord::Base
 
   def self.topic_id_for_embed(embed_url)
     embed_url = normalize_url(embed_url).sub(/^https?\:\/\//, '')
-    TopicEmbed.where("embed_url ~* ?", "^https?://#{Regexp.escape(embed_url)}$").pluck(:topic_id).first
+    TopicEmbed.where("embed_url ~* ?", "^https?://#{Regexp.escape(embed_url)}$").pluck_first(:topic_id)
   end
 
   def self.first_paragraph_from(html)
-    doc = Nokogiri::HTML(html)
+    doc = Nokogiri::HTML5(html)
 
     result = +""
     doc.css('p').each do |p|
@@ -227,12 +241,12 @@ class TopicEmbed < ActiveRecord::Base
     return result unless result.blank?
 
     # If there is no first paragaph, return the first div (onebox)
-    doc.css('div').first
+    doc.css('div').first.to_s
   end
 
   def self.expanded_for(post)
-    Rails.cache.fetch("embed-topic:#{post.topic_id}", expires_in: 10.minutes) do
-      url = TopicEmbed.where(topic_id: post.topic_id).pluck(:embed_url).first
+    Discourse.cache.fetch("embed-topic:#{post.topic_id}", expires_in: 10.minutes) do
+      url = TopicEmbed.where(topic_id: post.topic_id).pluck_first(:embed_url)
       response = TopicEmbed.find_remote(url)
 
       body = response.body

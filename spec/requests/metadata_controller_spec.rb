@@ -1,4 +1,5 @@
 # frozen_string_literal: true
+# rubocop:disable Discourse/NoJsonParseResponse
 
 require 'rails_helper'
 
@@ -20,7 +21,7 @@ RSpec.describe MetadataController do
 
       get "/manifest.webmanifest"
       expect(response.status).to eq(200)
-      expect(response.content_type).to eq('application/manifest+json')
+      expect(response.media_type).to eq('application/manifest+json')
       manifest = JSON.parse(response.body)
 
       expect(manifest["name"]).to eq(title)
@@ -55,25 +56,28 @@ RSpec.describe MetadataController do
       expect(manifest["display"]).to eq("standalone")
     end
 
-    it 'defaults to display browser for iPhone' do
-      get "/manifest.webmanifest", params: {}, headers: { 'USER-AGENT' => 'Mozilla/5.0 (iPhone; CPU iPhone OS 11_0 like Mac OS X) AppleWebKit/604.1.38 (KHTML, like Gecko) Version/11.0 Mobile/15A372 Safari/604.1' }
-      manifest = JSON.parse(response.body)
-      expect(manifest["display"]).to eq("browser")
-    end
-
-    it 'can be changed to display standalone for iPhones using a site setting' do
-      SiteSetting.pwa_display_browser_regex = "a^" # this never matches
-
+    it 'defaults to display standalone for iPhone' do
       get "/manifest.webmanifest", params: {}, headers: { 'USER-AGENT' => 'Mozilla/5.0 (iPhone; CPU iPhone OS 11_0 like Mac OS X) AppleWebKit/604.1.38 (KHTML, like Gecko) Version/11.0 Mobile/15A372 Safari/604.1' }
       manifest = JSON.parse(response.body)
       expect(manifest["display"]).to eq("standalone")
     end
 
+    it 'can be changed to display browser for iPhones using a site setting' do
+      SiteSetting.pwa_display_browser_regex = "iPhone"
+
+      get "/manifest.webmanifest", params: {}, headers: { 'USER-AGENT' => 'Mozilla/5.0 (iPhone; CPU iPhone OS 11_0 like Mac OS X) AppleWebKit/604.1.38 (KHTML, like Gecko) Version/11.0 Mobile/15A372 Safari/604.1' }
+      manifest = JSON.parse(response.body)
+      expect(manifest["display"]).to eq("browser")
+    end
+
     it 'uses the short_title if it is set' do
+      title = 'FooBarBaz Forum'
+      SiteSetting.title = title
+
       get "/manifest.webmanifest"
       expect(response.status).to eq(200)
       manifest = JSON.parse(response.body)
-      expect(manifest).to_not have_key("short_name")
+      expect(manifest["short_name"]).to eq("FooBarBaz")
 
       SiteSetting.short_title = "foo"
 
@@ -81,6 +85,14 @@ RSpec.describe MetadataController do
       expect(response.status).to eq(200)
       manifest = JSON.parse(response.body)
       expect(manifest["short_name"]).to eq("foo")
+    end
+
+    it 'contains valid shortcuts by default' do
+      get "/manifest.webmanifest"
+      expect(response.status).to eq(200)
+      manifest = JSON.parse(response.body)
+      expect(manifest["shortcuts"].size).to be > 0
+      expect { URI.parse(manifest["shortcuts"][0]["icons"][0]["src"]) }.not_to raise_error
     end
   end
 
@@ -98,7 +110,56 @@ RSpec.describe MetadataController do
       expect(response.body).to include("/search?q={searchTerms}")
       expect(response.body).to include('image/png')
       expect(response.body).to include(UrlHelper.absolute(upload.url))
-      expect(response.content_type).to eq('application/xml')
+      expect(response.media_type).to eq('application/xml')
     end
   end
+
+  describe '#app_association_android' do
+    it 'returns 404 by default' do
+      get "/.well-known/assetlinks.json"
+      expect(response.status).to eq(404)
+    end
+
+    it 'returns the right output' do
+      SiteSetting.app_association_android = <<~EOF
+        [{
+          "relation": ["delegate_permission/common.handle_all_urls"],
+          "target" : { "namespace": "android_app", "package_name": "com.example.app",
+                       "sha256_cert_fingerprints": ["hash_of_app_certificate"] }
+        }]
+      EOF
+      get "/.well-known/assetlinks.json"
+
+      expect(response.status).to eq(200)
+      expect(response.body).to include("hash_of_app_certificate")
+      expect(response.body).to include("com.example.app")
+      expect(response.media_type).to eq('application/json')
+    end
+  end
+
+  describe '#app_association_ios' do
+    it 'returns 404 by default' do
+      get "/apple-app-site-association"
+      expect(response.status).to eq(404)
+    end
+
+    it 'returns the right output' do
+      SiteSetting.app_association_ios = <<~EOF
+        {
+          "applinks": {
+            "apps": []
+          }
+        }
+      EOF
+      get "/apple-app-site-association"
+
+      expect(response.status).to eq(200)
+      expect(response.body).to include("applinks")
+      expect(response.media_type).to eq('application/json')
+
+      get "/apple-app-site-association.json"
+      expect(response.status).to eq(404)
+    end
+  end
+
 end

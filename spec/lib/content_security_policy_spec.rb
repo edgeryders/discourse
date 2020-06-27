@@ -2,7 +2,9 @@
 require 'rails_helper'
 
 describe ContentSecurityPolicy do
-  before { ContentSecurityPolicy.base_url = nil }
+  after do
+    DiscoursePluginRegistry.reset!
+  end
 
   describe 'report-uri' do
     it 'is enabled by SiteSetting' do
@@ -44,8 +46,6 @@ describe ContentSecurityPolicy do
     it 'always has self, logster, sidekiq, and assets' do
       script_srcs = parse(policy)['script-src']
       expect(script_srcs).to include(*%w[
-        'unsafe-eval'
-        'report-sample'
         http://test.localhost/logs/
         http://test.localhost/sidekiq/
         http://test.localhost/mini-profiler-resources/
@@ -58,6 +58,12 @@ describe ContentSecurityPolicy do
         http://test.localhost/theme-javascripts/
         http://test.localhost/svg-sprite/
       ])
+    end
+
+    it 'includes "report-sample" when report collection is enabled' do
+      SiteSetting.content_security_policy_collect_reports = true
+      script_srcs = parse(policy)['script-src']
+      expect(script_srcs).to include("'report-sample'")
     end
 
     it 'whitelists Google Analytics and Tag Manager when integrated' do
@@ -96,6 +102,35 @@ describe ContentSecurityPolicy do
         http://test.localhost/extra-locales/
       ])
     end
+
+    it 'adds subfolder to CDN assets' do
+      set_cdn_url('https://cdn.com')
+      set_subfolder('/forum')
+
+      script_srcs = parse(policy)['script-src']
+      expect(script_srcs).to include(*%w[
+        https://cdn.com/forum/assets/
+        https://cdn.com/forum/brotli_asset/
+        https://cdn.com/forum/highlight-js/
+        https://cdn.com/forum/javascripts/
+        https://cdn.com/forum/plugins/
+        https://cdn.com/forum/theme-javascripts/
+        http://test.localhost/forum/extra-locales/
+      ])
+
+      global_setting(:s3_cdn_url, 'https://s3-cdn.com')
+
+      script_srcs = parse(policy)['script-src']
+      expect(script_srcs).to include(*%w[
+        https://s3-cdn.com/assets/
+        https://s3-cdn.com/brotli_asset/
+        https://cdn.com/forum/highlight-js/
+        https://cdn.com/forum/javascripts/
+        https://cdn.com/forum/plugins/
+        https://cdn.com/forum/theme-javascripts/
+        http://test.localhost/forum/extra-locales/
+      ])
+    end
   end
 
   it 'can be extended by plugins' do
@@ -118,6 +153,12 @@ describe ContentSecurityPolicy do
     expect(parse(policy)['script-src']).to_not include('https://from-plugin.com')
 
     Discourse.plugins.pop
+  end
+
+  it 'only includes unsafe-inline for qunit paths' do
+    expect(parse(policy(path_info: "/qunit"))['script-src']).to include("'unsafe-eval'")
+    expect(parse(policy(path_info: "/wizard/qunit"))['script-src']).to include("'unsafe-eval'")
+    expect(parse(policy(path_info: "/"))['script-src']).to_not include("'unsafe-eval'")
   end
 
   context "with a theme" do
@@ -156,6 +197,44 @@ describe ContentSecurityPolicy do
       expect(parse(theme_policy)['script-src']).to_not include('https://from-theme.net')
       expect(parse(theme_policy)['worker-src']).to_not include('from-theme.com')
     end
+
+    it 'can be extended by theme modifiers' do
+      policy # call this first to make sure further actions clear the cache
+
+      theme.theme_modifier_set.csp_extensions = ["script-src: https://from-theme-flag.script", "worker-src: from-theme-flag.worker"]
+      theme.save!
+
+      expect(parse(theme_policy)['script-src']).to include('https://from-theme-flag.script')
+      expect(parse(theme_policy)['worker-src']).to include('from-theme-flag.worker')
+
+      theme.destroy!
+
+      expect(parse(theme_policy)['script-src']).to_not include('https://from-theme-flag.script')
+      expect(parse(theme_policy)['worker-src']).to_not include('from-theme-flag.worker')
+    end
+
+    it 'is extended automatically when themes reference external scripts' do
+      policy # call this first to make sure further actions clear the cache
+
+      theme.set_field(target: :common, name: "header", value: <<~SCRIPT)
+        <script src='https://example.com/myscript.js'></script>
+        <script src='//example2.com/protocol-less-script.js'></script>
+        <script src='domain-only.com'></script>
+        <script>console.log('inline script')</script>
+      SCRIPT
+
+      theme.set_field(target: :desktop, name: "header", value: "")
+      theme.save!
+
+      expect(parse(theme_policy)['script-src']).to include('https://example.com/myscript.js')
+      expect(parse(theme_policy)['script-src']).to include('example2.com/protocol-less-script.js')
+      expect(parse(theme_policy)['script-src']).not_to include('domain-only.com')
+      expect(parse(theme_policy)['script-src']).not_to include(a_string_matching /^\/theme-javascripts/)
+
+      theme.destroy!
+
+      expect(parse(theme_policy)['script-src']).to_not include('https://example.com/myscript.js')
+    end
   end
 
   it 'can be extended by site setting' do
@@ -171,7 +250,7 @@ describe ContentSecurityPolicy do
     end.to_h
   end
 
-  def policy(theme_ids = [])
-    ContentSecurityPolicy.policy(theme_ids)
+  def policy(theme_ids = [], path_info: "/")
+    ContentSecurityPolicy.policy(theme_ids, path_info: path_info)
   end
 end

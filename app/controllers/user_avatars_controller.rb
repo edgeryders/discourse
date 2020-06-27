@@ -1,7 +1,5 @@
 # frozen_string_literal: true
 
-require_dependency 'letter_avatar'
-
 class UserAvatarsController < ApplicationController
 
   skip_before_action :preload_json, :redirect_to_login_if_required, :check_xhr, :verify_authenticity_token, only: [:show, :show_letter, :show_proxy_letter]
@@ -37,7 +35,7 @@ class UserAvatarsController < ApplicationController
   def show_proxy_letter
     is_asset_path
 
-    if SiteSetting.external_system_avatars_url !~ /^\/letter(_avatar)?_proxy/
+    if SiteSetting.external_system_avatars_url !~ /^\/letter_avatar_proxy/
       raise Discourse::NotFound
     end
 
@@ -111,7 +109,7 @@ class UserAvatarsController < ApplicationController
 
     if !Discourse.avatar_sizes.include?(size) && Discourse.store.external?
       closest = Discourse.avatar_sizes.to_a.min { |a, b| (size - a).abs <=> (size - b).abs }
-      avatar_url = UserAvatar.local_avatar_url(hostname, user.username_lower, upload_id, closest)
+      avatar_url = UserAvatar.local_avatar_url(hostname, user.encoded_username(lower: true), upload_id, closest)
       return redirect_to cdn_path(avatar_url)
     end
 
@@ -119,7 +117,7 @@ class UserAvatarsController < ApplicationController
     upload ||= user.uploaded_avatar if user.uploaded_avatar_id == upload_id
 
     if user.uploaded_avatar && !upload
-      avatar_url = UserAvatar.local_avatar_url(hostname, user.username_lower, user.uploaded_avatar_id, size)
+      avatar_url = UserAvatar.local_avatar_url(hostname, user.encoded_username(lower: true), user.uploaded_avatar_id, size)
       return redirect_to cdn_path(avatar_url)
     elsif upload && optimized = get_optimized_image(upload, size)
       if optimized.local?
@@ -162,6 +160,9 @@ class UserAvatarsController < ApplicationController
         follow_redirect: true,
         read_timeout: 10
       )
+
+      return render_blank if tmp.nil?
+
       FileUtils.mv tmp.path, path
     end
 

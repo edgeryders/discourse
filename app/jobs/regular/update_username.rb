@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
 module Jobs
-  class UpdateUsername < Jobs::Base
+  class UpdateUsername < ::Jobs::Base
 
     sidekiq_options queue: 'low'
 
@@ -27,13 +27,15 @@ module Jobs
 
       cooked_username = PrettyText::Helpers.format_username(@old_username)
       @cooked_mention_username_regex = /^@#{cooked_username}$/i
-      @cooked_mention_user_path_regex = /^\/u(?:sers)?\/#{CGI.escape(cooked_username)}$/i
+      @cooked_mention_user_path_regex = /^\/u(?:sers)?\/#{UrlHelper.encode_component(cooked_username)}$/i
       @cooked_quote_username_regex = /(?<=\s)#{cooked_username}(?=:)/i
 
       update_posts
       update_revisions
       update_notifications
       update_post_custom_fields
+
+      DiscourseEvent.trigger(:username_changed, @old_username, @new_username)
     end
 
     def update_posts
@@ -152,17 +154,19 @@ module Jobs
     # and there is no reason to invalidate oneboxes, run the post analyzer etc.
     # when only the username changes.
     def update_cooked(cooked)
-      doc = Nokogiri::HTML.fragment(cooked)
+      doc = Nokogiri::HTML5.fragment(cooked)
 
       doc.css("a.mention").each do |a|
         a.content = a.content.gsub(@cooked_mention_username_regex, "@#{@new_username}")
-        a["href"] = a["href"].gsub(@cooked_mention_user_path_regex, "/u/#{@new_username}") if a["href"]
+        a["href"] = a["href"].gsub(@cooked_mention_user_path_regex, "/u/#{UrlHelper.encode_component(@new_username)}") if a["href"]
       end
 
       doc.css("aside.quote").each do |aside|
         next unless div = aside.at_css("div.title")
 
         username_replaced = false
+
+        aside["data-username"] = @new_username if aside["data-username"] == @old_username
 
         div.children.each do |child|
           if child.text?
@@ -184,7 +188,7 @@ module Jobs
       Post.where(
         topic_id: aside["data-topic"],
         post_number: aside["data-post"]
-      ).pluck(:user_id).first == @user_id
+      ).pluck_first(:user_id) == @user_id
     end
   end
 end

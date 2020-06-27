@@ -1,7 +1,6 @@
 # frozen_string_literal: true
 
 require 'rails_helper'
-require_dependency 'jobs/base'
 
 describe Jobs::EnqueueDigestEmails do
 
@@ -108,6 +107,14 @@ describe Jobs::EnqueueDigestEmails do
       end
     end
 
+    context "no primary email" do
+      let!(:user) { Fabricate(:active_user, last_seen_at: 2.months.ago) }
+
+      it "doesn't return users with no primary emails" do
+        UserEmail.where(user: user).delete_all
+        expect(Jobs::EnqueueDigestEmails.new.target_user_ids.include?(user.id)).to eq(false)
+      end
+    end
   end
 
   describe '#execute' do

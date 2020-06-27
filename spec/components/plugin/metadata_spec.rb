@@ -1,7 +1,6 @@
 # frozen_string_literal: true
 
 require 'rails_helper'
-require_dependency 'plugin/metadata'
 
 describe Plugin::Metadata do
   context "parse" do
@@ -46,7 +45,6 @@ TEXT
     official("customer-flair")
     official("discourse-adplugin")
     official("discourse-akismet")
-    official("discourse-backup-uploads-to-s3")
     official("discourse-cakeday")
     official("Canned Replies")
     official("discourse-data-explorer")

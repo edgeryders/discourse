@@ -1,7 +1,6 @@
 # frozen_string_literal: true
 
 require 'rails_helper'
-require_dependency 'user_option'
 
 describe UserOption do
 
@@ -33,6 +32,20 @@ describe UserOption do
 
     it "should not hide the profile and presence by default" do
       expect(user.user_option.hide_profile_and_presence).to eq(false)
+    end
+
+    it "should correctly set digest frequency" do
+      SiteSetting.default_email_digest_frequency = 1440
+      user = Fabricate(:user)
+      expect(user.user_option.email_digests).to eq(true)
+      expect(user.user_option.digest_after_minutes).to eq(1440)
+    end
+
+    it "should correctly set digest frequency when disabled" do
+      SiteSetting.default_email_digest_frequency = 0
+      user = Fabricate(:user)
+      expect(user.user_option.email_digests).to eq(false)
+      expect(user.user_option.digest_after_minutes).to eq(0)
     end
   end
 

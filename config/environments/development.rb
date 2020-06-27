@@ -1,7 +1,6 @@
 # frozen_string_literal: true
 
 Discourse::Application.configure do
-
   # Settings specified here will take precedence over those in config/application.rb
 
   # In the development environment your application's code is reloaded on
@@ -31,16 +30,32 @@ Discourse::Application.configure do
   config.active_record.migration_error = :page_load
   config.watchable_dirs['lib'] = [:rb]
 
-  config.handlebars.precompile = false
+  config.handlebars.precompile = true
 
   # we recommend you use mailcatcher https://github.com/sj26/mailcatcher
   config.action_mailer.smtp_settings = { address: "localhost", port: 1025 }
 
   config.action_mailer.raise_delivery_errors = true
 
-  BetterErrors::Middleware.allow_ip! ENV['TRUSTED_IP'] if ENV['TRUSTED_IP']
+  config.log_level = ENV['DISCOURSE_DEV_LOG_LEVEL'] if ENV['DISCOURSE_DEV_LOG_LEVEL']
+
+  if ENV['RAILS_VERBOSE_QUERY_LOGS'] == "1"
+    config.active_record.verbose_query_logs = true
+  end
+
+  if defined?(BetterErrors)
+    BetterErrors::Middleware.allow_ip! ENV['TRUSTED_IP'] if ENV['TRUSTED_IP']
+
+    if defined?(Unicorn) && ENV["UNICORN_WORKERS"].to_i != 1
+      # BetterErrors doesn't work with multiple unicorn workers. Disable it to avoid confusion
+      Rails.configuration.middleware.delete BetterErrors::Middleware
+    end
+  end
 
   config.load_mini_profiler = true
+  if hosts = ENV['DISCOURSE_DEV_HOSTS']
+    config.hosts.concat(hosts.split(","))
+  end
 
   require 'middleware/turbo_dev'
   config.middleware.insert 0, Middleware::TurboDev
@@ -48,7 +63,9 @@ Discourse::Application.configure do
   config.middleware.insert 1, Middleware::MissingAvatars
 
   config.enable_anon_caching = false
-  require 'rbtrace'
+  if RUBY_ENGINE == "ruby"
+    require 'rbtrace'
+  end
 
   if emails = GlobalSetting.developer_emails
     config.developer_emails = emails.split(",").map(&:downcase).map(&:strip)
@@ -61,6 +78,16 @@ Discourse::Application.configure do
   end
 
   config.after_initialize do
+    if ENV["RAILS_COLORIZE_LOGGING"] == "1"
+      config.colorize_logging = true
+    end
+
+    if ENV["RAILS_VERBOSE_QUERY_LOGS"] == "1"
+      ActiveRecord::LogSubscriber.backtrace_cleaner.add_silencer do |line|
+        line =~ /lib\/freedom_patches/
+      end
+    end
+
     if ENV['BULLET']
       Bullet.enable = true
       Bullet.rails_logger = true

@@ -4,11 +4,6 @@ class EmailController < ApplicationController
   layout 'no_ember'
 
   skip_before_action :check_xhr, :preload_json, :redirect_to_login_if_required
-  before_action :ensure_logged_in, only: :preferences_redirect
-
-  def preferences_redirect
-    redirect_to(email_preferences_path(current_user.username_lower))
-  end
 
   def unsubscribe
     @not_found = true
@@ -112,7 +107,7 @@ class EmailController < ApplicationController
     else
 
       key = "unsub_#{SecureRandom.hex}"
-      $redis.setex key, 1.hour, user.email
+      Discourse.cache.write key, user.email, expires_in: 1.hour
 
       url = path("/email/unsubscribed?key=#{key}")
       if topic
@@ -125,7 +120,7 @@ class EmailController < ApplicationController
   end
 
   def unsubscribed
-    @email = $redis.get(params[:key])
+    @email = Discourse.cache.read(params[:key])
     @topic_id = params[:topic_id]
     user = User.find_by_email(@email)
     raise Discourse::NotFound unless user

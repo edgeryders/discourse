@@ -2,7 +2,7 @@
 
 require "demon/base"
 
-class Demon::Sidekiq < Demon::Base
+class Demon::Sidekiq < ::Demon::Base
 
   def self.prefix
     "sidekiq"
@@ -31,15 +31,22 @@ class Demon::Sidekiq < Demon::Base
     # trouble, if STDOUT is closed in our process all sort of weird
     # will ensue, resetting the logger ensures it will reinit correctly
     # parent process is in charge of the file anyway.
-    Sidekiq::Logging.logger = nil
+    Sidekiq.logger = nil
     cli = Sidekiq::CLI.instance
+
+    # Unicorn uses USR1 to indicate that log files have been rotated
+    Signal.trap("USR1") do
+      puts "Sidekiq PID #{Process.pid} reopening logs..."
+      Unicorn::Util.reopen_logs
+      puts "Sidekiq PID #{Process.pid} done reopening logs..."
+    end
 
     options = ["-c", GlobalSetting.sidekiq_workers.to_s]
 
     [['critical', 8], ['default', 4], ['low', 2], ['ultra_low', 1]].each do |queue_name, weight|
       custom_queue_hostname = ENV["UNICORN_SIDEKIQ_#{queue_name.upcase}_QUEUE_HOSTNAME"]
 
-      if !custom_queue_hostname || custom_queue_hostname.split(',').include?(`hostname`.strip)
+      if !custom_queue_hostname || custom_queue_hostname.split(',').include?(Discourse.os_hostname)
         options << "-q"
         options << "#{queue_name},#{weight}"
       end

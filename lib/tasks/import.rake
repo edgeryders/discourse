@@ -45,7 +45,7 @@ def insert_post_replies
   log "Inserting post replies..."
 
   DB.exec <<-SQL
-    INSERT INTO post_replies (post_id, reply_id, created_at, updated_at)
+    INSERT INTO post_replies (post_id, reply_post_id, created_at, updated_at)
          SELECT p2.id, p.id, p.created_at, p.created_at
            FROM posts p
      INNER JOIN posts p2 ON p2.post_number = p.reply_to_post_number AND p2.topic_id = p.topic_id
@@ -227,7 +227,6 @@ def update_user_stats
 
   # TODO: topic_count is counting all topics you replied in as if you started the topic.
   # TODO: post_count is counting first posts.
-  # TODO: topic_reply_count is never used, and is counting PMs here.
   DB.exec <<-SQL
     WITH X AS (
       SELECT p.user_id
@@ -235,20 +234,6 @@ def update_user_stats
            , COUNT(DISTINCT p.topic_id) topics
            , MIN(p.created_at) min_created_at
            , COALESCE(COUNT(DISTINCT DATE(p.created_at)), 0) days
-           , COALESCE((
-              SELECT COUNT(*)
-                FROM topics
-               WHERE id IN (
-                SELECT topic_id
-                  FROM posts p2
-                  JOIN topics t2 ON t2.id = p2.topic_id
-                 WHERE p2.deleted_at IS NULL
-                   AND p2.post_type = 1
-                   AND NOT COALESCE(p2.hidden, 't')
-                   AND p2.user_id <> t2.user_id
-                   AND p2.user_id = p.user_id
-                )
-              ), 0) topic_replies
         FROM posts p
         JOIN topics t ON t.id = p.topic_id
        WHERE p.deleted_at IS NULL
@@ -268,7 +253,6 @@ def update_user_stats
          , topics_entered = X.topics
          , first_post_created_at = X.min_created_at
          , days_visited = X.days
-         , topic_reply_count = X.topic_replies
       FROM X
      WHERE user_stats.user_id = X.user_id
        AND (post_count <> X.posts
@@ -278,7 +262,7 @@ def update_user_stats
          OR topics_entered <> X.topics
          OR COALESCE(first_post_created_at, '1970-01-01') <> X.min_created_at
          OR days_visited <> X.days
-         OR topic_reply_count <> X.topic_replies)
+         )
   SQL
 end
 
@@ -300,7 +284,7 @@ def update_posts
   # WITH X AS (
   #   SELECT pr.post_id, p.user_id
   #     FROM post_replies pr
-  #     JOIN posts p ON p.id = pr.reply_id
+  #     JOIN posts p ON p.id = pr.reply_post_id
   # )
   # UPDATE posts
   #    SET reply_to_user_id = X.user_id
@@ -384,14 +368,15 @@ end
 def update_users
   log "Updating users..."
 
-  DB.exec <<-SQL
+  DB.exec(<<~SQL, Archetype.private_message)
     WITH X AS (
-        SELECT user_id
-             , MIN(created_at) min_created_at
-             , MAX(created_at) max_created_at
-          FROM posts
-         WHERE deleted_at IS NULL
-      GROUP BY user_id
+        SELECT p.user_id
+             , MIN(p.created_at) min_created_at
+             , MAX(p.created_at) max_created_at
+          FROM posts p
+          JOIN topics t ON t.id = p.topic_id AND t.archetype <> ?
+         WHERE p.deleted_at IS NULL
+      GROUP BY p.user_id
     )
     UPDATE users
        SET first_seen_at  = X.min_created_at
@@ -507,8 +492,29 @@ end
 
 desc 'Import existing exported file'
 task 'import:file', [:file_name] => [:environment] do |_, args|
-  require "import_export/import_export"
+  require "import_export"
 
   ImportExport.import(args[:file_name])
   puts "", "Done", ""
+end
+
+desc "Update first_post_created_at column in user_stats table"
+task "import:update_first_post_created_at" => :environment do
+  log "Updating first_post_created_at..."
+
+  DB.exec <<~SQL
+    WITH sub AS (
+      SELECT user_id, MIN(posts.created_at) AS first_post_created_at
+      FROM posts
+      GROUP BY user_id
+    )
+    UPDATE user_stats
+    SET first_post_created_at = sub.first_post_created_at
+    FROM user_stats u1
+    JOIN sub ON sub.user_id = u1.user_id
+    WHERE u1.user_id = user_stats.user_id
+      AND user_stats.first_post_created_at IS DISTINCT FROM sub.first_post_created_at
+  SQL
+
+  log "Done"
 end

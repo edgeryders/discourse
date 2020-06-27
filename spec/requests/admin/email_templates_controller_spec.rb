@@ -37,8 +37,31 @@ RSpec.describe Admin::EmailTemplatesController do
 
       expect(response.status).to eq(200)
 
-      json = ::JSON.parse(response.body)
+      json = response.parsed_body
       expect(json['email_templates']).to be_present
+    end
+
+    it 'returns overridden = true if subject or body has translation_overrides record' do
+      sign_in(admin)
+
+      put '/admin/customize/email_templates/user_notifications.admin_login', params: {
+        email_template: { subject: original_subject, body: original_body }
+      }, headers: headers
+      expect(response.status).to eq(200)
+
+      get '/admin/customize/email_templates.json'
+      expect(response.status).to eq(200)
+      templates = response.parsed_body['email_templates']
+      template = templates.find { |t| t['id'] == 'user_notifications.admin_login' }
+      expect(template['can_revert']).to eq(true)
+
+      TranslationOverride.destroy_all
+
+      get '/admin/customize/email_templates.json'
+      expect(response.status).to eq(200)
+      templates = response.parsed_body['email_templates']
+      template = templates.find { |t| t['id'] == 'user_notifications.admin_login' }
+      expect(template['can_revert']).to eq(false)
     end
   end
 
@@ -70,7 +93,7 @@ RSpec.describe Admin::EmailTemplatesController do
 
         expect(response).not_to be_successful
 
-        json = ::JSON.parse(response.body)
+        json = response.parsed_body
         expect(json['error_type']).to eq('not_found')
       end
 
@@ -80,7 +103,7 @@ RSpec.describe Admin::EmailTemplatesController do
             email_template: { subject: email_subject, body: email_body }
           }, headers: headers
 
-          json = ::JSON.parse(response.body)
+          json = response.parsed_body
           expect(json).to be_present
 
           errors = json['errors']
@@ -142,7 +165,7 @@ RSpec.describe Admin::EmailTemplatesController do
         include_examples "invalid email template"
       end
 
-      context "when subject and body are invalid invalid" do
+      context "when subject and body are invalid" do
         let(:email_subject) { 'Subject with %{invalid} interpolation key' }
         let(:email_body) { 'Body with some invalid interpolation keys: %{invalid}' }
 
@@ -173,7 +196,7 @@ RSpec.describe Admin::EmailTemplatesController do
 
           expect(response.status).to eq(200)
 
-          json = ::JSON.parse(response.body)
+          json = response.parsed_body
           expect(json).to be_present
 
           template = json['email_template']
@@ -256,7 +279,7 @@ RSpec.describe Admin::EmailTemplatesController do
         delete '/admin/customize/email_templates/non_existent_template', headers: headers
         expect(response).not_to be_successful
 
-        json = ::JSON.parse(response.body)
+        json = response.parsed_body
         expect(json['error_type']).to eq('not_found')
       end
 
@@ -284,7 +307,7 @@ RSpec.describe Admin::EmailTemplatesController do
           delete '/admin/customize/email_templates/user_notifications.admin_login', headers: headers
           expect(response.status).to eq(200)
 
-          json = ::JSON.parse(response.body)
+          json = response.parsed_body
           expect(json).to be_present
 
           template = json['email_template']

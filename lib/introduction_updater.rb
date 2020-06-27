@@ -18,16 +18,19 @@ class IntroductionUpdater
 
     if previous_value != new_value
       revisor = PostRevisor.new(post)
-
-      remaining = post.raw.split("\n")[1..-1]
-      revisor.revise!(@user, raw: "#{new_value}\n#{remaining.join("\n")}")
+      if post.raw.chomp == I18n.t('discourse_welcome_topic.body', base_path: Discourse.base_path).chomp
+        revisor.revise!(@user, raw: new_value)
+      else
+        remaining = post.raw[previous_value.length..-1]
+        revisor.revise!(@user, raw: "#{new_value}#{remaining}")
+      end
     end
   end
 
   protected
 
   def summary_from_post(post)
-    return post ? post.raw.split("\n").first : nil
+    post ? post.raw.split("\n").first : nil
   end
 
   def find_welcome_post

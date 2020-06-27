@@ -14,15 +14,7 @@ hu:
       total_votes:
         one: "összes szavazat"
         other: "összes szavazat"
-      average_rating: "Átlagos értékelés:  <strong>%{average}</strong>."
-      multiple:
-        help:
-          at_least_min_options:
-            one: "Válassz legalább <strong>%{count}</strong> lehetőséget"
-            other: "Válasst legalább <strong>%{count}</strong> lehetőséget"
-          x_options:
-            one: "Válassz <strong>%{count}</strong> lehetőséget"
-            other: "Válassz <strong>%{count}</strong> lehetőséget"
+      average_rating: "Átlagos értékelés: <strong>%{average}</strong>."
       cast-votes:
         title: "Szavazatod leadása"
         label: "Szavazz!"
@@ -31,7 +23,8 @@ hu:
         label: "Eredmények mutatása"
       hide-results:
         title: "Vissza a szavazataidhoz"
-        label: "Eredmények elrejtése"
+      export-results:
+        label: "Exportálás"
       open:
         title: "A szavazás megnyitása"
         label: "Megnyitás"
@@ -47,7 +40,6 @@ hu:
         title: Szavazás felépítése
         insert: Szavazás beillesztése
         help:
-          options_count: Legalább 2 opciót adj meg
           invalid_values: A minimum értéknek alacsonyabbnak kell lennie a maximum értéknél.
           min_step_value: A lépés minimális értéke 1
         poll_type:

@@ -68,10 +68,9 @@ end
 
 begin
   require 'facter'
+  raise LoadError if Gem::Version.new(Facter.version) < Gem::Version.new("4.0")
 rescue LoadError
   run "gem install facter"
-  # Facter requires CFPropertyList, but doesn't install it.
-  run "gem install CFPropertyList"
   puts "please rerun script"
   exit
 end
@@ -184,7 +183,7 @@ puts "Populating Profile DB"
 run("bundle exec ruby script/profile_db_generator.rb")
 
 puts "Getting api key"
-api_key = `bundle exec rake api_key:get`.split("\n")[-1]
+api_key = `bundle exec rake api_key:create_master[bench]`.split("\n")[-1]
 
 def bench(path, name)
   puts "Running apache bench warmup"
@@ -225,22 +224,32 @@ begin
   end
 
   puts "Starting benchmark..."
-  append = "?api_key=#{api_key}&api_username=admin1"
+  headers = { 'Api-Key' => api_key,
+              'Api-Username' => "admin1" }
 
   # asset precompilation is a dog, wget to force it
-  run "wget http://127.0.0.1:#{@port}/ -o /dev/null -O /dev/null"
+  run "curl -s -o /dev/null http://127.0.0.1:#{@port}/"
+
+  redirect_response = `curl -s -I "http://127.0.0.1:#{@port}/t/i-am-a-topic-used-for-perf-tests"`
+  if redirect_response !~ /301 Moved Permanently/
+    raise "Unable to locate topic for perf tests"
+  end
+
+  topic_url = redirect_response.match(/^location: .+(\/t\/i-am-a-topic-used-for-perf-tests\/.+)$/i)[1].strip
 
   tests = [
     ["categories", "/categories"],
     ["home", "/"],
-    ["topic", "/t/i-am-a-topic-used-for-perf-tests/179"]
+    ["topic", topic_url]
     # ["user", "/u/admin1/activity"],
   ]
 
-  tests.concat(tests.map { |k, url| ["#{k}_admin", "#{url}#{append}"] })
+  tests.concat(tests.map { |k, url| ["#{k}_admin", "#{url}", headers] })
 
-  tests.each do |_, path|
-    if `curl -s -I "http://127.0.0.1:#{@port}#{path}"` !~ /200 OK/
+  tests.each do |_, path, headers_for_path|
+    header_string = headers_for_path&.map { |k, v| "-H \"#{k}: #{v}\"" }&.join(" ")
+
+    if `curl -s -I "http://127.0.0.1:#{@port}#{path}" #{header_string}` !~ /200 OK/
       raise "#{path} returned non 200 response code"
     end
   end
@@ -276,7 +285,7 @@ begin
 
   # Prevent using external facts because it breaks when running in the
   # discourse/discourse_bench docker container.
-  Facter::Util::Config.external_facts_dirs = []
+  Facter.reset
   facts = Facter.to_hash
 
   facts.delete_if { |k, v|
@@ -311,12 +320,12 @@ begin
 
   if @mem_stats
     puts
-    puts open("http://127.0.0.1:#{@port}/admin/memory_stats#{append}").read
+    puts open("http://127.0.0.1:#{@port}/admin/memory_stats", headers).read
   end
 
   if @dump_heap
     puts
-    puts open("http://127.0.0.1:#{@port}/admin/dump_heap#{append}").read
+    puts open("http://127.0.0.1:#{@port}/admin/dump_heap", headers).read
   end
 
   if @result_file

@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-class Jobs::TopicActionConverter < Jobs::Base
+class Jobs::TopicActionConverter < ::Jobs::Base
 
   # Re-creating all the user actions could be very slow, so let's do it in a job
   # to avoid a N+1 query on a front facing operation.
@@ -13,7 +13,7 @@ class Jobs::TopicActionConverter < Jobs::Base
       action_type: [UserAction::GOT_PRIVATE_MESSAGE, UserAction::NEW_PRIVATE_MESSAGE]).find_each do |ua|
         UserAction.remove_action!(ua.attributes.symbolize_keys.slice(:action_type, :user_id, :acting_user_id, :target_topic_id, :target_post_id))
       end
-    topic.posts.each { |post| UserActionManager.post_created(post) }
+    topic.posts.find_each { |post| UserActionManager.post_created(post) }
     UserActionManager.topic_created(topic)
   end
 

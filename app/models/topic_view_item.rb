@@ -6,6 +6,7 @@ require 'ipaddr'
 class TopicViewItem < ActiveRecord::Base
   self.table_name = 'topic_views'
   belongs_to :user
+  belongs_to :topic
   validates_presence_of :topic_id, :ip_address, :viewed_at
 
   def self.add(topic_id, ip, user_id = nil, at = nil, skip_redis = false)
@@ -18,8 +19,8 @@ class TopicViewItem < ActiveRecord::Base
       redis_key << ":ip-#{ip}"
     end
 
-    if skip_redis || $redis.setnx(redis_key, "1")
-      skip_redis || $redis.expire(redis_key, SiteSetting.topic_view_duration_hours.hours)
+    if skip_redis || Discourse.redis.setnx(redis_key, "1")
+      skip_redis || Discourse.redis.expire(redis_key, SiteSetting.topic_view_duration_hours.hours)
 
       TopicViewItem.transaction do
         # this is called real frequently, working hard to avoid exceptions

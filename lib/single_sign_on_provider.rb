@@ -1,11 +1,15 @@
 # frozen_string_literal: true
 
-require_dependency 'single_sign_on'
-
 class SingleSignOnProvider < SingleSignOn
+  class BlankSecret < RuntimeError; end
 
   def self.parse(payload, sso_secret = nil)
     set_return_sso_url(payload)
+    if sso_secret.blank? && self.sso_secret.blank?
+      host = URI.parse(@return_sso_url).host
+      Rails.logger.warn("SSO failed; website #{host} is not in the `sso_provider_secrets` site settings")
+      raise BlankSecret
+    end
 
     super
   end
@@ -15,6 +19,7 @@ class SingleSignOnProvider < SingleSignOn
     decoded = Base64.decode64(parsed["sso"])
     decoded_hash = Rack::Utils.parse_query(decoded)
 
+    raise ParseError unless decoded_hash.key? 'return_sso_url'
     @return_sso_url = decoded_hash['return_sso_url']
   end
 

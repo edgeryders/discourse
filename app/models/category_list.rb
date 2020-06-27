@@ -1,7 +1,5 @@
 # frozen_string_literal: true
 
-require_dependency 'pinned_check'
-
 class CategoryList
   include ActiveModel::Serialization
 
@@ -22,10 +20,10 @@ class CategoryList
     find_categories
 
     prune_empty
-    prune_muted
     find_user_data
     sort_unpinned
     trim_results
+    demote_muted
 
     if preloaded_topic_custom_fields.present?
       displayable_topics = @categories.map(&:displayable_topics)
@@ -42,7 +40,7 @@ class CategoryList
   end
 
   def preload_key
-    "categories_list".freeze
+    "categories_list"
   end
 
   def self.order_categories(categories)
@@ -94,16 +92,12 @@ class CategoryList
 
     @categories = @categories.to_a
 
-    category_user = {}
-    default_notification_level = nil
-    unless @guardian.anonymous?
-      category_user = Hash[*CategoryUser.where(user: @guardian.user).pluck(:category_id, :notification_level).flatten]
-      default_notification_level = CategoryUser.notification_levels[:regular]
-    end
+    notification_levels = CategoryUser.notification_levels_for(@guardian)
+    default_notification_level = CategoryUser.default_notification_level
 
     allowed_topic_create = Set.new(Category.topic_create_allowed(@guardian).pluck(:id))
     @categories.each do |category|
-      category.notification_level = category_user[category.id] || default_notification_level
+      category.notification_level = notification_levels[category.id] || default_notification_level
       category.permission = CategoryGroup.permission_types[:full] if allowed_topic_create.include?(category.id)
       category.has_children = category.subcategories.present?
     end
@@ -145,10 +139,6 @@ class CategoryList
     @categories.delete_if { |c| c.uncategorized? && c.displayable_topics.blank? }
   end
 
-  def prune_muted
-    @categories.delete_if { |c| c.notification_level == CategoryUser.notification_levels[:muted] }
-  end
-
   # Attach some data for serialization to each topic
   def find_user_data
     if @guardian.current_user && @all_topics.present?
@@ -171,6 +161,12 @@ class CategoryList
         end
       end
     end
+  end
+
+  def demote_muted
+    muted_categories = @categories.select { |category| category.notification_level == 0 }
+    @categories = @categories.reject { |category| category.notification_level == 0 }
+    @categories.concat muted_categories
   end
 
   def trim_results

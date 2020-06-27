@@ -40,7 +40,7 @@ module Jobs
         self.class.mutex.synchronize do
           @data = {}
 
-          @data["hostname"] = `hostname`.strip # Hostname
+          @data["hostname"] = Discourse.os_hostname
           @data["pid"] = Process.pid # Pid
           @data["database"] = db # DB name - multisite db name it ran on
           @data["job_id"] = jid # Job unique ID
@@ -187,7 +187,7 @@ module Jobs
     def perform(*args)
       opts = args.extract_options!.with_indifferent_access
 
-      if Jobs.run_later?
+      if ::Jobs.run_later?
         Sidekiq.redis do |r|
           r.set('last_job_perform_at', Time.now.to_i)
         end
@@ -275,14 +275,18 @@ module Jobs
     extend MiniScheduler::Schedule
 
     def perform(*args)
-      if (Jobs::Heartbeat === self) || !Discourse.readonly_mode?
+      if (::Jobs::Heartbeat === self) || !Discourse.readonly_mode?
         super
       end
     end
   end
 
-  def self.enqueue(job_name, opts = {})
-    klass = "Jobs::#{job_name.to_s.camelcase}".constantize
+  def self.enqueue(job, opts = {})
+    if job.instance_of?(Class)
+      klass = job
+    else
+      klass = "::Jobs::#{job.to_s.camelcase}".constantize
+    end
 
     # Unless we want to work on all sites
     unless opts.delete(:all_sites)
@@ -290,7 +294,8 @@ module Jobs
     end
 
     # If we are able to queue a job, do it
-    if Jobs.run_later?
+
+    if ::Jobs.run_later?
       hash = {
         'class' => klass,
         'args' => [opts]
@@ -318,7 +323,30 @@ module Jobs
           klass.new.perform(opts)
         end
       else
-        klass.new.perform(opts)
+        # Run the job synchronously
+        # But never run a job inside another job
+        # That could cause deadlocks during test runs
+        queue = Thread.current[:discourse_nested_job_queue]
+        outermost_job = !queue
+
+        if outermost_job
+          queue = Queue.new
+          Thread.current[:discourse_nested_job_queue] = queue
+        end
+
+        queue.push([klass, opts])
+
+        if outermost_job
+          # responsible for executing the queue
+          begin
+            until queue.empty?
+              queued_klass, queued_opts = queue.pop(true)
+              queued_klass.new.perform(queued_opts)
+            end
+          ensure
+            Thread.current[:discourse_nested_job_queue] = nil
+          end
+        end
       end
     end
 
@@ -361,7 +389,3 @@ module Jobs
     end
   end
 end
-
-Dir["#{Rails.root}/app/jobs/onceoff/*.rb"].each { |file| require_dependency file }
-Dir["#{Rails.root}/app/jobs/regular/*.rb"].each { |file| require_dependency file }
-Dir["#{Rails.root}/app/jobs/scheduled/*.rb"].each { |file| require_dependency file }

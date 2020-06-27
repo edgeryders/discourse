@@ -16,6 +16,7 @@ class SingleSignOn
     groups
     locale
     locale_force_update
+    logout
     name
     nonce
     profile_background_url
@@ -26,6 +27,7 @@ class SingleSignOn
     title
     username
     website
+    location
   }
 
   FIXNUMS = []
@@ -34,6 +36,7 @@ class SingleSignOn
     admin
     avatar_force_update
     locale_force_update
+    logout
     moderator
     require_activation
     suppress_welcome_message

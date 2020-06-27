@@ -7,8 +7,8 @@ module Discourse
   unless defined? ::Discourse::VERSION
     module VERSION #:nodoc:
       MAJOR = 2
-      MINOR = 3
-      TINY  = 6
+      MINOR = 5
+      TINY  = 0
       PRE   = nil
 
       STRING = [MAJOR, MINOR, TINY, PRE].compact.join('.')

@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-class Jobs::NotifyReviewable < Jobs::Base
+class Jobs::NotifyReviewable < ::Jobs::Base
 
   def execute(args)
     reviewable = Reviewable.find_by(id: args[:reviewable_id])
@@ -48,6 +48,8 @@ protected
   end
 
   def notify(count, user_ids)
+    return if user_ids.blank?
+
     data = { reviewable_count: count }
     MessageBus.publish("/reviewable_counts", data, user_ids: user_ids)
     @contacted += user_ids

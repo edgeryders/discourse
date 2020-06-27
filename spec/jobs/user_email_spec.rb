@@ -1,7 +1,6 @@
 # frozen_string_literal: true
 
 require 'rails_helper'
-require_dependency 'jobs/base'
 
 describe Jobs::UserEmail do
 
@@ -31,7 +30,7 @@ describe Jobs::UserEmail do
     fab!(:popular_topic) { Fabricate(:topic, user: Fabricate(:admin), created_at: 1.hour.ago) }
 
     it "doesn't call the mailer when the user is missing" do
-      Jobs::UserEmail.new.execute(type: :digest, user_id: 1234)
+      Jobs::UserEmail.new.execute(type: :digest, user_id: User.last.id + 10000)
       expect(ActionMailer::Base.deliveries).to eq([])
     end
 
@@ -193,18 +192,21 @@ describe Jobs::UserEmail do
   end
 
   context "email_log" do
-    fab!(:post) { Fabricate(:post) }
+    fab!(:post) { Fabricate(:post, created_at: 30.seconds.ago) }
 
     before do
       SiteSetting.editing_grace_period = 0
-      post
     end
 
     it "creates an email log when the mail is sent (via Email::Sender)" do
-      last_emailed_at = user.last_emailed_at
+      freeze_time
+
+      last_emailed_at = 7.days.ago
+      user.update!(last_emailed_at: last_emailed_at)
+      Topic.last.update(created_at: 1.minute.ago)
 
       expect do
-        Jobs::UserEmail.new.execute(type: :digest, user_id: user.id,)
+        Jobs::UserEmail.new.execute(type: :digest, user_id: user.id)
       end.to change { EmailLog.count }.by(1)
 
       email_log = EmailLog.last
@@ -212,12 +214,17 @@ describe Jobs::UserEmail do
       expect(email_log.user).to eq(user)
       expect(email_log.post).to eq(nil)
       # last_emailed_at should have changed
-      expect(email_log.user.last_emailed_at).to_not eq(last_emailed_at)
+      expect(email_log.user.last_emailed_at).to_not eq_time(last_emailed_at)
     end
 
     it "creates a skipped email log when the mail is skipped" do
-      last_emailed_at = user.last_emailed_at
-      user.update_columns(suspended_till: 1.year.from_now)
+      freeze_time
+
+      last_emailed_at = 7.days.ago
+      user.update!(
+        last_emailed_at: last_emailed_at,
+        suspended_till: 1.year.from_now
+      )
 
       expect do
         Jobs::UserEmail.new.execute(type: :digest, user_id: user.id)
@@ -232,10 +239,10 @@ describe Jobs::UserEmail do
       )).to eq(true)
 
       # last_emailed_at doesn't change
-      expect(user.last_emailed_at).to eq(last_emailed_at)
+      expect(user.last_emailed_at).to eq_time(last_emailed_at)
     end
 
-    it "creates a skipped email log when the usere isn't allowed to see the post" do
+    it "creates a skipped email log when the user isn't allowed to see the post" do
       user.user_option.update(email_level: UserOption.email_level_types[:always])
       post.topic.convert_to_private_message(Discourse.system_user)
 

@@ -23,6 +23,7 @@ lv:
   topics: "Tēmas"
   posts: "raksti"
   loading: "Ielāde"
+  sign_up: "Reģistrēties"
   log_in: "Ienākt"
   submit: "Iesniegt"
   anonymous: "Anonīmi"
@@ -35,6 +36,8 @@ lv:
   activemodel:
     errors:
       <<: *errors
+  not_in_group:
+    join_group: "Pievienoties grupai"
   likes: "Patīk"
   embed:
     start_discussion: "Sākt Diskusiju"
@@ -45,14 +48,19 @@ lv:
       other: "vel %{count} atbildes"
     loading: "Diskusijas Ielādēšana..."
     in_reply_to: "▶ %{username}"
+    created: "Radīts"
   next_page: "nākošo lapu →"
   prev_page: "← iepriekšējo lapu"
   page_num: "Lapa %{num}"
-  num_posts: "Raksti:"
-  num_participants: "Dalībnieki:"
   read_full_topic: "Lasīt pilnu tēmu"
   rss_description:
     latest: "Jaunākās tēmas"
+  bookmarks:
+    reminders:
+      later_today: "Vēlāk šodien"
+      tomorrow: "Rītdien"
+      next_week: "Nākamā nedēļā"
+      next_month: "Nākamā mēnesī"
   groups:
     default_names:
       everyone: "ikviens"
@@ -136,6 +144,8 @@ lv:
       every_hour: "katru stundu"
       daily: "katru dienu"
       weekly: "katru nedēļu"
+      every_month: "katru mēnesi"
+      every_six_months: "katrus sešus mēnešus"
   user_api_key:
     read: "izlasīts"
     otp_confirmation:
@@ -143,9 +153,11 @@ lv:
   reports:
     default:
       labels:
+        count: Skaits
         day: Diena
     post_edits:
       labels:
+        edited_at: Datums
         post: Ieraksts
         edit_reason: Iemesls
     user_flagging_ratio:
@@ -160,6 +172,8 @@ lv:
       xaxis: "Diena"
     new_contributors:
       xaxis: "Diena"
+    trust_level_growth:
+      yaxis: "Diena"
     consolidated_page_views:
       yaxis: "Diena"
       labels:
@@ -250,11 +264,13 @@ lv:
     http_5xx_reqs:
       xaxis: "Diena"
     http_total_reqs:
+      title: "Kopā"
       xaxis: "Diena"
     time_to_first_response:
       xaxis: "Diena"
     topics_with_no_response:
       xaxis: "Diena"
+      yaxis: "Kopā"
     mobile_visits:
       xaxis: "Diena"
     web_crawlers:
@@ -275,12 +291,15 @@ lv:
     errors:
       invalid_email: "Nepareiza e-pasta adrese."
   search:
+    within_post: "#%{post_number} - %{username}"
     types:
       category: "Sadaļas"
       user: "Lietotāji"
   login:
     not_approved: "Jūsu konts vēl nav apstiprināts. Jums tiks paziņots e-pastā, kad varēsiet pieslēgties."
     admin_not_allowed_from_ip_address: "Jūs nevarat ieiet kā administrators no šīs IP adreses."
+    not_available: "Nav pieejams. Mēģiniet %{suggestion}?"
+    omniauth_confirm_button: "Turpināt"
   admin:
     email:
       sent_test: "nosūtīts!"
@@ -302,9 +321,12 @@ lv:
     see_more: "Vairāk"
     search_title: "Meklēt šajā vietnē"
     search_button: "Meklēt"
+  upload:
+    unauthorized: "Atvainojiet, fails, ko mēģināt augšuplādēt, nav atļauts (atļautie paplašinājumi: %{authorized_extensions})."
   csv_export:
     boolean_yes: "Jā"
     boolean_no: "Nē"
+    rate_limit_error: "Ierakstus var lejuplādēt reizi dienā, lūdzu mēģiniet atkal rītdien."
   guidelines_topic:
     title: "BUJ/Vadlīnijas"
   tos_topic:
@@ -323,6 +345,14 @@ lv:
     step:
       forum_title:
         title: "Vārds"
+      privacy:
+        fields:
+          privacy:
+            choices:
+              open:
+                label: "Publisks"
+              restricted:
+                label: "Privāts"
       contact:
         fields:
           contact_email:
@@ -346,6 +376,14 @@ lv:
       emoji:
         title: "Smaidiņi"
   joined: "Pievienojās"
+  discourse_push_notifications:
+    popup:
+      mentioned: '%{username} pieminēja jūs "%{topic}" - %{site_title}'
+      group_mentioned: '%{username} pieminēja jūs "%{topic}" - %{site_title}'
+      quoted: '%{username} citēja jūs "%{topic}" - %{site_title}'
+      replied: '%{username} atbildēja jums "%{topic}" - %{site_title}'
+      posted: '%{username} ierakstīja "%{topic}" - %{site_title}'
+      linked: '%{username} ievietoja saiti uz jūsu ierakstu no "%{topic}" - %{site_title}'
   reviewables:
     actions:
       agree_and_suspend:
@@ -356,6 +394,8 @@ lv:
         title: "Dzēst"
       disagree:
         title: "Nepiekrist"
+      ignore:
+        title: "Ignorēt"
       approve:
         title: "Apstiprināt"
       reject_user:

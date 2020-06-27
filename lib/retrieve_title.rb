@@ -1,7 +1,5 @@
 # frozen_string_literal: true
 
-require_dependency 'final_destination'
-
 module RetrieveTitle
   CRAWL_TIMEOUT = 1
 
@@ -13,7 +11,7 @@ module RetrieveTitle
 
   def self.extract_title(html)
     title = nil
-    if doc = Nokogiri::HTML(html)
+    if doc = Nokogiri::HTML5(html)
 
       title = doc.at('title')&.inner_text
 
@@ -69,6 +67,6 @@ module RetrieveTitle
       title = extract_title(current)
       throw :done if title || max_size < current.length
     end
-    return title
+    title
   end
 end

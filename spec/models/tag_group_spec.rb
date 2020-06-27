@@ -87,4 +87,51 @@ describe TagGroup do
       include_examples "correct visible tag groups"
     end
   end
+
+  describe 'tag_names=' do
+    let(:tag_group) { Fabricate(:tag_group) }
+    fab!(:tag) { Fabricate(:tag) }
+
+    before { SiteSetting.tagging_enabled = true }
+
+    it "can use existing tags and create new ones" do
+      expect {
+        tag_group.tag_names = [tag.name, 'new-tag']
+      }.to change { Tag.count }.by(1)
+      expect_same_tag_names(tag_group.reload.tags, [tag, 'new-tag'])
+    end
+
+    it "removes parent tag as group member" do
+      parent = Fabricate(:tag)
+      tag_group.tags = [tag, parent]
+      tag_group.update!(parent_tag: parent)
+      tag_group.reload
+      expect_same_tag_names(tag_group.tags, [tag])
+      expect_same_tag_names([tag_group.parent_tag], [parent])
+    end
+
+    it "removes parent tag as group member when creating the group" do
+      parent = Fabricate(:tag)
+      tg = Fabricate(:tag_group, tags: [tag, parent], parent_tag: parent)
+      expect_same_tag_names(tg.tags, [tag])
+      expect_same_tag_names([tg.parent_tag], [parent])
+    end
+
+    context 'with synonyms' do
+      fab!(:synonym) { Fabricate(:tag, name: 'synonym', target_tag: tag) }
+
+      it "adds synonyms from base tags too" do
+        expect {
+          tag_group.tag_names = [tag.name, 'new-tag']
+        }.to change { Tag.count }.by(1)
+        expect_same_tag_names(tag_group.reload.tags, [tag, 'new-tag', synonym])
+      end
+
+      it "removes tags correctly" do
+        tag_group.update!(tag_names: [tag.name])
+        tag_group.tag_names = ['new-tag']
+        expect_same_tag_names(tag_group.reload.tags, ['new-tag'])
+      end
+    end
+  end
 end

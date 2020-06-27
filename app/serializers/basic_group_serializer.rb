@@ -10,7 +10,6 @@ class BasicGroupSerializer < ApplicationSerializer
              :messageable_level,
              :visibility_level,
              :automatic_membership_email_domains,
-             :automatic_membership_retroactive,
              :primary_group,
              :title,
              :grant_trust_level,
@@ -29,7 +28,10 @@ class BasicGroupSerializer < ApplicationSerializer
              :default_notification_level,
              :membership_request_template,
              :is_group_user,
-             :is_group_owner
+             :is_group_owner,
+             :members_visibility_level,
+             :can_see_members,
+             :publish_read_state
 
   def include_display_name?
     object.automatic
@@ -42,7 +44,7 @@ class BasicGroupSerializer < ApplicationSerializer
   end
 
   def bio_excerpt
-    PrettyText.excerpt(object.bio_cooked, 110) if object.bio_cooked.present?
+    PrettyText.excerpt(object.bio_cooked, 110, keep_emoji_images: true) if object.bio_cooked.present?
   end
 
   def include_incoming_email?
@@ -50,10 +52,6 @@ class BasicGroupSerializer < ApplicationSerializer
   end
 
   def include_automatic_membership_email_domains?
-    scope.is_admin?
-  end
-
-  def include_automatic_membership_retroactive?
     scope.is_admin?
   end
 
@@ -79,6 +77,10 @@ class BasicGroupSerializer < ApplicationSerializer
 
   def is_group_owner
     owner_group_ids.include?(object.id)
+  end
+
+  def can_see_members
+    scope.can_see_group_members?(object)
   end
 
   private

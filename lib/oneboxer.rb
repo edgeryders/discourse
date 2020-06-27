@@ -1,13 +1,13 @@
 # frozen_string_literal: true
 
 require 'uri'
-require_dependency "onebox/discourse_onebox_sanitize_config"
-require_dependency 'final_destination'
 
 Dir["#{Rails.root}/lib/onebox/engine/*_onebox.rb"].sort.each { |f| require f }
 
 module Oneboxer
   ONEBOX_CSS_CLASS = "onebox"
+  AUDIO_REGEX = /^\.(mp3|og[ga]|opus|wav|m4[abpr]|aac|flac)$/i
+  VIDEO_REGEX = /^\.(mov|mp4|webm|m4v|3gp|ogv|avi|mpeg|ogv)$/i
 
   # keep reloaders happy
   unless defined? Oneboxer::Result
@@ -23,11 +23,15 @@ module Oneboxer
   end
 
   def self.ignore_redirects
-    @ignore_redirects ||= ['http://www.dropbox.com', 'http://store.steampowered.com', Discourse.base_url]
+    @ignore_redirects ||= ['http://www.dropbox.com', 'http://store.steampowered.com', 'http://vimeo.com', Discourse.base_url]
   end
 
   def self.force_get_hosts
     @force_get_hosts ||= ['http://us.battle.net']
+  end
+
+  def self.force_custom_user_agent_hosts
+    SiteSetting.force_custom_user_agent_hosts.split('|')
   end
 
   def self.allowed_post_types
@@ -47,7 +51,7 @@ module Oneboxer
   end
 
   def self.cached_onebox(url)
-    if c = Rails.cache.read(onebox_cache_key(url))
+    if c = Discourse.cache.read(onebox_cache_key(url))
       c[:onebox]
     end
   rescue => e
@@ -57,7 +61,7 @@ module Oneboxer
   end
 
   def self.cached_preview(url)
-    if c = Rails.cache.read(onebox_cache_key(url))
+    if c = Discourse.cache.read(onebox_cache_key(url))
       c[:preview]
     end
   rescue => e
@@ -67,13 +71,14 @@ module Oneboxer
   end
 
   def self.invalidate(url)
-    Rails.cache.delete(onebox_cache_key(url))
+    Discourse.cache.delete(onebox_cache_key(url))
+    Discourse.cache.delete(onebox_failed_cache_key(url))
   end
 
   # Parse URLs out of HTML, returning the document when finished.
   def self.each_onebox_link(string_or_doc, extra_paths: [])
     doc = string_or_doc
-    doc = Nokogiri::HTML::fragment(doc) if doc.is_a?(String)
+    doc = Nokogiri::HTML5::fragment(doc) if doc.is_a?(String)
 
     onebox_links = doc.css("a.#{ONEBOX_CSS_CLASS}", *extra_paths)
     if onebox_links.present?
@@ -89,14 +94,14 @@ module Oneboxer
 
   def self.apply(string_or_doc, extra_paths: nil)
     doc = string_or_doc
-    doc = Nokogiri::HTML::fragment(doc) if doc.is_a?(String)
+    doc = Nokogiri::HTML5::fragment(doc) if doc.is_a?(String)
     changed = false
 
     each_onebox_link(doc, extra_paths: extra_paths) do |url, element|
       onebox, _ = yield(url, element)
 
       if onebox
-        parsed_onebox = Nokogiri::HTML::fragment(onebox)
+        parsed_onebox = Nokogiri::HTML5::fragment(onebox)
         next unless parsed_onebox.children.count > 0
 
         if element&.parent&.node_name&.downcase == "p" &&
@@ -111,25 +116,37 @@ module Oneboxer
     end
 
     # strip empty <p> elements
-    doc.css("p").each { |p| p.remove if p.children.empty? }
+    doc.css("p").each do |p|
+      if p.children.empty? && doc.children.count > 1
+        p.remove
+      end
+    end
 
     Result.new(doc, changed)
   end
 
   def self.is_previewing?(user_id)
-    $redis.get(preview_key(user_id)) == "1"
+    Discourse.redis.get(preview_key(user_id)) == "1"
   end
 
   def self.preview_onebox!(user_id)
-    $redis.setex(preview_key(user_id), 1.minute, "1")
+    Discourse.redis.setex(preview_key(user_id), 1.minute, "1")
   end
 
   def self.onebox_previewed!(user_id)
-    $redis.del(preview_key(user_id))
+    Discourse.redis.del(preview_key(user_id))
   end
 
   def self.engine(url)
     Onebox::Matcher.new(url).oneboxed
+  end
+
+  def self.recently_failed?(url)
+    Discourse.cache.read(onebox_failed_cache_key(url)).present?
+  end
+
+  def self.cache_failed!(url)
+    Discourse.cache.write(onebox_failed_cache_key(url), true, expires_in: 1.hour)
   end
 
   private
@@ -144,6 +161,10 @@ module Oneboxer
 
   def self.onebox_cache_key(url)
     "onebox__#{url}"
+  end
+
+  def self.onebox_failed_cache_key(url)
+    "onebox_failed__#{url}"
   end
 
   def self.onebox_raw(url, opts = {})
@@ -173,32 +194,43 @@ module Oneboxer
 
   def self.local_upload_html(url)
     case File.extname(URI(url).path || "")
-    when /^\.(mov|mp4|webm|ogv)$/i
-      "<video width='100%' height='100%' controls><source src='#{url}'><a href='#{url}'>#{url}</a></video>"
-    when /^\.(mp3|ogg|wav|m4a)$/i
+    when VIDEO_REGEX
+      <<~HTML
+        <div class="onebox video-onebox">
+          <video width="100%" height="100%" controls="">
+            <source src='#{url}'>
+            <a href='#{url}'>#{url}</a>
+          </video>
+        </div>
+      HTML
+    when AUDIO_REGEX
       "<audio controls><source src='#{url}'><a href='#{url}'>#{url}</a></audio>"
     end
   end
 
-  def self.local_topic_html(url, route, opts)
-    return unless current_user = User.find_by(id: opts[:user_id])
+  def self.local_topic(url, route, opts)
+    if current_user = User.find_by(id: opts[:user_id])
+      if current_category = Category.find_by(id: opts[:category_id])
+        return unless Guardian.new(current_user).can_see_category?(current_category)
+      end
 
-    if current_category = Category.find_by(id: opts[:category_id])
-      return unless Guardian.new(current_user).can_see_category?(current_category)
+      if current_topic = Topic.find_by(id: opts[:topic_id])
+        return unless Guardian.new(current_user).can_see_topic?(current_topic)
+      end
     end
 
-    if current_topic = Topic.find_by(id: opts[:topic_id])
-      return unless Guardian.new(current_user).can_see_topic?(current_topic)
-    end
-
-    topic = Topic.find_by(id: route[:topic_id])
-
-    return unless topic
+    return unless topic = Topic.find_by(id: route[:id] || route[:topic_id])
     return if topic.private_message?
 
-    if current_category&.id != topic.category_id
+    if current_category.blank? || current_category.id != topic.category_id
       return unless Guardian.new.can_see_topic?(topic)
     end
+
+    topic
+  end
+
+  def self.local_topic_html(url, route, opts)
+    return unless topic = local_topic(url, route, opts)
 
     post_number = route[:post_number].to_i
 
@@ -208,7 +240,7 @@ module Oneboxer
 
     return if !post || post.hidden || !allowed_post_types.include?(post.post_type)
 
-    if post_number > 1 && current_topic&.id == topic.id
+    if post_number > 1 && opts[:topic_id] == topic.id
       excerpt = post.excerpt(SiteSetting.post_onebox_maxlength)
       excerpt.gsub!(/[\r\n]+/, " ")
       excerpt.gsub!("[/quote]", "[quote]") # don't break my quote
@@ -227,7 +259,7 @@ module Oneboxer
         quote: PrettyText.unescape_emoji(post.excerpt(SiteSetting.post_onebox_maxlength)),
       }
 
-      template = File.read("#{Rails.root}/lib/onebox/templates/discourse_topic_onebox.hbs")
+      template = File.read("#{Rails.root}/lib/onebox/templates/discourse_topic_onebox.mustache")
       Mustache.render(template, args)
     end
   end
@@ -253,7 +285,7 @@ module Oneboxer
         original_url: url
       }
 
-      template = File.read("#{Rails.root}/lib/onebox/templates/discourse_user_onebox.hbs")
+      template = File.read("#{Rails.root}/lib/onebox/templates/discourse_user_onebox.mustache")
       Mustache.render(template, args)
     else
       nil
@@ -269,22 +301,23 @@ module Oneboxer
   end
 
   def self.external_onebox(url)
-    Rails.cache.fetch(onebox_cache_key(url), expires_in: 1.day) do
-      fd = FinalDestination.new(url, ignore_redirects: ignore_redirects, ignore_hostnames: blacklisted_domains, force_get_hosts: force_get_hosts, preserve_fragment_url_hosts: preserve_fragment_url_hosts)
+    Discourse.cache.fetch(onebox_cache_key(url), expires_in: 1.day) do
+      fd = FinalDestination.new(url,
+                              ignore_redirects: ignore_redirects,
+                              ignore_hostnames: blacklisted_domains,
+                              force_get_hosts: force_get_hosts,
+                              force_custom_user_agent_hosts: force_custom_user_agent_hosts,
+                              preserve_fragment_url_hosts: preserve_fragment_url_hosts)
       uri = fd.resolve
       return blank_onebox if uri.blank? || blacklisted_domains.map { |hostname| uri.hostname.match?(hostname) }.any?
 
       options = {
-        cache: {},
         max_width: 695,
-        sanitize_config: Sanitize::Config::DISCOURSE_ONEBOX
+        sanitize_config: Onebox::DiscourseOneboxSanitizeConfig::Config::DISCOURSE_ONEBOX,
+        hostname: GlobalSetting.hostname,
       }
 
       options[:cookie] = fd.cookie if fd.cookie
-
-      if Rails.env.development? && SiteSetting.port.to_i > 0
-        Onebox.options = { allowed_ports: [80, 443, SiteSetting.port.to_i] }
-      end
 
       r = Onebox.preview(uri.to_s, options)
 

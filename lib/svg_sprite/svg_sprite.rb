@@ -1,10 +1,9 @@
 # frozen_string_literal: true
 
-require_dependency 'distributed_cache'
-
 module SvgSprite
   SVG_ICONS ||= Set.new([
     "adjust",
+    "address-book",
     "ambulance",
     "anchor",
     "angle-double-down",
@@ -21,14 +20,18 @@ module SvgSprite
     "arrows-alt-h",
     "arrows-alt-v",
     "at",
+    "asterisk",
     "backward",
     "ban",
     "bars",
     "bed",
+    "bell",
     "bell-slash",
     "bold",
     "book",
+    "book-reader",
     "bookmark",
+    "discourse-bookmark-clock",
     "briefcase",
     "calendar-alt",
     "caret-down",
@@ -55,6 +58,9 @@ module SvgSprite
     "crosshairs",
     "cube",
     "desktop",
+    "discourse-bell-exclamation",
+    "discourse-bell-one",
+    "discourse-bell-slash",
     "discourse-compress",
     "discourse-expand",
     "download",
@@ -69,6 +75,7 @@ module SvgSprite
     "fab-android",
     "fab-apple",
     "fab-chrome",
+    "fab-discord",
     "fab-discourse",
     "fab-facebook-square",
     "fab-facebook",
@@ -123,6 +130,7 @@ module SvgSprite
     "heading",
     "heart",
     "home",
+    "id-card",
     "info-circle",
     "italic",
     "key",
@@ -162,8 +170,11 @@ module SvgSprite
     "sign-in-alt",
     "sign-out-alt",
     "signal",
+    "star",
     "step-backward",
     "step-forward",
+    "stream",
+    "sync-alt",
     "sync",
     "table",
     "tag",
@@ -188,7 +199,8 @@ module SvgSprite
     "user-shield",
     "user-times",
     "users",
-    "wrench"
+    "wrench",
+    "spinner"
   ])
 
   FA_ICON_MAP = { 'far fa-' => 'far-', 'fab fa-' => 'fab-', 'fas fa-' => '', 'fa-' => '' }
@@ -198,24 +210,26 @@ module SvgSprite
   THEME_SPRITE_VAR_NAME = "icons-sprite"
 
   def self.custom_svg_sprites(theme_ids = [])
-    custom_sprite_paths = Dir.glob("#{Rails.root}/plugins/*/svg-icons/*.svg")
+    get_set_cache("custom_svg_sprites_#{Theme.transform_ids(theme_ids).join(',')}") do
+      custom_sprite_paths = Dir.glob("#{Rails.root}/plugins/*/svg-icons/*.svg")
 
-    ThemeField.where(type_id: ThemeField.types[:theme_upload_var], name: THEME_SPRITE_VAR_NAME, theme_id: Theme.transform_ids(theme_ids))
-      .pluck(:upload_id).each do |upload_id|
+      ThemeField.where(type_id: ThemeField.types[:theme_upload_var], name: THEME_SPRITE_VAR_NAME, theme_id: Theme.transform_ids(theme_ids))
+        .pluck(:upload_id).each do |upload_id|
 
-      upload = Upload.find(upload_id) rescue nil
+        upload = Upload.find(upload_id) rescue nil
 
-      if Discourse.store.external?
-        external_copy = Discourse.store.download(upload) rescue nil
-        original_path = external_copy.try(:path)
-      else
-        original_path = Discourse.store.path_for(upload)
+        if Discourse.store.external?
+          external_copy = Discourse.store.download(upload) rescue nil
+          original_path = external_copy.try(:path)
+        else
+          original_path = Discourse.store.path_for(upload)
+        end
+
+        custom_sprite_paths << original_path if original_path.present?
       end
 
-      custom_sprite_paths << original_path if original_path.present?
+      custom_sprite_paths
     end
-
-    custom_sprite_paths
   end
 
   def self.all_icons(theme_ids = [])
@@ -236,7 +250,7 @@ module SvgSprite
 
   def self.version(theme_ids = [])
     get_set_cache("version_#{Theme.transform_ids(theme_ids).join(',')}") do
-      Digest::SHA1.hexdigest(all_icons(theme_ids).join('|'))
+      Digest::SHA1.hexdigest(bundle(theme_ids))
     end
   end
 
@@ -303,6 +317,39 @@ License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL
     false
   end
 
+  def self.icon_picker_search(keyword)
+    results = Set.new
+
+    sprite_sources([SiteSetting.default_theme_id]).each do |fname|
+      svg_file = Nokogiri::XML(File.open(fname))
+      svg_filename = "#{File.basename(fname, ".svg")}"
+
+      svg_file.css('symbol').each do |sym|
+        icon_id = prepare_symbol(sym, svg_filename)
+        if keyword.empty? || icon_id.include?(keyword)
+          sym.attributes['id'].value = icon_id
+          sym.css('title').each(&:remove)
+          results.add(id: icon_id, symbol: sym.to_xml)
+        end
+      end
+    end
+
+    results.sort_by { |icon| icon[:id] }
+  end
+
+  # For use in no_ember .html.erb layouts
+  def self.raw_svg(name)
+    get_set_cache("raw_svg_#{name}") do
+      symbol = search(name)
+      break "" unless symbol
+      symbol = Nokogiri::XML(symbol).children.first
+      symbol.name = "svg"
+      <<~HTML
+        <svg class="fa d-icon svg-icon svg-node" aria-hidden="true">#{symbol}</svg>
+      HTML
+    end.html_safe
+  end
+
   def self.theme_sprite_variable_name
     THEME_SPRITE_VAR_NAME
   end
@@ -342,7 +389,7 @@ License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL
   end
 
   def self.group_icons
-    Group.where("flair_url LIKE '%fa-%'").pluck(:flair_url).uniq
+    Group.pluck(:flair_icon).uniq
   end
 
   def self.theme_icons(theme_ids)
@@ -356,6 +403,8 @@ License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL
         end
       end
     end
+
+    theme_icon_settings |= ThemeModifierHelper.new(theme_ids: theme_ids).svg_icons
 
     theme_icon_settings
   end
@@ -373,18 +422,10 @@ License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL
     icons
   end
 
-  def self.fa4_shim_file
-    "#{Rails.root}/lib/svg_sprite/fa4-renames.json"
-  end
-
-  def self.fa4_to_fa5_names
-    @db ||= File.open(fa4_shim_file, "r:UTF-8") { |f| JSON.parse(f.read) }
-  end
-
   def self.process(icon_name)
-    icon_name.strip!
-    FA_ICON_MAP.each { |k, v| icon_name.sub!(k, v) }
-    fa4_to_fa5_names[icon_name] || icon_name
+    icon_name = icon_name.strip
+    FA_ICON_MAP.each { |k, v| icon_name = icon_name.sub(k, v) }
+    icon_name
   end
 
   def self.get_set_cache(key)

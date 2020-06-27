@@ -1,10 +1,9 @@
 # frozen_string_literal: true
 
 require 'rails_helper'
-require_dependency 'jobs/base'
 
-describe Jobs::Base do
-  class GoodJob < Jobs::Base
+describe ::Jobs::Base do
+  class GoodJob < ::Jobs::Base
     attr_accessor :count
     def execute(args)
       self.count ||= 0
@@ -12,7 +11,7 @@ describe Jobs::Base do
     end
   end
 
-  class BadJob < Jobs::Base
+  class BadJob < ::Jobs::Base
     attr_accessor :fail_count
 
     def execute(args)
@@ -39,13 +38,50 @@ describe Jobs::Base do
   end
 
   it 'delegates the process call to execute' do
-    Jobs::Base.any_instance.expects(:execute).with('hello' => 'world')
-    Jobs::Base.new.perform('hello' => 'world', 'sync_exec' => true)
+    ::Jobs::Base.any_instance.expects(:execute).with('hello' => 'world')
+    ::Jobs::Base.new.perform('hello' => 'world', 'sync_exec' => true)
   end
 
   it 'converts to an indifferent access hash' do
-    Jobs::Base.any_instance.expects(:execute).with(instance_of(HashWithIndifferentAccess))
-    Jobs::Base.new.perform('hello' => 'world', 'sync_exec' => true)
+    ::Jobs::Base.any_instance.expects(:execute).with(instance_of(HashWithIndifferentAccess))
+    ::Jobs::Base.new.perform('hello' => 'world', 'sync_exec' => true)
+  end
+
+  context "with fake jobs" do
+    let(:common_state) { [] }
+
+    let(:test_job_1) {
+      Class.new(Jobs::Base).tap do |klass|
+        state = common_state
+        klass.define_method(:execute) do |args|
+          state << "job_1_executed"
+        end
+      end
+    }
+
+    let(:test_job_2) {
+      Class.new(Jobs::Base).tap do |klass|
+        state = common_state
+        job_1 = test_job_1
+        klass.define_method(:execute) do |args|
+          state << "job_2_started"
+          Jobs.enqueue(job_1)
+          state << "job_2_finished"
+        end
+      end
+    }
+
+    it "runs jobs synchronously sequentially in tests" do
+      Jobs.run_immediately!
+      Jobs.enqueue(test_job_2)
+
+      expect(common_state).to eq([
+        "job_2_started",
+        "job_2_finished",
+        "job_1_executed"
+      ])
+    end
+
   end
 
 end

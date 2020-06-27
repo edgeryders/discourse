@@ -63,11 +63,6 @@ blockquote {
   margin-bottom: 9px;
 }
 
-// categories should not be bold on mobile; they fight with the topic title too much
-.badge-wrapper {
-  font-weight: normal;
-}
-
 .mobile-nav {
   margin: 0;
   padding: 0;
@@ -95,7 +90,7 @@ blockquote {
     box-sizing: border-box;
   }
 
-  .expander .d-icon {
+  .expander > .d-icon {
     &:last-of-type {
       margin-left: auto;
       margin-right: 0;
@@ -146,18 +141,4 @@ blockquote {
 // their account or changing their email.
 #simple-container {
   width: 90%;
-}
-
-// this is used to provide visual feedback that indicates that the user / group
-// cards are loading after the user clicks on an avatar. It's mostly for very slow
-// connections. Users on good connections won't notice it.
-[data-user-card]:focus {
-  .avatar,
-  + .avatar-flair {
-    animation: wave 0.75s infinite;
-    animation-delay: 0.5s;
-  }
-  .avatar {
-    position: relative;
-  }
 }

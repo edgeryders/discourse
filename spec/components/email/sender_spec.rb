@@ -351,6 +351,79 @@ describe Email::Sender do
     end
   end
 
+  context "with attachments" do
+    fab!(:small_pdf) do
+      SiteSetting.authorized_extensions = 'pdf'
+      UploadCreator.new(file_from_fixtures("small.pdf", "pdf"), "small.pdf")
+        .create_for(Discourse.system_user.id)
+    end
+    fab!(:large_pdf) do
+      SiteSetting.authorized_extensions = 'pdf'
+      UploadCreator.new(file_from_fixtures("large.pdf", "pdf"), "large.pdf")
+        .create_for(Discourse.system_user.id)
+    end
+    fab!(:csv_file) do
+      SiteSetting.authorized_extensions = 'csv'
+      UploadCreator.new(file_from_fixtures("words.csv", "csv"), "words.csv")
+        .create_for(Discourse.system_user.id)
+    end
+    fab!(:image) do
+      SiteSetting.authorized_extensions = 'png'
+      UploadCreator.new(file_from_fixtures("logo.png", "images"), "logo.png")
+        .create_for(Discourse.system_user.id)
+    end
+    fab!(:post) { Fabricate(:post) }
+    fab!(:reply) do
+      raw = <<~RAW
+        Hello world!
+        #{UploadMarkdown.new(small_pdf).attachment_markdown}
+        #{UploadMarkdown.new(large_pdf).attachment_markdown}
+        #{UploadMarkdown.new(image).image_markdown}
+        #{UploadMarkdown.new(csv_file).attachment_markdown}
+      RAW
+      reply = Fabricate(:post, raw: raw, topic: post.topic, user: Fabricate(:user))
+      reply.link_post_uploads
+      reply
+    end
+    fab!(:notification) { Fabricate(:posted_notification, user: post.user, post: reply) }
+    let(:message) do
+      UserNotifications.user_posted(
+        post.user,
+        post: reply,
+        notification_type: notification.notification_type,
+        notification_data_hash: notification.data_hash
+      )
+    end
+
+    it "adds only non-image uploads as attachments to the email" do
+      SiteSetting.email_total_attachment_size_limit_kb = 10_000
+      Email::Sender.new(message, :valid_type).send
+
+      expect(message.attachments.length).to eq(3)
+      expect(message.attachments.map(&:filename))
+        .to contain_exactly(*[small_pdf, large_pdf, csv_file].map(&:original_filename))
+    end
+
+    it "respects the size limit and attaches only files that fit into the max email size" do
+      SiteSetting.email_total_attachment_size_limit_kb = 40
+      Email::Sender.new(message, :valid_type).send
+
+      expect(message.attachments.length).to eq(2)
+      expect(message.attachments.map(&:filename))
+        .to contain_exactly(*[small_pdf, csv_file].map(&:original_filename))
+    end
+
+    it "structures the email as a multipart/mixed with a multipart/alternative first part" do
+      SiteSetting.email_total_attachment_size_limit_kb = 10_000
+      Email::Sender.new(message, :valid_type).send
+
+      expect(message.content_type).to start_with("multipart/mixed")
+      expect(message.parts.size).to eq(4)
+      expect(message.parts[0].content_type).to start_with("multipart/alternative")
+      expect(message.parts[0].parts.size).to eq(2)
+    end
+  end
+
   context 'with a deleted post' do
 
     it 'should skip sending the email' do
@@ -366,6 +439,25 @@ describe Email::Sender do
 
       log = SkippedEmailLog.last
       expect(log.reason_type).to eq(SkippedEmailLog.reason_types[:sender_post_deleted])
+    end
+
+  end
+
+  context 'with a deleted topic' do
+
+    it 'should skip sending the email' do
+      post = Fabricate(:post, topic: Fabricate(:topic, deleted_at: 1.day.ago))
+
+      message = Mail::Message.new to: 'disc@ourse.org', body: 'some content'
+      message.header['X-Discourse-Post-Id'] = post.id
+      message.header['X-Discourse-Topic-Id'] = post.topic_id
+      message.expects(:deliver_now).never
+
+      email_sender = Email::Sender.new(message, :valid_type)
+      expect { email_sender.send }.to change { SkippedEmailLog.count }
+
+      log = SkippedEmailLog.last
+      expect(log.reason_type).to eq(SkippedEmailLog.reason_types[:sender_topic_deleted])
     end
 
   end

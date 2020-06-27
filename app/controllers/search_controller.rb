@@ -1,13 +1,13 @@
 # frozen_string_literal: true
 
-require_dependency 'search'
-
 class SearchController < ApplicationController
 
+  before_action :cancel_overloaded_search, only: [:query]
   skip_before_action :check_xhr, only: :show
+  after_action :add_noindex_header
 
   def self.valid_context_types
-    %w{user topic category private_messages}
+    %w{user topic category private_messages tag}
   end
 
   def show
@@ -23,6 +23,14 @@ class SearchController < ApplicationController
        @search_term.length < SiteSetting.min_search_term_length
       raise Discourse::InvalidParameters.new(:q)
     end
+
+    if @search_term.present? && @search_term.include?("\u0000")
+      raise Discourse::InvalidParameters.new("string contains null byte")
+    end
+
+    rate_limit_errors = rate_limit_search
+
+    discourse_expires_in 1.minute
 
     search_args = {
       type_filter: 'topic',
@@ -44,10 +52,17 @@ class SearchController < ApplicationController
     search_args[:ip_address] = request.remote_ip
     search_args[:user_id] = current_user.id if current_user.present?
 
-    search = Search.new(@search_term, search_args)
-    result = search.execute
-
-    result.find_user_data(guardian) if result
+    if rate_limit_errors
+      result = Search::GroupedSearchResults.new(search_args[:type_filter], @search_term, context, false, 0)
+      result.error = I18n.t("rate_limiter.slow_down")
+    elsif site_overloaded?
+      result = Search::GroupedSearchResults.new(search_args[:type_filter], @search_term, context, false, 0)
+      result.error = I18n.t("search.extreme_load_error")
+    else
+      search = Search.new(@search_term, search_args)
+      result = search.execute
+      result.find_user_data(guardian) if result
+    end
 
     serializer = serialize_data(result, GroupedSearchResultSerializer, result: result)
 
@@ -63,6 +78,14 @@ class SearchController < ApplicationController
 
   def query
     params.require(:term)
+
+    if params[:term].include?("\u0000")
+      raise Discourse::InvalidParameters.new("string contains null byte")
+    end
+
+    rate_limit_errors = rate_limit_search
+
+    discourse_expires_in 1.minute
 
     search_args = { guardian: guardian }
 
@@ -82,8 +105,15 @@ class SearchController < ApplicationController
     search_args[:user_id] = current_user.id if current_user.present?
     search_args[:restrict_to_archetype] = params[:restrict_to_archetype] if params[:restrict_to_archetype].present?
 
-    search = Search.new(params[:term], search_args)
-    result = search.execute
+    if rate_limit_errors
+      result = Search::GroupedSearchResults.new(search_args[:type_filter], @search_term, context, false, 0)
+      result.error = I18n.t("rate_limiter.slow_down")
+    elsif site_overloaded?
+      result = GroupedSearchResults.new(search_args["type_filter"], params[:term], context, false, 0)
+    else
+      search = Search.new(params[:term], search_args)
+      result = search.execute
+    end
     render_serialized(result, GroupedSearchResultSerializer, result: result)
   end
 
@@ -118,6 +148,31 @@ class SearchController < ApplicationController
 
   protected
 
+  def site_overloaded?
+    (queue_time = request.env['REQUEST_QUEUE_SECONDS']) &&
+      (GlobalSetting.disable_search_queue_threshold > 0) &&
+      (queue_time > GlobalSetting.disable_search_queue_threshold)
+  end
+
+  def rate_limit_search
+    begin
+      if current_user.present?
+        RateLimiter.new(current_user, "search-min", SiteSetting.rate_limit_search_user, 1.minute).performed!
+      else
+        RateLimiter.new(nil, "search-min-#{request.remote_ip}", SiteSetting.rate_limit_search_anon, 1.minute).performed!
+      end
+    rescue RateLimiter::LimitExceeded => e
+      return e
+    end
+    false
+  end
+
+  def cancel_overloaded_search
+    if site_overloaded?
+      render_json_error I18n.t("search.extreme_load_error"), status: 409
+    end
+  end
+
   def lookup_search_context
 
     return if params[:skip_context] == "true"
@@ -141,6 +196,8 @@ class SearchController < ApplicationController
         context_obj = Category.find_by(id: search_context[:id].to_i)
       elsif 'topic' == search_context[:type]
         context_obj = Topic.find_by(id: search_context[:id].to_i)
+      elsif 'tag' == search_context[:type]
+        context_obj = Tag.where_name(search_context[:name]).first
       end
 
       type_filter = nil

@@ -9,6 +9,7 @@
   .user-stream-item {
     background-color: $secondary;
     border-bottom: 1px solid $primary-low;
+    padding: 1em 0.53em;
 
     &.moderator-action {
       background-color: $highlight-medium;
@@ -38,10 +39,14 @@
   .time,
   .delete-info,
   .draft-type {
-    display: block;
     float: right;
-    color: lighten($primary, 40%);
+    color: $primary-medium;
     font-size: $font-down-2;
+  }
+
+  .notification .time {
+    margin-left: auto;
+    float: none;
   }
 
   .draft-type {
@@ -57,7 +62,7 @@
     float: right;
     margin-right: 0.5em;
     line-height: $line-height-small;
-    color: lighten($primary, 40%);
+    color: $primary-medium;
   }
 
   .avatar-link {
@@ -66,18 +71,14 @@
   }
 
   .title {
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+    @include ellipsis;
     display: block;
   }
 
   .name {
     font-size: $font-0;
     max-width: 400px;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+    @include ellipsis;
   }
 
   .edit-reason {
@@ -105,12 +106,6 @@
       span:first-child {
         color: $primary;
       }
-    }
-
-    .time {
-      display: inline-block;
-      margin-left: 10px;
-      float: none;
     }
 
     // common/base/header.scss

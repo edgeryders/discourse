@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require "mini_mime"
+require "file_store/s3_store"
 
 module BackupRestore
 
@@ -31,8 +32,7 @@ module BackupRestore
       ensure_directory_exists(@tmp_directory)
       ensure_directory_exists(@archive_directory)
 
-      ### READ-ONLY / START ###
-      enable_readonly_mode
+      update_metadata
 
       begin
         pause_sidekiq
@@ -41,9 +41,6 @@ module BackupRestore
       ensure
         unpause_sidekiq
       end
-
-      disable_readonly_mode
-      ### READ-ONLY / END ###
 
       log "Finalizing backup..."
 
@@ -80,6 +77,10 @@ module BackupRestore
       raise Discourse::InvalidParameters.new(:user_id) unless @user
     end
 
+    def get_parameterized_title
+      SiteSetting.title.parameterize.presence || "discourse"
+    end
+
     def initialize_state
       @success = false
       @store = BackupRestore::BackupStore.create
@@ -88,7 +89,7 @@ module BackupRestore
       @tmp_directory = File.join(Rails.root, "tmp", "backups", @current_db, @timestamp)
       @dump_filename = File.join(@tmp_directory, BackupRestore::DUMP_FILE)
       @archive_directory = BackupRestore::LocalBackupStore.base_directory(db: @current_db)
-      filename = @filename_override || "#{SiteSetting.title.parameterize}-#{@timestamp}"
+      filename = @filename_override || "#{get_parameterized_title}-#{@timestamp}"
       @archive_basename = File.join(@archive_directory, "#{filename}-#{BackupRestore::VERSION_PREFIX}#{BackupRestore.current_version}")
 
       @backup_filename =
@@ -99,7 +100,6 @@ module BackupRestore
         end
 
       @logs = []
-      @readonly_mode_was_enabled = Discourse.readonly_mode? || !SiteSetting.readonly_mode_during_backup
     end
 
     def listen_for_shutdown_signal
@@ -116,10 +116,15 @@ module BackupRestore
       BackupRestore.mark_as_running!
     end
 
-    def enable_readonly_mode
-      return if @readonly_mode_was_enabled
-      log "Enabling readonly mode..."
-      Discourse.enable_readonly_mode
+    def update_metadata
+      log "Updating metadata..."
+      BackupMetadata.delete_all
+      BackupMetadata.create!(name: "base_url", value: Discourse.base_url)
+      BackupMetadata.create!(name: "cdn_url", value: Discourse.asset_host)
+      BackupMetadata.create!(name: "s3_base_url", value: SiteSetting.Upload.enable_s3_uploads ? SiteSetting.Upload.s3_base_url : nil)
+      BackupMetadata.create!(name: "s3_cdn_url", value: SiteSetting.Upload.enable_s3_uploads ? SiteSetting.Upload.s3_cdn_url : nil)
+      BackupMetadata.create!(name: "db_name", value: RailsMultisite::ConnectionManagement.current_db)
+      BackupMetadata.create!(name: "multisite", value: Rails.configuration.multisite)
     end
 
     def pause_sidekiq
@@ -189,6 +194,7 @@ module BackupRestore
       [ password_argument,            # pass the password to pg_dump (if any)
         "pg_dump",                    # the pg_dump command
         "--schema=public",            # only public schema
+        "-T public.pg_*",             # exclude tables and views whose name starts with "pg_"
         "--file='#{@dump_filename}'", # output to the dump.sql file
         "--no-owner",                 # do not output commands to set ownership of objects
         "--no-privileges",            # prevent dumping of access privileges
@@ -227,28 +233,14 @@ module BackupRestore
       Discourse::Utils.execute_command('tar', '--create', '--file', tar_filename, '--files-from', '/dev/null')
 
       log "Archiving data dump..."
-      FileUtils.cd(File.dirname(@dump_filename)) do
-        Discourse::Utils.execute_command(
-          'tar', '--append', '--dereference', '--file', tar_filename, File.basename(@dump_filename),
-          failure_message: "Failed to archive data dump."
-        )
-      end
+      Discourse::Utils.execute_command(
+        'tar', '--append', '--dereference', '--file', tar_filename, File.basename(@dump_filename),
+        failure_message: "Failed to archive data dump.",
+        chdir: File.dirname(@dump_filename)
+      )
 
-      upload_directory = "uploads/" + @current_db
-
-      log "Archiving uploads..."
-      FileUtils.cd(File.join(Rails.root, "public")) do
-        if File.directory?(upload_directory)
-          exclude_optimized = SiteSetting.include_thumbnails_in_backups ? '' : "--exclude=#{upload_directory}/optimized"
-
-          Discourse::Utils.execute_command(
-            'tar', '--append', '--dereference', exclude_optimized, '--file', tar_filename, upload_directory,
-            failure_message: "Failed to archive uploads.", success_status_codes: [0, 1]
-          )
-        else
-          log "No uploads found, skipping archiving uploads..."
-        end
-      end
+      add_local_uploads_to_archive(tar_filename)
+      add_remote_uploads_to_archive(tar_filename) if SiteSetting.Upload.enable_s3_uploads
 
       remove_tmp_directory
 
@@ -257,6 +249,60 @@ module BackupRestore
         'gzip', "-#{SiteSetting.backup_gzip_compression_level_for_uploads}", tar_filename,
         failure_message: "Failed to gzip archive."
       )
+    end
+
+    def add_local_uploads_to_archive(tar_filename)
+      log "Archiving uploads..."
+      upload_directory = Discourse.store.upload_path
+
+      if File.directory?(File.join(Rails.root, "public", upload_directory))
+        exclude_optimized = SiteSetting.include_thumbnails_in_backups ? '' : "--exclude=#{upload_directory}/optimized"
+
+        Discourse::Utils.execute_command(
+          'tar', '--append', '--dereference', exclude_optimized, '--file', tar_filename, upload_directory,
+          failure_message: "Failed to archive uploads.", success_status_codes: [0, 1],
+          chdir: File.join(Rails.root, "public")
+        )
+      else
+        log "No local uploads found. Skipping archiving of local uploads..."
+      end
+    end
+
+    def add_remote_uploads_to_archive(tar_filename)
+      if !SiteSetting.include_s3_uploads_in_backups
+        log "Skipping uploads stored on S3."
+        return
+      end
+
+      log "Downloading uploads from S3. This may take a while..."
+
+      store = FileStore::S3Store.new
+      upload_directory = Discourse.store.upload_path
+      count = 0
+
+      Upload.find_each do |upload|
+        next if upload.local?
+        filename = File.join(@tmp_directory, upload_directory, store.get_path_for_upload(upload))
+
+        begin
+          FileUtils.mkdir_p(File.dirname(filename))
+          store.download_file(upload, filename)
+        rescue StandardError => ex
+          log "Failed to download file with upload ID #{upload.id} from S3", ex
+        end
+
+        count += 1
+        log "#{count} files have already been downloaded. Still downloading..." if count % 500 == 0
+      end
+
+      log "Appending uploads to archive..."
+      Discourse::Utils.execute_command(
+        'tar', '--append', '--file', tar_filename, upload_directory,
+        failure_message: "Failed to append uploads to archive.", success_status_codes: [0, 1],
+        chdir: @tmp_directory
+      )
+
+      log "No uploads found on S3. Skipping archiving of uploads stored on S3..." if count == 0
     end
 
     def upload_archive
@@ -303,7 +349,6 @@ module BackupRestore
       log "Cleaning stuff up..."
       delete_uploaded_archive
       remove_tar_leftovers
-      disable_readonly_mode if Discourse.readonly_mode?
       mark_backup_as_not_running
       refresh_disk_space
     end
@@ -348,14 +393,6 @@ module BackupRestore
       Sidekiq.unpause!
     rescue => ex
       log "Something went wrong while unpausing Sidekiq.", ex
-    end
-
-    def disable_readonly_mode
-      return if @readonly_mode_was_enabled
-      log "Disabling readonly mode..."
-      Discourse.disable_readonly_mode
-    rescue => ex
-      log "Something went wrong while disabling readonly mode.", ex
     end
 
     def mark_backup_as_not_running

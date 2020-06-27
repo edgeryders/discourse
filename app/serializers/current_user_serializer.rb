@@ -1,20 +1,18 @@
 # frozen_string_literal: true
 
-require_dependency 'new_post_manager'
-
 class CurrentUserSerializer < BasicUserSerializer
 
   attributes :name,
              :unread_notifications,
              :unread_private_messages,
+             :unread_high_priority_notifications,
              :read_first_notification?,
              :admin?,
              :notification_channel_position,
              :moderator?,
              :staff?,
              :title,
-             :reply_count,
-             :topic_count,
+             :any_posts,
              :enable_quoting,
              :enable_defer,
              :external_links_in_new_tab,
@@ -29,6 +27,7 @@ class CurrentUserSerializer < BasicUserSerializer
              :redirected_to_top,
              :custom_fields,
              :muted_category_ids,
+             :muted_tag_ids,
              :dismissed_banner_key,
              :is_anonymous,
              :reviewable_count,
@@ -46,7 +45,9 @@ class CurrentUserSerializer < BasicUserSerializer
              :groups,
              :second_factor_enabled,
              :ignored_users,
-             :title_count_mode
+             :title_count_mode,
+             :timezone,
+             :featured_topic
 
   def groups
     object.visible_groups.pluck(:id, :name).map { |id, name| { id: id, name: name.downcase } }
@@ -64,12 +65,8 @@ class CurrentUserSerializer < BasicUserSerializer
     object.user_stat.read_faq?
   end
 
-  def topic_count
-    object.user_stat.topic_count
-  end
-
-  def reply_count
-    object.user_stat.topic_reply_count
+  def any_posts
+    object.user_stat.any_posts
   end
 
   def hide_profile_and_presence
@@ -108,6 +105,10 @@ class CurrentUserSerializer < BasicUserSerializer
     object.user_option.redirected_to_top
   end
 
+  def timezone
+    object.user_option.timezone
+  end
+
   def can_send_private_email_messages
     scope.can_send_private_messages_to_email?
   end
@@ -117,7 +118,7 @@ class CurrentUserSerializer < BasicUserSerializer
   end
 
   def can_invite_to_forum
-    true
+    scope.can_invite_to_forum?
   end
 
   def include_can_invite_to_forum?
@@ -163,6 +164,10 @@ class CurrentUserSerializer < BasicUserSerializer
 
   def muted_category_ids
     CategoryUser.lookup(object, :muted).pluck(:category_id)
+  end
+
+  def muted_tag_ids
+    TagUser.lookup(object, :muted).pluck(:tag_id)
   end
 
   def ignored_users
@@ -212,6 +217,10 @@ class CurrentUserSerializer < BasicUserSerializer
   end
 
   def second_factor_enabled
-    object.totp_enabled?
+    object.totp_enabled? || object.security_keys_enabled?
+  end
+
+  def featured_topic
+    object.user_profile.featured_topic
   end
 end

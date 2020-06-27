@@ -3,6 +3,21 @@
 require 'rails_helper'
 
 describe SearchController do
+
+  fab!(:awesome_post) do
+    SearchIndexer.enable
+    Fabricate(:post, raw: 'this is my really awesome post')
+  end
+
+  fab!(:user) do
+    Fabricate(:user)
+  end
+
+  fab!(:user_post) do
+    SearchIndexer.enable
+    Fabricate(:post, raw: "#{user.username} is a cool person")
+  end
+
   context "integration" do
     before do
       SearchIndexer.enable
@@ -11,11 +26,54 @@ describe SearchController do
     before do
       # TODO be a bit more strategic here instead of junking
       # all of redis
-      $redis.flushall
+      Discourse.redis.flushdb
     end
 
     after do
-      $redis.flushall
+      Discourse.redis.flushdb
+    end
+
+    context "when overloaded" do
+
+      before do
+        global_setting :disable_search_queue_threshold, 0.2
+      end
+
+      let! :start_time do
+        freeze_time
+        Time.now
+      end
+
+      let! :current_time do
+        freeze_time 0.3.seconds.from_now
+      end
+
+      it "errors on #query" do
+
+        get "/search/query.json", headers: {
+          "HTTP_X_REQUEST_START" => "t=#{start_time.to_f}"
+        }, params: {
+          term: "hi there", include_blurb: true
+        }
+
+        expect(response.status).to eq(409)
+      end
+
+      it "no results and error on #index" do
+        get "/search.json", headers: {
+          "HTTP_X_REQUEST_START" => "t=#{start_time.to_f}"
+        }, params: {
+          q: "awesome"
+        }
+
+        expect(response.status).to eq(200)
+
+        data = response.parsed_body
+
+        expect(data["posts"]).to be_empty
+        expect(data["grouped_search_result"]["error"]).not_to be_empty
+      end
+
     end
 
     it "returns a 400 error if you search for null bytes" do
@@ -29,31 +87,30 @@ describe SearchController do
     end
 
     it "can search correctly" do
-      my_post = Fabricate(:post, raw: 'this is my really awesome post')
-
       get "/search/query.json", params: {
         term: 'awesome', include_blurb: true
       }
 
       expect(response.status).to eq(200)
-      data = JSON.parse(response.body)
-      expect(data['posts'][0]['id']).to eq(my_post.id)
-      expect(data['posts'][0]['blurb']).to eq('this is my really awesome post')
-      expect(data['topics'][0]['id']).to eq(my_post.topic_id)
+
+      data = response.parsed_body
+
+      expect(data['posts'].length).to eq(1)
+      expect(data['posts'][0]['id']).to eq(awesome_post.id)
+      expect(data['posts'][0]['blurb']).to eq(awesome_post.raw)
+      expect(data['topics'][0]['id']).to eq(awesome_post.topic_id)
     end
 
     it 'performs the query with a type filter' do
-      user = Fabricate(:user)
-      my_post = Fabricate(:post, raw: "#{user.username} is a cool person")
 
       get "/search/query.json", params: {
         term: user.username, type_filter: 'topic'
       }
 
       expect(response.status).to eq(200)
-      data = JSON.parse(response.body)
+      data = response.parsed_body
 
-      expect(data['posts'][0]['id']).to eq(my_post.id)
+      expect(data['posts'][0]['id']).to eq(user_post.id)
       expect(data['users']).to be_blank
 
       get "/search/query.json", params: {
@@ -61,7 +118,7 @@ describe SearchController do
       }
 
       expect(response.status).to eq(200)
-      data = JSON.parse(response.body)
+      data = response.parsed_body
 
       expect(data['posts']).to be_blank
       expect(data['users'][0]['id']).to eq(user.id)
@@ -71,34 +128,30 @@ describe SearchController do
       it 'should not be restricted by minimum search term length' do
         SiteSetting.min_search_term_length = 20000
 
-        post = Fabricate(:post)
-
         get "/search/query.json", params: {
-          term: post.topic_id,
+          term: awesome_post.topic_id,
           type_filter: 'topic',
           search_for_id: true
         }
 
         expect(response.status).to eq(200)
-        data = JSON.parse(response.body)
+        data = response.parsed_body
 
-        expect(data['topics'][0]['id']).to eq(post.topic_id)
+        expect(data['topics'][0]['id']).to eq(awesome_post.topic_id)
       end
 
       it "should return the right result" do
-        user = Fabricate(:user)
-        my_post = Fabricate(:post, raw: "#{user.username} is a cool person")
 
         get "/search/query.json", params: {
-          term: my_post.topic_id,
+          term: user_post.topic_id,
           type_filter: 'topic',
           search_for_id: true
         }
 
         expect(response.status).to eq(200)
-        data = JSON.parse(response.body)
+        data = response.parsed_body
 
-        expect(data['topics'][0]['id']).to eq(my_post.topic_id)
+        expect(data['topics'][0]['id']).to eq(user_post.topic_id)
       end
     end
   end
@@ -111,7 +164,7 @@ describe SearchController do
       expect(response.status).to eq(200)
       expect(SearchLog.where(term: 'wookie')).to be_present
 
-      json = JSON.parse(response.body)
+      json = response.parsed_body
       search_log_id = json['grouped_search_result']['search_log_id']
       expect(search_log_id).to be_present
 
@@ -125,6 +178,61 @@ describe SearchController do
       get "/search/query.json", params: { term: 'wookie' }
       expect(response.status).to eq(200)
       expect(SearchLog.where(term: 'wookie')).to be_blank
+    end
+
+    context 'rate limited' do
+      before do
+        SiteSetting.rate_limit_search_user = 3
+        SiteSetting.rate_limit_search_anon = 2
+      end
+
+      it 'rate limits searches' do
+        RateLimiter.enable
+        RateLimiter.clear_all!
+
+        2.times do
+          get "/search/query.json", params: {
+                term: 'wookie'
+              }
+
+          expect(response.status).to eq(200)
+          json = response.parsed_body
+          expect(json["grouped_search_result"]["error"]).to eq(nil)
+        end
+
+        get "/search/query.json", params: {
+              term: 'wookie'
+            }
+        expect(response.status).to eq(200)
+        json = response.parsed_body
+        expect(json["grouped_search_result"]["error"]).to eq(I18n.t("rate_limiter.slow_down"))
+      end
+
+      context "and a logged in user" do
+        before { sign_in(user) }
+
+        it 'rate limits logged in searches' do
+          RateLimiter.enable
+          RateLimiter.clear_all!
+
+          3.times do
+            get "/search/query.json", params: {
+                  term: 'wookie'
+                }
+
+            expect(response.status).to eq(200)
+            json = response.parsed_body
+            expect(json["grouped_search_result"]["error"]).to eq(nil)
+          end
+
+          get "/search/query.json", params: {
+                term: 'wookie'
+              }
+          expect(response.status).to eq(200)
+          json = response.parsed_body
+          expect(json["grouped_search_result"]["error"]).to eq(I18n.t("rate_limiter.slow_down"))
+        end
+      end
     end
   end
 
@@ -144,6 +252,13 @@ describe SearchController do
       expect(response.status).to eq(400)
     end
 
+    it "returns a 400 error if you search for null bytes" do
+      term = "hello\0hello"
+
+      get "/search.json", params: { q: term }
+      expect(response.status).to eq(400)
+    end
+
     it "logs the search term" do
       SiteSetting.log_search_queries = true
       get "/search.json", params: { q: 'bantha' }
@@ -156,6 +271,127 @@ describe SearchController do
       get "/search.json", params: { q: 'bantha' }
       expect(response.status).to eq(200)
       expect(SearchLog.where(term: 'bantha')).to be_blank
+    end
+
+    context 'rate limited' do
+
+      before do
+        SiteSetting.rate_limit_search_user = 3
+        SiteSetting.rate_limit_search_anon = 2
+      end
+
+      it 'rate limits searches' do
+        RateLimiter.enable
+        RateLimiter.clear_all!
+
+        2.times do
+          get "/search.json", params: {
+                q: 'bantha'
+              }
+
+          expect(response.status).to eq(200)
+          json = response.parsed_body
+          expect(json["grouped_search_result"]["error"]).to eq(nil)
+        end
+
+        get "/search.json", params: {
+              q: 'bantha'
+            }
+        expect(response.status).to eq(200)
+        json = response.parsed_body
+        expect(json["grouped_search_result"]["error"]).to eq(I18n.t("rate_limiter.slow_down"))
+
+      end
+
+      context "and a logged in user" do
+        before { sign_in(user) }
+
+        it 'rate limits searches' do
+          RateLimiter.enable
+          RateLimiter.clear_all!
+
+          3.times do
+            get "/search.json", params: {
+                  q: 'bantha'
+                }
+
+            expect(response.status).to eq(200)
+            json = response.parsed_body
+            expect(json["grouped_search_result"]["error"]).to eq(nil)
+          end
+
+          get "/search.json", params: {
+                q: 'bantha'
+              }
+          expect(response.status).to eq(200)
+          json = response.parsed_body
+          expect(json["grouped_search_result"]["error"]).to eq(I18n.t("rate_limiter.slow_down"))
+        end
+      end
+    end
+  end
+
+  context "search priority" do
+    fab!(:low_priority_category) do
+      Fabricate(
+        :category,
+        search_priority: Searchable::PRIORITIES[:very_low]
+      )
+    end
+    fab!(:high_priority_category) do
+      Fabricate(
+        :category,
+        search_priority: Searchable::PRIORITIES[:high]
+      )
+    end
+    fab!(:very_high_priority_category) do
+      Fabricate(
+        :category,
+        search_priority: Searchable::PRIORITIES[:very_high]
+      )
+    end
+    fab!(:low_priority_topic) { Fabricate(:topic, category: low_priority_category) }
+    fab!(:high_priority_topic) { Fabricate(:topic, category: high_priority_category) }
+    fab!(:very_high_priority_topic) { Fabricate(:topic, category: very_high_priority_category) }
+    fab!(:low_priority_post) do
+      SearchIndexer.enable
+      Fabricate(:post, topic: low_priority_topic, raw: "This is a Low Priority Post")
+    end
+    fab!(:hight_priority_post) do
+      SearchIndexer.enable
+      Fabricate(:post, topic: high_priority_topic, raw: "This is a High Priority Post")
+    end
+    fab!(:old_very_hight_priority_post) do
+      SearchIndexer.enable
+      Fabricate(:old_post, topic: very_high_priority_topic, raw: "This is a Old but Very High Priority Post")
+    end
+
+    it "sort posts with search priority when search term is empty" do
+      get "/search.json", params: { q: 'status:open' }
+      expect(response.status).to eq(200)
+      data = response.parsed_body
+      post1 = data["posts"].find { |e| e["id"] == old_very_hight_priority_post.id }
+      post2 = data["posts"].find { |e| e["id"] == low_priority_post.id }
+      expect(data["posts"][0]["id"]).to eq(old_very_hight_priority_post.id)
+      expect(post1["id"]).to be > post2["id"]
+    end
+
+    it "sort posts with search priority when no order query" do
+      get "/search.json", params: { q: 'status:open Priority Post' }
+      expect(response.status).to eq(200)
+      data = response.parsed_body
+      expect(data["posts"][0]["id"]).to eq(old_very_hight_priority_post.id)
+      expect(data["posts"][1]["id"]).to eq(hight_priority_post.id)
+      expect(data["posts"][2]["id"]).to eq(low_priority_post.id)
+    end
+
+    it "doesn't sort posts with search piority when query with order" do
+      get "/search.json", params: { q: 'status:open order:latest Priority Post' }
+      expect(response.status).to eq(200)
+      data = response.parsed_body
+      expect(data["posts"][0]["id"]).to eq(hight_priority_post.id)
+      expect(data["posts"][1]["id"]).to eq(low_priority_post.id)
+      expect(data["posts"][2]["id"]).to eq(old_very_hight_priority_post.id)
     end
   end
 
@@ -174,7 +410,6 @@ describe SearchController do
     end
 
     context "with a user" do
-      fab!(:user) { Fabricate(:user) }
 
       it "raises an error if the user can't see the context" do
         get "/search/query.json", params: {
@@ -192,6 +427,23 @@ describe SearchController do
       end
     end
 
+    context "with a tag" do
+      it "raises an error if the tag does not exist" do
+        get "/search/query.json", params: {
+          term: 'test', search_context: { type: 'tag', id: 'important-tag', name: 'important-tag' }
+        }
+        expect(response).to be_forbidden
+      end
+
+      it 'performs the query with a search context' do
+        Fabricate(:tag, name: 'important-tag')
+        get "/search/query.json", params: {
+          term: 'test', search_context: { type: 'tag', id: 'important-tag', name: 'important-tag' }
+        }
+
+        expect(response.status).to eq(200)
+      end
+    end
   end
 
   context "#click" do
@@ -205,7 +457,7 @@ describe SearchController do
     end
 
     it "doesn't record the click for a different user" do
-      sign_in(Fabricate(:user))
+      sign_in(user)
 
       _, search_log_id = SearchLog.log(
         term: SecureRandom.hex,
@@ -225,7 +477,7 @@ describe SearchController do
     end
 
     it "records the click for a logged in user" do
-      user = sign_in(Fabricate(:user))
+      sign_in(user)
 
       _, search_log_id = SearchLog.log(
         term: SecureRandom.hex,
