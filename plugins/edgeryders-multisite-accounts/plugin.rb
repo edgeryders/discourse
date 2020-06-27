@@ -105,8 +105,8 @@ after_initialize do
   class EdgerydersMultisiteAccounts::ActionsController < ::ApplicationController
     requires_plugin PLUGIN_NAME
 
-    # https://stackoverflow.com/questions/41266207/before-process-action-callback-authenticate-user-has-not-been-defined
-    skip_before_action :ensure_logged_in, only: [:create], raise: false
+    before_action :redirect_to_login_if_required, except: [:create]
+    before_action :ensure_logged_in, except: [:create]
 
 
     # See: https://edgeryders.eu/t/it-development-plan-for-the-h2020-projects/9202#heading--2-2-posting
