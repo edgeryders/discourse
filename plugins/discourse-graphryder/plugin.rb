@@ -44,3 +44,4 @@ after_initialize do
 
   Graphryder::Initializer.initialize!
 end
+

@@ -57,7 +57,7 @@ set :puma_daemonize, true
 
 
 # https://github.com/seuros/capistrano-sidekiq
-set :sidekiq_queue, %w(critical default low)
+set :sidekiq_queue, %w(critical default low ultra_low)
 set :sidekiq_service_unit_name, 'sidekiq_multisite'
 set :sidekiq_service_unit_user, :user
 set :sidekiq_enable_lingering, false
