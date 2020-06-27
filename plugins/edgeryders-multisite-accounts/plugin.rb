@@ -105,7 +105,7 @@ after_initialize do
   class EdgerydersMultisiteAccounts::ActionsController < ::ApplicationController
     requires_plugin PLUGIN_NAME
 
-    before_action :ensure_logged_in, except: [:create]
+    skip_before_action :ensure_logged_in, only: [:create]
 
 
     # See: https://edgeryders.eu/t/it-development-plan-for-the-h2020-projects/9202#heading--2-2-posting
