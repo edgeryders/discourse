@@ -15,7 +15,7 @@ class AddPublicFieldToPublishedPages < ActiveRecord::Migration[6.0]
     # Using IF NOT EXISTS because the version number of this migration was changed
     # Therefore some sites may have already added the column
     execute <<~SQL
-      ALTER TABLE "published_pages" ADD COLUMN IF NOT EXISTS "public" boolean DEFAULT FALSE NOT NULL
+      ALTER TABLE "published_pages" ADD COLUMN "public" boolean DEFAULT FALSE NOT NULL
     SQL
   end
 
