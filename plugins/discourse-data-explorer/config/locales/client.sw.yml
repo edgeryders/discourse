@@ -23,7 +23,7 @@ sw:
       schema:
         title: "Mpango wa kuhifadhidata"
         filter: "Tafuta..."
-        sensitive: "Taarifa zilizomo ndani ya safuwima zinaweza kuwa za kibinafsi au zinazozingatiwa. Tafadhali kuwa makini na mwangalifu unapotumia hizi taarifa.  "
+        sensitive: "Taarifa zilizomo ndani ya safuwima zinaweza kuwa za kibinafsi au zinazozingatiwa. Tafadhali kuwa makini na mwangalifu unapotumia hizi taarifa. "
         type_help: "<a href='http://www.postgresql.org/docs/9.3/static/datatype.html#DATATYPE-TABLE' target='_blank'>Aina</a>"
       types:
         bool:
@@ -39,11 +39,11 @@ sw:
       download_json: "JSON"
       download_csv: "CSV"
       others_dirty: "Mabaliko uliyofanya kwenye ulizo hayajahifadhiwa, hifadhi kabla ya kwenda kwingine."
-      run_time: "Utafutaji umemalizika ndani ya ms {{value}}"
       query_name: "Swali"
+      query_groups: "Makundi"
       query_description: "Maelezo"
       query_user: "Imetengenezwa na"
-      column: "Safuwima {{namba}}"
       explain_label: "pamoja na mpango wa swala?"
       save_params: "Seti Chaguo-misingi"
       reset_params: "Weka/Anzisha Upya"
+      search_placeholder: "Tafuta"

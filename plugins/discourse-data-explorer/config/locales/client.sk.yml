@@ -25,5 +25,7 @@ sk:
       delete: "Zmazať"
       download_json: "JSON"
       download_csv: "CSV"
-      column: "Stĺpec {{number}}"
+      query_groups: "Skupiny"
+      query_description: "Popis"
       save_params: "Predvolené"
+      search_placeholder: "Hľadať"

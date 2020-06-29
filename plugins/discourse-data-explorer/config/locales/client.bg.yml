@@ -1,0 +1,25 @@
+# encoding: utf-8
+#
+# Never edit this file. It will be overwritten when translations are pulled from Transifex.
+#
+# To work with us on translations, join this project:
+# https://www.transifex.com/projects/p/discourse-org/
+
+bg:
+  js:
+    explorer:
+      import:
+        label: "Импорт"
+      schema:
+        filter: "Търсене ... "
+      types:
+        bool:
+          'yes': "Да"
+          'no': "Не"
+      export: "Експорт "
+      save: "Запази промените"
+      edit: "Редактирай"
+      delete: "Изтрий"
+      query_groups: "Групи"
+      query_description: "Описание"
+      search_placeholder: "Търсене ... "

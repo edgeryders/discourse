@@ -4,14 +4,14 @@ export default {
     container.lookup("store:main").addPluralization("query", "queries");
 
     if (!String.prototype.endsWith) {
+      // eslint-disable-next-line no-extend-native
       String.prototype.endsWith = function(searchString, position) {
-        // eslint-disable-line no-extend-native
-        var subjectString = this.toString();
+        const subjectString = this.toString();
         if (position === undefined || position > subjectString.length) {
           position = subjectString.length;
         }
         position -= searchString.length;
-        var lastIndex = subjectString.indexOf(searchString, position);
+        const lastIndex = subjectString.indexOf(searchString, position);
         return lastIndex !== -1 && lastIndex === position;
       };
     }

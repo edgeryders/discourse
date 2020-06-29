@@ -7,4 +7,4 @@
 
 ca:
   site_settings:
-    data_explorer_enabled: "Activa l'Explorador de Dades a /admin/plugins/explorer"
+    data_explorer_enabled: "Activa l'Explorador de dades en /admin/plugins/explorer"

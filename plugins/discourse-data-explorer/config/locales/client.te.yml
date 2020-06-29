@@ -1,0 +1,20 @@
+# encoding: utf-8
+#
+# Never edit this file. It will be overwritten when translations are pulled from Transifex.
+#
+# To work with us on translations, join this project:
+# https://www.transifex.com/projects/p/discourse-org/
+
+te:
+  js:
+    explorer:
+      types:
+        bool:
+          'yes': "అవును"
+          'no': "లేదు"
+      export: "ఎగుమతి"
+      save: "మార్పులను భద్రపరచు"
+      edit: "సవరించు"
+      delete: "తొలగించు"
+      query_groups: "గుంపులు"
+      query_description: "వివరణ"

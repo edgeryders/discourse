@@ -41,7 +41,6 @@ hy:
       download_json: "JSON"
       download_csv: "CSV"
       others_dirty: "Հարցումն ունի չպահպանված փոփոխություններ, որոնք կկորչեն, եթե Դուք տեղափոխվեք:"
-      run_time: "Հարցումը ավարտվել է {{value}} րոպեում:"
       result_count:
         one: "%{count} արդյունք"
         other: "%{count} արդյունք"
@@ -49,12 +48,14 @@ hy:
         one: "Ցուցադրվում են թոփ %{count} արդյունքները:"
         other: "Ցուցադրվում են թոփ %{count} արդյունքները"
       query_name: "Հարցում"
+      query_groups: "Խմբեր"
       query_description: "Նկարագրություն"
       query_time: "Վերջին գործարկումը"
       query_user: "Ստեղծել է՝"
-      column: "Սյունակ {{number}}"
       explain_label: "Ներառե՞լ հարցման պլանը:"
       save_params: "Սահմանել Լռելյայններ"
       reset_params: "Վերահաստատե;"
       search_placeholder: "Որոնում..."
       no_search_results: "Ներողություն, մենք չկարողացանք գտնել Ձեր տեքստի հետ համընկնող որևէ արդյունք:"
+    group:
+      reports: "Հաշվետվություններ"

@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 # name: discourse-data-explorer
 # about: Interface for running analysis SQL queries on the live database
 # version: 0.2
@@ -21,7 +23,8 @@ end
 add_admin_route 'explorer.title', 'explorer'
 
 module ::DataExplorer
-  QUERY_RESULT_MAX_LIMIT = 1000
+  QUERY_RESULT_DEFAULT_LIMIT = 1000
+  QUERY_RESULT_MAX_LIMIT = 10000
 
   def self.plugin_name
     'discourse-data-explorer'.freeze
@@ -41,6 +44,19 @@ module ::DataExplorer
 end
 
 after_initialize do
+
+  add_to_class(:guardian, :user_is_a_member_of_group?) do |group|
+    return false if !current_user
+    return true if current_user.admin?
+    return current_user.group_ids.include?(group.id)
+  end
+
+  add_to_class(:guardian, :user_can_access_query?) do |group, query|
+    return false if !current_user
+    return true if current_user.admin?
+    return user_is_a_member_of_group?(group) &&
+           query.group_ids.include?(group.id.to_s)
+  end
 
   module ::DataExplorer
     class Engine < ::Rails::Engine
@@ -115,7 +131,7 @@ after_initialize do
 WITH query AS (
 #{query.sql}
 ) SELECT * FROM query
-LIMIT #{opts[:limit] || DataExplorer::QUERY_RESULT_MAX_LIMIT}
+LIMIT #{opts[:limit] || DataExplorer::QUERY_RESULT_DEFAULT_LIMIT}
 SQL
 
           time_start = Time.now
@@ -175,6 +191,8 @@ SQL
 
     def self.add_extra_data(pg_result)
       needed_classes = {}
+      ret = {}
+      col_map = {}
 
       pg_result.fields.each_with_index do |col, idx|
         rgx = column_regexes.find { |r| r.match col }
@@ -186,11 +204,11 @@ SQL
           cls = $1.to_sym
           needed_classes[cls] ||= []
           needed_classes[cls] << idx
+        elsif col =~ /^\w+_url$/
+          col_map[idx] = "url"
         end
       end
 
-      ret = {}
-      col_map = {}
       needed_classes.each do |cls, column_nums|
         next unless column_nums.present?
         support_info = extra_data_pluck_fields[cls]
@@ -357,22 +375,47 @@ SQL
       return @enums if @enums
 
       @enums = {
+        'application_requests.req_type': ApplicationRequest.req_types,
         'badges.badge_type_id': Enum.new(:gold, :silver, :bronze, start: 1),
         'category_groups.permission_type': CategoryGroup.permission_types,
+        'category_users.notification_level': CategoryUser.notification_levels,
         'directory_items.period_type': DirectoryItem.period_types,
-        'groups.alias_level': Group::ALIAS_LEVELS,
         'groups.id': Group::AUTO_GROUPS,
+        'groups.mentionable_level': Group::ALIAS_LEVELS,
+        'groups.messageable_level': Group::ALIAS_LEVELS,
+        'groups.members_visibility_level': Group.visibility_levels,
+        'groups.visibility_level': Group.visibility_levels,
+        'groups.default_notification_level': GroupUser.notification_levels,
+        'group_users.notification_level': GroupUser.notification_levels,
         'notifications.notification_type': Notification.types,
+        'polls.results': Poll.results,
+        'polls.status': Poll.statuses,
+        'polls.type': Poll.types,
+        'polls.visibility': Poll.visibilities,
+        'post_action_types.id': PostActionType.types,
+        'post_actions.post_action_type_id': PostActionType.types,
         'posts.cook_method': Post.cook_methods,
         'posts.hidden_reason_id': Post.hidden_reasons,
         'posts.post_type': Post.types,
-        'post_actions.post_action_type_id': PostActionType.types,
-        'post_action_types.id': PostActionType.types,
+        'reviewable_histories.reviewable_history_type': ReviewableHistory.types,
+        'reviewable_scores.status': ReviewableScore.statuses,
+        'screened_emails.action_type': ScreenedEmail.actions,
+        'screened_ip_addresses.action_type': ScreenedIpAddress.actions,
+        'screened_urls.action_type': ScreenedUrl.actions,
+        'search_logs.search_result_type': SearchLog.search_result_types,
+        'search_logs.search_type': SearchLog.search_types,
         'site_settings.data_type': SiteSetting.types,
+        'skipped_email_logs.reason_type': SkippedEmailLog.reason_types,
+        'tag_group_permissions.permission_type': TagGroupPermission.permission_types,
+        'theme_settings.data_type': ThemeSetting.types,
+        'topic_timers.status_type': TopicTimer.types,
         'topic_users.notification_level': TopicUser.notification_levels,
         'topic_users.notifications_reason_id': TopicUser.notification_reasons,
         'user_histories.action': UserHistory.actions,
+        'user_security_keys.factor_type': UserSecurityKey.factor_types,
         'users.trust_level': TrustLevel.levels,
+        'web_hooks.content_type': WebHook.content_types,
+        'web_hooks.last_delivery_status': WebHook.last_delivery_statuses,
       }.with_indifferent_access
 
       # QueuedPost is removed in recent Discourse releases
@@ -591,12 +634,13 @@ SQL
   # Reimplement a couple ActiveRecord methods, but use PluginStore for storage instead
   require_dependency File.expand_path('../lib/queries.rb', __FILE__)
   class DataExplorer::Query
-    attr_accessor :id, :name, :description, :sql, :created_by, :created_at, :last_run_at
+    attr_accessor :id, :name, :description, :sql, :created_by, :created_at, :group_ids, :last_run_at
 
     def initialize
       @name = 'Unnamed Query'
       @description = ''
       @sql = 'SELECT 1'
+      @group_ids = []
     end
 
     def slug
@@ -620,6 +664,10 @@ SQL
       result
     end
 
+    def can_be_run_by(group)
+      @group_ids.include?(group.id.to_s)
+    end
+
     # saving/loading functions
     # May want to extract this into a library or something for plugins to use?
     def self.alloc_id
@@ -636,6 +684,8 @@ SQL
       [:name, :description, :sql, :created_by, :created_at, :last_run_at].each do |sym|
         query.send("#{sym}=", h[sym].strip) if h[sym]
       end
+      group_ids = (h[:group_ids] == "" || !h[:group_ids]) ? [] : h[:group_ids]
+      query.group_ids = group_ids
       query.id = h[:id].to_i if h[:id]
       query
     end
@@ -648,6 +698,7 @@ SQL
         sql: @sql,
         created_by: @created_by,
         created_at: @created_at,
+        group_ids: @group_ids,
         last_run_at: @last_run_at
       }
     end
@@ -668,7 +719,9 @@ SQL
 
     def save
       check_params!
-      @id = self.class.alloc_id unless @id && @id > 0
+      return save_default_query if @id && @id < 0
+
+      @id = @id || self.class.alloc_id
       DataExplorer.pstore_set "q:#{id}", to_hash
     end
 
@@ -678,6 +731,7 @@ SQL
       query = Queries.default[id.to_s]
       @id = query["id"]
       @sql = query["sql"]
+      @group_ids = @group_ids || []
       @name = query["name"]
       @description = query["description"]
 
@@ -944,7 +998,7 @@ SQL
           false
         end
       end
-      return ret_params
+      ret_params
     end
   end
 
@@ -954,9 +1008,21 @@ SQL
     requires_plugin DataExplorer.plugin_name
 
     before_action :check_enabled
+    before_action :set_group, only: [:group_reports_index, :group_reports_show, :group_reports_run]
+    before_action :set_query, only: [:group_reports_show, :group_reports_run]
+
+    attr_reader :group, :query
 
     def check_enabled
       raise Discourse::NotFound unless SiteSetting.data_explorer_enabled?
+    end
+
+    def set_group
+      @group = Group.find_by(name: params["group_name"])
+    end
+
+    def set_query
+      @query = DataExplorer::Query.find(params[:id].to_i)
     end
 
     def index
@@ -992,6 +1058,41 @@ SQL
       render_serialized query, DataExplorer::QuerySerializer, root: 'query'
     end
 
+    def groups
+      render_serialized(Group.all, BasicGroupSerializer)
+    end
+
+    def group_reports_index
+      return raise Discourse::NotFound unless guardian.user_is_a_member_of_group?(group)
+
+      respond_to do |format|
+        format.html { render 'groups/show' }
+        format.json do
+          queries = DataExplorer::Query.all
+          queries.select! { |query| query.group_ids&.include?(group.id.to_s) }
+          render_serialized queries, DataExplorer::QuerySerializer, root: 'queries'
+        end
+      end
+    end
+
+    def group_reports_show
+      return raise Discourse::NotFound unless guardian.user_can_access_query?(group, query)
+
+      respond_to do |format|
+        format.html { render 'groups/show' }
+        format.json do
+          render_serialized query, DataExplorer::QuerySerializer, root: 'query'
+        end
+      end
+    end
+
+    skip_before_action :check_xhr, only: [:group_reports_run]
+    def group_reports_run
+      return raise Discourse::NotFound unless guardian.user_can_access_query?(group, query)
+
+      run
+    end
+
     def create
       # guardian.ensure_can_create_explorer_query!
 
@@ -1008,6 +1109,7 @@ SQL
     def update
       query = DataExplorer::Query.find(params[:id].to_i, ignore_deleted: true)
       hash = params.require(:query)
+      hash[:group_ids] ||= []
 
       # Undeleting
       unless query.id
@@ -1018,7 +1120,7 @@ SQL
         end
       end
 
-      [:name, :sql, :description, :created_by, :created_at, :last_run_at].each do |sym|
+      [:name, :sql, :description, :created_by, :created_at, :group_ids, :last_run_at].each do |sym|
         query.send("#{sym}=", hash[sym]) if hash[sym]
       end
 
@@ -1078,10 +1180,16 @@ SQL
       opts[:explain] = true if params[:explain] == "true"
 
       opts[:limit] =
-        if params[:limit] == "ALL" || params[:format] == "csv"
-          "ALL"
-        elsif params[:limit]
-          params[:limit].to_i
+        if params[:format] == "csv"
+          if params[:limit].present?
+            limit = params[:limit].to_i
+            limit = DataExplorer::QUERY_RESULT_MAX_LIMIT if limit > DataExplorer::QUERY_RESULT_MAX_LIMIT
+            limit
+          else
+            DataExplorer::QUERY_RESULT_MAX_LIMIT
+          end
+        elsif params[:limit].present?
+          params[:limit] == "ALL" ? "ALL" : params[:limit].to_i
         end
 
       result = DataExplorer.run_query(query, query_params, opts)
@@ -1119,14 +1227,14 @@ SQL
               result_count: pg_result.values.length || 0,
               params: query_params,
               columns: cols,
-              default_limit: DataExplorer::QUERY_RESULT_MAX_LIMIT
+              default_limit: DataExplorer::QUERY_RESULT_DEFAULT_LIMIT
             }
             json[:explain] = result[:explain] if opts[:explain]
 
             if !params[:download]
-              ext = DataExplorer.add_extra_data(pg_result)
-              json[:colrender] = ext[1]
-              json[:relations] = ext[0]
+              relations, colrender = DataExplorer.add_extra_data(pg_result)
+              json[:relations] = relations
+              json[:colrender] = colrender
             end
 
             json[:rows] = pg_result.values
@@ -1153,7 +1261,7 @@ SQL
   end
 
   class DataExplorer::QuerySerializer < ActiveModel::Serializer
-    attributes :id, :sql, :name, :description, :param_info, :created_by, :created_at, :username, :last_run_at
+    attributes :id, :sql, :name, :description, :param_info, :created_by, :created_at, :username, :group_ids, :last_run_at
 
     def param_info
       object.params.map(&:to_hash) rescue nil
@@ -1168,6 +1276,7 @@ SQL
     root to: "query#index"
     get 'schema' => "query#schema"
     get 'queries' => "query#index"
+    get 'groups' => "query#groups"
     post 'queries' => "query#create"
     get 'queries/:id' => "query#show"
     put 'queries/:id' => "query#update"
@@ -1176,6 +1285,10 @@ SQL
   end
 
   Discourse::Application.routes.append do
+    get '/g/:group_name/reports' => 'data_explorer/query#group_reports_index'
+    get '/g/:group_name/reports/:id' => 'data_explorer/query#group_reports_show'
+    post '/g/:group_name/reports/:id/run' => 'data_explorer/query#group_reports_run'
+
     mount ::DataExplorer::Engine, at: '/admin/plugins/explorer', constraints: AdminConstraint.new
   end
 end

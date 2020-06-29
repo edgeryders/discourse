@@ -5,4 +5,22 @@
 # To work with us on translations, join this project:
 # https://www.transifex.com/projects/p/discourse-org/
 
-bs_BA: {}
+bs_BA:
+  js:
+    explorer:
+      schema:
+        filter: "Pretraga..."
+      types:
+        bool:
+          'yes': "Da"
+          'no': "Ne"
+      export: "Izvoz"
+      save: "Spremiti promjene"
+      edit: "Izmijeni"
+      delete: "Delete"
+      query_groups: "Grupa"
+      query_description: "Opis"
+      reset_params: "Resetovati"
+      search_placeholder: "Pretraga..."
+    group:
+      reports: "Izvještaji"

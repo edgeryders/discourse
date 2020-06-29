@@ -1,0 +1,21 @@
+# encoding: utf-8
+#
+# Never edit this file. It will be overwritten when translations are pulled from Transifex.
+#
+# To work with us on translations, join this project:
+# https://www.transifex.com/projects/p/discourse-org/
+
+id:
+  js:
+    explorer:
+      schema:
+        filter: "Cari..."
+      types:
+        bool:
+          'yes': "Ya"
+          'no': "Tidak"
+      save: "Simpan perubahan"
+      edit: "Ubah"
+      delete: "Hapus"
+      query_groups: "Grup"
+      search_placeholder: "Cari..."

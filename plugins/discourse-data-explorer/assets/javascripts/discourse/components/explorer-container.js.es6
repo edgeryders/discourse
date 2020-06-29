@@ -1,4 +1,4 @@
-import { observes } from "ember-addons/ember-computed-decorators";
+import { observes } from "discourse-common/utils/decorators";
 
 export default Ember.Component.extend({
   @observes("hideSchema")
@@ -15,19 +15,19 @@ export default Ember.Component.extend({
     if (this._state !== "inDOM") {
       return;
     }
-    const $editPane = this.$(".query-editor");
+    const $editPane = $(".query-editor");
     if (!$editPane.length) {
       return;
     }
 
-    const oldGrippie = this.get("grippie");
+    const oldGrippie = this.grippie;
     if (oldGrippie) {
       oldGrippie.off("mousedown mousemove mouseup");
     }
 
     const $grippie = $editPane.find(".grippie");
     const $target = $editPane.find(".panels-flex");
-    const $document = Ember.$(document);
+    const $document = $(document);
 
     const minWidth = $target.width();
     const minHeight = $target.height();
@@ -35,11 +35,11 @@ export default Ember.Component.extend({
     this.set("grippie", $grippie);
 
     const mousemove = e => {
-      const diffY = this.get("startY") - e.screenY;
-      const diffX = this.get("startX") - e.screenX;
+      const diffY = this.startY - e.screenY;
+      const diffX = this.startX - e.screenX;
 
-      const newHeight = Math.max(minHeight, this.get("startHeight") - diffY);
-      const newWidth = Math.max(minWidth, this.get("startWidth") - diffX);
+      const newHeight = Math.max(minHeight, this.startHeight - diffY);
+      const newWidth = Math.max(minWidth, this.startWidth - diffX);
 
       $target.height(newHeight);
       $target.width(newWidth);
@@ -52,7 +52,7 @@ export default Ember.Component.extend({
       Ember.run.throttle(this, mousemove, event, 20);
     }).bind(this);
 
-    const mouseup = (e => {
+    const mouseup = (() => {
       $document.off("mousemove", throttledMousemove);
       $document.off("mouseup", mouseup);
       this.setProperties({
@@ -78,14 +78,16 @@ export default Ember.Component.extend({
   },
 
   didInsertElement() {
-    this._super();
+    this._super(...arguments);
+
     this._bindControls();
   },
 
   willDestroyElement() {
-    this._super();
-    if (this.get("everEditing")) {
-      this.get("grippie").off("mousedown");
+    this._super(...arguments);
+
+    if (this.everEditing) {
+      this.grippie && this.grippie.off("mousedown");
       this.set("grippie", null);
     }
   }

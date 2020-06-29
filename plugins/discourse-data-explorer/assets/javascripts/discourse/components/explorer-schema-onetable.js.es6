@@ -1,22 +1,25 @@
+import { on } from "discourse-common/utils/decorators";
+
 export default Ember.Component.extend({
   classNameBindings: [":schema-table", "open"],
   tagName: "li",
 
-  open: Ember.computed.alias("table.open"),
+  open: Ember.computed.reads("table.open"),
 
-  _bindClicks: function() {
-    const self = this;
-    this.$()
+  @on("didInsertElement")
+  _bindClicks() {
+    $(this.element)
       .find(".schema-table-name")
-      .click(function(e) {
-        self.set("open", !self.get("open"));
+      .click(e => {
+        this.set("table.open", !this.table.open);
         e.preventDefault();
       });
-  }.on("didInsertElement"),
+  },
 
-  _cleanup: function() {
-    this.$()
+  @on("willDestroyElement")
+  _cleanup() {
+    $(this.element)
       .find(".schema-table-name")
       .off("click");
-  }.on("willDestroyElement")
+  }
 });

@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 class Queries
   def self.default
     # WARNING: Edit the query hash carefully
@@ -62,7 +64,7 @@ class Queries
         "active-lurkers": {
             "id": -11,
             "name": "Most Active Lurkers",
-            "description": "active users without posts and excessive read times, it accepts a post_read_count paramteter that sets the threshold for posts read."
+            "description": "active users without posts and excessive read times, it accepts a post_read_count parameter that sets the threshold for posts read."
         },
         "topic-user-notification-level": {
             "id": -12,
@@ -73,6 +75,31 @@ class Queries
             "id": -13,
             "name": "List of assigned topics by user",
             "description": "This report requires the assign plugin, it will find all assigned topics"
+        },
+        "group-members-reply-count": {
+            "id": -14,
+            "name": "Group Members Reply Count",
+            "description": "Number of replies by members of a group over a given time period. Requires 'group_name', 'start_date', and 'end_date' parameters. Dates need to be in the form 'yyyy-mm-dd'. Accepts an 'include_pms' parameter."
+        },
+        "total-assigned-topics-report": {
+            "id": -15,
+            "name": "Total topics assigned per user",
+            "description": "Count of assigned topis per user linking to assign list"
+        },
+        "poll-results": {
+            "id": -16,
+            "name": "Poll results report",
+            "description": "Details of a poll result, including details about each vote and voter, useful for analyzing results in external software."
+        },
+        "top-tags-per-year": {
+            "id": -17,
+            "name": "Top tags per year",
+            "description": "List the top tags per year."
+        },
+        "number_of_replies_by_category": {
+            "id": -18,
+            "name": "Number of replies by category",
+            "description": "List the number of replies by category."
         }
     }.with_indifferent_access
 
@@ -386,6 +413,137 @@ class Queries
         WHERE tf.name = 'assigned_to_id'
          AND t.deleted_at IS NULL
       ORDER BY username, topic_id
+    SQL
+
+    queries["group-members-reply-count"]["sql"] = <<~SQL
+      -- [params]
+      -- date :start_date
+      -- date :end_date
+      -- string :group_name
+      -- boolean :include_pms = false
+
+      WITH target_users AS (
+      SELECT
+      u.id AS user_id
+      FROM users u
+      JOIN group_users gu
+      ON gu.user_id = u.id
+      JOIN groups g
+      ON g.id = gu.group_id
+      WHERE g.name = :group_name
+      AND gu.created_at::date <= :end_date
+      ),
+      target_posts AS (
+      SELECT
+      p.id,
+      p.user_id
+      FROM posts p
+      JOIN topics t
+      ON t.id = p.topic_id
+      WHERE CASE WHEN :include_pms THEN true ELSE t.archetype = 'regular' END
+      AND t.deleted_at IS NULL
+      AND p.deleted_at IS NULL
+      AND p.created_at::date >= :start_date
+      AND p.created_at::date <= :end_date
+      AND p.post_number > 1
+      )
+
+      SELECT
+      tu.user_id,
+      COALESCE(COUNT(tp.id), 0) AS reply_count
+      FROM target_users tu
+      LEFT OUTER JOIN target_posts tp
+      ON tp.user_id = tu.user_id
+      GROUP BY tu.user_id
+      ORDER BY reply_count DESC, tu.user_id
+    SQL
+
+    queries["total-assigned-topics-report"]["sql"] = <<~SQL
+      SELECT value::int user_id,
+      count(*)::varchar || ',/u/' || username_lower || '/activity/assigned' assigned_url
+      FROM topic_custom_fields tf
+      JOIN topics t on t.id = topic_id
+      JOIN users u on u.id = value::int
+      WHERE tf.name = 'assigned_to_id'
+        AND t.deleted_at IS NULL
+      GROUP BY value::int, username_lower
+      ORDER BY count(*) DESC, username_lower
+    SQL
+
+    queries["poll-results"]["sql"] = <<~SQL
+      -- [params]
+      -- string :poll_name
+      -- int :post_id
+
+      SELECT
+        poll_votes.updated_at AS vote_time,
+        poll_votes.poll_option_id AS vote_option,
+        users.id AS user_id,
+        users.username,
+        users.name,
+        users.trust_level,
+        poll_options.html AS vote_option_full
+      FROM
+        poll_votes
+      INNER JOIN
+        polls ON polls.id = poll_votes.poll_id
+      INNER JOIN
+        users ON users.id = poll_votes.user_id
+      INNER JOIN
+        poll_options ON poll_votes.poll_id = poll_options.poll_id AND poll_votes.poll_option_id = poll_options.id
+      WHERE
+        polls.name = :poll_name AND
+        polls.post_id = :post_id
+    SQL
+
+    queries["top-tags-per-year"]["sql"] = <<~SQL
+	-- [params]
+	-- integer :rank_max = 5
+
+	WITH data AS (SELECT 
+	    tag_id,
+	    EXTRACT(YEAR FROM created_at) AS year
+	FROM topic_tags)
+
+	SELECT year, rank, name, qt FROM (
+	    SELECT 
+		tag_id,
+		COUNT(tag_id) AS qt,
+		year,
+		rank() OVER (PARTITION BY year ORDER BY COUNT(tag_id) DESC) AS rank    
+	    FROM
+		data
+	    GROUP BY year, tag_id) as rnk
+	INNER JOIN tags ON tags.id = rnk.tag_id
+	WHERE rank <= :rank_max
+	ORDER BY year DESC, qt DESC
+    SQL
+
+    queries["number_of_replies_by_category"]["sql"] = <<~SQL
+	-- [params]
+	-- boolean :enable_null_category = false
+
+	WITH post AS (SELECT 
+	    id AS post_id,
+	    topic_id,
+	    EXTRACT(YEAR FROM created_at) AS year
+	FROM posts
+	WHERE post_type = 1
+	    AND deleted_at ISNULL
+	    AND post_number != 1)
+	    
+	SELECT 
+	    p.year,
+	    t.category_id AS id, 
+	    c.name category,
+	    COUNT(p.post_id) AS qt
+	FROM post p
+	INNER JOIN topics t ON t.id = p.topic_id
+	LEFT JOIN categories c ON c.id = t.category_id
+	WHERE t.deleted_at ISNULL
+	    AND (:enable_null_category = true OR t.category_id NOTNULL)
+	GROUP BY t.category_id, c.name, p.year
+	ORDER BY p.year DESC, qt DESC
     SQL
 
   # convert query ids from "mostcommonlikers" to "-1", "mostmessages" to "-2" etc.
