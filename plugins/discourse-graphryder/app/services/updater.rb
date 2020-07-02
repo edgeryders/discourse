@@ -1,7 +1,5 @@
 module Graphryder
   class Updater
-    include Rails.application.routes.url_helpers
-
     def self.initialize!
       ::User.class_eval do
         after_save :graphryder_sync
@@ -26,21 +24,12 @@ module Graphryder
         end
       end
 
-      ::TopicTag.class_eval do
-        after_save :graphryder_sync
-
-        def graphryder_sync
-          ::Graphryder::Query.instance.perform "
-            MERGE (topic:topic {id:#{topic_id}})
-            MERGE (tag:tag {id:#{tag_id}})
-            MERGE (topic)-[:REFERS_TO]->(tag)
-            RETURN topic, tag
-          "
-        end
-      end
-
       ::Topic.class_eval do
-        after_save :graphryder_sync
+        after_save :graphryder_sync, if: :graphryder_sync?
+
+        def graphryder_sync?
+          allowed_groups.pluck(:name).include?(:annotator)
+        end
 
         def graphryder_sync
           ::Graphryder::Query.instance.perform "
@@ -57,7 +46,8 @@ module Graphryder
       end
 
       ::Post.class_eval do
-        after_save :graphryder_sync
+        after_save :graphryder_sync, if: :graphryder_sync?
+        delegate :graphryder_sync?, to: :topic
 
         def graphryder_sync
           ::Graphryder::Query.instance.perform "
@@ -81,24 +71,24 @@ module Graphryder
         end
       end
 
-      ::Tag.class_eval do
+      ::AnnotatorStore::Tag.class_eval do
         after_save :graphryder_sync
 
         def graphryder_sync
           ::Graphryder::Query.instance.perform "
             MERGE (tag:tag {id:#{id}})
             SET tag.label = '#{name.downcase}',
-                tag.timestamp = '#{updated_at}',
-                tag.url = '#{full_url}'
+                tag.name = '#{name.downcase}',
+                tag.description = '#{description}',
+                tag.timestamp = '#{updated_at}'
             #{"
-              MERGE (target:tag {id:#{target_tag_id}})
-              MERGE (target)-[:IS_CHILD]->(tag)
-            " if target_tag_id}
-
+              MERGE (user:user {id:#{creator_id}})
+              MERGE (user)-[:AUTHORSHIP]->(tag)
+            " if creator_id}
             RETURN tag
           "
         end
-      end
+      end if Object.const_defined?("AnnotatorStore::Tag")
 
       ::AnnotatorStore::Annotation.class_eval do
         after_save :graphryder_sync
@@ -127,6 +117,21 @@ module Graphryder
           "
         end
       end if Object.const_defined?("AnnotatorStore::Annotation")
+
+      ::AnnotatorStore::TagName.class_eval do
+        after_save :graphryder_sync
+
+        def graphryder_sync
+          ::Graphryder::Query.instance.perform "
+            MERGE (tagname:tagname {id:#{id}})
+            SET tagname.label = '#{name}',
+                tagname.timestamp = '#{updated_at}'
+            MERGE (tag:tag {id:#{tag_id}})
+            MERGE (tag)-[:NAMED]->(tagname)
+            RETURN tagname
+          "
+        end
+      end
     end
   end
 end

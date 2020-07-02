@@ -11,16 +11,20 @@ after_initialize do
       isolate_namespace Graphryder
 
       if !Discourse.redis.call('module', 'list').find { |_, name, _, _| name == 'graph' }
-        # path = File.expand_path File.dirname(__dir__)
-        # Discourse.redis.call(
-        #   'module',
-        #   'load',
-        #   "#{path}/discourse-graphryder/redisgraph.so"
-        # )
-        warn [
-          "Redis does not have RedisGraph installed as a module,",
-          "please install it before using the discourse-graphryder plugin."
-        ].join("\n")
+        if Rails.env.development?
+          puts "Installing local redisgraph for development..."
+          path = File.expand_path File.dirname(__dir__)
+          Discourse.redis.call(
+            'module',
+            'load',
+            "#{path}/discourse-graphryder/redisgraph.so"
+          )
+        else
+          warn [
+            "Redis does not have RedisGraph installed as a module,",
+            "please install it before using the discourse-graphryder plugin."
+          ].join("\n")
+        end
       end
 
 
@@ -44,4 +48,3 @@ after_initialize do
 
   Graphryder::Initializer.initialize!
 end
-

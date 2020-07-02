@@ -46,3 +46,71 @@ would return JSON as follows:
 In order to use this endpoint, a user must either be authenticated as an admin (using a generated Admin API key), or a member of a group named `annotators`
 
 At the time of this writing, the intended consumer of this API is the [Existing graphryder API](https://github.com/edgeryders/graphryder-api)
+
+
+### Data model
+
+As of this writing, the fields synced to RedisGraph are as follows:
+```
+User:
+  fields:
+    label (username)
+    avatar (avatar_template)
+    timestamp (updated_at)
+    url (https://<instance>.com/users/<username>)
+
+Topic:
+  fields:
+    label (id)
+    title (title)
+    timestamp (updated_at)
+    url (url)
+
+  relationships:
+    AUTHORSHIP (user)
+
+Post:
+  fields:
+    label (id)
+    topic_id (topic_id)
+    number (post_number)
+    content (cooked)
+    timestamp (updated_at)
+    url (url)
+
+  relationships:
+    AUTHORSHIP (user)
+    COMMENTS (topic)
+    COMMENTS (reply_to_post)
+
+AnnotatorStore::Tag
+  fields:
+    label (id)
+    name (name)
+    description (description)
+    timestamp (updated_at)
+
+  relationships:
+    AUTHORSHIP (creator)
+
+AnnotatorStore::TagName
+  fields:
+    label (name)
+    timestamp (updated_at)
+
+  relationships:
+    NAMED (tag)
+
+AnnotatorStore::Annotation
+  fields:
+    label (id)
+    quote (quote)
+    timestamp (updated_at)
+
+  relationships:
+    AUTHORSHIP (user)
+    REFERS_TO (tag)
+
+```
+
+The code which does this can be viewed [in the Updater class](./app/services/updater.rb) (the code written there should be considered the source of truth)
