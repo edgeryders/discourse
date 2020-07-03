@@ -1,6 +1,11 @@
 module Graphryder
   class Importer
-    def self.initialize!
+    def self.initialize!(force: false)
+      if force
+        puts "Force option was passed; deleting existing graph and rewriting it from scratch..."
+        Graphryder::Query.instance.perform("MATCH (node) DETACH DELETE node RETURN node")
+      end
+
       import_class "::User"
       import_class "::Post"
       import_class "::Topic"

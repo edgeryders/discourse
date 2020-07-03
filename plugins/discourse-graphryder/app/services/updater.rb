@@ -79,7 +79,7 @@ module Graphryder
             MERGE (tag:tag {id:#{id}})
             SET tag.label = '#{name.downcase}',
                 tag.name = '#{name.downcase}',
-                tag.description = '#{description}',
+                tag.description = '#{description&.gsub("\'", "’")}',
                 tag.timestamp = '#{updated_at}'
             #{"
               MERGE (user:user {id:#{creator_id}})

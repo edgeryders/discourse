@@ -47,6 +47,19 @@ In order to use this endpoint, a user must either be authenticated as an admin (
 
 At the time of this writing, the intended consumer of this API is the [Existing graphryder API](https://github.com/edgeryders/graphryder-api)
 
+### Importing from ActiveRecord
+
+In order to import the RedisGraph graph from ActiveRecord, run the given importer command:
+```ruby
+Graphryder::Importer.initialize!
+```
+This will append all nodes in ActiveRecord onto the existing graph (it should not create any duplicates if they exist in RedisGraph already).
+
+In order to delete the graph and re-import from scratch, pass the `force` option:
+```ruby
+Graphryder::Importer.initialize!(force: true)
+```
+
 
 ### Data model
 
