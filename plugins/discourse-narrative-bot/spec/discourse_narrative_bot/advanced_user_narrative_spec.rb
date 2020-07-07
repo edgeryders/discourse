@@ -3,7 +3,9 @@
 require 'rails_helper'
 
 RSpec.describe DiscourseNarrativeBot::AdvancedUserNarrative do
-  let(:discobot_user) { ::DiscourseNarrativeBot::Base.new.discobot_user }
+  let(:narrative_bot) { ::DiscourseNarrativeBot::Base.new }
+  let(:discobot_user) { narrative_bot.discobot_user }
+  let(:discobot_username) { narrative_bot.discobot_username }
   let(:first_post) { Fabricate(:post, user: discobot_user) }
   let(:user) { Fabricate(:user) }
 
@@ -175,7 +177,7 @@ RSpec.describe DiscourseNarrativeBot::AdvancedUserNarrative do
 
         describe 'when reply contains the skip trigger' do
           it 'should create the right reply' do
-            post.update!(raw: "@#{discobot_user.username} #{skip_trigger.upcase}")
+            post.update!(raw: "@#{discobot_username} #{skip_trigger.upcase}")
             described_class.any_instance.expects(:enqueue_timeout_job).with(user)
 
             DiscourseNarrativeBot::TrackSelector.new(:reply, user, post_id: post.id).select
@@ -556,12 +558,29 @@ RSpec.describe DiscourseNarrativeBot::AdvancedUserNarrative do
         end
       end
 
-      describe 'when poll is disabled' do
-        before do
+      describe 'when user cannot create polls' do
+        it 'should create the right reply (polls disabled)' do
           SiteSetting.poll_enabled = false
+
+          TopicUser.change(
+            user.id,
+            topic.id,
+            notification_level: TopicUser.notification_levels[:tracking]
+          )
+
+          expected_raw = <<~RAW
+            #{I18n.t('discourse_narrative_bot.advanced_user_narrative.change_topic_notification_level.reply', base_uri: '')}
+
+            #{I18n.t('discourse_narrative_bot.advanced_user_narrative.details.instructions', base_uri: '')}
+          RAW
+
+          expect(Post.last.raw).to eq(expected_raw.chomp)
+          expect(narrative.get_data(user)[:state].to_sym).to eq(:tutorial_details)
         end
 
-        it 'should create the right reply' do
+        it 'should create the right reply (insufficient trust level)' do
+          user.update(trust_level: 0)
+
           TopicUser.change(
             user.id,
             topic.id,
@@ -587,6 +606,19 @@ RSpec.describe DiscourseNarrativeBot::AdvancedUserNarrative do
           topic_id: topic.id,
           track: described_class.to_s
         )
+      end
+
+      it 'allows new users to create polls' do
+        user.update(trust_level: 0)
+
+        post = PostCreator.create(user, topic_id: topic.id, raw: <<~RAW)
+          [poll type=regular]
+          * foo
+          * bar
+          [/poll]
+        RAW
+
+        expect(post.errors[:base].size).to eq(0)
       end
 
       describe 'when post is not in the right topic' do
@@ -695,7 +727,7 @@ RSpec.describe DiscourseNarrativeBot::AdvancedUserNarrative do
                                                "topic_id" => topic.id,
                                                "track" => described_class.to_s)
 
-        expect(user.badges.where(name: DiscourseNarrativeBot::AdvancedUserNarrative::BADGE_NAME).exists?)
+        expect(user.badges.where(name: DiscourseNarrativeBot::AdvancedUserNarrative.badge_name).exists?)
           .to eq(true)
       end
     end

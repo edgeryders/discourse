@@ -4,12 +4,14 @@ require 'rails_helper'
 
 describe DiscourseNarrativeBot::TrackSelector do
   let(:user) { Fabricate(:user) }
-  let(:discobot_user) { ::DiscourseNarrativeBot::Base.new.discobot_user }
+  let(:narrative_bot) { ::DiscourseNarrativeBot::Base.new }
+  let(:discobot_user) { narrative_bot.discobot_user }
+  let(:discobot_username) { narrative_bot.discobot_username }
   let(:narrative) { DiscourseNarrativeBot::NewUserNarrative.new }
 
   let(:random_mention_reply) do
     I18n.t('discourse_narrative_bot.track_selector.random_mention.reply',
-     discobot_username: discobot_user.username,
+     discobot_username: discobot_username,
      help_trigger: described_class.help_trigger
     )
   end
@@ -20,8 +22,6 @@ describe DiscourseNarrativeBot::TrackSelector do
   end
 
   let(:help_message) do
-    discobot_username = discobot_user.username
-
     end_message = <<~RAW
     #{I18n.t(
       'discourse_narrative_bot.track_selector.random_mention.tracks',
@@ -319,7 +319,7 @@ describe DiscourseNarrativeBot::TrackSelector do
                 )
 
                 BadgeGranter.grant(
-                  Badge.find_by(name: DiscourseNarrativeBot::NewUserNarrative::BADGE_NAME),
+                  Badge.find_by(name: DiscourseNarrativeBot::NewUserNarrative.badge_name),
                   user
                 )
 
@@ -472,7 +472,7 @@ describe DiscourseNarrativeBot::TrackSelector do
           let(:post) { Fabricate(:post, topic: topic) }
 
           after do
-            Discourse.redis.flushall
+            Discourse.redis.flushdb
           end
 
           describe 'when random reply massage has been displayed in the last 6 hours' do

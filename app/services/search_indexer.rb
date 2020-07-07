@@ -17,6 +17,8 @@ class SearchIndexer
   end
 
   def self.inject_extra_terms(raw)
+    return raw if !SiteSetting.search_inject_extra_terms
+
     # insert some extra words for I.am.a.word so "word" is tokenized
     # I.am.a.word becomes I.am.a.word am a word
     raw.gsub(/[^[:space:]]*[\.]+[^[:space:]]*/) do |with_dot|
@@ -191,7 +193,7 @@ class SearchIndexer
     def self.scrub(html, strip_diacritics: false)
       return +"" if html.blank?
 
-      document = Nokogiri::HTML("<div>#{html}</div>", nil, Encoding::UTF_8.to_s)
+      document = Nokogiri::HTML5("<div>#{html}</div>", nil, Encoding::UTF_8.to_s)
 
       nodes = document.css(
         "div.#{CookedPostProcessor::LIGHTBOX_WRAPPER_CSS_CLASS}"

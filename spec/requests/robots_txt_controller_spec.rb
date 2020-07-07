@@ -6,7 +6,7 @@ RSpec.describe RobotsTxtController do
   describe '#builder' do
     it "returns json information for building a robots.txt" do
       get "/robots-builder.json"
-      json = ::JSON.parse(response.body)
+      json = response.parsed_body
       expect(json).to be_present
       expect(json['header']).to be_present
       expect(json['agents']).to be_present
@@ -17,7 +17,7 @@ RSpec.describe RobotsTxtController do
 
       get "/robots-builder.json"
       expect(response.status).to eq(200)
-      json = ::JSON.parse(response.body)
+      json = response.parsed_body
       expect(json['header']).to be_present
       expect(json['agents']).to be_present
       expect(json['overridden']).to eq("something")
@@ -76,7 +76,7 @@ RSpec.describe RobotsTxtController do
         allow_section = allow_index < disallow_index ?
           response.body[allow_index...disallow_index] : response.body[allow_index..-1]
 
-        expect(allow_section).to include('Disallow: /u/')
+        expect(allow_section).to include('Disallow: /auth/')
         expect(allow_section).to_not include("Disallow: /\n")
 
         disallowed_section = allow_index < disallow_index ?
@@ -90,7 +90,7 @@ RSpec.describe RobotsTxtController do
 
         i = response.body.index('User-agent: *')
         expect(i).to be_present
-        expect(response.body[i..-1]).to include("Disallow: /u/")
+        expect(response.body[i..-1]).to include("Disallow: /auth/")
       end
 
       it "can whitelist user agents" do
@@ -131,7 +131,8 @@ RSpec.describe RobotsTxtController do
       SiteSetting.allow_index_in_robots_txt = false
       get '/robots.txt'
 
-      expect(response.body).to_not include("Disallow: /u/")
+      expect(response.body).to_not include("Disallow: /auth/")
+      expect(response.body).to include("User-agent: googlebot\nAllow")
     end
 
     it "returns overridden robots.txt if the file is overridden" do

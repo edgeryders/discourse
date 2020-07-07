@@ -5,15 +5,16 @@ class Tag < ActiveRecord::Base
   include HasDestroyedWebHook
 
   RESERVED_TAGS = [
-    'c'
+    'c',
+    'none'
   ]
 
   validates :name,
     presence: true,
-    uniqueness: { case_sensitive: false },
-    exclusion: { in: RESERVED_TAGS }
+    uniqueness: { case_sensitive: false }
 
   validate :target_tag_validator, if: Proc.new { |t| t.new_record? || t.will_save_change_to_target_tag_id? }
+  validate :name_validator
 
   scope :where_name, ->(name) do
     name = Array(name).map(&:downcase)
@@ -28,6 +29,7 @@ class Tag < ActiveRecord::Base
   has_many :topic_tags, dependent: :destroy
   has_many :topics, through: :topic_tags
 
+  has_many :category_tag_stats, dependent: :destroy
   has_many :category_tags, dependent: :destroy
   has_many :categories, through: :category_tags
 
@@ -36,6 +38,8 @@ class Tag < ActiveRecord::Base
 
   belongs_to :target_tag, class_name: "Tag", optional: true
   has_many :synonyms, class_name: "Tag", foreign_key: "target_tag_id", dependent: :destroy
+
+  has_one :tag_search_data, dependent: :delete
 
   after_save :index_search
   after_save :update_synonym_associations
@@ -178,6 +182,14 @@ class Tag < ActiveRecord::Base
     define_method("trigger_#{event}_event") do
       DiscourseEvent.trigger(event, self)
       true
+    end
+  end
+
+  private
+
+  def name_validator
+    if name.present? && RESERVED_TAGS.include?(self.name.strip.downcase)
+      errors.add(:name, :invalid)
     end
   end
 end

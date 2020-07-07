@@ -4,7 +4,9 @@ require 'rails_helper'
 
 describe DiscourseNarrativeBot::NewUserNarrative do
   let!(:welcome_topic) { Fabricate(:topic, title: 'Welcome to Discourse') }
-  let(:discobot_user) { ::DiscourseNarrativeBot::Base.new.discobot_user }
+  let(:narrative_bot) { ::DiscourseNarrativeBot::Base.new }
+  let(:discobot_user) { narrative_bot.discobot_user }
+  let(:discobot_username) { narrative_bot.discobot_username }
   let(:first_post) { Fabricate(:post, user: discobot_user) }
   let(:user) { Fabricate(:user) }
 
@@ -233,7 +235,7 @@ describe DiscourseNarrativeBot::NewUserNarrative do
 
         describe 'when reply contains the skip trigger' do
           it 'should create the right reply' do
-            post.update!(raw: "@#{discobot_user.username} #{skip_trigger.upcase}")
+            post.update!(raw: "@#{discobot_username} #{skip_trigger.upcase}")
             described_class.any_instance.expects(:enqueue_timeout_job).with(user)
 
             DiscourseNarrativeBot::TrackSelector.new(:reply, user, post_id: post.id).select
@@ -247,7 +249,7 @@ describe DiscourseNarrativeBot::NewUserNarrative do
         end
       end
 
-      it 'should create the right reply' do
+      it 'should create the right reply when bookmarks with reminders are enabled' do
         post.update!(user: discobot_user)
         narrative.expects(:enqueue_timeout_job).with(user)
 
@@ -256,7 +258,7 @@ describe DiscourseNarrativeBot::NewUserNarrative do
         profile_page_url = "#{Discourse.base_url}/u/#{user.username}"
 
         expected_raw = <<~RAW
-          #{I18n.t('discourse_narrative_bot.new_user_narrative.bookmark.reply', profile_page_url: profile_page_url, base_uri: '')}
+          #{I18n.t('discourse_narrative_bot.new_user_narrative.bookmark.reply', bookmark_url: "#{profile_page_url}/activity/bookmarks", base_uri: '')}
 
           #{I18n.t('discourse_narrative_bot.new_user_narrative.onebox.instructions', base_uri: '')}
         RAW
@@ -335,7 +337,7 @@ describe DiscourseNarrativeBot::NewUserNarrative do
               #{I18n.t('discourse_narrative_bot.new_user_narrative.onebox.reply', base_uri: '')}
 
               #{I18n.t('discourse_narrative_bot.new_user_narrative.mention.instructions',
-                discobot_username: discobot_user.username, base_uri: ''
+                discobot_username: discobot_username, base_uri: ''
               )}
             RAW
 
@@ -708,7 +710,7 @@ describe DiscourseNarrativeBot::NewUserNarrative do
 
             expect(new_post.raw).to eq(I18n.t(
               'discourse_narrative_bot.new_user_narrative.mention.instructions',
-              discobot_username: discobot_user.username, base_uri: ''
+              discobot_username: discobot_username, base_uri: ''
             ))
 
             expect(narrative.get_data(user)[:state].to_sym).to eq(:tutorial_mention)
@@ -746,7 +748,7 @@ describe DiscourseNarrativeBot::NewUserNarrative do
           #{I18n.t('discourse_narrative_bot.new_user_narrative.emoji.reply', base_uri: '')}
 
           #{I18n.t('discourse_narrative_bot.new_user_narrative.mention.instructions',
-            discobot_username: discobot_user.username, base_uri: ''
+            discobot_username: discobot_username, base_uri: ''
           )}
         RAW
 
@@ -778,7 +780,7 @@ describe DiscourseNarrativeBot::NewUserNarrative do
           expect(Post.last.raw).to eq(I18n.t(
             'discourse_narrative_bot.new_user_narrative.mention.not_found',
             username: user.username,
-            discobot_username: discobot_user.username,
+            discobot_username: discobot_username,
             base_uri: ''
           ))
 
@@ -797,7 +799,7 @@ describe DiscourseNarrativeBot::NewUserNarrative do
 
           expect(new_post.raw).to eq(I18n.t(
             'discourse_narrative_bot.new_user_narrative.formatting.instructions',
-            discobot_username: discobot_user.username, base_uri: ''
+            discobot_username: discobot_username, base_uri: ''
           ))
 
           expect(narrative.get_data(user)[:state].to_sym).to eq(:tutorial_formatting)
@@ -988,7 +990,7 @@ describe DiscourseNarrativeBot::NewUserNarrative do
           )
 
           expect(user.badges.where(
-            name: DiscourseNarrativeBot::NewUserNarrative::BADGE_NAME).exists?
+            name: DiscourseNarrativeBot::NewUserNarrative.badge_name).exists?
           ).to eq(true)
         end
       end
