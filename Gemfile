@@ -275,7 +275,7 @@ gem 'administrate-field-belongs_to_search'
 
 # Required by the edgeryders-multisite-accounts plugin.
 # https://github.com/discourse/discourse_api
-gem 'discourse_api', git: 'https://github.com/edgeryders/discourse_api.git', branch: 'master'
+gem 'discourse_api' #, git: 'https://github.com/edgeryders/discourse_api.git', branch: 'master'
 
 
 # damingo (Github ID), 2018-11-27
