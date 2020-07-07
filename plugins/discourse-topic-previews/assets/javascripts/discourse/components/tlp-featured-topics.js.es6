@@ -1,4 +1,4 @@
-import { default as computed, on, observes } from 'ember-addons/ember-computed-decorators';
+import discourseComputed, { on, observes } from "discourse-common/utils/decorators";
 import { cookAsync } from 'discourse/lib/text';
 
 export default Ember.Component.extend({
@@ -16,24 +16,24 @@ export default Ember.Component.extend({
   setupTitle() {
     const showFeaturedTitle = this.get('showFeaturedTitle');
     if (showFeaturedTitle) {
-      const raw = Discourse.SiteSettings.topic_list_featured_title;
+      const raw = this.siteSettings.topic_list_featured_title;
       cookAsync(raw).then((cooked) => this.set('featuredTitle', cooked));
     }
   },
 
-  @computed
+  @discourseComputed
   showFeaturedTitle() {
-    return Discourse.SiteSettings.topic_list_featured_title;
+    return this.siteSettings.topic_list_featured_title;
   },
 
-  @computed
+  @discourseComputed
   featuredTags() {
-    return Discourse.SiteSettings.topic_list_featured_images_tag.split('|');
+    return this.siteSettings.topic_list_featured_images_tag.split('|');
   },
 
-  @computed
+  @discourseComputed
   showFeaturedTags() {
     return this.get('featuredTags') &&
-           Discourse.SiteSettings.topic_list_featured_images_tag_show;
+           this.siteSettings.topic_list_featured_images_tag_show;
   }
 });

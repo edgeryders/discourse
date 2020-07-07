@@ -8,15 +8,16 @@ var isThumbnail = function(path) {
          path !== '';
 };
 
-var previewUrl = function(thumbnails) {
+var previewUrl = function (thumbnails) {
+  const preferLowRes = (Discourse.User._current === null) ? false : Discourse.User._current.custom_fields.tlp_user_prefs_prefer_low_res_thumbnails;
   if (thumbnails) {
-    if (thumbnails.retina && isThumbnail(thumbnails.retina)) {
-      return window.devicePixelRatio >= 2 ? thumbnails.retina : thumbnails.normal;
-    } else if (thumbnails.normal && isThumbnail(thumbnails.normal)) {
-      return thumbnails.normal;
-    } else if (isThumbnail(thumbnails)) {
-      return thumbnails;
-    }
+    let resLevel = Discourse.SiteSettings.topic_list_thumbnail_resolution_level
+    resLevel = Math.round(((thumbnails.length - 1)/6) * resLevel);
+    if (preferLowRes) {resLevel++};
+    if (window.devicePixelRatio && resLevel > 0) {resLevel--};
+    return resLevel <= thumbnails.length - 1
+      ? thumbnails[resLevel].url
+      : thumbnails[thumbnails.length - 1].url;
   } else {
     return false;
   }
@@ -40,7 +41,7 @@ var renderUnboundPreview = function(thumbnails, params) {
 
   const category_width = params.category ? params.category.topic_list_thumbnail_width : false;
   const category_height = params.category ? params.category.topic_list_thumbnail_height : false;
-  const featured_width = opts.featured ? settings.topic_list_featured_width : false;
+  const featured_width = opts.featured ? settings.topic_list_featured_width ? settings.topic_list_featured_width : 'auto' : false;
   const featured_height = opts.featured ? settings.topic_list_featured_height : false;
   const tiles_width = opts.tilesStyle ? '100' : false;
   const tiles_height = opts.tilesStyle ? 'auto' : false;
@@ -52,7 +53,7 @@ var renderUnboundPreview = function(thumbnails, params) {
   const height_style = height ? `height:${height}${attrHeightSuffix};` : ``;
   const style = `${height_style}width:${width}${attrWidthSuffix}`;
 
-  return `<img class="${css_classes}" src="${url}" style="${style}" />`;
+  return `<img class="${css_classes}" src="${url}" style="${style}"/>`;
 };
 
 var testImageUrl = function(thumbnails, callback) {

@@ -12,7 +12,7 @@ export default Ember.Mixin.create({
         const suggestedList = this.get('suggestedList');
         const currentRoute = this.get('currentRoute');
 
-        if (!discoveryList && !suggestedList && !(currentRoute.indexOf('userActivity') > -1)) return false;
+        if (!discoveryList && !suggestedList && !(currentRoute.indexOf('userActivity') > -1) && !(currentRoute.indexOf('tag') > -1)) return false;
 
         const category = this.get('category');
         const catSetting = category ? category.get(setting) : false;
@@ -22,22 +22,21 @@ export default Ember.Mixin.create({
         const catEnabled = catSetting && catSetting.split('|').indexOf(filterType) > -1;
         const siteEnabled = siteSetting && siteSetting.split('|').indexOf(filterType) > -1;
         const siteDefaults = Discourse.SiteSettings.topic_list_set_category_defaults;
-        const path = window.location.pathname;
-        const isTopic = /^\/t\//.test(path);
+        const isTopic = (filterType == 'suggested');
 
         return isTopic ? siteEnabled : (category ? (catEnabled || siteDefaults && siteEnabled) : siteEnabled);
       },
 
       _filter() {
+
         let filter = this.get('parentView.model.filter');
 
         const currentRoute = this.get('currentRoute');
-        if (currentRoute.indexOf('tags') > -1) filter = 'tags';
+        if (currentRoute.indexOf('tag') > -1) filter = 'tags';
+        if (currentRoute.indexOf('top') > -1) filter = 'top';
+        if (currentRoute.indexOf('topic') > -1) filter = 'suggested';
         if (currentRoute == 'userActivity.portfolio') filter = 'activity-portfolio';
         if (currentRoute == 'userActivity.topics') filter = 'activity-topics';
-
-        const suggestedList = this.get('suggestedList');
-        if (suggestedList) filter = 'suggested';
 
         const mobile = this.get('site.mobileView');
         if (mobile) filter += '-mobile';

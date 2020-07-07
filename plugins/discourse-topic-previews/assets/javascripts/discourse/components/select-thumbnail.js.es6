@@ -1,10 +1,15 @@
 import { ajax } from 'discourse/lib/ajax';
 import { popupAjaxError } from 'discourse/lib/ajax-error';
 import showModal from "discourse/lib/show-modal";
-import { default as computed, on, observes } from 'ember-addons/ember-computed-decorators';
+import discourseComputed from "discourse-common/utils/decorators";
 
 export default Ember.Component.extend ({
   classNames: 'select-thumbnail',
+
+  @discourseComputed
+  showSelected() {
+    return this.get('buffered.user_chosen_thumbnail_url') ? true : false;
+  },
 
   actions: {
     showThumbnailSelector() {
