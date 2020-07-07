@@ -1,7 +1,9 @@
-import { default as computed, on, observes } from 'ember-addons/ember-computed-decorators';
+import { default as discourseComputed, on, observes } from 'discourse-common/utils/decorators';
 import { firstDayOfWeek } from '../lib/date-utilities';
+import Component from "@ember/component";
+import I18n from "I18n";
 
-export default Ember.Component.extend({
+export default Component.extend({
   classNames: 'events-calendar-body',
   expandedDate: 0.0,
 
@@ -11,7 +13,7 @@ export default Ember.Component.extend({
     moment.locale(I18n.locale);
   },
 
-  @computed('responsive')
+  @discourseComputed('responsive')
   weekdays(responsive) {
     let data = moment.localeData();
     let weekdays = $.extend([], responsive ? data.weekdaysMin() : data.weekdays());

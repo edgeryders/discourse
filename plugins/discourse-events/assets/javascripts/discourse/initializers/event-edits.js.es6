@@ -1,17 +1,19 @@
 import Composer from 'discourse/models/composer';
+import Category from 'discourse/models/category';
 import ComposerBody from 'discourse/components/composer-body';
 import Topic from 'discourse/models/topic';
 import TopicController from 'discourse/controllers/topic';
-import { default as computed, observes, on } from 'ember-addons/ember-computed-decorators';
+import { default as discourseComputed, observes, on } from 'discourse-common/utils/decorators';
 import NavItem from 'discourse/models/nav-item';
 import EditCategorySettings from 'discourse/components/edit-category-settings';
 import TopicListItem from 'discourse/components/topic-list-item';
 import DiscourseURL from 'discourse/lib/url';
 import { withPluginApi } from 'discourse/lib/plugin-api';
 import { calendarRange, firstDayOfWeek } from '../lib/date-utilities';
-import InputValidation from 'discourse/models/input-validation';
 import { CREATE_TOPIC } from "discourse/models/composer";
-import loadScript from "discourse/lib/load-script";
+import { scheduleOnce, bind } from "@ember/runloop";
+import EmberObject from "@ember/object";
+import I18n from "I18n";
 
 export default {
   name: 'events-edits',
@@ -22,12 +24,12 @@ export default {
     Composer.serializeToTopic('event', 'topic.event');
 
     Composer.reopen({
-      @computed('subtype', 'category.custom_fields.events_enabled', 'topicFirstPost', 'topic.event', 'canCreateEvent')
+      @discourseComputed('subtype', 'category.events_enabled', 'topicFirstPost', 'topic.event', 'canCreateEvent')
       showEventControls(subtype, categoryEnabled, topicFirstPost, event, canCreateEvent) {
         return topicFirstPost && (subtype === 'event' || categoryEnabled || event) && canCreateEvent;
       },
 
-      @computed('category.custom_fields.events_min_trust_to_create')
+      @discourseComputed('category.events_min_trust_to_create')
       canCreateEvent(minTrust) {
         const user = Discourse.User.current();
         return user.staff || user.trust_level >= minTrust;
@@ -42,7 +44,7 @@ export default {
 
       @observes('composer.showEventControls', 'composer.composeState')
       applyEventInlineClass() {
-        Ember.run.scheduleOnce('afterRender', this, () => {
+        scheduleOnce('afterRender', this, () => {
           const showEventControls = this.get('composer.showEventControls');
           const $container = $('.composer-fields .title-and-category');
 
@@ -59,18 +61,18 @@ export default {
     });
 
     Topic.reopen({
-      @computed('subtype', 'category.custom_fields.events_enabled', 'canCreateEvent')
+      @discourseComputed('subtype', 'category.events_enabled', 'canCreateEvent')
       showEventControls(subtype, categoryEnabled, canCreateEvent) {
         return (subtype === 'event' || categoryEnabled) && canCreateEvent;
       },
 
-      @computed('category.custom_fields.events_min_trust_to_create')
+      @discourseComputed('category.events_min_trust_to_create')
       canCreateEvent(minTrust) {
         const user = Discourse.User.current();
         return user.staff || user.trust_level >= minTrust;
       },
 
-      @computed('last_read_post_number', 'highest_post_number')
+      @discourseComputed('last_read_post_number', 'highest_post_number')
       topicListItemClasses(lastRead, highest) {
         let classes = "date-time title raw-link event-link raw-topic-link";
         if (lastRead === highest) {
@@ -95,10 +97,10 @@ export default {
         if (category) {
           items = items.reject((item) => item.name === 'agenda' || item.name === 'calendar');
 
-          if (category.custom_fields.events_agenda_enabled) {
+          if (category.events_agenda_enabled) {
             items.push(Discourse.NavItem.fromText('agenda', args));
           }
-          if (category.custom_fields.events_calendar_enabled) {
+          if (category.events_calendar_enabled) {
             items.push(Discourse.NavItem.fromText('calendar', args));
           }
         }
@@ -110,14 +112,14 @@ export default {
     TopicListItem.reopen({
       @on('didInsertElement')
       setupEventLink() {
-        Ember.run.scheduleOnce('afterRender', this, () => {
-          this.$('.event-link').on('click', Ember.run.bind(this, this.handleEventLabelClick));
+        scheduleOnce('afterRender', this, () => {
+          $('.event-link', this.element).on('click', bind(this, this.handleEventLabelClick));
         });
       },
 
       @on('willDestroyElement')
       teardownEventLink() {
-        this.$('.event-link').off('click', Ember.run.bind(this, this.handleEventLabelClick));
+        $('.event-link', this.element).off('click', bind(this, this.handleEventLabelClick));
       },
 
       handleEventLabelClick(e) {
@@ -128,37 +130,37 @@ export default {
         DiscourseURL.routeTo(href);
       },
 
-      @on('didInsertElement')
+      @on('didRender')
       moveElements() {
         const topic = this.get('topic');
 
-        Ember.run.scheduleOnce('afterRender', () => {
-          const $linkTopLine = this.$('.link-top-line');
+        scheduleOnce('afterRender', () => {
+          const $linkTopLine = $('.link-top-line', this.element);
           let rowBelowTitle = false;
 
           if (topic.event && topic.event.rsvp) {
-            this.$('.topic-list-event-rsvp').insertAfter($linkTopLine);
+            $('.topic-list-event-rsvp', this.element).insertAfter($linkTopLine);
             rowBelowTitle = true;
           }
 
           if (Discourse.SiteSettings.events_event_label_short_after_title) {
-            this.$('.date-time-container').insertAfter($linkTopLine);
+            $('.date-time-container', this.element).insertAfter($linkTopLine);
             rowBelowTitle = true;
           }
 
           if (rowBelowTitle) {
-            this.$('.main-link').addClass('row-below-title');
+            $('.main-link', this.element).addClass('row-below-title');
           }
         });
       }
     });
 
     EditCategorySettings.reopen({
-      @computed('category')
+      @discourseComputed('category')
       availableViews(category) {
         let views = this._super(...arguments);
 
-        if (category.get('custom-fields.events_agenda_enabled')) {
+        if (category.get('custom_fields.events_agenda_enabled')) {
           views.push({name: I18n.t('filters.agenda.title'), value: 'agenda'});
         }
 
@@ -236,7 +238,7 @@ export default {
           afterModel(model, transition) {
             const filter = this.filter(model.category);
             if (filter === 'calendar' || filter === 'agenda') {
-              return this.replaceWith(`/c/${Discourse.Category.slugFor(model.category)}/l/${this.filter(model.category)}`);
+              return this.replaceWith(`/c/${Category.slugFor(model.category)}/l/${this.filter(model.category)}`);
             } else {
               return this._super(...arguments);
             }
@@ -245,12 +247,16 @@ export default {
       });
     });
 
+    withPluginApi('0.8.33', api => {
+      api.serializeToDraft('event');
+    });
+
     withPluginApi('0.8.12', api => {
       api.addDiscoveryQueryParam('end', { replace: true, refreshModel: true });
       api.addDiscoveryQueryParam('start', { replace: true, refreshModel: true });
 
       api.modifyClass('controller:preferences/interface', {
-        @computed("makeThemeDefault")
+        @discourseComputed("makeThemeDefault")
         saveAttrNames(makeDefault) {
           let attrs = this._super(makeDefault);
           attrs.push('custom_fields');
@@ -281,13 +287,14 @@ export default {
       const user = api.getCurrentUser();
       if (user && user.admin) {
         api.modifyClass('model:site-setting', {
-          allowsNone: function() {
+          @discourseComputed('valid_values')
+          allowsNone() {
             if (this.get('setting') === 'events_timezone_default') {
               return 'site_settings.events_timezone_default_placeholder';
             } else {
               this._super();
             }
-          }.property('valid_values')
+          }
         });
       }
 
@@ -295,18 +302,21 @@ export default {
         @observes('model.id')
         subscribeCalendarEvents() {
           this.unsubscribeCalendarEvents();
-
+          
           this.messageBus.subscribe(`/calendar-events/${this.get('model.id')}`, data => {
             const topic = this.get('model');
             const currentUser = this.get('currentUser');
-
+            
             if (data.current_user_id === currentUser.id) return;
-
+            
             switch (data.type) {
               case "rsvp": {
-                let prop = Object.keys(data).filter((p) => p.indexOf('event_') > -1);
-                this.set(`model.${prop}`, data[prop]);
-                this.notifyPropertyChange(`model.${prop}`);
+                let prop = Object.keys(data).filter((p) => p.indexOf('event') > -1);
+                if (prop && prop[0]) {
+                  let key = prop[0].split('_').join('.');
+                  this.set(`model.${key}`, data[prop[0]]);
+                  this.notifyPropertyChange(`model.${prop}`);
+                }
               }
             }
           });
@@ -318,10 +328,10 @@ export default {
       });
 
       api.modifyClass('controller:composer', {
-        @computed('model.action', 'model.event', 'model.category.custom_fields.events_required', 'lastValidatedAt')
+        @discourseComputed('model.action', 'model.event', 'model.category.events_required', 'lastValidatedAt')
         eventValidation(action, event, eventsRequired, lastValidatedAt) {
           if (action === CREATE_TOPIC && eventsRequired && !event) {
-            return InputValidation.create({
+            return EmberObject.create({
               failed: true,
               reason: I18n.t('composer.error.event_missing'),
               lastShownAt: lastValidatedAt
@@ -339,45 +349,6 @@ export default {
         },
       });
 
-      api.modifyClass('component:date-picker', {
-        @on("didInsertElement")
-        _loadDatePicker() {
-          const input = this.$(".date-picker")[0];
-          const container = $("#" + this.get("containerId"))[0];
-
-          loadScript("/javascripts/pikaday.js").then(() => {
-            Ember.run.next(() => {
-              let default_opts = {
-                field: input,
-                container: container || this.$()[0],
-                bound: container === undefined,
-                format: "YYYY-MM-DD",
-                firstDay: firstDayOfWeek(),
-                i18n: {
-                  previousMonth: I18n.t("dates.previous_month"),
-                  nextMonth: I18n.t("dates.next_month"),
-                  months: moment.months(),
-                  weekdays: moment.weekdays(),
-                  weekdaysShort: moment.weekdaysShort()
-                },
-                onSelect: date => {
-                  const formattedDate = moment(date).format("YYYY-MM-DD");
-
-                  if (this.attrs.onSelect) {
-                    this.attrs.onSelect(formattedDate);
-                  }
-
-                  if (!this.element || this.isDestroying || this.isDestroyed) return;
-
-                  this.set("value", formattedDate);
-                }
-              };
-
-              this._picker = new Pikaday(_.merge(default_opts, this._opts()));
-            });
-          });
-        }
-      });
     });
   }
 };

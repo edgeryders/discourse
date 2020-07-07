@@ -11,7 +11,7 @@ after_initialize do
       isolate_namespace Graphryder
 
       if !Discourse.redis.call('module', 'list').find { |_, name, _, _| name == 'graph' }
-        if Rails.env.development?
+        if Rails.env.development? && false
           puts "Installing local redisgraph for development..."
           path = File.expand_path File.dirname(__dir__)
           Discourse.redis.call(
