@@ -1,6 +1,12 @@
-import { default as computed, on, observes } from 'ember-addons/ember-computed-decorators';
+import { default as discourseComputed, on, observes } from 'discourse-common/utils/decorators';
 import { eventsForDay, calendarDays, calendarRange } from '../lib/date-utilities';
+import { or, not, alias } from "@ember/object/computed";
 import Category from 'discourse/models/category';
+import { ajax } from 'discourse/lib/ajax';
+import Component from "@ember/component";
+import { scheduleOnce, bind } from "@ember/runloop";
+import { inject as service } from "@ember/service";
+import I18n from "I18n";
 
 const RESPONSIVE_BREAKPOINT = 800;
 const YEARS = [
@@ -8,23 +14,25 @@ const YEARS = [
   moment().year(),
   moment().add(1, 'year').year()
 ];
+const KEY_ENDPOINT = "/calendar-events/api_keys.json";
 
-export default Ember.Component.extend({
+export default Component.extend({
   classNameBindings: [':events-calendar', 'responsive'],
-  showEvents: Ember.computed.not('eventsBelow'),
-  canSelectDate: Ember.computed.alias('eventsBelow'),
-  routing: Ember.inject.service('-routing'),
-  queryParams: Ember.computed.alias('routing.router.currentState.routerJsState.fullQueryParams'),
-  years: YEARS,
+  showEvents: not('eventsBelow'),
+  canSelectDate: alias('eventsBelow'),
+  routing: service('-routing'),
+  queryParams: alias('routing.router.currentState.routerJsState.fullQueryParams'),
+  years: YEARS.map(y => ({id: y, name: y})),
+  layoutName: 'components/events-calendar',
 
   @on('init')
   setup() {
     this._super();
     moment.locale(I18n.locale);
 
-    Ember.run.scheduleOnce('afterRender', () => {
+    scheduleOnce('afterRender', () => {
       this.handleResize();
-      $(window).on('resize', Ember.run.bind(this, this.handleResize));
+      $(window).on('resize', bind(this, this.handleResize));
       $('body').addClass('calendar');
     });
 
@@ -55,43 +63,45 @@ export default Ember.Component.extend({
     this.setProperties({ currentDate, currentMonth, currentYear, month, year });
   },
 
+  @discourseComputed('siteSettings.login_required', 'category.read_restricted')
+  showNotice(loginRequired, categoryRestricted) {
+    return loginRequired || categoryRestricted;
+  },
   @on('willDestroy')
   teardown() {
-    $(window).off('resize', Ember.run.bind(this, this.handleResize));
+    $(window).off('resize', bind(this, this.handleResize));
     $('body').removeClass('calendar');
   },
 
   handleResize() {
     if (this._state === 'destroying') return;
-    const windowWidth = $(window).width();
-    const breakpoint = RESPONSIVE_BREAKPOINT;
-    this.set("responsive", windowWidth < breakpoint);
+    this.set("responsiveBreak", $(window).width() < RESPONSIVE_BREAKPOINT);
+  },
+  
+  forceResponsive: false,
+  responsive: or('forceResponsive', 'responsiveBreak', 'site.mobileView'),
+  showFullTitle: not('responsive'),
+  eventsBelow: alias('responsive'),
+  
+  @discourseComputed('responsive')
+  todayLabel(responsive) {
+    return responsive ? null : 'events_calendar.today';
   },
 
-  @computed
+  @discourseComputed
   months() {
     return moment.localeData().months().map((m, i) => {
       return { id: i, name: m };
     });
   },
 
-  @computed
-  showFullTitle() {
-    return !this.site.mobileView;
-  },
-
-  @computed('responsive')
-  eventsBelow(responsive) {
-    return responsive || this.site.mobileView;
-  },
-
-  @computed('currentDate', 'currentMonth', 'currentYear', 'topics.[]')
+  @discourseComputed('currentDate', 'currentMonth', 'currentYear', 'topics.[]')
   dateEvents(currentDate, currentMonth, currentYear, topics) {
     const day = moment().year(currentYear).month(currentMonth);
     return eventsForDay(day.date(currentDate), topics, { dateEvents: true });
   },
 
-  @computed('currentMonth', 'currentYear')
+  @discourseComputed('currentMonth', 'currentYear')
   days(currentMonth, currentYear) {
     const { start, end } = calendarDays(currentMonth, currentYear);
     let days = [];
@@ -101,7 +111,7 @@ export default Ember.Component.extend({
     return days;
   },
 
-  @computed('category')
+  @discourseComputed('category')
   showSubscription(category) {
     return true // !category || !category.read_restricted;
   },

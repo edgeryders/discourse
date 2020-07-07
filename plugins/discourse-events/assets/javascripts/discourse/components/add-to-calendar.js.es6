@@ -1,16 +1,18 @@
 import { googleUri, icsUri } from '../lib/date-utilities';
-import { default as computed } from 'ember-addons/ember-computed-decorators';
+import { default as discourseComputed } from 'discourse-common/utils/decorators';
+import { bind } from "@ember/runloop";
+import Component from "@ember/component";
 
-export default Ember.Component.extend({
+export default Component.extend({
   expanded: false,
   classNames: 'add-to-calendar',
 
   didInsertElement() {
-    Ember.$(document).on('click', Ember.run.bind(this, this.outsideClick));
+    $(document).on('click', bind(this, this.outsideClick));
   },
 
   willDestroyElement() {
-    Ember.$(document).off('click', Ember.run.bind(this, this.outsideClick));
+    $(document).off('click', bind(this, this.outsideClick));
   },
 
   outsideClick(e) {
@@ -19,7 +21,7 @@ export default Ember.Component.extend({
     }
   },
 
-  @computed('topic.event')
+  @discourseComputed('topic.event')
   calendarUris() {
     const topic = this.get('topic');
 

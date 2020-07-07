@@ -1,137 +1,14 @@
+@import 'event-form';
+
 .add-event-modal {
-  .add-event-controls {
-    padding: 0 10px;
-    margin-bottom: 10px;
-
-    .control {
-      display: inline-block;
-      vertical-align: middle;
-      position: relative;
-      min-height: 30px;
-      margin-right: 20px;
-
-      > span {
-        line-height: 30px;
-      }
-    }
-
-    .timezone-modal {
-      position: absolute;
-      top: 0;
-      padding: 5px;
-      height: auto;
-      background-color: $secondary;
-      box-shadow: 0 2px 2px rgba(0,0,0,0.4);
-
-      .combo-box {
-        display: block;
-        margin-bottom: 5px;
-      }
-
-      .btn {
-        margin-right: 2px;
-      }
-    }
+  
+  &.modal-body {
+    padding: 20px;
   }
-
-  .date-time-card {
-    width: 270px;
-    display: inline-block;
-    padding: 0 10px;
-    text-align: left;
+  
+  .modal-footer .clear {
+    margin: 5px 10px;
   }
-
-  .start-card {
-    border-left: 1px solid transparent;
-    margin-right: 10px;
-  }
-
-  .end-card {
-    border-left: 1px solid #eee;
-    padding-left: 25px;
-  }
-
-  .set-all-day {
-    font-size: 1.2em;
-    padding-bottom: 13px;
-  }
-
-  .modal-title-label {
-    font-size: 1.2em;
-    font-weight: bold;
-    margin-right: 10px;
-  }
-
-  .modal-title{
-    width: 565px;
-  }
-
-  .modal-sub-title{
-    font-size: 1.2em;
-    font-weight: bold;
-    padding-bottom: 2px;
-    padding-right: 10px;
-  }
-
-  .modal-date-time-set{
-    padding-top: 3px;
-    padding-bottom: 4px;
-    display: flex;
-    flex-direction: row;
-
-    .modal-date-area{
-      order: 1;
-    }
-
-    .modal-time-area{
-      order: 2;
-      margin-left: 10px;
-
-      .modal-time{
-        width: 127px;
-      }
-    }
-  }
-
-  .ui-timepicker-input {
-    width: 105px;
-    text-align: center;
-  }
-
-  .date-picker{
-     width: 110px;
-  }
-
-  .pika-single {
-    position: relative !important;
-    z-index: 100;
-
-    .pika-lendar {
-      border: 1px solid #eee;
-      padding: 14px;
-      margin: 0;
-      float: none;
-      width: auto;
-    }
-  }
-
-  .rsvp {
-    margin-top: 10px;
-    padding: 10px;
-
-    .going-max {
-      margin-top: 10px;
-
-      input {
-        margin-left: 4px;
-        width: 60px;
-      }
-    }
-  }
-}
-
-.add-event-modal + .modal-footer .clear {
-  margin: 5px 10px;
 }
 
 .add-event {
@@ -205,10 +82,15 @@
   }
 
   .dropdown-menu {
-    top: 24px;
+    top: 25px;
     bottom: initial;
     width: 190px;
     position: absolute;
+    display: none;
+    background-color: $secondary;
+    z-index: 100;
+    box-shadow: shadow('dropdown');
+    border-top: 1px solid $primary-very-low;
 
     &.show {
       display: block;
@@ -217,6 +99,15 @@
     ul {
       list-style: none;
       margin: 0;
+      
+      li {
+        padding: 10px;
+        cursor: pointer;
+        
+        &:hover {
+          background-color: $primary-low;
+        }
+      }
     }
   }
 }
@@ -231,7 +122,16 @@
   .select-kit-body {
     width: 380px;
     max-width: 90vw;
-    padding: 5px 0;
+
+    .events-calendar-subscription-warning {
+      padding: 6px 16px;
+      background-color: rgba(255, 247, 78, 0.32);
+      font-size: 1.1em;
+
+      .fa.d-icon {
+        margin-right: 6px;
+      }
+    }
 
     .events-calendar-subscription-row {
       cursor: initial;
@@ -268,9 +168,17 @@
 }
 
 .events-calendar.responsive {
+  .month-dropdown {
+    width: 90px;
+    min-width: 90px;
+  }
+  
+  .year-dropdown {
+    width: 50px;
+    min-width: 50px;
+  }
+  
   .month-dropdown, .year-dropdown {
-    width: 110px;
-    min-width: 110px;
     height: 30px;
 
     .select-kit-header {
@@ -279,6 +187,10 @@
 
     &:not(.is-expanded) .select-kit-header {
       width: inherit;
+    }
+    
+    .d-icon {
+      display: none;
     }
   }
 
@@ -687,5 +599,24 @@ ul.events-calendar-events {
     left: 0;
     right: initial;
     min-width: 300px;
+  }
+}
+
+.events-webcal-api {
+  margin: 0 0 5px;
+}
+
+.webcal-label {
+  font-weight: bold;
+}
+
+.webcal-notice {
+  font-weight: bold;
+}
+ul.events-webcal-notices {
+  float: right;
+  margin: 10px 0;
+  li {
+    font-style: italic;
   }
 }

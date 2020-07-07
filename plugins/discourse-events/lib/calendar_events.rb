@@ -3,11 +3,15 @@ module ::CalendarEvents
     engine_name 'calendar_events'
     isolate_namespace CalendarEvents
   end
+
+  USER_API_KEY_SCOPE = 'calendar_events'
 end
 
 CalendarEvents::Engine.routes.draw do
   post '/rsvp/add' => 'rsvp#add'
   post '/rsvp/remove' => 'rsvp#remove'
+  get '/api_keys' => 'api_keys#index'
+  get '/rsvp/users' => 'rsvp#users'
 end
 
 class CalendarEvents::List
@@ -30,10 +34,15 @@ class CalendarEvents::Helper
     event_start = event[:start].to_datetime
     event_end = event[:end].present? ? event[:end].to_datetime : nil
     format = event[:all_day] ? :date_only : :long
+    event_version  = event[:version] if event[:version]
 
     event_timezone = SiteSetting.events_timezone_default
     event_timezone = event[:timezone] if event[:timezone].present?
     event_timezone = timezone if timezone.present?
+
+    if event[:rsvp]
+      event_going = event[:going]
+    end
 
     if event_timezone.present?
       event_start = event_start.in_time_zone(event_timezone)
@@ -43,15 +52,21 @@ class CalendarEvents::Helper
       end
     end
 
+
     result = {
       start: event_start,
       end: event_end,
-      format: format
+      format: format,
+      version: event_version
     }
 
     if event_timezone.present?
       result[:timezone] = event_timezone
       result[:offset] = timezone_offset(event_timezone)
+    end
+
+    if event_going.present?
+      result[:going] = event_going
     end
 
     result

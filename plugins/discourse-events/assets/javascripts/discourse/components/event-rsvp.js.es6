@@ -1,18 +1,21 @@
 import { popupAjaxError } from 'discourse/lib/ajax-error';
-import { default as computed } from 'ember-addons/ember-computed-decorators';
+import { default as discourseComputed } from 'discourse-common/utils/decorators';
 import showModal from 'discourse/lib/show-modal';
 import { ajax } from 'discourse/lib/ajax';
+import Component from "@ember/component";
+import { gt, notEmpty, equal } from "@ember/object/computed";
+import I18n from "I18n";
 
-export default Ember.Component.extend({
+export default Component.extend({
   classNames: 'event-rsvp',
   goingSaving: false,
 
-  @computed('currentUser', 'topic.event_going')
+  @discourseComputed('currentUser', 'topic.event.going')
   userGoing(user, eventGoing) {
     return eventGoing && eventGoing.indexOf(user.username) > -1;
   },
 
-  @computed('topic.event_going')
+  @discourseComputed('topic.event.going')
   goingTotal(eventGoing) {
     if (eventGoing) {
       return eventGoing.length;
@@ -21,34 +24,27 @@ export default Ember.Component.extend({
     }
   },
 
-  @computed('userGoing')
+  @discourseComputed('userGoing')
   goingClasses(userGoing) {
-    let classes = '';
-
-    if (userGoing) {
-      classes += 'btn-primary';
-    }
-
-    return classes;
+    return userGoing ? 'btn-primary' : '';
   },
 
-  @computed('currentUser', 'eventFull')
+  @discourseComputed('currentUser', 'eventFull')
   canGo(currentUser, eventFull) {
     return currentUser && !eventFull;
   },
 
-  hasGuests: Ember.computed.gt('goingTotal', 0),
+  hasGuests: gt('goingTotal', 0),
+  hasMax: notEmpty('topic.event.going_max'),
 
-  hasMax: Ember.computed.notEmpty('topic.event.going_max'),
-
-  @computed('goingTotal', 'topic.event.going_max')
+  @discourseComputed('goingTotal', 'topic.event.going_max')
   spotsLeft(goingTotal, goingMax) {
     return Number(goingMax) - Number(goingTotal);
   },
 
-  eventFull: Ember.computed.equal('spotsLeft', 0),
+  eventFull: equal('spotsLeft', 0),
 
-  @computed('hasMax', 'eventFull')
+  @discourseComputed('hasMax', 'eventFull')
   goingMessage(hasMax, full) {
     if (hasMax) {
       if (full) {
@@ -67,18 +63,18 @@ export default Ember.Component.extend({
     return false;
   },
 
-  updateTopic(username, action, type) {
-    let existing = this.get(`topic.event_${type}`);
+  updateTopic(userName, action, type) {
+    let existing = this.get(`topic.event.${type}`);
     let list = existing ? existing : [];
 
     if (action === 'add') {
-      list.push(username);
+      list.push(userName);
     } else {
-      list.splice(list.indexOf(username), 1);
+      list.splice(list.indexOf(userName), 1);
     }
 
-    this.set(`topic.event_${type}`, list);
-    this.notifyPropertyChange(`topic.event_${type}`);
+    this.set(`topic.event.${type}`, list);
+    this.notifyPropertyChange(`topic.event.${type}`);
   },
 
   save(user, action, type) {
@@ -89,7 +85,7 @@ export default Ember.Component.extend({
       data: {
         topic_id: this.get('topic.id'),
         type,
-        username: user.username
+        usernames: [user.username]
       }
     }).then((result) => {
       if (result.success) {
@@ -97,7 +93,7 @@ export default Ember.Component.extend({
       }
     }).catch(popupAjaxError).finally(() => {
       this.set(`${type}Saving`, false);
-    })
+    });
   },
 
   actions: {

@@ -1,24 +1,26 @@
 en:
   js:
     add_event:
-      btn_label: "Add Date and Time"
-      modal_title: Date and Time
+      btn_label: "Add Event"
+      modal_title: Add Event
       event_start: Start
       event_end: End
       event_date: Date
       event_time: Time
       event_add: Done
       event_clear: Clear
-      end_enabled: "Include event end"
+      end_enabled: "Event end"
       all_day: "All day"
       timezone: "Timezone"
       no_timezone: "Select a timezone"
       rsvp_enabled: "Rsvp enabled"
       rsvp_enabled_label: "Rsvp"
-      going: "Guest list"
-      going_max: "Maximum number of guests"
+      going: "Guests"
+      going_max: "Maximum guests"
       going_max_label: "{{goingMax}} Guests"
+      error: "Event end should be same as or after event start"
     category:
+      events_setting_heading: "Events"
       enable_events: "Allow events to be added to topics in this category (overrides site setting)."
       enable_events_agenda: "Show an agenda topic list in this category (overrides site setting)."
       enable_events_calendar: "Show a calendar topic list in this category (overrides site setting)."
@@ -56,10 +58,23 @@ en:
       subscribe: "Subscribe"
       ical: "iCal"
       rss: "RSS"
+      subscription:
+        warning: "Never share these links with anyone!"
     user:
       events_calendar:
         label: "Calendar"
         first_day_week: "Start week on"
+
+    webcal_preferences:
+      webcal_keys: "Webcal Keys"
+      heading: "Webcal API Keys"
+      api_key: "Api Key"
+      client_id: "Client ID"
+      generate: "Generate"
+      notice: "Note: The key and client id will be visible only once. Please store them in a safe place before you leave this page."
+      calendar_notice: 'Please go to <a href="%{link}">this page</a> to generate API keys in order to subscribe to the ical feed'
+      calendar_usage: 'Go to the <a href="%{doc}">documentation</a> for instructions on how to use these keys'
+
     event_rsvp:
       modal:
         title: "Guests"
