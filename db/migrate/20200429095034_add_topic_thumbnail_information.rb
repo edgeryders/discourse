@@ -8,12 +8,12 @@ class AddTopicThumbnailInformation < ActiveRecord::Migration[6.0]
     # tables are huge ... avoid holding on to large number of locks by doing one at a time
     execute <<~SQL
       ALTER TABLE posts
-      ADD COLUMN IF NOT EXISTS image_upload_id bigint
+      ADD COLUMN image_upload_id bigint
     SQL
 
     execute <<~SQL
       ALTER TABLE topics
-      ADD COLUMN IF NOT EXISTS image_upload_id bigint
+      ADD COLUMN image_upload_id bigint
     SQL
 
     execute <<~SQL
