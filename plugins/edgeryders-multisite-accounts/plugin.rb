@@ -40,7 +40,7 @@ after_initialize do
         if client_user_details['api_key'].present?
           client_user_details['api_key']['key']
         else
-          api_key_response = client.regenerate_api_key(client_user['id'])
+          api_key_response = client.generate_user_api_key(client_user['id'])
           api_key_response['api_key']['key']
         end
       rescue DiscourseApi::NotFoundError => e
@@ -88,7 +88,7 @@ after_initialize do
 
       create_user_response = client.sync_sso(**sync_sso_args)
       user = client.by_external_id(args[:sso_provider_user].id)
-      api_key_response = client.regenerate_api_key(user['id'])
+      api_key_response = client.generate_user_api_key(user['id'])
 
       {site: args[:hostname], key: api_key_response['api_key']['key']}
     end
