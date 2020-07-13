@@ -17,7 +17,6 @@ PLUGIN_NAME ||= "EdgerydersMultisiteAccounts".freeze
 after_initialize do
 
 
-  # see lib/plugin/instance.rb for the methods available in this context
   module ::EdgerydersMultisiteAccounts
     class Engine < ::Rails::Engine
       engine_name PLUGIN_NAME
@@ -31,7 +30,7 @@ after_initialize do
       community_config = Rails.application.secrets.communities.find {|i| i[:hostname] == args[:hostname]}
       raise ArgumentError.new("The master API key for #{args[:hostname]} is not available.") unless community_config.present?
       master_api_key = community_config[:api_key]
-      client = DiscourseApi::Client.new("#{protocol}://#{args[:hostname]}?api_key=#{master_api_key}&api_username=system")
+      client = DiscourseApi::Client.new("#{protocol}://#{args[:hostname]}", master_api_key, 'system')
 
       begin
         client_user = client.by_external_id(args[:user].id)
