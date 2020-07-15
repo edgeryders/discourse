@@ -27,23 +27,24 @@ after_initialize do
     # hostname: Hostname of the forum for which to get the API key.
     # @return: API key
     def self.get_community_account_api_key(args = {})
+      field_name = "api_key_#{args[:hostname]}"
+      u = args[:user]
+      return u.custom_fields[field_name] if u.custom_fields[field_name].present?
+
       community_config = Rails.application.secrets.communities.find { |i| i[:hostname] == args[:hostname] }
       raise ArgumentError.new("The master API key for \"#{args[:hostname]}\" is not available.") unless community_config.present?
       master_api_key = community_config[:api_key]
       client = DiscourseApi::Client.new("#{protocol}://#{args[:hostname]}", master_api_key, 'system')
 
       begin
-        client_user = client.by_external_id(args[:user].id)
-        field_name = "api_key_#{args[:hostname]}"
-        unless args[:user].custom_fields[field_name].present?
-          # TODO Fix
-          args[:user].custom_fields[field_name] = create_user_api_key(args[:hostname], client_user['username'], master_api_key)
-          args[:user].save!
-        end
-        return args[:user].custom_fields[field_name]
+        api_key = create_user_api_key(args[:hostname], client.by_external_id(u.id)['username'], master_api_key)
       rescue DiscourseApi::NotFoundError => e
-        create_community_account(hostname: args[:hostname], sso_provider_user: args[:user])['key']
+        api_key = create_community_account(hostname: args[:hostname], sso_provider_user: u)['key']
       end
+      u.custom_fields[field_name] = api_key
+      u.save!
+
+      u.custom_fields[field_name]
     end
 
 
@@ -81,7 +82,6 @@ after_initialize do
       sync_sso_args[:'custom.edgeryders_consent'] = '1' if args[:edgeryders_research_consent].present?
       create_user_response = client.sync_sso(**sync_sso_args)
       user = client.by_external_id(args[:sso_provider_user].id)
-      # TODO Fix
       key = EdgerydersMultisiteAccounts.create_user_api_key(args[:hostname], user['username'], master_api_key)
 
       {site: args[:hostname], key: key}
@@ -93,7 +93,7 @@ after_initialize do
     end
 
 
-    # TODO Remove when fixed
+    # TODO Adapt when fixed
     # See: https://meta.discourse.org/t/404-error-returned-when-using-discourseapi-gem-to-generate-user-api-key/140892
     def self.create_user_api_key(hostname, username, api_key)
       require 'net/http'
