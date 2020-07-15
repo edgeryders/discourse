@@ -1,4 +1,4 @@
-class RsvpMigration < ActiveRecord::Migration[5.2]
+class RsvpMigration2 < ActiveRecord::Migration[5.2]
   def up
     custom_fields = TopicCustomField.where(name: 'event_going')
 
