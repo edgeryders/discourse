@@ -79,7 +79,10 @@ after_initialize do
           email: args[:sso_provider_user].email,
           external_id: args[:sso_provider_user].id
       }
-      sync_sso_args[:'custom.edgeryders_consent'] = '1' if args[:edgeryders_research_consent].present?
+      # See: https://github.com/discourse/discourse_api/blob/020eafeb822fc2ce2340211c6f83f8fe6823c790/spec/discourse_api/api/sso_spec.rb#L7
+      if args[:edgeryders_research_consent].present?
+        sync_sso_args[:custom_fields] = {edgeryders_consent: '1'}
+      end
       create_user_response = client.sync_sso(**sync_sso_args)
       user = client.by_external_id(args[:sso_provider_user].id)
       key = EdgerydersMultisiteAccounts.create_user_api_key(args[:hostname], user['username'], master_api_key)
