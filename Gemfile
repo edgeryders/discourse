@@ -268,6 +268,7 @@ gem 'kaminari', '1.1.1'
 gem 'annotator_store', git: 'https://github.com/edgeryders/annotator_store-gem', branch: 'master'
 # gem 'annotator_store', path: '~/Projects/annotator_store-gem'
 
+
 # NOTE: This is a quickfix to make sure the gem is loaded for annotator_store. It is specified in the annotator_store/Gemfile
 # as a dependency but this doesn't load the gem "uninitialized constant Administrate::Field::NestedHasMany"
 # The gems main file (administrate-field-nested_has_many/lib/administrate/field/nested_has_many.rb) is supposed to
