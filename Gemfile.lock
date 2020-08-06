@@ -9,7 +9,7 @@ GIT
 
 GIT
   remote: https://github.com/edgeryders/annotator_store-gem
-  revision: 939800db8d76a1132b907b50c06de3ce98a981af
+  revision: cbf50c6d2a794d7492bc32c74728d4bfc4e336b1
   branch: master
   specs:
     annotator_store (1.0.0)
