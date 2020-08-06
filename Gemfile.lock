@@ -9,11 +9,11 @@ GIT
 
 GIT
   remote: https://github.com/edgeryders/annotator_store-gem
-  revision: 9ce9e754b0d11d23703e7dbdf9547648fbb4e800
+  revision: f126a51e3c7982d21d1c8e5584e4f8e1bc3d028d
   branch: master
   specs:
     annotator_store (1.0.0)
-      administrate (= 0.14.0)
+      administrate (= 0.12.0)
       administrate-field-belongs_to_search
       ancestry
       deep_cloneable (~> 3.0.0)
@@ -95,7 +95,7 @@ GEM
       zeitwerk (~> 2.2, >= 2.2.2)
     addressable (2.7.0)
       public_suffix (>= 2.0.2, < 5.0)
-    administrate (0.14.0)
+    administrate (0.12.0)
       actionpack (>= 4.2)
       actionview (>= 4.2)
       activerecord (>= 4.2)
