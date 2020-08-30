@@ -13,15 +13,15 @@ class FixMigrationNames < ActiveRecord::Migration[5.2]
     ActiveRecord::Base.connection.execute("Delete from schema_migrations where version = '202003241210007'")
 
 
-    ActiveRecord::Base.connection.execute("Insert into schema_migrations (version) values ('20200520010000')")
-    ActiveRecord::Base.connection.execute("Insert into schema_migrations (version) values ('20200515020000')")
-    ActiveRecord::Base.connection.execute("Insert into schema_migrations (version) values ('20200515010000')")
-    ActiveRecord::Base.connection.execute("Insert into schema_migrations (version) values ('20200507010000')")
-    ActiveRecord::Base.connection.execute("Insert into schema_migrations (version) values ('20200331020000')")
-    ActiveRecord::Base.connection.execute("Insert into schema_migrations (version) values ('20200331000000')")
-    ActiveRecord::Base.connection.execute("Insert into schema_migrations (version) values ('20200329212900')")
-    ActiveRecord::Base.connection.execute("Insert into schema_migrations (version) values ('20200327212900')")
-    ActiveRecord::Base.connection.execute("Insert into schema_migrations (version) values ('20200324121000')")
+    # ActiveRecord::Base.connection.execute("Insert into schema_migrations (version) values ('20200520010000')")
+    # ActiveRecord::Base.connection.execute("Insert into schema_migrations (version) values ('20200515020000')")
+    # ActiveRecord::Base.connection.execute("Insert into schema_migrations (version) values ('20200515010000')")
+    # ActiveRecord::Base.connection.execute("Insert into schema_migrations (version) values ('20200507010000')")
+    # ActiveRecord::Base.connection.execute("Insert into schema_migrations (version) values ('20200331020000')")
+    # ActiveRecord::Base.connection.execute("Insert into schema_migrations (version) values ('20200331000000')")
+    # ActiveRecord::Base.connection.execute("Insert into schema_migrations (version) values ('20200329212900')")
+    # ActiveRecord::Base.connection.execute("Insert into schema_migrations (version) values ('20200327212900')")
+    # ActiveRecord::Base.connection.execute("Insert into schema_migrations (version) values ('20200324121000')")
 
   end
 
