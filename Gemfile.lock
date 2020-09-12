@@ -9,7 +9,7 @@ GIT
 
 GIT
   remote: https://github.com/edgeryders/annotator_store-gem
-  revision: 28c3295c4f7085c0950b42e379d7a0524e3d3d6a
+  revision: fd5f40bca51553e469b539f8f8b311021432e905
   branch: master
   specs:
     annotator_store (1.0.0)
@@ -177,7 +177,7 @@ GEM
     cbor (0.5.9.6)
     certified (1.0.0)
     chunky_png (1.3.11)
-    cocoon (1.2.14)
+    cocoon (1.2.15)
     coderay (1.1.3)
     colored2 (3.1.2)
     concurrent-ruby (1.1.6)
