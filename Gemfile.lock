@@ -9,7 +9,7 @@ GIT
 
 GIT
   remote: https://github.com/edgeryders/annotator_store-gem
-  revision: 70eb0c4d0cfd724caa0508efc8d3f3af59be98d9
+  revision: c5987b1715a3b9c1ab954105d7cca72bfa18f75f
   branch: master
   specs:
     annotator_store (1.0.0)
@@ -113,7 +113,7 @@ GEM
       selectize-rails (~> 0.6)
     airbrussh (1.4.0)
       sshkit (>= 1.6.1, != 1.7.0)
-    ancestry (3.1.0)
+    ancestry (3.2.1)
       activerecord (>= 4.2.0)
     annotate (3.1.1)
       activerecord (>= 3.2, < 7.0)
