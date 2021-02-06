@@ -9,7 +9,7 @@ GIT
 
 GIT
   remote: https://github.com/edgeryders/annotator_store-gem
-  revision: 8dd63e5cfdab332288b206cf951a56247fa80a9b
+  revision: 9587a4ca096d617a1b4f975f6360234f72b98ee7
   branch: master
   specs:
     annotator_store (1.0.0)
@@ -441,7 +441,7 @@ GEM
       msgpack (>= 0.4.3)
       optimist (>= 3.0.0)
     rchardet (1.8.0)
-    redcarpet (3.5.0)
+    redcarpet (3.5.1)
     redis (4.2.1)
     redis-namespace (1.7.0)
       redis (>= 3.0.4)
