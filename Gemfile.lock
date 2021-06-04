@@ -9,13 +9,13 @@ GIT
 
 GIT
   remote: https://github.com/edgeryders/annotator_store-gem
-  revision: 8c895f433005e252a79998dcc73caf2f11091b4c
+  revision: 2c8b99d9c8707a0d13dca8f92e6fc9c587430c42
   branch: master
   specs:
     annotator_store (1.0.0)
       administrate (= 0.12.0)
       administrate-field-belongs_to_search
-      ancestry
+      ancestry (= 3.2.1)
       deep_cloneable (~> 3.0.0)
       jbuilder
       kaminari (= 1.1.1)
