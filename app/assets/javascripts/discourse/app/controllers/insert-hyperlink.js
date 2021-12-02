@@ -1,7 +1,10 @@
-import { isEmpty } from "@ember/utils";
-import { cancel, debounce, schedule } from "@ember/runloop";
+import { cancel, schedule } from "@ember/runloop";
 import Controller from "@ember/controller";
 import ModalFunctionality from "discourse/mixins/modal-functionality";
+import { bind } from "discourse-common/utils/decorators";
+import discourseDebounce from "discourse-common/lib/debounce";
+import { isEmpty } from "@ember/utils";
+import { prefixProtocol } from "discourse/lib/url";
 import { searchForTerm } from "discourse/lib/search";
 
 export default Controller.extend(ModalFunctionality, {
@@ -14,29 +17,27 @@ export default Controller.extend(ModalFunctionality, {
       linkText: "",
       searchResults: [],
       searchLoading: false,
-      selectedRow: -1
+      selectedRow: -1,
     });
 
     schedule("afterRender", () => {
       const element = document.querySelector(".insert-link");
-
-      element.addEventListener("keydown", e => this.keyDown(e));
+      element.addEventListener("keydown", this.keyDown);
 
       element
         .closest(".modal-inner-container")
-        .addEventListener("mousedown", e => this.mouseDown(e));
-
-      document.querySelector("input.link-url").focus();
+        .addEventListener("mousedown", this.mouseDown);
     });
   },
 
-  keyDown(e) {
-    switch (e.which) {
+  @bind
+  keyDown(event) {
+    switch (event.which) {
       case 40:
-        this.highlightRow(e, "down");
+        this.highlightRow(event, "down");
         break;
       case 38:
-        this.highlightRow(e, "up");
+        this.highlightRow(event, "up");
         break;
       case 13:
         // override Enter behaviour when a row is selected
@@ -45,23 +46,26 @@ export default Controller.extend(ModalFunctionality, {
             ".internal-link-results .search-link"
           )[this.selectedRow];
           this.selectLink(selected);
-          e.preventDefault();
-          e.stopPropagation();
+          event.preventDefault();
+          event.stopPropagation();
         }
         break;
       case 27:
         // Esc should cancel dropdown first
         if (this.searchResults.length) {
           this.set("searchResults", []);
-          e.preventDefault();
-          e.stopPropagation();
+          event.preventDefault();
+          event.stopPropagation();
+        } else {
+          this.send("closeModal");
         }
         break;
     }
   },
 
-  mouseDown(e) {
-    if (!e.target.closest(".inputs")) {
+  @bind
+  mouseDown(event) {
+    if (!event.target.closest(".inputs")) {
       this.set("searchResults", []);
     }
   },
@@ -87,7 +91,7 @@ export default Controller.extend(ModalFunctionality, {
     this.setProperties({
       linkUrl: el.href,
       searchResults: [],
-      selectedRow: -1
+      selectedRow: -1,
     });
 
     if (!this.linkText && el.dataset.title) {
@@ -101,10 +105,10 @@ export default Controller.extend(ModalFunctionality, {
     if (this.linkUrl.length > 3 && this.linkUrl.indexOf("http") === -1) {
       this.set("searchLoading", true);
       this._activeSearch = searchForTerm(this.linkUrl, {
-        typeFilter: "topic"
+        typeFilter: "topic",
       });
       this._activeSearch
-        .then(results => {
+        .then((results) => {
           if (results && results.topics && results.topics.length > 0) {
             this.set("searchResults", results.topics);
           } else {
@@ -126,7 +130,7 @@ export default Controller.extend(ModalFunctionality, {
     }
     this.setProperties({
       searchResults: [],
-      searchLoading: false
+      searchLoading: false,
     });
   },
 
@@ -143,8 +147,7 @@ export default Controller.extend(ModalFunctionality, {
   actions: {
     ok() {
       const origLink = this.linkUrl;
-      const linkUrl =
-        origLink.indexOf("://") === -1 ? `http://${origLink}` : origLink;
+      const linkUrl = prefixProtocol(origLink);
       const sel = this.toolbarEvent.selected;
 
       if (isEmpty(linkUrl)) {
@@ -176,7 +179,7 @@ export default Controller.extend(ModalFunctionality, {
       }
     },
     search() {
-      this._debounced = debounce(this, this.triggerSearch, 400);
-    }
-  }
+      this._debounced = discourseDebounce(this, this.triggerSearch, 400);
+    },
+  },
 });

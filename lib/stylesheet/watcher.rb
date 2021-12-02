@@ -4,15 +4,6 @@ require 'listen'
 
 module Stylesheet
   class Watcher
-    REDIS_KEY = "dev_last_used_theme_id"
-
-    def self.theme_id=(v)
-      Discourse.redis.set(REDIS_KEY, v)
-    end
-
-    def self.theme_id
-      (Discourse.redis.get(REDIS_KEY) || SiteSetting.default_theme_id).to_i
-    end
 
     def self.watch(paths = nil)
       watcher = new(paths)
@@ -29,76 +20,75 @@ module Stylesheet
       return @default_paths if @default_paths
 
       @default_paths = ["app/assets/stylesheets"]
-      Discourse.plugins.each do |p|
-        @default_paths << File.dirname(p.path).sub(Rails.root.to_s, '').sub(/^\//, '')
+      Discourse.plugins.each do |plugin|
+        if plugin.path.to_s.include?(Rails.root.to_s)
+          @default_paths << File.dirname(plugin.path).sub(Rails.root.to_s, '').sub(/^\//, '')
+        else
+          # if plugin doesn’t seem to be in our app, consider it as outside of the app
+          # and ignore it
+          warn("[stylesheet watcher] Ignoring outside of rails root plugin: #{plugin.path.to_s}")
+        end
       end
       @default_paths
     end
 
     def start
-
       Thread.new do
         begin
           while true
             worker_loop
           end
         rescue => e
-          STDERR.puts "CSS change notifier crashed #{e}"
+          STDERR.puts "CSS change notifier crashed \n#{e}"
           start
         end
       end
 
-      root = Rails.root.to_s
-
-      listener_opts = { ignore: /xxxx/ }
+      listener_opts = { ignore: /xxxx/, only: /\.(css|scss)$/ }
       listener_opts[:force_polling] = true if ENV['FORCE_POLLING']
 
-      @paths.each do |watch|
-        Thread.new do
-          begin
-            plugins_paths = Dir.glob("#{Rails.root}/plugins/*").map do |file|
-              if File.symlink?(file)
-                File.expand_path(File.readlink(file), "#{Rails.root}/plugins")
-              else
-                file
-              end
-            end.compact
-
-            listener = Listen.to("#{root}/#{watch}", listener_opts) do |modified, added, _|
-              paths = [modified, added].flatten
-              paths.compact!
-              paths.map! do |long|
-                plugin_name = nil
-                plugins_paths.each do |plugin_path|
-                  if long.include?(plugin_path)
-                    plugin_name = File.basename(plugin_path)
-                    break
-                  end
-                end
-
-                target = nil
-                if !plugin_name
-                  target_match = long.match(/admin|desktop|mobile|publish/)
-                  if target_match&.length
-                    target = target_match[0]
-                  end
-                end
-
-                {
-                  basename: File.basename(long),
-                  target: target,
-                  plugin_name: plugin_name
-                }
-              end
-
-              process_change(paths)
+      Thread.new do
+        begin
+          plugins_paths = Dir.glob("#{Rails.root}/plugins/*").map do |file|
+            if File.symlink?(file)
+              File.expand_path(File.readlink(file), "#{Rails.root}/plugins")
+            else
+              file
             end
-          rescue => e
-            STDERR.puts "Failed to listen for CSS changes at: #{watch}\n#{e}"
+          end.compact
+
+          listener = Listen.to(*@paths, listener_opts) do |modified, added, _|
+            paths = [modified, added].flatten
+            paths.compact!
+            paths.map! do |long|
+              plugin_name = nil
+              plugins_paths.each do |plugin_path|
+                if long.include?("#{plugin_path}/")
+                  plugin_name = File.basename(plugin_path)
+                  break
+                end
+              end
+
+              target = nil
+              target_match = long.match(/admin|desktop|mobile|publish/)
+              if target_match&.length
+                target = target_match[0]
+              end
+
+              {
+                basename: File.basename(long),
+                target: target,
+                plugin_name: plugin_name
+              }
+            end
+
+            process_change(paths)
           end
-          listener.start
-          sleep
+        rescue => e
+          STDERR.puts "Failed to listen for CSS changes: \n#{e}"
         end
+        listener.start
+        sleep
       end
     end
 
@@ -106,19 +96,29 @@ module Stylesheet
       targets = target ? [target] : ["desktop", "mobile", "admin"]
       Stylesheet::Manager.clear_core_cache!(targets)
       message = targets.map! do |name|
-        Stylesheet::Manager.stylesheet_data(name.to_sym, Stylesheet::Watcher.theme_id)
+        msgs = []
+        active_themes.each do |theme_id|
+          msgs << Stylesheet::Manager.stylesheet_data(name.to_sym, theme_id)
+        end
+        msgs
       end.flatten!
       MessageBus.publish '/file-change', message
     end
 
-    def plugin_assets_refresh(plugin_name)
+    def plugin_assets_refresh(plugin_name, target)
       Stylesheet::Manager.clear_plugin_cache!(plugin_name)
-      targets = [plugin_name]
-      targets.push("#{plugin_name}_mobile") if DiscoursePluginRegistry.stylesheets_exists?(plugin_name, :mobile)
-      targets.push("#{plugin_name}_desktop") if DiscoursePluginRegistry.stylesheets_exists?(plugin_name, :desktop)
-
+      targets = []
+      if target.present?
+        targets.push("#{plugin_name}_#{target.to_s}") if DiscoursePluginRegistry.stylesheets_exists?(plugin_name, target.to_sym)
+      else
+        targets.push(plugin_name)
+      end
       message = targets.map! do |name|
-        Stylesheet::Manager.stylesheet_data(name.to_sym, Stylesheet::Watcher.theme_id)
+        msgs = []
+        active_themes.each do |theme_id|
+          msgs << Stylesheet::Manager.stylesheet_data(name.to_sym, theme_id)
+        end
+        msgs
       end.flatten!
       MessageBus.publish '/file-change', message
     end
@@ -131,7 +131,7 @@ module Stylesheet
       end
 
       if path[:plugin_name]
-        plugin_assets_refresh(path[:plugin_name])
+        plugin_assets_refresh(path[:plugin_name], path[:target])
       else
         core_assets_refresh(path[:target])
       end
@@ -139,10 +139,13 @@ module Stylesheet
 
     def process_change(paths)
       paths.each do |path|
-        if path[:basename] =~ /\.(css|scss)$/
-          @queue.push path
-        end
+        @queue.push path
       end
     end
+
+    def active_themes
+      @active_themes ||= Theme.user_selectable.pluck(:id)
+    end
+
   end
 end

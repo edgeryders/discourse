@@ -1,9 +1,13 @@
-import { debounce, next, scheduleOnce } from "@ember/runloop";
+import { cloak, uncloak } from "discourse/widgets/post-stream";
+import { next, scheduleOnce } from "@ember/runloop";
 import DiscourseURL from "discourse/lib/url";
 import MountWidget from "discourse/components/mount-widget";
-import { cloak, uncloak } from "discourse/widgets/post-stream";
+import discourseDebounce from "discourse-common/lib/debounce";
 import { isWorkaroundActive } from "discourse/lib/safari-hacks";
 import offsetCalculator from "discourse/lib/offset-calculator";
+import { inject as service } from "@ember/service";
+
+const DEBOUNCE_DELAY = 50;
 
 function findTopView($posts, viewportTop, postsWrapperTop, min, max) {
   if (max < min) {
@@ -26,6 +30,7 @@ function findTopView($posts, viewportTop, postsWrapperTop, min, max) {
 }
 
 export default MountWidget.extend({
+  screenTrack: service(),
   widget: "post-stream",
   _topVisible: null,
   _bottomVisible: null,
@@ -37,12 +42,14 @@ export default MountWidget.extend({
     return this.getProperties(
       "posts",
       "canCreatePost",
+      "filteredPostsCount",
       "multiSelect",
       "gaps",
       "selectedQuery",
       "selectedPostsCount",
       "searchService",
-      "showReadIndicator"
+      "showReadIndicator",
+      "streamFilters"
     );
   },
 
@@ -179,7 +186,7 @@ export default MountWidget.extend({
     }
 
     const posts = this.posts;
-    const refresh = cb => this.queueRerender(cb);
+    const refresh = (cb) => this.queueRerender(cb);
     if (onscreen.length) {
       const first = posts.objectAt(onscreen[0]);
       if (this._topVisible !== first) {
@@ -211,7 +218,7 @@ export default MountWidget.extend({
         };
         this.topVisibleChanged({
           post: first,
-          refresh: topRefresh
+          refresh: topRefresh,
         });
       }
 
@@ -248,7 +255,7 @@ export default MountWidget.extend({
 
     const prev = this._previouslyNearby;
     const newPrev = {};
-    nearby.forEach(idx => {
+    nearby.forEach((idx) => {
       const post = posts.objectAt(idx);
       const postNumber = post.post_number;
 
@@ -264,7 +271,7 @@ export default MountWidget.extend({
       uncloak(post, this);
     });
 
-    Object.values(prev).forEach(node => cloak(node, this));
+    Object.values(prev).forEach((node) => cloak(node, this));
 
     this._previouslyNearby = newPrev;
     this.screenTrack.setOnscreen(onscreenPostNumbers, readPostNumbers);
@@ -290,13 +297,13 @@ export default MountWidget.extend({
 
         if (args.refreshLikes) {
           this.dirtyKeys.keyDirty(`post-menu-${args.id}`, {
-            onRefresh: "refreshLikes"
+            onRefresh: "refreshLikes",
           });
         }
 
         if (args.refreshReaders) {
           this.dirtyKeys.keyDirty(`post-menu-${args.id}`, {
-            onRefresh: "refreshReaders"
+            onRefresh: "refreshReaders",
           });
         }
       } else if (args.force) {
@@ -307,13 +314,13 @@ export default MountWidget.extend({
   },
 
   _debouncedScroll() {
-    debounce(this, this._scrollTriggered, 10);
+    discourseDebounce(this, this._scrollTriggered, DEBOUNCE_DELAY);
   },
 
   didInsertElement() {
     this._super(...arguments);
-    const debouncedScroll = () => debounce(this, this._scrollTriggered, 10);
-
+    const debouncedScroll = () =>
+      discourseDebounce(this, this._scrollTriggered, DEBOUNCE_DELAY);
     this._previouslyNearby = {};
 
     this.appEvents.on("post-stream:refresh", this, "_debouncedScroll");
@@ -323,10 +330,14 @@ export default MountWidget.extend({
 
     this.appEvents.on("post-stream:posted", this, "_posted");
 
-    $(this.element).on("mouseenter.post-stream", "button.widget-button", e => {
-      $("button.widget-button").removeClass("d-hover");
-      $(e.target).addClass("d-hover");
-    });
+    $(this.element).on(
+      "mouseenter.post-stream",
+      "button.widget-button",
+      (e) => {
+        $("button.widget-button").removeClass("d-hover");
+        $(e.target).addClass("d-hover");
+      }
+    );
 
     $(this.element).on("mouseleave.post-stream", "button.widget-button", () => {
       $("button.widget-button").removeClass("d-hover");
@@ -335,7 +346,7 @@ export default MountWidget.extend({
     this.appEvents.on("post-stream:refresh", this, "_refresh");
 
     // restore scroll position on browsers with aggressive BFCaches (like Safari)
-    window.onpageshow = function(event) {
+    window.onpageshow = function (event) {
       if (event.persisted) {
         DiscourseURL.routeTo(this.location.pathname);
       }
@@ -351,5 +362,5 @@ export default MountWidget.extend({
     $(this.element).off("mouseleave.post-stream");
     this.appEvents.off("post-stream:refresh", this, "_refresh");
     this.appEvents.off("post-stream:posted", this, "_posted");
-  }
+  },
 });

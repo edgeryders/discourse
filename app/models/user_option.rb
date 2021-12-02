@@ -28,7 +28,7 @@ class UserOption < ActiveRecord::Base
   end
 
   def self.text_sizes
-    @text_sizes ||= Enum.new(normal: 0, larger: 1, largest: 2, smaller: 3)
+    @text_sizes ||= Enum.new(normal: 0, larger: 1, largest: 2, smaller: 3, smallest: 4)
   end
 
   def self.title_count_modes
@@ -57,6 +57,7 @@ class UserOption < ActiveRecord::Base
     self.enable_defer = SiteSetting.default_other_enable_defer
     self.external_links_in_new_tab = SiteSetting.default_other_external_links_in_new_tab
     self.dynamic_favicon = SiteSetting.default_other_dynamic_favicon
+    self.skip_new_user_tips = SiteSetting.default_other_skip_new_user_tips
 
     self.new_topic_duration_minutes = SiteSetting.default_other_new_topic_duration_minutes
     self.auto_track_topics_after_msecs = SiteSetting.default_other_auto_track_topics_after_msecs
@@ -148,7 +149,7 @@ class UserOption < ActiveRecord::Base
       else
         duration.minutes.ago
       end,
-      user.user_stat.new_since,
+      user.created_at,
       Time.at(SiteSetting.min_new_topics_time).to_datetime
     ]
 
@@ -162,6 +163,7 @@ class UserOption < ActiveRecord::Base
     when 3 then "unread"
     when 4 then "new"
     when 5 then "top"
+    when 6 then "bookmarks"
     else SiteSetting.homepage
     end
   end
@@ -182,6 +184,13 @@ class UserOption < ActiveRecord::Base
     self.title_count_mode_key = UserOption.title_count_modes[value.to_sym]
   end
 
+  def unsubscribed_from_all?
+    !mailing_list_mode &&
+      !email_digests &&
+      email_level == UserOption.email_level_types[:never] &&
+      email_messages_level == UserOption.email_level_types[:never]
+  end
+
   private
 
   def update_tracked_topics
@@ -190,8 +199,6 @@ class UserOption < ActiveRecord::Base
   end
 
 end
-
-# TODO: Drop disable_jump_reply column. Functionality removed April 2019
 
 # == Schema Information
 #
@@ -203,7 +210,6 @@ end
 #  external_links_in_new_tab        :boolean          default(FALSE), not null
 #  enable_quoting                   :boolean          default(TRUE), not null
 #  dynamic_favicon                  :boolean          default(FALSE), not null
-#  disable_jump_reply               :boolean          default(FALSE), not null
 #  automatically_unpin_topics       :boolean          default(TRUE), not null
 #  digest_after_minutes             :integer
 #  auto_track_topics_after_msecs    :integer
@@ -227,6 +233,10 @@ end
 #  title_count_mode_key             :integer          default(0), not null
 #  enable_defer                     :boolean          default(FALSE), not null
 #  timezone                         :string
+#  enable_allowed_pm_users          :boolean          default(FALSE), not null
+#  dark_scheme_id                   :integer
+#  skip_new_user_tips               :boolean          default(FALSE), not null
+#  color_scheme_id                  :integer
 #
 # Indexes
 #

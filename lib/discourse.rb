@@ -17,6 +17,7 @@ end
 
 module Discourse
   DB_POST_MIGRATE_PATH ||= "db/post_migrate"
+  REQUESTED_HOSTNAME ||= "REQUESTED_HOSTNAME"
 
   require 'sidekiq/exception_handler'
   class SidekiqExceptionHandler
@@ -24,6 +25,8 @@ module Discourse
   end
 
   class Utils
+    URI_REGEXP ||= URI.regexp(%w{http https})
+
     # Usage:
     #   Discourse::Utils.execute_command("pwd", chdir: 'mydirectory')
     # or with a block
@@ -92,8 +95,25 @@ module Discourse
 
       private
 
-      def execute_command(*command, failure_message: "", success_status_codes: [0], chdir: ".")
-        stdout, stderr, status = Open3.capture3(*command, chdir: chdir)
+      def execute_command(*command, timeout: nil, failure_message: "", success_status_codes: [0], chdir: ".", unsafe_shell: false)
+        env = nil
+        env = command.shift if command[0].is_a?(Hash)
+
+        if !unsafe_shell && (command.length == 1) && command[0].include?(" ")
+          # Sending a single string to Process.spawn will launch a shell
+          # This means various things (e.g. subshells) are possible, and could present injection risk
+          raise "Arguments should be provided as separate strings"
+        end
+
+        if timeout
+          # will send a TERM after timeout
+          # will send a KILL after timeout * 2
+          command = ["timeout", "-k", "#{timeout.to_f * 2}", timeout.to_s] + command
+        end
+
+        args = command
+        args = [env] + command if env
+        stdout, stderr, status = Open3.capture3(*args, chdir: chdir)
 
         if !status.exited? || !success_status_codes.include?(status.exitstatus)
           failure_message = "#{failure_message}\n" if !failure_message.blank?
@@ -140,6 +160,7 @@ module Discourse
     attr_reader :obj
     attr_reader :opts
     attr_reader :custom_message
+    attr_reader :custom_message_params
     attr_reader :group
 
     def initialize(msg = nil, obj = nil, opts = nil)
@@ -148,6 +169,7 @@ module Discourse
       @opts = opts || {}
       @obj = obj
       @custom_message = opts[:custom_message] if @opts[:custom_message]
+      @custom_message_params = opts[:custom_message_params] if @opts[:custom_message_params]
       @group = opts[:group] if @opts[:group]
     end
   end
@@ -186,7 +208,7 @@ module Discourse
   class ScssError < StandardError; end
 
   def self.filters
-    @filters ||= [:latest, :unread, :new, :read, :posted, :bookmarks]
+    @filters ||= [:latest, :unread, :new, :top, :read, :posted, :bookmarks]
   end
 
   def self.anonymous_filters
@@ -194,7 +216,7 @@ module Discourse
   end
 
   def self.top_menu_items
-    @top_menu_items ||= Discourse.filters + [:categories, :top]
+    @top_menu_items ||= Discourse.filters + [:categories]
   end
 
   def self.anonymous_top_menu_items
@@ -268,12 +290,30 @@ module Discourse
     end
   end
 
-  def self.find_plugin_css_assets(args)
-    plugins = self.find_plugins(args)
-
-    plugins = plugins.select do |plugin|
-      plugin.asset_filters.all? { |b| b.call(:css, args[:request]) }
+  def self.apply_asset_filters(plugins, type, request)
+    filter_opts = asset_filter_options(type, request)
+    plugins.select do |plugin|
+      plugin.asset_filters.all? { |b| b.call(type, request, filter_opts) }
     end
+  end
+
+  def self.asset_filter_options(type, request)
+    result = {}
+    return result if request.blank?
+
+    path = request.fullpath
+    result[:path] = path if path.present?
+
+    # When we bootstrap using the JSON method, we want to be able to filter assets on
+    # the path we're bootstrapping for.
+    asset_path = request.headers["HTTP_X_DISCOURSE_ASSET_PATH"]
+    result[:path] = asset_path if asset_path.present?
+
+    result
+  end
+
+  def self.find_plugin_css_assets(args)
+    plugins = apply_asset_filters(self.find_plugins(args), :css, args[:request])
 
     assets = []
 
@@ -297,9 +337,7 @@ module Discourse
       plugin.js_asset_exists?
     end
 
-    plugins = plugins.select do |plugin|
-      plugin.asset_filters.all? { |b| b.call(:js, args[:request]) }
-    end
+    plugins = apply_asset_filters(plugins, :js, args[:request])
 
     plugins.map { |plugin| "plugins/#{plugin.directory_name}" }
   end
@@ -323,7 +361,6 @@ module Discourse
     Auth::AuthProvider.new(authenticator: Auth::GoogleOAuth2Authenticator.new, frame_width: 850, frame_height: 500), # Custom icon implemented in client
     Auth::AuthProvider.new(authenticator: Auth::GithubAuthenticator.new, icon: "fab-github"),
     Auth::AuthProvider.new(authenticator: Auth::TwitterAuthenticator.new, icon: "fab-twitter"),
-    Auth::AuthProvider.new(authenticator: Auth::InstagramAuthenticator.new, icon: "fab-instagram"),
     Auth::AuthProvider.new(authenticator: Auth::DiscordAuthenticator.new, icon: "fab-discord")
   ]
 
@@ -378,8 +415,13 @@ module Discourse
     SiteSetting.force_hostname.presence || RailsMultisite::ConnectionManagement.current_hostname
   end
 
-  def self.base_uri(default_value = "")
+  def self.base_path(default_value = "")
     ActionController::Base.config.relative_url_root.presence || default_value
+  end
+
+  def self.base_uri(default_value = "")
+    deprecate("Discourse.base_uri is deprecated, use Discourse.base_path instead")
+    base_path(default_value)
   end
 
   def self.base_protocol
@@ -399,22 +441,22 @@ module Discourse
   end
 
   def self.base_url
-    base_url_no_prefix + base_uri
+    base_url_no_prefix + base_path
   end
 
   def self.route_for(uri)
     unless uri.is_a?(URI)
       uri = begin
         URI(uri)
-      rescue URI::Error
+      rescue ArgumentError, URI::Error
       end
     end
 
     return unless uri
 
     path = +(uri.path || "")
-    if !uri.host || (uri.host == Discourse.current_hostname && path.start_with?(Discourse.base_uri))
-      path.slice!(Discourse.base_uri)
+    if !uri.host || (uri.host == Discourse.current_hostname && path.start_with?(Discourse.base_path))
+      path.slice!(Discourse.base_path)
       return Rails.application.routes.recognize_path(path)
     end
 
@@ -424,13 +466,13 @@ module Discourse
   end
 
   class << self
-    alias_method :base_path, :base_uri
     alias_method :base_url_no_path, :base_url_no_prefix
   end
 
   READONLY_MODE_KEY_TTL      ||= 60
   READONLY_MODE_KEY          ||= 'readonly_mode'
   PG_READONLY_MODE_KEY       ||= 'readonly_mode:postgres'
+  PG_READONLY_MODE_KEY_TTL   ||= 300
   USER_READONLY_MODE_KEY     ||= 'readonly_mode:user'
   PG_FORCE_READONLY_MODE_KEY ||= 'readonly_mode:postgres_force'
 
@@ -442,19 +484,31 @@ module Discourse
   ]
 
   def self.enable_readonly_mode(key = READONLY_MODE_KEY)
+    if key == PG_READONLY_MODE_KEY || key == PG_FORCE_READONLY_MODE_KEY
+      Sidekiq.pause!("pg_failover") if !Sidekiq.paused?
+    end
+
     if key == USER_READONLY_MODE_KEY || key == PG_FORCE_READONLY_MODE_KEY
       Discourse.redis.set(key, 1)
     else
-      Discourse.redis.setex(key, READONLY_MODE_KEY_TTL, 1)
-      keep_readonly_mode(key) if !Rails.env.test?
+      ttl =
+        case key
+        when PG_READONLY_MODE_KEY
+          PG_READONLY_MODE_KEY_TTL
+        else
+          READONLY_MODE_KEY_TTL
+        end
+
+      Discourse.redis.setex(key, ttl, 1)
+      keep_readonly_mode(key, ttl: ttl) if !Rails.env.test?
     end
 
     MessageBus.publish(readonly_channel, true)
     true
   end
 
-  def self.keep_readonly_mode(key)
-    # extend the expiry by 1 minute every 30 seconds
+  def self.keep_readonly_mode(key, ttl:)
+    # extend the expiry by ttl minute every ttl/2 seconds
     @mutex ||= Mutex.new
 
     @mutex.synchronize do
@@ -465,12 +519,12 @@ module Discourse
       unless @threads[key]&.alive?
         @threads[key] = Thread.new do
           while @dbs.size > 0 do
-            sleep 30
+            sleep ttl / 2
 
             @mutex.synchronize do
               @dbs.each do |db|
                 RailsMultisite::ConnectionManagement.with_connection(db) do
-                  if !Discourse.redis.expire(key, READONLY_MODE_KEY_TTL)
+                  if !Discourse.redis.expire(key, ttl)
                     @dbs.delete(db)
                   end
                 end
@@ -483,6 +537,10 @@ module Discourse
   end
 
   def self.disable_readonly_mode(key = READONLY_MODE_KEY)
+    if key == PG_READONLY_MODE_KEY || key == PG_FORCE_READONLY_MODE_KEY
+      Sidekiq.unpause! if Sidekiq.paused?
+    end
+
     Discourse.redis.del(key)
     MessageBus.publish(readonly_channel, false)
     true
@@ -491,7 +549,6 @@ module Discourse
   def self.enable_pg_force_readonly_mode
     RailsMultisite::ConnectionManagement.each_connection do
       enable_readonly_mode(PG_FORCE_READONLY_MODE_KEY)
-      Sidekiq.pause!("pg_failover") if !Sidekiq.paused?
     end
 
     true
@@ -500,7 +557,6 @@ module Discourse
   def self.disable_pg_force_readonly_mode
     RailsMultisite::ConnectionManagement.each_connection do
       disable_readonly_mode(PG_FORCE_READONLY_MODE_KEY)
-      Sidekiq.unpause!
     end
 
     true
@@ -847,14 +903,19 @@ module Discourse
   def self.preload_rails!
     return if @preloaded_rails
 
-    # load up all models and schema
-    (ActiveRecord::Base.connection.tables - %w[schema_migrations versions]).each do |table|
-      table.classify.constantize.first rescue nil
-    end
+    if !Rails.env.development?
+      # Skipped in development because the schema cache gets reset on every code change anyway
+      # Better to rely on the filesystem-based db:schema:cache:dump
 
-    # ensure we have a full schema cache in case we missed something above
-    ActiveRecord::Base.connection.data_sources.each do |table|
-      ActiveRecord::Base.connection.schema_cache.add(table)
+      # load up all models and schema
+      (ActiveRecord::Base.connection.tables - %w[schema_migrations versions]).each do |table|
+        table.classify.constantize.first rescue nil
+      end
+
+      # ensure we have a full schema cache in case we missed something above
+      ActiveRecord::Base.connection.data_sources.each do |table|
+        ActiveRecord::Base.connection.schema_cache.add(table)
+      end
     end
 
     schema_cache = ActiveRecord::Base.connection.schema_cache
@@ -872,18 +933,29 @@ module Discourse
       # this will force Cppjieba to preload if any site has it
       # enabled allowing it to be reused between all child processes
       Search.prepare_data("test")
+
+      JsLocaleHelper.load_translations(SiteSetting.default_locale)
     end
 
-    # router warm up
-    Rails.application.routes.recognize_path('abc') rescue nil
-
-    # preload discourse version
-    Discourse.git_version
-    Discourse.git_branch
-    Discourse.full_version
-
-    require 'actionview_precompiler'
-    ActionviewPrecompiler.precompile
+    [
+      Thread.new {
+        # router warm up
+        Rails.application.routes.recognize_path('abc') rescue nil
+      },
+      Thread.new {
+        # preload discourse version
+        Discourse.git_version
+        Discourse.git_branch
+        Discourse.full_version
+      },
+      Thread.new {
+        require 'actionview_precompiler'
+        ActionviewPrecompiler.precompile
+      },
+      Thread.new {
+        LetterAvatar.image_magick_version
+      }
+    ].each(&:join)
   ensure
     @preloaded_rails = true
   end
@@ -894,6 +966,24 @@ module Discourse
 
   def self.is_parallel_test?
     ENV['RAILS_ENV'] == "test" && ENV['TEST_ENV_NUMBER']
+  end
+
+  CDN_REQUEST_METHODS ||= ["GET", "HEAD", "OPTIONS"]
+
+  def self.is_cdn_request?(env, request_method)
+    return unless CDN_REQUEST_METHODS.include?(request_method)
+
+    cdn_hostnames = GlobalSetting.cdn_hostnames
+    return if cdn_hostnames.blank?
+
+    requested_hostname = env[REQUESTED_HOSTNAME] || env[Rack::HTTP_HOST]
+    cdn_hostnames.include?(requested_hostname)
+  end
+
+  def self.apply_cdn_headers(headers)
+    headers['Access-Control-Allow-Origin'] = '*'
+    headers['Access-Control-Allow-Methods'] = CDN_REQUEST_METHODS.join(", ")
+    headers
   end
 end
 

@@ -1,15 +1,8 @@
 import I18n from "I18n";
+import { Promise } from "rsvp";
 import Session from "discourse/models/session";
 import { createWidget } from "discourse/widgets/widget";
 import { h } from "virtual-dom";
-import { headerHeight } from "discourse/components/site-header";
-import { Promise } from "rsvp";
-
-// even a 2 liner notification should be under 50px in default view
-const AVERAGE_ITEM_HEIGHT = 50;
-
-// our UX usually carries about 100px of padding around the notification excluding header
-const PADDING = 100;
 
 /**
  * This tries to enforce a consistent flow of fetching, caching, refreshing,
@@ -21,7 +14,8 @@ const PADDING = 100;
  */
 export default createWidget("quick-access-panel", {
   tagName: "div.quick-access-panel",
-  emptyStatePlaceholderItemKey: "",
+  emptyStatePlaceholderItemKey: null,
+  emptyStateWidget: null,
 
   buildKey: () => {
     throw Error('Cannot attach abstract widget "quick-access-panel".');
@@ -29,6 +23,10 @@ export default createWidget("quick-access-panel", {
 
   markReadRequest() {
     return Promise.resolve();
+  },
+
+  hideBottomItems() {
+    return false;
   },
 
   hasUnread() {
@@ -39,12 +37,21 @@ export default createWidget("quick-access-panel", {
     return "";
   },
 
-  hasMore() {
-    return this.getItems().length >= this.estimateItemLimit();
-  },
-
   findNewItems() {
     return Promise.resolve([]);
+  },
+
+  buildId() {
+    return this.key;
+  },
+
+  buildAttributes() {
+    const attributes = this.attrs;
+    attributes["aria-labelledby"] = attributes.currentQuickAccess;
+    attributes["tabindex"] = "0";
+    attributes["role"] = "tabpanel";
+
+    return attributes;
   },
 
   newItemsLoaded() {},
@@ -54,6 +61,8 @@ export default createWidget("quick-access-panel", {
   emptyStatePlaceholderItem() {
     if (this.emptyStatePlaceholderItemKey) {
       return h("li.read", I18n.t(this.emptyStatePlaceholderItemKey));
+    } else if (this.emptyStateWidget) {
+      return this.attach(this.emptyStateWidget);
     } else {
       return "";
     }
@@ -69,25 +78,8 @@ export default createWidget("quick-access-panel", {
     });
   },
 
-  estimateItemLimit() {
-    // Estimate (poorly) the amount of notifications to return.
-    let limit = Math.round(
-      ($(window).height() - headerHeight() - PADDING) / AVERAGE_ITEM_HEIGHT
-    );
-
-    // We REALLY don't want to be asking for negative counts of notifications
-    // less than 5 is also not that useful.
-    if (limit < 5) {
-      limit = 5;
-    } else if (limit > 40) {
-      limit = 40;
-    }
-
-    return limit;
-  },
-
   refreshNotifications(state) {
-    if (this.loading) {
+    if (state.loading) {
       return;
     }
 
@@ -96,7 +88,7 @@ export default createWidget("quick-access-panel", {
     }
 
     this.findNewItems()
-      .then(newItems => this.setItems(newItems))
+      .then((newItems) => this.setItems(newItems))
       .catch(() => this.setItems([]))
       .finally(() => {
         state.loading = false;
@@ -104,7 +96,7 @@ export default createWidget("quick-access-panel", {
         this.newItemsLoaded();
         this.sendWidgetAction("itemsLoaded", {
           hasUnread: this.hasUnread(),
-          markRead: () => this.markRead()
+          markRead: () => this.markRead(),
         });
         this.scheduleRerender();
       });
@@ -120,23 +112,41 @@ export default createWidget("quick-access-panel", {
     }
 
     const items = this.getItems().length
-      ? this.getItems().map(item => this.itemHtml(item))
+      ? this.getItems().map((item) => this.itemHtml(item))
       : [this.emptyStatePlaceholderItem()];
 
-    if (this.hasMore()) {
-      items.push(
-        h(
-          "li.read.last.show-all",
-          this.attach("link", {
-            title: "view_all",
-            icon: "chevron-down",
-            href: this.showAllHref()
-          })
-        )
+    let bottomItems = [];
+
+    if (!this.hideBottomItems()) {
+      const tab = I18n.t(this.attrs.titleKey).toLowerCase();
+
+      bottomItems.push(
+        // intentionally a link so it can be ctrl clicked
+        this.attach("link", {
+          title: "view_all",
+          titleOptions: { tab },
+          icon: "chevron-down",
+          className: "btn btn-default btn-icon no-text show-all",
+          "aria-label": "view_all",
+          ariaLabelOptions: { tab },
+          href: this.showAllHref(),
+        })
       );
     }
 
-    return [h("ul", items)];
+    if (this.hasUnread()) {
+      bottomItems.push(
+        this.attach("button", {
+          title: "user.dismiss_notifications_tooltip",
+          icon: "check",
+          label: "user.dismiss",
+          className: "btn btn-default notifications-dismiss",
+          action: "dismissNotifications",
+        })
+      );
+    }
+
+    return [h("ul", items), h("div.panel-body-bottom", bottomItems)];
   },
 
   getItems() {
@@ -145,5 +155,5 @@ export default createWidget("quick-access-panel", {
 
   setItems(newItems) {
     Session.currentProp(`${this.key}-items`, newItems);
-  }
+  },
 });

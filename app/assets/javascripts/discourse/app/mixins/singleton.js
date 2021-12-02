@@ -67,7 +67,7 @@ const Singleton = Mixin.create({
 
   // Returns OR sets a property on the singleton instance.
   currentProp(property, value) {
-    var instance = this.current();
+    let instance = this.current();
     if (!instance) {
       return;
     }
@@ -82,7 +82,8 @@ const Singleton = Mixin.create({
 
   resetCurrent(val) {
     this._current = val;
-  }
+    return val;
+  },
 });
 
 export default Singleton;

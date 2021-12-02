@@ -97,7 +97,7 @@ class ReviewableQueuedPost < Reviewable
     Notification.create!(
       notification_type: Notification.types[:post_approved],
       user_id: created_by.id,
-      data: {},
+      data: { post_url: created_post.url }.to_json,
       topic_id: created_post.topic_id,
       post_number: created_post.post_number
     )
@@ -180,6 +180,7 @@ end
 #  index_reviewables_on_status_and_created_at                  (status,created_at)
 #  index_reviewables_on_status_and_score                       (status,score)
 #  index_reviewables_on_status_and_type                        (status,type)
+#  index_reviewables_on_target_id_where_post_type_eq_post      (target_id) WHERE ((target_type)::text = 'Post'::text)
 #  index_reviewables_on_topic_id_and_status_and_created_by_id  (topic_id,status,created_by_id)
 #  index_reviewables_on_type_and_target_id                     (type,target_id) UNIQUE
 #

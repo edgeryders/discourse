@@ -4,12 +4,14 @@ require 'rails_helper'
 
 describe DiscourseNarrativeBot::TrackSelector do
   let(:user) { Fabricate(:user) }
-  let(:discobot_user) { ::DiscourseNarrativeBot::Base.new.discobot_user }
+  let(:narrative_bot) { ::DiscourseNarrativeBot::Base.new }
+  let(:discobot_user) { narrative_bot.discobot_user }
+  let(:discobot_username) { narrative_bot.discobot_username }
   let(:narrative) { DiscourseNarrativeBot::NewUserNarrative.new }
 
   let(:random_mention_reply) do
     I18n.t('discourse_narrative_bot.track_selector.random_mention.reply',
-     discobot_username: discobot_user.username,
+     discobot_username: discobot_username,
      help_trigger: described_class.help_trigger
     )
   end
@@ -17,11 +19,11 @@ describe DiscourseNarrativeBot::TrackSelector do
   before do
     stub_request(:get, "http://api.forismatic.com/api/1.0/?format=json&lang=en&method=getQuote").
       to_return(status: 200, body: "{\"quoteText\":\"Be Like Water\",\"quoteAuthor\":\"Bruce Lee\"}")
+
+      SiteSetting.discourse_narrative_bot_enabled = true
   end
 
   let(:help_message) do
-    discobot_username = discobot_user.username
-
     end_message = <<~RAW
     #{I18n.t(
       'discourse_narrative_bot.track_selector.random_mention.tracks',
@@ -382,7 +384,7 @@ describe DiscourseNarrativeBot::TrackSelector do
                 new_post = Post.last
 
                 expected_raw = <<~RAW
-                #{I18n.t('discourse_narrative_bot.dice.not_enough_dice', num_of_dice: DiscourseNarrativeBot::Dice::MAXIMUM_NUM_OF_DICE)}
+                #{I18n.t('discourse_narrative_bot.dice.not_enough_dice', count: DiscourseNarrativeBot::Dice::MAXIMUM_NUM_OF_DICE)}
 
                 #{I18n.t('discourse_narrative_bot.dice.results', results: '1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1')}
                 RAW
@@ -414,6 +416,15 @@ describe DiscourseNarrativeBot::TrackSelector do
             new_post = Post.last
 
             expect(new_post.raw).to eq(random_mention_reply)
+          end
+
+          it 'works with french locale' do
+            I18n.with_locale("fr") do
+              post.update!(raw: "@discobot afficher l'aide")
+              described_class.new(:reply, user, post_id: post.id).select
+              # gsub'ing to ensure non-breaking whitespaces matches regular whitespaces
+              expect(Post.last.raw.gsub(/[[:space:]]+/, " ")).to eq(help_message.gsub(/[[:space:]]+/, " "))
+            end
           end
 
           it 'should not rate limit help message' do
@@ -457,11 +468,31 @@ describe DiscourseNarrativeBot::TrackSelector do
           expect(new_post.raw).to eq(random_mention_reply)
         end
 
+        it 'tells the user to enable the onboarding tips first' do
+          user.user_option.update!(skip_new_user_tips: true)
+          post.update!(raw: 'Show me what you can do @discobot')
+
+          described_class.new(:reply, user, post_id: post.id).select
+
+          new_post = Post.last
+          expect(new_post.raw).to eq(I18n.t('discourse_narrative_bot.track_selector.random_mention.discobot_disabled'))
+        end
+
         it "should be case insensitive towards discobot's username" do
           discobot_user.update!(username: 'DisCoBot')
 
           post.update!(raw: 'Show me what you can do @discobot')
           described_class.new(:reply, user, post_id: post.id).select
+          new_post = Post.last
+          expect(new_post.raw).to eq(random_mention_reply)
+        end
+
+        it 'should not like the public post' do
+          post.update!(raw: 'thanks @discobot!')
+
+          expect { described_class.new(:reply, user, post_id: post.id).select }
+            .to change { PostAction.count }.by(0)
+
           new_post = Post.last
           expect(new_post.raw).to eq(random_mention_reply)
         end

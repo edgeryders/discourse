@@ -1,15 +1,22 @@
-# encoding: utf-8
-#
-# Never edit this file. It will be overwritten when translations are pulled from Transifex.
+# WARNING: Never edit this file.
+# It will be overwritten when translations are pulled from Crowdin.
 #
 # To work with us on translations, join this project:
-# https://www.transifex.com/projects/p/discourse-org/
+# https://translate.discourse.org/
 
 sl:
   js:
     presence:
-      replying: "odgovarja"
-      editing: "urejanje"
+      replying:
+        one: "odgovarja"
+        two: "odgovarja"
+        few: "odgovarja"
+        other: "odgovarja"
+      editing:
+        one: "ureja"
+        two: "ureja"
+        few: "ureja"
+        other: "ureja"
       replying_to_topic:
         one: "odgovarja"
         two: "odgovarja"

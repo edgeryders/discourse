@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require 'net/imap'
+
 class Group < ActiveRecord::Base
   # TODO(2021-05-26): remove
   self.ignored_columns = %w{
@@ -10,6 +12,7 @@ class Group < ActiveRecord::Base
   include HasCustomFields
   include AnonCacheInvalidator
   include HasDestroyedWebHook
+  include GlobalPath
 
   cattr_accessor :preloaded_custom_field_names
   self.preloaded_custom_field_names = Set.new
@@ -27,6 +30,8 @@ class Group < ActiveRecord::Base
   has_many :group_histories, dependent: :destroy
   has_many :category_reviews, class_name: 'Category', foreign_key: :reviewable_by_group_id, dependent: :nullify
   has_many :reviewables, foreign_key: :reviewable_by_group_id, dependent: :nullify
+  has_many :group_category_notification_defaults, dependent: :destroy
+  has_many :group_tag_notification_defaults, dependent: :destroy
 
   belongs_to :flair_upload, class_name: 'Upload'
 
@@ -49,10 +54,12 @@ class Group < ActiveRecord::Base
   after_commit :trigger_group_created_event, on: :create
   after_commit :trigger_group_updated_event, on: :update
   after_commit :trigger_group_destroyed_event, on: :destroy
+  after_commit :set_default_notifications, on: [:create, :update]
 
   def expire_cache
     ApplicationSerializer.expire_cache_fragment!("group_names")
     SvgSprite.expire_cache
+    Discourse.cache.delete("group_imap_mailboxes_#{self.id}")
   end
 
   def remove_review_groups
@@ -105,6 +112,8 @@ class Group < ActiveRecord::Base
   validates :mentionable_level, inclusion: { in: ALIAS_LEVELS.values }
   validates :messageable_level, inclusion: { in: ALIAS_LEVELS.values }
 
+  scope :with_imap_configured, -> { where.not(imap_mailbox_name: '') }
+
   scope :visible_groups, Proc.new { |user, order, opts|
     groups = self.order(order || "name ASC")
 
@@ -113,44 +122,37 @@ class Group < ActiveRecord::Base
     end
 
     if !user&.admin
-      sql = <<~SQL
-        groups.id IN (
-          SELECT id
-            FROM groups
-           WHERE visibility_level = :public
+      is_staff = !!user&.staff?
 
-          UNION ALL
+      if user.blank?
+        sql = "groups.visibility_level = :public"
+      elsif is_staff
+        sql = "groups.visibility_level IN (:public, :logged_on_users, :members, :staff)"
+      else
+        sql = <<~SQL
+          groups.id IN (
+            SELECT id
+              FROM groups
+            WHERE visibility_level IN (:public, :logged_on_users)
 
-          SELECT id
-            FROM groups
-           WHERE visibility_level = :logged_on_users
-             AND :user_id IS NOT NULL
+            UNION ALL
 
-          UNION ALL
+            SELECT g.id
+              FROM groups g
+              JOIN group_users gu ON gu.group_id = g.id AND gu.user_id = :user_id
+            WHERE g.visibility_level = :members
 
-          SELECT g.id
-            FROM groups g
-            JOIN group_users gu ON gu.group_id = g.id AND gu.user_id = :user_id
-           WHERE g.visibility_level = :members
+            UNION ALL
 
-          UNION ALL
+            SELECT g.id
+              FROM groups g
+              JOIN group_users gu ON gu.group_id = g.id AND gu.user_id = :user_id AND gu.owner
+            WHERE g.visibility_level IN (:staff, :owners)
+          )
+        SQL
+      end
 
-          SELECT g.id
-            FROM groups g
-       LEFT JOIN group_users gu ON gu.group_id = g.id AND gu.user_id = :user_id AND gu.owner
-           WHERE g.visibility_level = :staff
-             AND (gu.id IS NOT NULL OR :is_staff)
-
-          UNION ALL
-
-          SELECT g.id
-            FROM groups g
-            JOIN group_users gu ON gu.group_id = g.id AND gu.user_id = :user_id AND gu.owner
-           WHERE g.visibility_level = :owners
-        )
-      SQL
-
-      params = Group.visibility_levels.to_h.merge(user_id: user&.id, is_staff: !!user&.staff?)
+      params = Group.visibility_levels.to_h.merge(user_id: user&.id, is_staff: is_staff)
       groups = groups.where(sql, params)
     end
 
@@ -165,44 +167,37 @@ class Group < ActiveRecord::Base
     end
 
     if !user&.admin
-      sql = <<~SQL
-        groups.id IN (
-          SELECT id
-            FROM groups
-           WHERE members_visibility_level = :public
+      is_staff = !!user&.staff?
 
-          UNION ALL
+      if user.blank?
+        sql = "groups.members_visibility_level = :public"
+      elsif is_staff
+        sql = "groups.members_visibility_level IN (:public, :logged_on_users, :members, :staff)"
+      else
+        sql = <<~SQL
+          groups.id IN (
+            SELECT id
+              FROM groups
+            WHERE members_visibility_level IN (:public, :logged_on_users)
 
-          SELECT id
-            FROM groups
-           WHERE members_visibility_level = :logged_on_users
-             AND :user_id IS NOT NULL
+            UNION ALL
 
-          UNION ALL
+            SELECT g.id
+              FROM groups g
+              JOIN group_users gu ON gu.group_id = g.id AND gu.user_id = :user_id
+            WHERE g.members_visibility_level = :members
 
-          SELECT g.id
-            FROM groups g
-            JOIN group_users gu ON gu.group_id = g.id AND gu.user_id = :user_id
-           WHERE g.members_visibility_level = :members
+            UNION ALL
 
-          UNION ALL
+            SELECT g.id
+              FROM groups g
+              JOIN group_users gu ON gu.group_id = g.id AND gu.user_id = :user_id AND gu.owner
+            WHERE g.members_visibility_level IN (:staff, :owners)
+          )
+        SQL
+      end
 
-          SELECT g.id
-            FROM groups g
-       LEFT JOIN group_users gu ON gu.group_id = g.id AND gu.user_id = :user_id AND gu.owner
-           WHERE g.members_visibility_level = :staff
-             AND (gu.id IS NOT NULL OR :is_staff)
-
-          UNION ALL
-
-          SELECT g.id
-            FROM groups g
-            JOIN group_users gu ON gu.group_id = g.id AND gu.user_id = :user_id AND gu.owner
-           WHERE g.members_visibility_level = :owners
-        )
-      SQL
-
-      params = Group.visibility_levels.to_h.merge(user_id: user&.id, is_staff: !!user&.staff?)
+      params = Group.visibility_levels.to_h.merge(user_id: user&.id, is_staff: is_staff)
       groups = groups.where(sql, params)
     end
 
@@ -309,7 +304,7 @@ class Group < ActiveRecord::Base
       .where(groups: { id: id })
       .where('topics.archetype <> ?', Archetype.private_message)
       .where('topics.visible')
-      .where(post_type: Post.types[:regular])
+      .where(post_type: [Post.types[:regular], Post.types[:moderator_action]])
 
     if opts[:category_id].present?
       result = result.where('topics.category_id = ?', opts[:category_id].to_i)
@@ -376,6 +371,13 @@ class Group < ActiveRecord::Base
         end
 
       topic.notifier.public_send(action, user_id)
+    end
+  end
+
+  def self.set_category_and_tag_default_notification_levels!(user, group_name)
+    if group = lookup_group(group_name)
+      GroupUser.set_category_notifications(group, user)
+      GroupUser.set_tag_notifications(group, user)
     end
   end
 
@@ -534,7 +536,7 @@ class Group < ActiveRecord::Base
 
   def self.lookup_groups(group_ids: [], group_names: [])
     if group_ids.present?
-      group_ids = group_ids.split(",")
+      group_ids = group_ids.split(",") if group_ids.is_a?(String)
       group_ids.map!(&:to_i)
       groups = Group.where(id: group_ids) if group_ids.present?
     end
@@ -641,10 +643,18 @@ class Group < ActiveRecord::Base
   end
 
   def remove(user)
-    result = self.group_users.where(user: user).each(&:destroy)
-    return false if result.blank?
+    group_user = self.group_users.find_by(user: user)
+    return false if group_user.blank?
+
+    has_webhooks = WebHook.active_web_hooks(:group_user)
+    payload = WebHook.generate_payload(:group_user, group_user, WebHookGroupUserSerializer) if has_webhooks
+    group_user.destroy
     user.update_columns(primary_group_id: nil) if user.primary_group_id == self.id
     DiscourseEvent.trigger(:user_removed_from_group, user, self)
+    WebHook.enqueue_hooks(:group_user, :user_removed_from_group,
+      id: group_user.id,
+      payload: payload
+    ) if has_webhooks
     true
   end
 
@@ -745,11 +755,108 @@ class Group < ActiveRecord::Base
 
   def flair_type
     return :icon if flair_icon.present?
-    return :image if flair_upload_id.present?
+    return :image if flair_upload.present?
   end
 
   def flair_url
-    flair_icon.presence || flair_upload&.short_path
+    case flair_type
+    when :icon
+      flair_icon
+    when :image
+      upload_cdn_path(flair_upload.url)
+    else
+      nil
+    end
+  end
+
+  [:muted, :regular, :tracking, :watching, :watching_first_post].each do |level|
+    define_method("#{level}_category_ids=") do |category_ids|
+      @category_notifications ||= {}
+      @category_notifications[level] = category_ids
+    end
+
+    define_method("#{level}_tags=") do |tag_names|
+      @tag_notifications ||= {}
+      @tag_notifications[level] = tag_names
+    end
+  end
+
+  def set_default_notifications
+    if @category_notifications
+      @category_notifications.each do |level, category_ids|
+        GroupCategoryNotificationDefault.batch_set(self, level, category_ids)
+      end
+    end
+
+    if @tag_notifications
+      @tag_notifications.each do |level, tag_names|
+        GroupTagNotificationDefault.batch_set(self, level, tag_names)
+      end
+    end
+  end
+
+  def imap_mailboxes
+    return [] if self.imap_server.blank? ||
+                 self.email_username.blank? ||
+                 self.email_password.blank? ||
+                 !SiteSetting.enable_imap
+
+    Discourse.cache.fetch("group_imap_mailboxes_#{self.id}", expires_in: 30.minutes) do
+      Rails.logger.info("[IMAP] Refreshing mailboxes list for group #{self.name}")
+      mailboxes = []
+
+      begin
+        imap_provider = Imap::Providers::Detector.init_with_detected_provider(
+          self.imap_config
+        )
+        imap_provider.connect!
+        mailboxes = imap_provider.list_mailboxes
+        imap_provider.disconnect!
+
+        update_columns(imap_last_error: nil)
+      rescue => ex
+        Rails.logger.warn("[IMAP] Mailbox refresh failed for group #{self.name} with error: #{ex}")
+        update_columns(imap_last_error: ex.message)
+      end
+
+      mailboxes
+    end
+  end
+
+  def imap_config
+    {
+      server: self.imap_server,
+      port: self.imap_port,
+      ssl: self.imap_ssl,
+      username: self.email_username,
+      password: self.email_password
+    }
+  end
+
+  def imap_enabled?
+    return false if !SiteSetting.enable_imap
+    imap_config.values.compact.length == imap_config.keys.length
+  end
+
+  def email_username_regex
+    user, domain = email_username.split('@')
+    if user.present? && domain.present?
+      /^#{Regexp.escape(user)}(\+[^@]*)?@#{Regexp.escape(domain)}$/i
+    end
+  end
+
+  def notify_added_to_group(user, owner: false)
+    SystemMessage.create_from_system_user(
+      user,
+      owner ? :user_added_to_group_as_owner : :user_added_to_group_as_member,
+      group_name: self.full_name.presence || self.name,
+      group_path: "/g/#{self.name}"
+    )
+  end
+
+  def message_count
+    return 0 unless self.has_messages
+    TopicAllowedGroup.where(group_id: self.id).joins(:topic).count
   end
 
   protected
@@ -939,6 +1046,21 @@ end
 #  members_visibility_level           :integer          default(0), not null
 #  flair_icon                         :string
 #  flair_upload_id                    :integer
+#  smtp_server                        :string
+#  smtp_port                          :integer
+#  smtp_ssl                           :boolean
+#  imap_server                        :string
+#  imap_port                          :integer
+#  imap_ssl                           :boolean
+#  imap_mailbox_name                  :string           default(""), not null
+#  imap_uid_validity                  :integer          default(0), not null
+#  imap_last_uid                      :integer          default(0), not null
+#  email_username                     :string
+#  email_password                     :string
+#  imap_last_error                    :text
+#  imap_old_emails                    :integer
+#  imap_new_emails                    :integer
+#  allow_unknown_sender_topic_replies :boolean          default(FALSE)
 #
 # Indexes
 #

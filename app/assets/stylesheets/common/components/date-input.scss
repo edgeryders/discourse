@@ -3,6 +3,7 @@
   cursor: pointer;
   flex-direction: column;
   min-width: 140px;
+  flex: 1 0 100%;
 
   .date-picker {
     cursor: pointer;
@@ -13,22 +14,21 @@
 
     &::-webkit-input-placeholder {
       font-size: $font-0;
-      color: $primary-medium;
+      color: var(--primary-medium);
     }
 
     &::-ms-input-placeholder {
       font-size: $font-0;
-      color: $primary-medium;
+      color: var(--primary-medium);
     }
 
     &::placeholder {
       font-size: $font-0;
-      color: $primary-medium;
+      color: var(--primary-medium);
     }
 
     &:focus {
-      outline: 1px solid $tertiary;
-      outline-offset: 0;
+      @include default-focus;
     }
   }
 

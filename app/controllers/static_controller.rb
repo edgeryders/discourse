@@ -7,6 +7,8 @@ class StaticController < ApplicationController
   skip_before_action :preload_json, only: [:brotli_asset, :cdn_asset, :enter, :favicon, :service_worker_asset]
   skip_before_action :handle_theme, only: [:brotli_asset, :cdn_asset, :enter, :favicon, :service_worker_asset]
 
+  before_action :apply_cdn_headers, only: [:brotli_asset, :cdn_asset, :enter, :favicon, :service_worker_asset]
+
   PAGES_WITH_EMAIL_PARAM = ['login', 'password_reset', 'signup']
   MODAL_PAGES = ['password_reset', 'signup']
 
@@ -27,7 +29,7 @@ class StaticController < ApplicationController
     if map.has_key?(@page)
       site_setting_key = map[@page][:redirect]
       url = SiteSetting.get(site_setting_key)
-      return redirect_to(url) unless url.blank?
+      return redirect_to(url) if url.present?
     end
 
     # The /guidelines route ALWAYS shows our FAQ, ignoring the faq_url site setting.
@@ -68,12 +70,8 @@ class StaticController < ApplicationController
       cookies[:email] = { value: params[:email], expires: 1.day.from_now }
     end
 
-    file = "static/#{@page}.#{I18n.locale}"
-    file = "static/#{@page}.en" if lookup_context.find_all("#{file}.html").empty?
-    file = "static/#{@page}"    if lookup_context.find_all("#{file}.html").empty?
-
-    if lookup_context.find_all("#{file}.html").any?
-      render file, layout: !request.xhr?, formats: [:html]
+    if lookup_context.find_all("static/#{@page}").any?
+      render "static/#{@page}", layout: !request.xhr?, formats: [:html]
       return
     end
 
@@ -149,7 +147,7 @@ class StaticController < ApplicationController
             file&.read || ""
           rescue => e
             AdminDashboardData.add_problem_message('dashboard.bad_favicon_url', 1800)
-            Rails.logger.warn("Failed to fetch favicon #{favicon.url}: #{e}\n#{e.backtrace}")
+            Rails.logger.debug("Failed to fetch favicon #{favicon.url}: #{e}\n#{e.backtrace}")
             ""
           ensure
             file&.unlink

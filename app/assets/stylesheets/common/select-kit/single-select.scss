@@ -4,14 +4,24 @@
 
     &.is-expanded {
       padding: 0.25em 0.5em;
-      border-top: 1px solid $primary-low;
-      border-bottom: 1px solid $primary-low;
+      border-top: 1px solid var(--primary-low);
+      border-bottom: 1px solid var(--primary-low);
     }
   }
 
-  &.is-expanded {
+  &.is-expanded .select-kit-header:not(.btn),
+  .select-kit-header:not(.btn):focus,
+  .select-kit-header:not(.btn):active {
+    @include default-focus;
+  }
+
+  .select-kit-header.btn:focus,
+  .select-kit-header.btn:active {
+    outline: none;
+  }
+  &.is-disabled {
     .select-kit-header {
-      outline: 1px solid $tertiary;
+      opacity: 0.5;
     }
   }
 }

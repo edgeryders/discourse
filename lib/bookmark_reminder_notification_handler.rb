@@ -5,16 +5,16 @@ class BookmarkReminderNotificationHandler
     return if bookmark.blank?
     Bookmark.transaction do
       if bookmark.post.blank? || bookmark.post.deleted_at.present?
-        return clear_reminder(bookmark)
+        clear_reminder(bookmark)
+      elsif bookmark.topic
+        create_notification(bookmark)
+
+        if bookmark.auto_delete_when_reminder_sent?
+          BookmarkManager.new(bookmark.user).destroy(bookmark.id)
+        end
+
+        clear_reminder(bookmark)
       end
-
-      create_notification(bookmark)
-
-      if bookmark.delete_when_reminder_sent?
-        return bookmark.destroy
-      end
-
-      clear_reminder(bookmark)
     end
   end
 
@@ -23,12 +23,7 @@ class BookmarkReminderNotificationHandler
       "Clearing bookmark reminder for bookmark_id #{bookmark.id}. reminder info: #{bookmark.reminder_at} | #{Bookmark.reminder_types[bookmark.reminder_type]}"
     )
 
-    bookmark.update(
-      reminder_at: nil,
-      reminder_type: nil,
-      reminder_last_sent_at: Time.zone.now,
-      reminder_set_at: nil
-    )
+    bookmark.clear_reminder!
   end
 
   def self.create_notification(bookmark)

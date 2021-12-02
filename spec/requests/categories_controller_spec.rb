@@ -5,6 +5,7 @@ require 'rails_helper'
 describe CategoriesController do
   let(:admin) { Fabricate(:admin) }
   let!(:category) { Fabricate(:category, user: admin) }
+  fab!(:user) { Fabricate(:user) }
 
   context 'index' do
 
@@ -51,6 +52,33 @@ describe CategoriesController do
       get "/category/something"
       expect(response.status).to eq(301)
       expect(response.body).to include(category.slug)
+    end
+
+    it 'returns the right response for a normal user' do
+      sign_in(user)
+
+      get "/categories.json"
+
+      expect(response.status).to eq(200)
+
+      category_list = response.parsed_body["category_list"]
+
+      expect(category_list["categories"].map { |c| c["id"] }).to contain_exactly(
+        SiteSetting.get(:uncategorized_category_id), category.id
+      )
+    end
+
+    it 'does not show uncategorized unless allow_uncategorized_topics' do
+      SiteSetting.desktop_category_page_style = "categories_boxes_with_topics"
+
+      uncategorized = Category.find(SiteSetting.uncategorized_category_id)
+      Fabricate(:topic, category: uncategorized)
+      CategoryFeaturedTopic.feature_topics
+
+      SiteSetting.allow_uncategorized_topics = false
+
+      get "/categories.json"
+      expect(response.parsed_body["category_list"]["categories"].map { |x| x['id'] }).not_to include(uncategorized.id)
     end
   end
 
@@ -99,16 +127,6 @@ describe CategoriesController do
         expect(response.status).to eq(400)
       end
 
-      it "raises an exception when the color is missing" do
-        post "/categories.json", params: { name: "hello", text_color: "fff" }
-        expect(response.status).to eq(400)
-      end
-
-      it "raises an exception when the text color is missing" do
-        post "/categories.json", params: { name: "hello", color: "ff0" }
-        expect(response.status).to eq(400)
-      end
-
       describe "failure" do
         it "returns errors on a duplicate category name" do
           category = Fabricate(:category, user: admin)
@@ -135,7 +153,7 @@ describe CategoriesController do
 
       describe "success" do
         it "works" do
-          SiteSetting.enable_category_group_review = true
+          SiteSetting.enable_category_group_moderation = true
 
           readonly = CategoryGroup.permission_types[:readonly]
           create_post = CategoryGroup.permission_types[:create_post]
@@ -293,27 +311,6 @@ describe CategoriesController do
         expect(response).to be_forbidden
       end
 
-      it "requires a name" do
-        put "/categories/#{category.slug}.json", params: {
-          color: 'fff',
-          text_color: '0ff',
-        }
-        expect(response.status).to eq(400)
-      end
-
-      it "requires a color" do
-        put "/categories/#{category.slug}.json", params: {
-          name: 'asdf',
-          text_color: '0ff',
-        }
-        expect(response.status).to eq(400)
-      end
-
-      it "requires a text color" do
-        put "/categories/#{category.slug}.json", params: { name: 'asdf', color: 'fff' }
-        expect(response.status).to eq(400)
-      end
-
       it "returns errors on a duplicate category name" do
         other_category = Fabricate(:category, name: "Other", user: admin)
         put "/categories/#{category.id}.json", params: {
@@ -321,6 +318,17 @@ describe CategoriesController do
           color: "ff0",
           text_color: "fff",
         }
+        expect(response.status).to eq(422)
+      end
+
+      it "returns errors when there is a name conflict while moving a category into another" do
+        parent_category = Fabricate(:category, name: "Parent", user: admin)
+        other_category = Fabricate(:category, name: category.name, user: admin, parent_category: parent_category, slug: "a-different-slug")
+
+        put "/categories/#{category.id}.json", params: {
+          parent_category_id: parent_category.id,
+        }
+
         expect(response.status).to eq(422)
       end
 
@@ -505,8 +513,12 @@ describe CategoriesController do
 
       get '/categories_and_latest.json'
       json = response.parsed_body
-      expect(json['category_list']['categories'].size).to eq(2) # 'Uncategorized' and category
-      expect(json['topic_list']['topics'].size).to eq(5)
+
+      category_list = json['category_list']
+      topic_list = json['topic_list']
+
+      expect(category_list['categories'].size).to eq(2) # 'Uncategorized' and category
+      expect(topic_list['topics'].size).to eq(5)
 
       Fabricate(:category, parent_category: category)
 
@@ -522,6 +534,17 @@ describe CategoriesController do
       json = response.parsed_body
       expect(json['category_list']['categories'].size).to eq(4)
       expect(json['topic_list']['topics'].size).to eq(6)
+    end
+
+    it 'does not show uncategorized unless allow_uncategorized_topics' do
+      uncategorized = Category.find(SiteSetting.uncategorized_category_id)
+      Fabricate(:topic, category: uncategorized)
+      CategoryFeaturedTopic.feature_topics
+
+      SiteSetting.allow_uncategorized_topics = false
+
+      get "/categories_and_latest.json"
+      expect(response.parsed_body["category_list"]["categories"].map { |x| x['id'] }).not_to include(uncategorized.id)
     end
   end
 end

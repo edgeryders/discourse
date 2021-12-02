@@ -1,9 +1,8 @@
-# encoding: utf-8
-#
-# Never edit this file. It will be overwritten when translations are pulled from Transifex.
+# WARNING: Never edit this file.
+# It will be overwritten when translations are pulled from Crowdin.
 #
 # To work with us on translations, join this project:
-# https://www.transifex.com/projects/p/discourse-org/
+# https://translate.discourse.org/
 
 fi:
   site_settings:
@@ -13,6 +12,7 @@ fi:
     discourse_narrative_bot_disable_public_replies: "Estä bottia vastaamasta julkisesti ketjuihin"
     discourse_narrative_bot_welcome_post_type: "Minkätyyppisen tervetuloviestin botti lähettää"
     discourse_narrative_bot_welcome_post_delay: "Odota (n) sekuntia ennen kuin botti lähettää tervetuloviestin."
+    discourse_narrative_bot_skip_tutorials: "Discourse Narrative Bot -oppaat ohitettavaksi"
   badges:
     certified:
       name: Tutkinto plakkarissa
@@ -25,15 +25,11 @@ fi:
       long_description: |
         Tämä ansiomerkki myönnetään, kun suoritat menestyksellä vuorovaikutteisen palstan käytön jatkokurssin. Olet omaksunut edistyneemmätkin toiminnot, ja olet taitosi osoittanut.
   discourse_narrative_bot:
-    bio: "Moi! En ole ihminen. Olen botti, ja tarjoan opetusta sivuston käyttämisestä. Jos haluat jutella, lähetä yksityisviesti tai mainitse **`@%{discobot_username}`** missä vain."
+    bio: "Hei, en ole oikea ihminen. Olen botti ja tarjoan opastusta sivuston käyttämisessä. Jos haluat jutella, lähetä minulle viesti tai mainitse minut nimeltä."
     tl2_promotion_message:
-      subject_template: "Onnittelut luottamustasonoususta!"
+      subject_template: "Nyt kun sinut on ylennetty, on aika oppia joitakin kehittyneitä ominaisuuksia!"
       text_body_template: |
-        Nyt kun olet noussut, on aika oppia joitakin kehittyneempiä ominaisuuksia!
-
-        Vastaa tähän viestiin `@%{discobot_username} %{reset_trigger}` niin opit lisää, mitä kaikkia valtuuksia sinulla on.
-
-        Toivon mukaan jatkat osallistumista – on mukavaa että olet täällä.
+        Vastaa tähän viestiin kirjoittamalla `@%{discobot_username} %{reset_trigger}` oppiaksesi mitä muuta voit tehdä.
     timeout:
       message: |-
         Hei @%{username}, kyselen kuulumisia, kun en ole kuullut sinusta hetkeen.
@@ -49,42 +45,43 @@ fi:
       trigger: "heitä"
       invalid: |-
         Pahoittelen, mutta on matemaattinen mahdottomuus heittää noppia sillä tavalla kuin pyysit. :confounded:
-      not_enough_dice: |-
-        Minulla on vain %{num_of_dice} noppaa. [Häpeällistä](http://www.therobotsvoice.com/2009/04/the_10_most_shameful_rpg_dice.php), tiedän!
+      not_enough_dice:
+        one: "Minulla on vain %{count} noppa. [Häpeällistä](https://www.toplessrobot.com/2009/04/the_10_most_shameful_rpg_dice.php), tiedän!"
+        other: "Minulla on vain %{count} noppaa. [Häpeällistä](https://www.toplessrobot.com/2009/04/the_10_most_shameful_rpg_dice.php), tiedän!"
       out_of_range: |-
         Tiesitkö, että [suurin mahdollinen määrä sivuja](https://www.wired.com/2016/05/mathematical-challenge-of-designing-the-worlds-most-complex-120-sided-dice) matemaattisesti tasapuolisessa nopassa on 120?
       results: |-
         > :game_die: %{results}
     quote:
       trigger: "sitaatti"
-      '1':
+      "1":
         quote: "Tutki parhaita kirjailijoita siten avartaaksesi mielikuvituksesi piiriä."
         author: "Aleksis Kivi"
-      '2':
+      "2":
         quote: "On ihan mahdollista, että todellisuus on olemassa."
         author: "Esko Valtaoja"
-      '3':
+      "3":
         quote: "Jokainen syy, joka estää kuntoilun, on tekosyy."
         author: "Urho Kekkonen"
-      '4':
+      "4":
         quote: "Älkää kiinnittäkö huomiota mitä kriitikot sanovat, kriitikoille ei ole koskaan pystytetty yhtään patsasta."
         author: "Jean Sibelius"
-      '5':
+      "5":
         quote: "Kahdesta vaihtoehdosta koetan valita aina sen, joka pelottaa enemmän."
         author: "Jouko Turkka"
-      '6':
+      "6":
         quote: "Jos Suomessa juodaankin jokunen Koskenkorva liikaa, on siihen hyvä syy: paljon muuta tekemistä ei löydy."
         author: "Linus Torvalds"
-      '7':
+      "7":
         quote: "Kaikki lähtee siitä kun sä opit syömään lihapullat haarukalla. Silloin sä osaat tehdä mitä tahansa."
         author: "Matti Nykänen"
-      '8':
+      "8":
         quote: "Käsitykseni on, että se, mitä Suomen kansa tällä hetkellä ennen kaikkea kaipaa, on läheistä, asiallisuuteen pohjautuvaa ymmärtämystä eri yhteiskuntalukkien, eri kieliryhmien ja eri puolueiden kesken. Se takaa jatkuvan yhteiskunnallisen rauhan ja siitä riippuu, missä määrin tämä kansa kykenee vapauttansa ja itsenäisyytensä lujittamaan ja tarvittaessa puolustamaan."
         author: "Lauri Kristian Relander"
-      '9':
+      "9":
         quote: "Naisen työala tulevaisuudessa on laaja, hänen tehtävänsä tärkeä. Mitä vuosisadat, vuosituhannet ovat rikkoneet ja laiminlyöneet, se kaikki tulee hänen korjata ja parantaa."
         author: "Minna Canth"
-      '10':
+      "10":
         quote: "Joskus pitää laittaa viatonkin vankilaan. Joskus täytyy poliisin laittaa viaton lusimaan. Arvovalta säilyy. Pelote säilyy. Aina siellä muutama viaton istuu, viaton pulmunen istuu siellä."
         author: "Rauno Repomies televisiosarjassa Pasila"
       results: |-
@@ -92,26 +89,26 @@ fi:
     magic_8_ball:
       trigger: "ennustus"
       answers:
-        '1': "Se on varmaakin varmempaa"
-        '2': "Niin on tapahtuva"
-        '3': "Epäilemättä"
-        '4': "Kyllä, ehdottomasti"
-        '5': "Voit laskea sen varaan"
-        '6': "Näkemykseni on, että kyllä"
-        '7': "Todennäköisesti"
-        '8': "Siltä näyttäisi"
-        '9': "Kyllä"
-        '10': "Merkit viittaavat siihen suuntaan"
-        '11': "Näky epäselvä, yritä uudelleen"
-        '12': "Palaa myöhemmin asiaan"
-        '13': "Parempi, etten kerro vielä"
-        '14': "En pysty sanomaan juuri nyt"
-        '15': "Keskity ja kyse sitten uudelleen"
-        '16': "Älä laske sen varaan"
-        '17': "Vastaukseni on ei"
-        '18': "Lähteeni kertovat, että ei"
-        '19': "Ei siltä vaikuta"
-        '20': "Epäilen sitä vahvasti"
+        "1": "Se on varmaakin varmempaa"
+        "2": "Niin on tapahtuva"
+        "3": "Epäilemättä"
+        "4": "Kyllä, ehdottomasti"
+        "5": "Voit laskea sen varaan"
+        "6": "Näkemykseni on, että kyllä"
+        "7": "Todennäköisesti"
+        "8": "Siltä näyttäisi"
+        "9": "Kyllä"
+        "10": "Merkit viittaavat siihen suuntaan"
+        "11": "Näky epäselvä, yritä uudelleen"
+        "12": "Palaa myöhemmin asiaan"
+        "13": "Parempi, etten kerro vielä"
+        "14": "En pysty sanomaan juuri nyt"
+        "15": "Keskity ja kyse sitten uudelleen"
+        "16": "Älä laske sen varaan"
+        "17": "Vastaukseni on ei"
+        "18": "Lähteeni kertovat, että ei"
+        "19": "Ei siltä vaikuta"
+        "20": "Epäilen sitä vahvasti"
       result: |-
         > :crystal_ball: %{result}
     track_selector:
@@ -121,6 +118,11 @@ fi:
       random_mention:
         reply: |-
           Moi! Jos haluat tietää mitä osaan, sano `@%{discobot_username} %{help_trigger}`.
+        tracks: |-
+          Osaan tällä hetkellä tehdä seuraavia asioita:
+
+          `@%{discobot_username} %{reset_trigger} {name-of-tutorial}`
+          > Aloittaa interaktiivisen opastuksen kahdenkeskisesti yksityisviestillä. `{name-of-tutorial}` voi olla yksi seuraavista: `%{tracks}`.
         bot_actions: |-
           `@%{discobot_username} %{dice_trigger} 2d6`
           > :game_die: 3, 6
@@ -130,6 +132,7 @@ fi:
 
           `@%{discobot_username} %{magic_8_ball_trigger}`
           > :crystal_ball: Voit laskea sen varaan
+        discobot_disabled: Olet poistanut minut käytöstä asetuksissasi. Sinun on sallittava uuden käyttäjän aloittamisvinkit jotta pääset vuorovaikutukseen kanssani.
       do_not_understand:
         first_response: |-
           Hei, kiitos kun vastasit!
@@ -148,7 +151,7 @@ fi:
       cert_title: "Tunnustuksena palstan käytön peruskurssin menestyksekkäästä suorittamisesta"
       hello:
         title: "Tervehdys!"
-        message: |
+        message: |-
           Kiitos kun liityit sivustolle %{title}. Tervetuloa!
 
           - Olen vain robotti, mutta [avulias henkilökuntamme](%{base_uri}/about) on myös täällä auttamassa, jos sinun tarvitsee saada yhteys ihmiseen.
@@ -187,11 +190,22 @@ fi:
         like_not_found: |-
           Unohditko tykätä :heart: [viestistäni?](%{url}) :crying_cat_face:
         not_found: |-
-          Näyttää ettet laittanut kuvaa, joten valitsin kuvan josta _takuulla_ pidät.
+          Näyttää siltä ettet laittanut kuvaa, joten valitsin kuvan josta _takuulla_ pidät.
 
-          `%{image_url}`
+          <%{image_url}>
 
           Kokeilepa liittää tämä kuva tai liittää linkin osoite omalle rivilleen!
+      likes:
+        instructions: |-
+          Tässä on kuva yksisarvisesta:
+
+          <img src="%{base_uri}/plugins/discourse-narrative-bot/images/unicorn.png" width="520" height="520">
+
+          Jos pidät siitä (kukapa ei pitäisi!), kerro siitä minulle painamalla :heart: tykkää -painiketta tämän viestin alla.
+        reply: |-
+          Kiitos kun tykkäsit viestistäni!
+        not_found: |-
+          Unohditko tykätä :heart: [viestistäni?](%{url}) :crying_cat_face:
       formatting:
         instructions: |-
           **Lihavoi** tai **kursivoi** sanoja seuraavasta vastauksestasi.
@@ -227,6 +241,8 @@ fi:
       bookmark:
         instructions: |-
           Jos haluat oppia lisää, valitse <img src="%{base_uri}/plugins/discourse-narrative-bot/images/font-awesome-ellipsis.png" width="16" height="16"> tämän viestin alta ja <img src="%{base_uri}/plugins/discourse-narrative-bot/images/font-awesome-bookmark.png" width="16" height="16"> **lisää tämä yksityisviestiketju kirjanmerkkeihisi**. Jos teet niin, sinua voi odottaa :gift: tulevaisuudessa!
+        reply: |-
+          Erinomaista! Nyt voit helposti palata takaisin yksityiseen keskusteluumme milloin tahansa [profiilisi kirjanmerkit-välilehden](%{bookmark_url}) kautta. Napsauta profiilikuvaasi yläoikealla &#8599;
         not_found: |-
           Tuota noin, et ole mielestäni kirjanmerkinnyt tämän ketjun viestejä. Löysithän kirjanmerkkikuvakkeen kunkin viestin alta? Voi olla, että sinun täytyy klikata <img src="%{base_uri}/plugins/discourse-narrative-bot/images/font-awesome-ellipsis.png" width="16" height="16">-kuvaketta, jotta näet sen ja muita toimintoja.
       emoji:
@@ -269,7 +285,7 @@ fi:
         reply: |-
           [Henkilökuntamme](%{base_uri}/groups/staff) saa ei-julkisen ilmoituksen lipusta. Jos riittävän moni yhteisön jäsen liputtaa viestin, sekin riittää viestin automaattiseen piilottamiseen varotoimena. (Koska en oikeasti kirjoittanut mitään tuhmaa :angel:, menin ja poistin liputuksesi.)
         not_found: |-
-          Oh no, my nasty post hasn’t been flagged yet. :worried: Can you flag it as inappropriate using the **flag** <img src="%{base_uri}/plugins/discourse-narrative-bot/images/font-awesome-flag.png" width="16" height="16">? Don’t forget to use the show more button <img src="%{base_uri}/plugins/discourse-narrative-bot/images/font-awesome-ellipsis.png" width="16" height="16"> to reveal more actions for each post.
+          Oi voi, tuhma viestini ei ole vielä liputettu sopimattomaksi. :worried: Voitko merkitä sen sopimattomaksi **flag** <img src="%{base_uri}/plugins/discourse-narrative-bot/images/font-awesome-flag.png" width="16" height="16"> -painikkeella? Älä unohda, että saat lisää toimintoja näkyviin <img src="%{base_uri}/plugins/discourse-narrative-bot/images/font-awesome-ellipsis.png" width="16" height="16"> -painikkeen takaa.
       search:
         instructions: |-
           _psst_ … I’ve hidden a surprise in this topic. If you’re up for the challenge, **select the search icon** <img src="%{base_uri}/plugins/discourse-narrative-bot/images/font-awesome-search.png" width="16" height="16"> at the top right &#8599; to search for it.

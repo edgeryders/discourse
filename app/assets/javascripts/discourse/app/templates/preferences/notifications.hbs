@@ -43,7 +43,7 @@
   </div>
 </div>
 
-{{#unless isIOS}}
+{{#unless capabilities.isIOS}}
   <div class="control-group desktop-notifications">
     <label class="control-label">{{i18n "user.desktop_notifications.label"}}</label>
     {{desktop-notification-config}}
@@ -51,6 +51,8 @@
     {{plugin-outlet name="user-preferences-desktop-notifications" args=(hash model=model save=(action "save"))}}
   </div>
 {{/unless}}
+
+{{user-notification-schedule model=model}}
 
 {{#if siteSettings.enable_personal_messages}}
   <div class="control-group private-messages">

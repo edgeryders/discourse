@@ -1,10 +1,11 @@
-import I18n from "I18n";
-import { escape } from "pretty-text/sanitizer";
-import toMarkdown from "discourse/lib/to-markdown";
+import getURL, { getURLWithCDN } from "discourse-common/lib/get-url";
 import Handlebars from "handlebars";
-import { default as getURL, getURLWithCDN } from "discourse-common/lib/get-url";
+import { deepMerge } from "discourse-common/lib/object";
+import { escape } from "pretty-text/sanitizer";
+import { helperContext } from "discourse-common/lib/helpers";
+import toMarkdown from "discourse/lib/to-markdown";
 
-const homepageSelector = "meta[name=discourse_current_homepage]";
+let _defaultHomepage;
 
 export function translateSize(size) {
   switch (size) {
@@ -37,7 +38,7 @@ export function escapeExpression(string) {
   return escape(string);
 }
 
-let _usernameFormatDelegate = username => username;
+let _usernameFormatDelegate = (username) => username;
 
 export function formatUsername(username) {
   return _usernameFormatDelegate(username || "");
@@ -57,7 +58,13 @@ export function avatarUrl(template, size) {
 
 export function getRawSize(size) {
   const pixelRatio = window.devicePixelRatio || 1;
-  return size * Math.min(3, Math.max(1, Math.round(pixelRatio)));
+  let rawSize = 1;
+  if (pixelRatio > 1.1 && pixelRatio < 2.1) {
+    rawSize = 2;
+  } else if (pixelRatio >= 2.1) {
+    rawSize = 3;
+  }
+  return size * rawSize;
 }
 
 export function avatarImg(options, customGetURL) {
@@ -84,12 +91,12 @@ export function avatarImg(options, customGetURL) {
 
 export function tinyAvatar(avatarTemplate, options) {
   return avatarImg(
-    _.merge({ avatarTemplate: avatarTemplate, size: "tiny" }, options)
+    deepMerge({ avatarTemplate: avatarTemplate, size: "tiny" }, options)
   );
 }
 
 export function postUrl(slug, topicId, postNumber) {
-  var url = getURL("/t/");
+  let url = getURL("/t/");
   if (slug) {
     url += slug + "/";
   } else {
@@ -100,6 +107,25 @@ export function postUrl(slug, topicId, postNumber) {
     url += "/" + postNumber;
   }
   return url;
+}
+
+export function highlightPost(postNumber) {
+  const container = document.querySelector(`#post_${postNumber}`);
+  if (!container) {
+    return;
+  }
+  const element = container.querySelector(".topic-body");
+  if (!element || element.classList.contains("highlighted")) {
+    return;
+  }
+
+  element.classList.add("highlighted");
+
+  const removeHighlighted = function () {
+    element.classList.remove("highlighted");
+    element.removeEventListener("animationend", removeHighlighted);
+  };
+  element.addEventListener("animationend", removeHighlighted);
 }
 
 export function emailValid(email) {
@@ -163,13 +189,13 @@ export function selectedElement() {
 
 // Determine the row and col of the caret in an element
 export function caretRowCol(el) {
-  var cp = caretPosition(el);
-  var rows = el.value.slice(0, cp).split("\n");
-  var rowNum = rows.length;
+  let cp = caretPosition(el);
+  let rows = el.value.slice(0, cp).split("\n");
+  let rowNum = rows.length;
 
-  var colNum =
+  let colNum =
     cp -
-    rows.splice(0, rowNum - 1).reduce(function(sum, row) {
+    rows.splice(0, rowNum - 1).reduce(function (sum, row) {
       return sum + row.length + 1;
     }, 0);
 
@@ -178,14 +204,16 @@ export function caretRowCol(el) {
 
 // Determine the position of the caret in an element
 export function caretPosition(el) {
-  var r, rc, re;
+  let r, rc, re;
   if (el.selectionStart) {
     return el.selectionStart;
   }
   if (document.selection) {
     el.focus();
     r = document.selection.createRange();
-    if (!r) return 0;
+    if (!r) {
+      return 0;
+    }
 
     re = el.createTextRange();
     rc = re.duplicate();
@@ -198,7 +226,7 @@ export function caretPosition(el) {
 
 // Set the caret's position
 export function setCaretPosition(ctrl, pos) {
-  var range;
+  let range;
   if (ctrl.setSelectionRange) {
     ctrl.focus();
     ctrl.setSelectionRange(pos, pos);
@@ -213,29 +241,30 @@ export function setCaretPosition(ctrl, pos) {
   }
 }
 
-export function defaultHomepage() {
-  let homepage = null;
-  let elem = _.first($(homepageSelector));
-  if (elem) {
-    homepage = elem.content;
+export function initializeDefaultHomepage(siteSettings) {
+  let homepage;
+  let sel = document.querySelector("meta[name='discourse_current_homepage']");
+  if (sel) {
+    homepage = sel.getAttribute("content");
   }
   if (!homepage) {
-    homepage = Discourse.SiteSettings.top_menu.split("|")[0].split(",")[0];
+    homepage = siteSettings.top_menu.split("|")[0].split(",")[0];
   }
-  return homepage;
+  setDefaultHomepage(homepage);
+}
+
+export function defaultHomepage() {
+  return _defaultHomepage;
 }
 
 export function setDefaultHomepage(homepage) {
-  let elem = _.first($(homepageSelector));
-  if (elem) {
-    elem.content = homepage;
-  }
+  _defaultHomepage = homepage;
 }
 
 export function determinePostReplaceSelection({
   selection,
   needle,
-  replacement
+  replacement,
 }) {
   const diff =
     replacement.end - replacement.start - (needle.end - needle.start);
@@ -270,7 +299,7 @@ export function determinePostReplaceSelection({
 export function isAppleDevice() {
   // IE has no DOMNodeInserted so can not get this hack despite saying it is like iPhone
   // This will apply hack on all iDevices
-  const caps = Discourse.__container__.lookup("capabilities:main");
+  let caps = helperContext().capabilities;
   return caps.isIOS && !navigator.userAgent.match(/Trident/g);
 }
 
@@ -290,7 +319,9 @@ export function isiPad() {
 }
 
 export function safariHacksDisabled() {
-  if (iOSWithVisualViewport()) return false;
+  if (iOSWithVisualViewport()) {
+    return false;
+  }
 
   let pref = localStorage.getItem("safari-hacks-disabled");
   let result = false;
@@ -300,7 +331,7 @@ export function safariHacksDisabled() {
   return result;
 }
 
-const toArray = items => {
+const toArray = (items) => {
   items = items || [];
 
   if (!Array.isArray(items)) {
@@ -310,7 +341,7 @@ const toArray = items => {
   return items;
 };
 
-export function clipboardData(e, canUpload) {
+export function clipboardHelpers(e, opts) {
   const clipboard =
     e.clipboardData ||
     e.originalEvent.clipboardData ||
@@ -321,14 +352,14 @@ export function clipboardData(e, canUpload) {
 
   if (types.includes("Files") && files.length === 0) {
     // for IE
-    files = toArray(clipboard.items).filter(i => i.kind === "file");
+    files = toArray(clipboard.items).filter((i) => i.kind === "file");
   }
 
-  canUpload = files && canUpload && types.includes("Files");
+  let canUpload = files && opts.canUpload && types.includes("Files");
   const canUploadImage =
-    canUpload && files.filter(f => f.type.match("^image/"))[0];
+    canUpload && files.filter((f) => f.type.match("^image/"))[0];
   const canPasteHtml =
-    Discourse.SiteSettings.enable_rich_text_paste &&
+    opts.siteSettings.enable_rich_text_paste &&
     types.includes("text/html") &&
     !canUploadImage;
 
@@ -380,9 +411,7 @@ export function fillMissingDates(data, startDate, endDate) {
         data.splice(i, 0, { x: currentMoment, y: 0 });
       }
     }
-    currentMoment = moment(currentMoment)
-      .add(1, "day")
-      .format("YYYY-MM-DD");
+    currentMoment = moment(currentMoment).add(1, "day").format("YYYY-MM-DD");
   }
   return data;
 }
@@ -391,7 +420,7 @@ export function areCookiesEnabled() {
   // see: https://github.com/Modernizr/Modernizr/blob/400db4043c22af98d46e1d2b9cbc5cb062791192/feature-detects/cookies.js
   try {
     document.cookie = "cookietest=1";
-    var ret = document.cookie.indexOf("cookietest=") !== -1;
+    let ret = document.cookie.indexOf("cookietest=") !== -1;
     document.cookie = "cookietest=1; expires=Thu, 01-Jan-1970 00:00:01 GMT";
     return ret;
   } catch (e) {
@@ -400,8 +429,12 @@ export function areCookiesEnabled() {
 }
 
 export function isiOSPWA() {
-  const caps = Discourse.__container__.lookup("capabilities:main");
+  let caps = helperContext().capabilities;
   return window.matchMedia("(display-mode: standalone)").matches && caps.isIOS;
+}
+
+export function prefersReducedMotion() {
+  return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 }
 
 export function isAppWebview() {
@@ -412,40 +445,6 @@ export function postRNWebviewMessage(prop, value) {
   if (window.ReactNativeWebView !== undefined) {
     window.ReactNativeWebView.postMessage(JSON.stringify({ [prop]: value }));
   }
-}
-
-function reportToLogster(name, error) {
-  const data = {
-    message: `${name} theme/component is throwing errors`,
-    stacktrace: error.stack
-  };
-
-  Ember.$.ajax(getURL("/logs/report_js_error"), {
-    data,
-    type: "POST",
-    cache: false
-  });
-}
-// this function is used in lib/theme_javascript_compiler.rb
-export function rescueThemeError(name, error, api) {
-  /* eslint-disable-next-line no-console */
-  console.error(`"${name}" error:`, error);
-  reportToLogster(name, error);
-
-  const currentUser = api.getCurrentUser();
-  if (!currentUser || !currentUser.admin) {
-    return;
-  }
-
-  const path = getURL(`/admin/customize/themes`);
-  const message = I18n.t("themes.broken_theme_alert", {
-    theme: name,
-    path: `<a href="${path}">${path}</a>`
-  });
-  const alertDiv = document.createElement("div");
-  alertDiv.classList.add("broken-theme-alert");
-  alertDiv.innerHTML = `⚠️ ${message}`;
-  document.body.prepend(alertDiv);
 }
 
 const CODE_BLOCKS_REGEX = /^(    |\t).*|`[^`]+`|^```[^]*?^```|\[code\][^]*?\[\/code\]/gm;

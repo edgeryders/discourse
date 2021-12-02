@@ -1,5 +1,5 @@
-import showModal from "discourse/lib/show-modal";
 import Mixin from "@ember/object/mixin";
+import showModal from "discourse/lib/show-modal";
 
 export default Mixin.create({
   flash(text, messageClass) {
@@ -19,9 +19,5 @@ export default Mixin.create({
       this.modal.send("closeModal");
       this.set("panels", []);
     },
-
-    onSelectPanel(panel) {
-      this.set("selectedPanel", panel);
-    }
-  }
+  },
 });

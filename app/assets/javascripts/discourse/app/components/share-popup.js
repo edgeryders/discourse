@@ -1,22 +1,30 @@
-import I18n from "I18n";
-import { isEmpty } from "@ember/utils";
-import { bind, scheduleOnce, later } from "@ember/runloop";
+import discourseComputed, { bind } from "discourse-common/utils/decorators";
+import { later, scheduleOnce } from "@ember/runloop";
 import Component from "@ember/component";
-import { wantsNewWindow } from "discourse/lib/intercept-click";
-import { longDateNoYear } from "discourse/lib/formatter";
-import discourseComputed, { on } from "discourse-common/utils/decorators";
+import I18n from "I18n";
 import Sharing from "discourse/lib/sharing";
+import { alias } from "@ember/object/computed";
+import { isEmpty } from "@ember/utils";
+import { longDateNoYear } from "discourse/lib/formatter";
 import { nativeShare } from "discourse/lib/pwa-utils";
+import { wantsNewWindow } from "discourse/lib/intercept-click";
 
 export default Component.extend({
   elementId: "share-link",
   classNameBindings: ["visible"],
   link: null,
   visible: null,
+  privateCategory: alias("topic.category.read_restricted"),
 
-  @discourseComputed
-  sources() {
-    return Sharing.activeSources(this.siteSettings.share_links);
+  @discourseComputed("topic.{isPrivateMessage,invisible,category}")
+  sources(topic) {
+    const privateContext =
+      this.siteSettings.login_required ||
+      (topic && topic.isPrivateMessage) ||
+      (topic && topic.invisible) ||
+      this.privateCategory;
+
+    return Sharing.activeSources(this.siteSettings.share_links, privateContext);
   },
 
   @discourseComputed("type", "postNumber")
@@ -48,7 +56,7 @@ export default Component.extend({
   },
 
   _showUrl($target, url) {
-    const $currentTargetOffset = $target.offset();
+    const currentTargetOffset = $target.offset();
     const $this = $(this.element);
 
     if (isEmpty(url)) {
@@ -61,7 +69,7 @@ export default Component.extend({
     }
 
     const shareLinkWidth = $this.width();
-    let x = $currentTargetOffset.left - shareLinkWidth / 2;
+    let x = currentTargetOffset.left - shareLinkWidth / 2;
     if (x < 25) {
       x = 25;
     }
@@ -70,15 +78,18 @@ export default Component.extend({
     }
 
     const header = $(".d-header");
-    let y = $currentTargetOffset.top - ($this.height() + 20);
+    let y = currentTargetOffset.top - ($this.height() + 20);
     if (y < header.offset().top + header.height()) {
-      y = $currentTargetOffset.top + 10;
+      y = currentTargetOffset.top + 10;
     }
 
-    $this.css({ top: "" + y + "px" });
+    this.element.style.top = `${y}px`;
 
     if (!this.site.mobileView) {
-      $this.css({ left: "" + x + "px" });
+      this.element.style.left = `${x}px`;
+      if (document.documentElement.classList.contains("rtl")) {
+        this.element.style.right = "unset";
+      }
     }
     this.set("link", url);
     this.set("visible", true);
@@ -86,6 +97,7 @@ export default Component.extend({
     scheduleOnce("afterRender", this, this._focusUrl);
   },
 
+  @bind
   _mouseDownHandler(event) {
     if (!this.element || this.isDestroying || this.isDestroyed) {
       return;
@@ -102,6 +114,7 @@ export default Component.extend({
     return true;
   },
 
+  @bind
   _clickHandler(event) {
     if (!this.element || this.isDestroying || this.isDestroyed) {
       return;
@@ -124,7 +137,9 @@ export default Component.extend({
 
     // use native webshare only when the user clicks on the "chain" icon
     if (!$currentTarget.hasClass("post-date")) {
-      nativeShare({ url }).then(null, () => this._showUrl($currentTarget, url));
+      nativeShare(this.capabilities, { url }).then(null, () =>
+        this._showUrl($currentTarget, url)
+      );
     } else {
       this._showUrl($currentTarget, url);
     }
@@ -132,6 +147,7 @@ export default Component.extend({
     return false;
   },
 
+  @bind
   _keydownHandler(event) {
     if (!this.element || this.isDestroying || this.isDestroyed) {
       return;
@@ -146,24 +162,17 @@ export default Component.extend({
     this._showUrl($target, url);
   },
 
-  @on("init")
-  _setupHandlers() {
-    this._boundMouseDownHandler = bind(this, this._mouseDownHandler);
-    this._boundClickHandler = bind(this, this._clickHandler);
-    this._boundKeydownHandler = bind(this, this._keydownHandler);
-  },
-
   didInsertElement() {
     this._super(...arguments);
 
     $("html")
-      .on("mousedown.outside-share-link", this._boundMouseDownHandler)
+      .on("mousedown.outside-share-link", this._mouseDownHandler)
       .on(
         "click.discourse-share-link",
         "button[data-share-url], .post-info .post-date[data-share-url]",
-        this._boundClickHandler
+        this._clickHandler
       )
-      .on("keydown.share-view", this._boundKeydownHandler);
+      .on("keydown.share-view", this._keydownHandler);
 
     this.appEvents.on("share:url", this, "_shareUrlHandler");
   },
@@ -172,9 +181,9 @@ export default Component.extend({
     this._super(...arguments);
 
     $("html")
-      .off("click.discourse-share-link", this._boundClickHandler)
-      .off("mousedown.outside-share-link", this._boundMouseDownHandler)
-      .off("keydown.share-view", this._boundKeydownHandler);
+      .off("click.discourse-share-link", this._clickHandler)
+      .off("mousedown.outside-share-link", this._mouseDownHandler)
+      .off("keydown.share-view", this._keydownHandler);
 
     this.appEvents.off("share:url", this, "_shareUrlHandler");
   },
@@ -193,15 +202,15 @@ export default Component.extend({
         link: null,
         postNumber: null,
         postId: null,
-        visible: false
+        visible: false,
       });
     },
 
     share(source) {
       Sharing.shareSource(source, {
         url: this.link,
-        title: this.get("topic.title")
+        title: this.get("topic.title"),
       });
-    }
-  }
+    },
+  },
 });

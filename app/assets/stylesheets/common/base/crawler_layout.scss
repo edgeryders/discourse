@@ -1,13 +1,12 @@
 body.crawler {
   > header {
     width: 100%;
-    position: absolute;
     top: 0;
     z-index: z("max");
     background-color: #fff;
     padding: 10px;
     box-shadow: none;
-    border-bottom: 1px solid $primary-low-mid;
+    border-bottom: 1px solid var(--primary-low-mid);
     box-sizing: border-box;
   }
 
@@ -68,7 +67,7 @@ body.crawler {
   }
 
   .discourse-tags {
-    color: $primary-medium;
+    color: var(--primary-medium);
   }
 }
 
@@ -90,7 +89,7 @@ body.crawler {
   margin-top: 1em;
   margin-bottom: 2em;
   padding-top: 1.5em;
-  border-top: 1px solid $primary-low;
+  border-top: 1px solid var(--primary-low);
 }
 
 .crawler-post-meta {
@@ -108,7 +107,7 @@ body.crawler {
 }
 
 .crawler-post-infos {
-  color: $primary-high;
+  color: var(--primary-high);
   display: inline-block;
   @include breakpoint(tablet, min-width) {
     float: right;
@@ -124,7 +123,7 @@ body.crawler {
   a {
     display: block;
     padding: 0.5em 0;
-    border-top: 1px solid $primary-low;
+    border-top: 1px solid var(--primary-low);
   }
 }
 

@@ -103,11 +103,10 @@ describe PostActionCreator do
       before do
         user.trust_level = TrustLevel[3]
         post.user.trust_level = TrustLevel[0]
+        SiteSetting.high_trust_flaggers_auto_hide_posts = true
       end
 
       it "hides the post when the flagger is a TL3 user and the poster is a TL0 user" do
-        SiteSetting.high_trust_flaggers_auto_hide_posts = true
-
         result = PostActionCreator.create(user, post, :spam)
 
         expect(post.hidden?).to eq(true)
@@ -119,6 +118,14 @@ describe PostActionCreator do
         result = PostActionCreator.create(user, post, :spam)
 
         expect(post.hidden?).to eq(false)
+      end
+
+      it 'sets the force_review field' do
+        result = PostActionCreator.create(user, post, :spam)
+
+        reviewable = result.reviewable
+
+        expect(reviewable.force_review).to eq(true)
       end
     end
 
@@ -210,6 +217,45 @@ describe PostActionCreator do
       expect(scores[0]).to be_agreed
       expect(scores[1]).to be_agreed
       expect(reviewable.reload).to be_approved
+    end
+  end
+
+  context "queue_for_review" do
+    fab!(:admin) { Fabricate(:admin) }
+
+    it 'fails if the user is not a staff member' do
+      creator = PostActionCreator.new(
+        user, post,
+        PostActionType.types[:notify_moderators], queue_for_review: true
+      )
+      result = creator.perform
+
+      expect(result.success?).to eq(false)
+    end
+
+    it 'creates a new reviewable and hides the post' do
+      result = build_creator.perform
+
+      expect(result.success?).to eq(true)
+
+      score = result.reviewable.reviewable_scores.last
+      expect(score.reason).to eq('queued_by_staff')
+      expect(post.reload.hidden?).to eq(true)
+    end
+
+    it 'hides the topic even if it has replies' do
+      Fabricate(:post, topic: post.topic)
+
+      result = build_creator.perform
+
+      expect(post.topic.reload.visible?).to eq(false)
+    end
+
+    def build_creator
+      PostActionCreator.new(
+        admin, post,
+        PostActionType.types[:notify_moderators], queue_for_review: true
+      )
     end
   end
 end

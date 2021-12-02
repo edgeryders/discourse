@@ -8,29 +8,24 @@ class RobotsTxtController < ApplicationController
 
   # NOTE: order is important!
   DISALLOWED_PATHS ||= %w{
+    /admin/
     /auth/
     /assets/browser-update*.js
-    /users/
-    /u/
-    /my/
-    /badges/
-    /search
-    /search/
-    /tags
-    /tags/
     /email/
     /session
-    /session/
-    /admin
-    /admin/
     /user-api-key
-    /user-api-key/
     /*?api_key*
     /*?*api_key*
-    /groups
-    /groups/
+  }
+
+  DISALLOWED_WITH_HEADER_PATHS ||= %w{
+    /badges
+    /u/
+    /my
+    /search
+    /tag/*/l
+    /g
     /t/*/*.rss
-    /tags/*.rss
     /c/*.rss
   }
 
@@ -60,27 +55,33 @@ class RobotsTxtController < ApplicationController
   end
 
   def self.fetch_default_robots_info
-    deny_paths = DISALLOWED_PATHS.map { |p| Discourse.base_uri + p }
-    deny_all = [ "#{Discourse.base_uri}/" ]
+    deny_paths_googlebot = DISALLOWED_PATHS.map { |p| Discourse.base_path + p }
+    deny_paths = deny_paths_googlebot + DISALLOWED_WITH_HEADER_PATHS.map { |p| Discourse.base_path + p }
+    deny_all = [ "#{Discourse.base_path}/" ]
 
     result = {
       header: "# See http://www.robotstxt.org/robotstxt.html for documentation on how to use the robots.txt file",
       agents: []
     }
 
-    if SiteSetting.whitelisted_crawler_user_agents.present?
-      SiteSetting.whitelisted_crawler_user_agents.split('|').each do |agent|
-        result[:agents] << { name: agent, disallow: deny_paths }
+    if SiteSetting.allowed_crawler_user_agents.present?
+      SiteSetting.allowed_crawler_user_agents.split('|').each do |agent|
+        paths = agent == "Googlebot" ? deny_paths_googlebot : deny_paths
+        result[:agents] << { name: agent, disallow: paths }
       end
 
       result[:agents] << { name: '*', disallow: deny_all }
-    elsif SiteSetting.blacklisted_crawler_user_agents.present?
-      result[:agents] << { name: '*', disallow: deny_paths }
-      SiteSetting.blacklisted_crawler_user_agents.split('|').each do |agent|
-        result[:agents] << { name: agent, disallow: deny_all }
-      end
     else
+
+      if SiteSetting.blocked_crawler_user_agents.present?
+        SiteSetting.blocked_crawler_user_agents.split('|').each do |agent|
+          result[:agents] << { name: agent, disallow: deny_all }
+        end
+      end
+
       result[:agents] << { name: '*', disallow: deny_paths }
+
+      result[:agents] << { name: 'Googlebot', disallow: deny_paths_googlebot }
     end
 
     if SiteSetting.slow_down_crawler_user_agents.present?

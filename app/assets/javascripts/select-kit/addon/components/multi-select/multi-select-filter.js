@@ -1,15 +1,39 @@
 import I18n from "I18n";
-import discourseComputed from "discourse-common/utils/decorators";
-const { isEmpty } = Ember;
 import SelectKitFilterComponent from "select-kit/components/select-kit/select-kit-filter";
+const { isEmpty } = Ember;
+import discourseComputed from "discourse-common/utils/decorators";
+import layout from "select-kit/templates/components/select-kit/select-kit-filter";
 
 export default SelectKitFilterComponent.extend({
-  layoutName: "select-kit/templates/components/select-kit/select-kit-filter",
+  layout,
   classNames: ["multi-select-filter"],
 
   @discourseComputed("placeholder", "selectKit.hasSelection")
   computedPlaceholder(placeholder, hasSelection) {
-    if (hasSelection) return "";
+    if (hasSelection) {
+      return "";
+    }
     return isEmpty(placeholder) ? "" : I18n.t(placeholder);
-  }
+  },
+
+  actions: {
+    onPaste(event) {
+      const data = event.originalEvent.clipboardData;
+
+      if (!data) {
+        return;
+      }
+
+      const parts = data.getData("text").split("|").filter(Boolean);
+
+      if (parts.length > 1) {
+        event.stopPropagation();
+        event.preventDefault();
+
+        this.selectKit.append(parts);
+
+        return false;
+      }
+    },
+  },
 });

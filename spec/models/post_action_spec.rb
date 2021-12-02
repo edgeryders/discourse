@@ -88,6 +88,7 @@ describe PostAction do
       topic.reload
       expect(topic.posts.count).to eq(2)
       expect(topic.posts.last.post_type).to eq(Post.types[:moderator_action])
+      expect(topic.message_archived?(mod)).to eq(true)
     end
 
   end
@@ -763,13 +764,8 @@ describe PostAction do
         expect(timer.execute_at).to eq_time(1.hour.from_now)
 
         freeze_time timer.execute_at
-        Jobs.expects(:enqueue_in).with(
-          1.hour.to_i,
-          :toggle_topic_closed,
-          topic_timer_id: timer.id,
-          state: false
-        ).returns(true)
-        Jobs::ToggleTopicClosed.new.execute(topic_timer_id: timer.id, state: false)
+
+        Jobs::OpenTopic.new.execute(topic_timer_id: timer.id)
 
         expect(topic.reload.closed).to eq(true)
         expect(timer.reload.execute_at).to eq_time(1.hour.from_now)

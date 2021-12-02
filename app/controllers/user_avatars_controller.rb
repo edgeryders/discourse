@@ -4,6 +4,8 @@ class UserAvatarsController < ApplicationController
 
   skip_before_action :preload_json, :redirect_to_login_if_required, :check_xhr, :verify_authenticity_token, only: [:show, :show_letter, :show_proxy_letter]
 
+  before_action :apply_cdn_headers, only: [:show, :show_letter, :show_proxy_letter]
+
   def refresh_gravatar
     user = User.find_by(username_lower: params[:username].downcase)
     guardian.ensure_can_edit!(user)
@@ -46,7 +48,7 @@ class UserAvatarsController < ApplicationController
 
     hijack do
       begin
-        proxy_avatar("https://avatars.discourse.org/#{params[:version]}/letter/#{params[:letter]}/#{params[:color]}/#{params[:size]}.png", Time.new('1990-01-01'))
+        proxy_avatar("https://avatars.discourse-cdn.com/#{params[:version]}/letter/#{params[:letter]}/#{params[:color]}/#{params[:size]}.png", Time.new('1990-01-01'))
       rescue OpenURI::HTTPError
         render_blank
       end
@@ -189,7 +191,7 @@ class UserAvatarsController < ApplicationController
     return if !upload
     return upload if upload.extension == "svg"
 
-    upload.get_optimized_image(size, size, allow_animation: SiteSetting.allow_animated_avatars)
+    upload.get_optimized_image(size, size)
     # TODO decide if we want to detach here
   end
 

@@ -311,7 +311,7 @@ module Jobs
         hash['queue'] = queue
       end
 
-      klass.client_push(hash)
+      DB.after_commit { klass.client_push(hash) }
     else
       # Otherwise execute the job right away
       opts.delete(:delay_for)
@@ -357,7 +357,7 @@ module Jobs
   end
 
   def self.enqueue_at(datetime, job_name, opts = {})
-    secs = [(datetime - Time.zone.now).to_i, 0].max
+    secs = [datetime.to_f - Time.zone.now.to_f, 0].max
     enqueue_in(secs, job_name, opts)
   end
 

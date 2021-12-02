@@ -10,6 +10,11 @@ class PostActionNotifier
     @disabled = false
   end
 
+  # For testing purposes
+  def self.reset!
+    @custom_post_revision_notifier_recipients = nil
+  end
+
   def self.alerter
     @alerter ||= PostAlerter.new
   end
@@ -105,13 +110,20 @@ class PostActionNotifier
       user_ids << post.user_id
     end
 
-    if post.wiki && post.is_first_post?
+    # Notify all users watching the topic when the OP of a wiki topic is edited
+    # or if the topic category allows unlimited owner edits on the OP.
+    if post.is_first_post? &&
+        (post.wiki? || post.topic.category_allows_unlimited_owner_edits_on_first_post?)
       user_ids.concat(
         TopicUser.watching(post.topic_id)
           .where.not(user_id: post_revision.user_id)
           .where(topic: post.topic)
           .pluck(:user_id)
       )
+    end
+
+    custom_post_revision_notifier_recipients.each do |block|
+      user_ids.concat(Array(block.call(post_revision)))
     end
 
     if user_ids.present?
@@ -136,5 +148,13 @@ class PostActionNotifier
         acting_user_id: post.last_editor.id
       )
     end
+  end
+
+  def self.custom_post_revision_notifier_recipients
+    @custom_post_revision_notifier_recipients ||= Set.new
+  end
+
+  def self.add_post_revision_notifier_recipients(&block)
+    custom_post_revision_notifier_recipients << block
   end
 end

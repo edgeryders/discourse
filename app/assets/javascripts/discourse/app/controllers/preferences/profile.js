@@ -1,17 +1,18 @@
-import I18n from "I18n";
-import { isEmpty } from "@ember/utils";
-import EmberObject from "@ember/object";
 import Controller from "@ember/controller";
-import discourseComputed from "discourse-common/utils/decorators";
-import { popupAjaxError } from "discourse/lib/ajax-error";
-import { cookAsync } from "discourse/lib/text";
+import EmberObject from "@ember/object";
+import I18n from "I18n";
 import { ajax } from "discourse/lib/ajax";
+import bootbox from "bootbox";
+import { cookAsync } from "discourse/lib/text";
+import discourseComputed from "discourse-common/utils/decorators";
+import { isEmpty } from "@ember/utils";
+import { popupAjaxError } from "discourse/lib/ajax-error";
+import { readOnly } from "@ember/object/computed";
 import showModal from "discourse/lib/show-modal";
 
 export default Controller.extend({
   init() {
     this._super(...arguments);
-
     this.saveAttrNames = [
       "bio_raw",
       "website",
@@ -21,7 +22,7 @@ export default Controller.extend({
       "profile_background_upload_url",
       "card_background_upload_url",
       "date_of_birth",
-      "timezone"
+      "timezone",
     ];
   },
 
@@ -35,7 +36,7 @@ export default Controller.extend({
       if (!this.get("currentUser.staff")) {
         siteUserFields = siteUserFields.filterBy("editable", true);
       }
-      return siteUserFields.sortBy("position").map(function(field) {
+      return siteUserFields.sortBy("position").map(function (field) {
         const value = userFields
           ? userFields[field.get("id").toString()]
           : null;
@@ -44,36 +45,33 @@ export default Controller.extend({
     }
   },
 
-  @discourseComputed("model.can_change_bio")
-  canChangeBio(canChangeBio) {
-    return canChangeBio;
-  },
+  canChangeBio: readOnly("model.can_change_bio"),
 
-  @discourseComputed("model.can_change_location")
-  canChangeLocation(canChangeLocation) {
-    return canChangeLocation;
-  },
+  canChangeLocation: readOnly("model.can_change_location"),
 
-  @discourseComputed("model.can_change_website")
-  canChangeWebsite(canChangeWebsite) {
-    return canChangeWebsite;
-  },
+  canChangeWebsite: readOnly("model.can_change_website"),
+
+  canUploadProfileHeader: readOnly("model.can_upload_profile_header"),
+
+  canUploadUserCardBackground: readOnly(
+    "model.can_upload_user_card_background"
+  ),
 
   actions: {
     showFeaturedTopicModal() {
       showModal("feature-topic-on-profile", {
         model: this.model,
-        title: "user.feature_topic_on_profile.title"
+        title: "user.feature_topic_on_profile.title",
       });
     },
 
     clearFeaturedTopicFromProfile() {
       bootbox.confirm(
         I18n.t("user.feature_topic_on_profile.clear.warning"),
-        result => {
+        (result) => {
           if (result) {
             ajax(`/u/${this.model.username}/clear-featured-topic`, {
-              type: "PUT"
+              type: "PUT",
             })
               .then(() => {
                 this.model.set("featured_topic", null);
@@ -98,7 +96,7 @@ export default Controller.extend({
       if (!isEmpty(userFields)) {
         const modelFields = model.get("user_fields");
         if (!isEmpty(modelFields)) {
-          userFields.forEach(function(uf) {
+          userFields.forEach(function (uf) {
             modelFields[uf.get("field.id").toString()] = uf.get("value");
           });
         }
@@ -121,6 +119,6 @@ export default Controller.extend({
             .catch(popupAjaxError);
         })
         .catch(popupAjaxError);
-    }
-  }
+    },
+  },
 });

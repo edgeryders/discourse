@@ -29,6 +29,28 @@ describe Jobs do
         end
       end
 
+      it "enqueues the job after the current transaction has committed" do
+        jobs = Jobs::ProcessPost.jobs
+        expect(jobs.length).to eq(0)
+
+        Jobs.enqueue(:process_post, post_id: 1)
+        expect(jobs.length).to eq(1)
+
+        ActiveRecord::Base.transaction do
+          Jobs.enqueue(:process_post, post_id: 1)
+          expect(jobs.length).to eq(1)
+        end
+        expect(jobs.length).to eq(2)
+
+        # Failed transation
+        ActiveRecord::Base.transaction do
+          Jobs.enqueue(:process_post, post_id: 1)
+          raise ActiveRecord::Rollback
+        end
+
+        expect(jobs.length).to eq(2) # No change
+      end
+
       it "does not pass current_site_id when 'all_sites' is present" do
         Sidekiq::Testing.fake! do
           jobs = Jobs::ProcessPost.jobs
@@ -143,14 +165,18 @@ describe Jobs do
   describe 'enqueue_at' do
     it 'calls enqueue_in for you' do
       freeze_time
-      Jobs.expects(:enqueue_in).with(3 * 60 * 60, :eat_lunch, {}).returns(true)
-      Jobs.enqueue_at(3.hours.from_now, :eat_lunch, {})
+
+      expect_enqueued_with(job: :process_post, at: 3.hours.from_now) do
+        Jobs.enqueue_at(3.hours.from_now, :process_post, {})
+      end
     end
 
     it 'handles datetimes that are in the past' do
       freeze_time
-      Jobs.expects(:enqueue_in).with(0, :eat_lunch, {}).returns(true)
-      Jobs.enqueue_at(3.hours.ago, :eat_lunch, {})
+
+      expect_enqueued_with(job: :process_post, at: Time.zone.now) do
+        Jobs.enqueue_at(3.hours.ago, :process_post, {})
+      end
     end
   end
 

@@ -27,7 +27,7 @@ module BackupRestore
       migrate_database
       reconnect_database
 
-      self.class.update_last_restore_date
+      BackupMetadata.update_last_restore_date
     end
 
     def rollback
@@ -51,14 +51,6 @@ module BackupRestore
       end
     end
 
-    def self.update_last_restore_date
-      BackupMetadata.where(name: BackupMetadata::LAST_RESTORE_DATE).delete_all
-      BackupMetadata.create!(
-        name: BackupMetadata::LAST_RESTORE_DATE,
-        value: Time.zone.now.iso8601
-      )
-    end
-
     protected
 
     def restore_dump
@@ -70,7 +62,7 @@ module BackupRestore
 
       log_thread = Thread.new do
         RailsMultisite::ConnectionManagement::establish_connection(db: @current_db)
-        while psql_running
+        while psql_running || !logs.empty?
           message = logs.pop.strip
           log(message) if message.present?
         end
@@ -144,7 +136,7 @@ module BackupRestore
           "SKIP_OPTIMIZE_ICONS" => "1",
           "DISABLE_TRANSLATION_OVERRIDES" => "1"
         },
-        "rake db:migrate",
+        "rake", "db:migrate",
         failure_message: "Failed to migrate database.",
         chdir: Rails.root
       )
@@ -208,14 +200,11 @@ module BackupRestore
     def self.backup_schema_dropable?
       return false unless ActiveRecord::Base.connection.schema_exists?(BACKUP_SCHEMA)
 
-      last_restore_date = BackupMetadata.value_for(BackupMetadata::LAST_RESTORE_DATE)
-
-      if last_restore_date.present?
-        last_restore_date = Time.zone.parse(last_restore_date)
+      if last_restore_date = BackupMetadata.last_restore_date
         return last_restore_date + DROP_BACKUP_SCHEMA_AFTER_DAYS.days < Time.zone.now
       end
 
-      update_last_restore_date
+      BackupMetadata.update_last_restore_date
       false
     end
     private_class_method :backup_schema_dropable?

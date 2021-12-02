@@ -39,6 +39,7 @@ class PostActionCreator
     take_action: false,
     flag_topic: false,
     created_at: nil,
+    queue_for_review: false,
     reason: nil
   )
     @created_by = created_by
@@ -54,7 +55,13 @@ class PostActionCreator
     @message = message
     @flag_topic = flag_topic
     @meta_post = nil
+
     @reason = reason
+    @queue_for_review = queue_for_review
+
+    if reason.nil? && @queue_for_review
+      @reason = 'queued_by_staff'
+    end
   end
 
   def post_can_act?
@@ -71,7 +78,7 @@ class PostActionCreator
   def perform
     result = CreateResult.new
 
-    unless post_can_act?
+    if !post_can_act? || (@queue_for_review && !guardian.is_staff?)
       result.forbidden = true
       result.add_error(I18n.t("invalid_access"))
       return result
@@ -186,15 +193,22 @@ private
   def auto_hide_if_needed
     return if @post.hidden?
     return if !@created_by.staff? && @post.user&.staff?
-    return unless PostActionType.auto_action_flag_types.include?(@post_action_name)
 
-    # Special case: If you have TL3 and the user is TL0, and the flag is spam,
-    # hide it immediately.
-    if SiteSetting.high_trust_flaggers_auto_hide_posts &&
-        @post_action_name == :spam &&
-        @created_by.has_trust_level?(TrustLevel[3]) &&
-        @post.user&.trust_level == TrustLevel[0]
+    not_auto_action_flag_type = !PostActionType.auto_action_flag_types.include?(@post_action_name)
+    return if not_auto_action_flag_type && !@queue_for_review
 
+    if @queue_for_review
+      @post.topic.update_status('visible', false, @created_by) if @post.is_first_post?
+
+      @post.hide!(
+        @post_action_type_id,
+        Post.hidden_reasons[:flag_threshold_reached],
+        custom_message: :queued_by_staff
+      )
+      return
+    end
+
+    if trusted_spam_flagger?
       @post.hide!(@post_action_type_id, Post.hidden_reasons[:flagged_by_tl3_user])
       return
     end
@@ -203,6 +217,15 @@ private
     if score >= Reviewable.score_required_to_hide_post
       @post.hide!(@post_action_type_id)
     end
+  end
+
+  # Special case: If you have TL3 and the user is TL0, and the flag is spam,
+  # hide it immediately.
+  def trusted_spam_flagger?
+    SiteSetting.high_trust_flaggers_auto_hide_posts &&
+      @post_action_name == :spam &&
+      @created_by.has_trust_level?(TrustLevel[3]) &&
+      @post.user&.trust_level == TrustLevel[0]
   end
 
   def create_post_action
@@ -242,8 +265,13 @@ private
       end
     end
 
-    if post_action && PostActionType.notify_flag_type_ids.include?(@post_action_type_id)
-      DiscourseEvent.trigger(:flag_created, post_action)
+    if post_action
+      case @post_action_type_id
+      when *PostActionType.notify_flag_type_ids
+        DiscourseEvent.trigger(:flag_created, post_action)
+      when PostActionType.types[:like]
+        DiscourseEvent.trigger(:like_created, post_action)
+      end
     end
 
     GivenDailyLike.increment_for(@created_by.id) if @post_action_type_id == PostActionType.types[:like]
@@ -309,13 +337,15 @@ private
         targets_topic: @targets_topic
       }
     )
+
     result.reviewable_score = result.reviewable.add_score(
       @created_by,
       @post_action_type_id,
       created_at: @created_at,
       take_action: @take_action,
       meta_topic_id: @meta_post&.topic_id,
-      reason: @reason
+      reason: @reason,
+      force_review: trusted_spam_flagger?
     )
   end
 

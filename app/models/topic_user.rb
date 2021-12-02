@@ -22,6 +22,10 @@ class TopicUser < ActiveRecord::Base
     level(topic_id, :watching)
   }
 
+  def topic_bookmarks
+    Bookmark.where(topic: topic, user: user)
+  end
+
   # Class methods
   class << self
 
@@ -230,6 +234,8 @@ class TopicUser < ActiveRecord::Base
         first_visited_at: now ,
         last_visited_at: now
       ))
+
+      DiscourseEvent.trigger(:topic_first_visited_by_user, topic_id, user_id)
     end
 
     def track_visit!(topic_id, user_id)
@@ -369,13 +375,11 @@ class TopicUser < ActiveRecord::Base
     action_type = opts[:post_action_type]
 
     action_type_name = "liked" if action_type == :like
-    action_type_name = "bookmarked" if action_type == :bookmark
 
     raise ArgumentError, "action_type" if action_type && !action_type_name
 
     unless action_type_name
       update_post_action_cache(opts.merge(post_action_type: :like))
-      update_post_action_cache(opts.merge(post_action_type: :bookmark))
       return
     end
 
@@ -504,9 +508,10 @@ end
 #  last_emailed_post_number :integer
 #  liked                    :boolean          default(FALSE)
 #  bookmarked               :boolean          default(FALSE)
+#  last_posted_at           :datetime
 #
 # Indexes
 #
-#  index_topic_users_on_topic_id_and_user_id  (topic_id,user_id) UNIQUE
-#  index_topic_users_on_user_id_and_topic_id  (user_id,topic_id) UNIQUE
+#  index_forum_thread_users_on_forum_thread_id_and_user_id  (topic_id,user_id) UNIQUE
+#  index_topic_users_on_user_id_and_topic_id                (user_id,topic_id) UNIQUE
 #

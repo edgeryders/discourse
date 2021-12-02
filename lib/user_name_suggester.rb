@@ -110,12 +110,20 @@ module UserNameSuggester
 
     if SiteSetting.unicode_usernames
       name.unicode_normalize!
+
+      # TODO: Jan 2022, review if still needed
+      # see: https://meta.discourse.org/t/unicode-username-with-as-the-final-char-leads-to-an-error-loading-profile-page/173182
+      if name.include?('Σ')
+        ctx = MiniRacer::Context.new
+        name = ctx.eval("#{name.to_s.to_json}.toLowerCase()")
+        ctx.dispose
+      end
     else
       name = ActiveSupport::Inflector.transliterate(name)
     end
 
     name.gsub!(UsernameValidator.invalid_char_pattern, '_')
-    name = apply_whitelist(name) if UsernameValidator.char_whitelist_exists?
+    name = apply_allowlist(name) if UsernameValidator.char_allowlist_exists?
     name.gsub!(UsernameValidator::INVALID_LEADING_CHAR_PATTERN, '')
     name.gsub!(UsernameValidator::CONFUSING_EXTENSIONS, "_")
     name.gsub!(UsernameValidator::INVALID_TRAILING_CHAR_PATTERN, '')
@@ -123,9 +131,9 @@ module UserNameSuggester
     name
   end
 
-  def self.apply_whitelist(name)
+  def self.apply_allowlist(name)
     name.grapheme_clusters
-      .map { |c| UsernameValidator.whitelisted_char?(c) ? c : '_' }
+      .map { |c| UsernameValidator.allowed_char?(c) ? c : '_' }
       .join
   end
 

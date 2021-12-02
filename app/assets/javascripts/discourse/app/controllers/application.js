@@ -1,7 +1,7 @@
+import { isAppWebview, isiOSPWA } from "discourse/lib/utilities";
+import Controller from "@ember/controller";
 import discourseComputed from "discourse-common/utils/decorators";
 import { inject as service } from "@ember/service";
-import Controller from "@ember/controller";
-import { isAppWebview, isiOSPWA } from "discourse/lib/utilities";
 
 export default Controller.extend({
   showTop: true,
@@ -11,19 +11,19 @@ export default Controller.extend({
   @discourseComputed
   canSignUp() {
     return (
-      !Discourse.SiteSettings.invite_only &&
-      Discourse.SiteSettings.allow_new_registrations &&
-      !Discourse.SiteSettings.enable_sso
+      !this.siteSettings.invite_only &&
+      this.siteSettings.allow_new_registrations &&
+      !this.siteSettings.enable_discourse_connect
     );
   },
 
   @discourseComputed
   loginRequired() {
-    return Discourse.SiteSettings.login_required && !this.currentUser;
+    return this.siteSettings.login_required && !this.currentUser;
   },
 
   @discourseComputed
   showFooterNav() {
     return isAppWebview() || isiOSPWA();
-  }
+  },
 });

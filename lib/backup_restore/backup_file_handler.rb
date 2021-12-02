@@ -6,12 +6,13 @@ module BackupRestore
 
     delegate :log, to: :@logger, private: true
 
-    def initialize(logger, filename, current_db, root_tmp_directory = Rails.root)
+    def initialize(logger, filename, current_db, root_tmp_directory: Rails.root, location: nil)
       @logger = logger
       @filename = filename
       @current_db = current_db
       @root_tmp_directory = root_tmp_directory
       @is_archive = !(@filename =~ /\.sql\.gz$/)
+      @store_location = location
     end
 
     def decompress
@@ -48,7 +49,7 @@ module BackupRestore
     end
 
     def copy_archive_to_tmp_directory
-      store = BackupRestore::BackupStore.create
+      store = BackupRestore::BackupStore.create(location: @store_location)
 
       if store.remote?
         log "Downloading archive to tmp directory..."
@@ -64,10 +65,19 @@ module BackupRestore
     def decompress_archive
       return if !@is_archive
 
+      # the transformation is a workaround for a bug which existed between v2.6.0.beta1 and v2.6.0.beta2
+      path_transformation =
+        case tar_implementation
+        when :gnu
+          ['--transform', 's|var/www/discourse/public/uploads/|uploads/|']
+        when :bsd
+          ['-s', '|var/www/discourse/public/uploads/|uploads/|']
+        end
+
       log "Unzipping archive, this may take a while..."
       Discourse::Utils.execute_command(
         'tar', '--extract', '--gzip', '--file', @archive_path, '--directory', @tmp_directory,
-        failure_message: "Failed to decompress archive."
+        *path_transformation, failure_message: "Failed to decompress archive."
       )
     end
 
@@ -92,6 +102,20 @@ module BackupRestore
 
     def available_size
       SiteSetting.decompressed_backup_max_file_size_mb
+    end
+
+    def tar_implementation
+      @tar_version ||= begin
+        tar_version = Discourse::Utils.execute_command('tar', '--version')
+
+        if tar_version.include?("GNU tar")
+          :gnu
+        elsif tar_version.include?("bsdtar")
+          :bsd
+        else
+          raise "Unknown tar implementation: #{tar_version}"
+        end
+      end
     end
   end
 end

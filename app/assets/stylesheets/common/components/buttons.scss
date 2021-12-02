@@ -6,39 +6,47 @@
 // --------------------------------------------------
 
 @mixin btn(
-  $text-color: $primary,
-  $bg-color: $primary-low,
-  $icon-color: $primary-high,
-  $hover-text-color: $secondary,
-  $hover-bg-color: $primary-medium,
-  $hover-icon-color: $primary-low
+  $text-color: var(--primary),
+  $bg-color: var(--primary-low),
+  $icon-color: var(--primary-high),
+  $hover-text-color: var(--secondary),
+  $hover-bg-color: var(--primary-medium),
+  $hover-icon-color: var(--primary-low)
 ) {
-  display: inline-block;
-  margin: 0;
-  padding: 6px 12px;
-  min-height: 30px;
-  border: none;
   box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0;
+  padding: 0.53em 0.8em;
+  border: none;
   font-weight: normal;
+  font-size: $font-0;
+  line-height: normal;
   color: $text-color;
   background: $bg-color;
-  font-size: $font-0;
-  line-height: $line-height-small;
-  text-align: center;
   cursor: pointer;
   transition: all 0.25s;
   .d-icon {
     color: $icon-color;
     margin-right: 0.45em;
     transition: color 0.25s;
-    line-height: $line-height-medium; // Match button text line-height
   }
   &.no-text {
     .d-icon {
       margin-right: 0;
+      min-height: 17px;
     }
   }
   @include hover {
+    background: $hover-bg-color;
+    color: $hover-text-color;
+    .d-icon {
+      color: $hover-icon-color;
+    }
+  }
+  &:focus {
+    outline: none;
     background: $hover-bg-color;
     color: $hover-text-color;
     .d-icon {
@@ -50,10 +58,7 @@
   }
   &:active,
   &.btn-active {
-    @include linear-gradient(
-      scale-color($bg-color, $lightness: -20%),
-      $bg-color
-    );
+    @include linear-gradient($hover-bg-color 0%, $bg-color 100%);
   }
   &[disabled],
   &.disabled {
@@ -110,11 +115,11 @@
 
 .btn-primary {
   @include btn(
-    $text-color: $secondary,
-    $bg-color: $tertiary,
-    $icon-color: $secondary,
-    $hover-bg-color: darken($tertiary, 10%),
-    $hover-icon-color: $secondary
+    $text-color: var(--secondary),
+    $bg-color: var(--tertiary),
+    $icon-color: var(--secondary),
+    $hover-bg-color: var(--tertiary-hover),
+    $hover-icon-color: var(--secondary)
   );
 }
 
@@ -123,15 +128,11 @@
 
 .btn-danger {
   @include btn(
-    $text-color: $secondary,
-    $bg-color: $danger,
-    $icon-color: $danger-low,
-    $hover-bg-color:
-      dark-light-choose(
-        scale-color($danger, $lightness: -20%),
-        scale-color($danger, $lightness: 20%)
-      ),
-    $hover-icon-color: $danger-low
+    $text-color: var(--secondary),
+    $bg-color: var(--danger),
+    $icon-color: var(--danger-low),
+    $hover-bg-color: var(--danger-hover),
+    $hover-icon-color: var(--danger-low)
   );
 }
 
@@ -140,29 +141,21 @@
 
 .btn.cancel {
   @include btn(
-    $text-color: $secondary,
-    $bg-color: $danger,
-    $icon-color: $secondary,
-    $hover-bg-color:
-      dark-light-choose(
-        scale-color($danger, $lightness: -20%),
-        scale-color($danger, $lightness: 20%)
-      ),
-    $hover-icon-color: $secondary
+    $text-color: var(--secondary),
+    $bg-color: var(--danger),
+    $icon-color: var(--secondary),
+    $hover-bg-color: var(--danger-hover),
+    $hover-icon-color: var(--secondary)
   );
 }
 
 .btn.ok {
   @include btn(
-    $text-color: $secondary,
-    $bg-color: $success,
-    $icon-color: $secondary,
-    $hover-bg-color:
-      dark-light-choose(
-        scale-color($success, $lightness: -20%),
-        scale-color($success, $lightness: 20%)
-      ),
-    $hover-icon-color: $secondary
+    $text-color: var(--secondary),
+    $bg-color: var(--success),
+    $icon-color: var(--secondary),
+    $hover-bg-color: var(--success-hover),
+    $hover-icon-color: var(--secondary)
   );
 }
 
@@ -170,65 +163,82 @@
 // --------------------------------------------------
 
 .btn-social {
-  .d-icon {
-    color: #fff;
-  }
-  color: #fff;
-  background: #666;
-  &:hover {
-    color: #fff;
+  color: #000;
+  background: #fff;
+  border: 1px solid transparent;
+  &:hover,
+  &:focus {
+    box-shadow: shadow("card");
+    outline: 1px solid #000;
   }
   &[href] {
-    color: $secondary;
+    color: var(--secondary);
   }
   &:before {
     margin-right: 9px;
     font-size: $font-0;
   }
   &.google_oauth2 {
-    background: $google;
+    background: var(--google);
     color: #333;
-    border: 1px solid $primary-low;
     // non-FA SVG icon for Google in login-buttons.hbs
     .d-icon {
       opacity: 0.9;
     }
-    &:hover {
+    &:hover,
+    &:focus {
       color: currentColor;
-      background: darken($google, 5%);
     }
   }
-  &.instagram {
-    background: $instagram;
-    &:hover {
-      background: darken($instagram, 15%);
-    }
-  }
+
   &.facebook {
-    background: $facebook;
+    .d-icon {
+      color: $facebook;
+    }
     &:hover {
-      background: darken($facebook, 15%);
+      .d-icon {
+        color: $facebook;
+      }
     }
   }
   &.cas {
-    background: $cas;
+    .d-icon {
+      color: var(--cas);
+    }
+    &:hover {
+      .d-icon {
+        color: var(--cas);
+      }
+    }
   }
   &.twitter {
-    background: $twitter;
+    .d-icon {
+      color: var(--twitter);
+    }
     &:hover {
-      background: darken($twitter, 10%);
+      .d-icon {
+        color: var(--twitter);
+      }
     }
   }
   &.github {
-    background: $github;
+    .d-icon {
+      color: var(--github);
+    }
     &:hover {
-      background: lighten($github, 20%);
+      .d-icon {
+        color: var(--github);
+      }
     }
   }
   &.discord {
-    background: $discord;
+    .d-icon {
+      color: var(--discord);
+    }
     &:hover {
-      background: darken($discord, 10%);
+      .d-icon {
+        color: var(--discord);
+      }
     }
   }
 }
@@ -255,18 +265,20 @@
   line-height: $line-height-small;
 }
 
+// Bonus Buttons
+// --------------------------------------------------
+
 .btn-flat {
   background: transparent;
   border: 0;
-  outline: 0;
   line-height: $line-height-small;
   transition: color 0.25s, background 0.25s;
   .d-icon {
-    color: $primary-low-mid;
+    color: var(--primary-low-mid);
   }
   @include hover {
     .d-icon {
-      color: $primary;
+      color: var(--primary);
     }
   }
   &.close {
@@ -275,13 +287,21 @@
     background: transparent;
     font-size: $font-up-3;
     .d-icon {
-      color: $primary-high;
+      color: var(--primary-high);
     }
     @include hover {
       background: transparent;
       .d-icon {
-        color: $primary;
+        color: var(--primary);
       }
+    }
+  }
+
+  &:focus {
+    outline: none;
+    background: var(--primary-low);
+    .d-icon {
+      color: var(--primary);
     }
   }
 }
@@ -289,10 +309,25 @@
 .btn-link {
   background: transparent;
   border: 0;
-  outline: 0;
   padding: 0;
-  color: $tertiary;
+  color: var(--tertiary);
+}
+
+.btn-mini-toggle {
+  padding: 0.4em 0.467em;
+  .d-icon {
+    color: var(--primary-high);
+  }
+  @include hover {
+    background: transparent;
+    .d-icon {
+      color: var(--primary);
+    }
+  }
   &:focus {
-    outline: 1px currentColor dotted;
+    background: var(--primary-low);
+    .d-icon {
+      color: var(--primary);
+    }
   }
 }

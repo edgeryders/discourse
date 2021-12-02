@@ -1,5 +1,5 @@
 .post-info a {
-  color: $primary-medium;
+  color: var(--primary-medium);
 }
 
 .topic-meta-data-inside {
@@ -18,7 +18,7 @@
     font-size: $font-up-3;
     line-height: $line-height-medium;
     a {
-      color: $primary;
+      color: var(--primary);
       vertical-align: middle;
       word-wrap: break-word;
     }
@@ -28,33 +28,34 @@
   }
 }
 
-.topic-status-info {
-  padding-left: 10px;
-  border-top: 1px solid $primary-low;
-  padding-top: 10px;
-  h3 {
-    margin: 0;
-    display: flex;
-    button {
-      align-self: flex-start;
-    }
-  }
+.progress-back-container {
+  top: -100%; // above parent container + some extra space
 }
 
 #topic-progress-wrapper {
   position: fixed;
-  right: 0;
+  right: 10px; // match 10px padding on .wrap
   bottom: 0;
   z-index: z("timeline");
   &:not(.docked) {
     margin-bottom: env(safe-area-inset-bottom);
   }
+  html.rtl & {
+    /**
+     * This should be the other way around, but it has to be "wrong" here
+     * because our RTL CSS is generated using the `rtlit` gem which flips
+     * left to right and right to left, so this will be corrected when it
+     * goes through rtlit.
+     */
+    left: unset;
+    right: 1em;
+  }
 }
 
 #topic-progress-expanded {
-  border: 1px solid $primary-low;
+  border: 1px solid var(--primary-low);
   padding: 5px;
-  background: $secondary;
+  background: var(--secondary);
 
   position: absolute;
   bottom: 34px;
@@ -97,9 +98,9 @@
   &.hidden {
     display: none;
   }
-  background-color: $secondary;
-  color: $tertiary;
-  border: 1px solid $tertiary-low;
+  background-color: var(--secondary);
+  color: var(--tertiary);
+  border: 1px solid var(--tertiary-low);
   width: 145px;
   height: 42px;
 
@@ -129,14 +130,13 @@
     top: 0;
     bottom: 0;
     width: 0;
-    border-right: 1px solid $tertiary-low;
-    background-color: $tertiary-low;
+    border-right: 1px solid var(--tertiary-low);
+    background-color: var(--tertiary-low);
     transition: width 0.75s;
   }
 }
 
-.topic-error,
-.topic-notice {
+.topic-error {
   padding: 18px;
   width: 90%;
   margin-left: auto;
@@ -144,8 +144,7 @@
   font-size: $font-up-4;
   line-height: $line-height-medium;
 
-  .topic-retry,
-  .topic-join-group {
+  .topic-retry {
     display: block;
     margin-top: 20px;
     margin-left: auto;
@@ -182,10 +181,6 @@ sub sub {
     width: 100%;
     margin-top: 0;
   }
-
-  .topic-statuses {
-    line-height: $line-height-small;
-  }
 }
 
 // make mobile timeline top and bottom dates easier to select
@@ -200,18 +195,6 @@ sub sub {
   }
 }
 
-.edit-topic-timer-modal {
-  .future-date-input {
-    .alert-info {
-      margin: 0 -10px -10px -10px;
-      padding: 10px;
-    }
-  }
-  .btn.pull-right {
-    margin-right: 0;
-  }
-}
-
 .topic-footer-main-buttons {
   display: flex;
   align-items: center;
@@ -222,7 +205,7 @@ sub sub {
   .topic-admin-popup-menu {
     box-sizing: border-box;
     padding: 0.25em;
-
+    width: unset;
     ul {
       display: grid;
       grid-template-columns: 1fr 1fr 1fr;

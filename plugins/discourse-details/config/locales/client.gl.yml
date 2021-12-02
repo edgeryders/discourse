@@ -1,9 +1,8 @@
-# encoding: utf-8
-#
-# Never edit this file. It will be overwritten when translations are pulled from Transifex.
+# WARNING: Never edit this file.
+# It will be overwritten when translations are pulled from Crowdin.
 #
 # To work with us on translations, join this project:
-# https://www.transifex.com/projects/p/discourse-org/
+# https://translate.discourse.org/
 
 gl:
   js:
@@ -11,4 +10,4 @@ gl:
       title: Agochar detalles
     composer:
       details_title: Resumo
-      details_text: "Este texto será ocultado"
+      details_text: "Este texto será agochado"

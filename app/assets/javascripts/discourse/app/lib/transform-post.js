@@ -5,7 +5,7 @@ import { userPath } from "discourse/lib/url";
 const _additionalAttributes = [];
 
 export function includeAttributes(...attributes) {
-  attributes.forEach(a => _additionalAttributes.push(a));
+  attributes.forEach((a) => _additionalAttributes.push(a));
 }
 
 export function transformBasicPost(post) {
@@ -44,6 +44,7 @@ export function transformBasicPost(post) {
     staff: post.staff,
     admin: post.admin,
     moderator: post.moderator,
+    groupModerator: post.group_moderator,
     new_user: post.trust_level === 0,
     name: post.name,
     user_title: post.user_title,
@@ -79,10 +80,11 @@ export function transformBasicPost(post) {
     locked: post.locked,
     userCustomFields: post.user_custom_fields,
     readCount: post.readers_count,
-    canPublishPage: false
+    canPublishPage: false,
+    trustLevel: post.trust_level,
   };
 
-  _additionalAttributes.forEach(a => (postAtts[a] = post[a]));
+  _additionalAttributes.forEach((a) => (postAtts[a] = post[a]));
 
   return postAtts;
 }
@@ -100,6 +102,10 @@ export default function transformPost(
   const postTypes = site.post_types;
   const topic = post.topic;
   const details = topic.get("details");
+  const filteredUpwardsPostID = topic.get("postStream.filterUpwardsPostID");
+  const filteredRepliesPostNumber = topic.get(
+    "postStream.filterRepliesToPostNumber"
+  );
 
   const postAtts = transformBasicPost(post);
 
@@ -119,28 +125,34 @@ export default function transformPost(
   postAtts.canManage = currentUser && currentUser.get("canManageTopic");
   postAtts.canViewRawEmail =
     currentUser && (currentUser.id === post.user_id || currentUser.staff);
-  postAtts.canReplyAsNewTopic = details.can_reply_as_new_topic;
+  postAtts.canArchiveTopic = !!details.can_archive_topic;
+  postAtts.canCloseTopic = !!details.can_close_topic;
+  postAtts.canSplitMergeTopic = !!details.can_split_merge_topic;
+  postAtts.canEditStaffNotes = !!details.can_edit_staff_notes;
+  postAtts.canReplyAsNewTopic = !!details.can_reply_as_new_topic;
   postAtts.canReviewTopic = !!details.can_review_topic;
   postAtts.canPublishPage =
     !!details.can_publish_page && post.post_number === 1;
   postAtts.isWarning = topic.is_warning;
   postAtts.links = post.get("internalLinks");
   postAtts.replyDirectlyBelow =
-    nextPost && nextPost.reply_to_post_number === post.post_number;
+    nextPost &&
+    nextPost.reply_to_post_number === post.post_number &&
+    post.post_number !== filteredRepliesPostNumber;
   postAtts.replyDirectlyAbove =
-    prevPost && post.reply_to_post_number === prevPost.post_number;
+    prevPost &&
+    post.id !== filteredUpwardsPostID &&
+    post.reply_to_post_number === prevPost.post_number;
   postAtts.linkCounts = post.link_counts;
   postAtts.actionCode = post.action_code;
   postAtts.actionCodeWho = post.action_code_who;
   postAtts.topicUrl = topic.get("url");
   postAtts.isSaving = post.isSaving;
 
-  if (post.notice_type) {
-    postAtts.noticeType = post.notice_type;
-    if (postAtts.noticeType === "custom") {
-      postAtts.noticeMessage = post.notice_args;
-    } else if (postAtts.noticeType === "returning_user") {
-      postAtts.noticeTime = new Date(post.notice_args);
+  if (post.notice) {
+    postAtts.notice = post.notice;
+    if (postAtts.notice.type === "returning_user") {
+      postAtts.notice.lastPostedAt = new Date(post.notice.last_posted_at);
     }
   }
 
@@ -160,6 +172,7 @@ export default function transformPost(
   }
 
   const showTopicMap =
+    _additionalAttributes.indexOf("topicMap") !== -1 ||
     showPMMap ||
     (post.post_number === 1 &&
       topic.archetype === "regular" &&
@@ -172,9 +185,11 @@ export default function transformPost(
     postAtts.createdByName = createdBy.name;
 
     postAtts.lastPostUrl = topic.get("lastPostUrl");
-    postAtts.lastPostUsername = details.last_poster.username;
-    postAtts.lastPostAvatarTemplate = details.last_poster.avatar_template;
-    postAtts.lastPostName = details.last_poster.name;
+    if (details.last_poster) {
+      postAtts.lastPostUsername = details.last_poster.username;
+      postAtts.lastPostAvatarTemplate = details.last_poster.avatar_template;
+      postAtts.lastPostName = details.last_poster.name;
+    }
     postAtts.lastPostAt = topic.last_posted_at;
 
     postAtts.topicReplyCount = topic.get("replyCount");
@@ -213,10 +228,10 @@ export default function transformPost(
 
   if (post.actions_summary) {
     postAtts.actionsSummary = post.actions_summary
-      .filter(a => {
+      .filter((a) => {
         return a.actionType.name_key !== "like" && a.acted;
       })
-      .map(a => {
+      .map((a) => {
         const action = a.actionType.name_key;
 
         return {
@@ -224,7 +239,7 @@ export default function transformPost(
           postId: post.id,
           action,
           canUndo: a.can_undo,
-          description: I18n.t(`post.actions.by_you.${action}`)
+          description: I18n.t(`post.actions.by_you.${action}`),
         };
       });
   }
@@ -251,6 +266,7 @@ export default function transformPost(
     postAtts.showFlagDelete =
       !postAtts.canDelete &&
       postAtts.yours &&
+      postAtts.canFlag &&
       currentUser &&
       !currentUser.staff;
   } else {
@@ -262,7 +278,7 @@ export default function transformPost(
       (currentUser.staff || !post.user_deleted);
   }
 
-  _additionalAttributes.forEach(a => (postAtts[a] = post[a]));
+  _additionalAttributes.forEach((a) => (postAtts[a] = post[a]));
 
   return postAtts;
 }

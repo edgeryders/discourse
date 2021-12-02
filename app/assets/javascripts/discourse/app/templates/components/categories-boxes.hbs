@@ -9,6 +9,7 @@
               class="logo"
               width=c.uploaded_logo.width
               height=c.uploaded_logo.height
+              alt=""
             }}
           {{/if}}
         </div>
@@ -17,6 +18,7 @@
         <div class="category-box-heading">
           <a class="parent-box-link" href={{c.url}}>
             <h3>
+              {{category-title-before category=c}}
               {{#if c.read_restricted}}
                 {{d-icon "lock"}}
               {{/if}}
@@ -27,7 +29,7 @@
 
         {{#unless c.isMuted}}
           <div class="description">
-            {{text-overflow class="overflow" text=c.description_excerpt}}
+            {{html-safe c.description_excerpt}}
           </div>
           {{#if c.isGrandParent}}
             {{#each c.subcategories as |subcategory|}}
@@ -58,7 +60,8 @@
                         src=sc.uploaded_logo.url
                         class="logo"
                         width=sc.uploaded_logo.width
-                        height=sc.uploaded_logo.height}}
+                        height=sc.uploaded_logo.height
+                        alt=""}}
                   </span>
                   {{category-link sc hideParent="true"}}
                 </a>
@@ -67,6 +70,7 @@
           {{/if}}
         {{/unless}}
       </div>
+      {{plugin-outlet name="category-box-below-each-category" connectorTagName="" tagName="" args=(hash category=c)}}
     </div>
   </div>
 {{/each}}

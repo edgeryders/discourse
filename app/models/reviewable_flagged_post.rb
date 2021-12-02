@@ -127,7 +127,6 @@ class ReviewableFlaggedPost < Reviewable
 
     create_result(:success, :ignored) do |result|
       result.update_flag_stats = { status: :ignored, user_ids: actions.map(&:user_id) }
-      result.recalculate_score = true
     end
   end
 
@@ -205,7 +204,6 @@ class ReviewableFlaggedPost < Reviewable
 
     create_result(:success, :rejected) do |result|
       result.update_flag_stats = { status: :disagreed, user_ids: actions.map(&:user_id) }
-      result.recalculate_score = true
     end
   end
 
@@ -292,7 +290,7 @@ protected
 
     user_ids = User.staff.pluck(:id)
 
-    if SiteSetting.enable_category_group_review? && group_id = topic.category&.reviewable_by_group_id.presence
+    if SiteSetting.enable_category_group_moderation? && group_id = topic.category&.reviewable_by_group_id.presence
       user_ids.concat(GroupUser.where(group_id: group_id).pluck(:user_id))
       user_ids.uniq!
     end
@@ -352,6 +350,7 @@ end
 #  index_reviewables_on_status_and_created_at                  (status,created_at)
 #  index_reviewables_on_status_and_score                       (status,score)
 #  index_reviewables_on_status_and_type                        (status,type)
+#  index_reviewables_on_target_id_where_post_type_eq_post      (target_id) WHERE ((target_type)::text = 'Post'::text)
 #  index_reviewables_on_topic_id_and_status_and_created_by_id  (topic_id,status,created_by_id)
 #  index_reviewables_on_type_and_target_id                     (type,target_id) UNIQUE
 #

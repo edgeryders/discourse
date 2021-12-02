@@ -29,7 +29,6 @@ describe TagsController do
         tags = response.parsed_body["tags"]
         expect(tags.length).to eq(1)
         expect(tags[0]['text']).to eq("topic-test")
-        expect(response.headers['X-Robots-Tag']).to eq('noindex')
       end
     end
 
@@ -106,7 +105,6 @@ describe TagsController do
     end
 
     context "when user can admin tags" do
-
       it "succesfully retrieve all tags" do
         sign_in(admin)
 
@@ -117,16 +115,106 @@ describe TagsController do
         tags = response.parsed_body["tags"]
         expect(tags.length).to eq(2)
       end
+    end
 
+    context "with hidden tags" do
+      before do
+        create_hidden_tags(["staff1"])
+      end
+
+      it "is returned to admins" do
+        sign_in(admin)
+        get "/tags.json"
+        expect(response.parsed_body["tags"].map { |t| t["text"] }).to include("staff1")
+        expect(response.parsed_body["extras"]["categories"]).to be_empty
+      end
+
+      it "is not returned to anon" do
+        get "/tags.json"
+        expect(response.parsed_body["tags"].map { |t| t["text"] }).to_not include("staff1")
+        expect(response.parsed_body["extras"]["categories"]).to be_empty
+      end
+
+      it "is not returned to regular user" do
+        sign_in(user)
+        get "/tags.json"
+        expect(response.parsed_body["tags"].map { |t| t["text"] }).to_not include("staff1")
+        expect(response.parsed_body["extras"]["categories"]).to be_empty
+      end
+
+      context "restricted to a category" do
+        before do
+          category.tags = [Tag.find_by_name("staff1")]
+        end
+
+        it "is returned to admins" do
+          sign_in(admin)
+          get "/tags.json"
+          expect(response.parsed_body["tags"].map { |t| t["text"] }).to include("staff1")
+          categories = response.parsed_body["extras"]["categories"]
+          expect(categories.length).to eq(1)
+          expect(categories.first["tags"].map { |t| t["text"] }).to include("staff1")
+        end
+
+        it "is not returned to anon" do
+          get "/tags.json"
+          expect(response.parsed_body["tags"].map { |t| t["text"] }).to_not include("staff1")
+          expect(response.parsed_body["extras"]["categories"]).to be_empty
+        end
+
+        it "is not returned to regular user" do
+          sign_in(user)
+          get "/tags.json"
+          expect(response.parsed_body["tags"].map { |t| t["text"] }).to_not include("staff1")
+          expect(response.parsed_body["extras"]["categories"]).to be_empty
+        end
+      end
+
+      context "listed by group" do
+        before do
+          SiteSetting.tags_listed_by_group = true
+        end
+
+        it "is returned to admins" do
+          sign_in(admin)
+          get "/tags.json"
+          expect(response.parsed_body["tags"].map { |t| t["text"] }).to_not include("staff1")
+          tag_groups = response.parsed_body["extras"]["tag_groups"]
+          expect(tag_groups.length).to eq(1)
+          expect(tag_groups.first["tags"].map { |t| t["text"] }).to include("staff1")
+        end
+
+        it "is not returned to anon" do
+          get "/tags.json"
+          expect(response.parsed_body["tags"].map { |t| t["text"] }).to_not include("staff1")
+          expect(response.parsed_body["extras"]["tag_groups"]).to be_empty
+        end
+
+        it "is not returned to regular user" do
+          sign_in(user)
+          get "/tags.json"
+          expect(response.parsed_body["tags"].map { |t| t["text"] }).to_not include("staff1")
+          expect(response.parsed_body["extras"]["tag_groups"]).to be_empty
+        end
+      end
     end
   end
 
   describe '#show' do
     fab!(:tag) { Fabricate(:tag, name: 'test') }
+    fab!(:topic_without_tags) { Fabricate(:topic) }
+    fab!(:topic_with_tags) { Fabricate(:topic, tags: [tag]) }
 
     it "should return the right response" do
-      get "/tag/test"
+      get "/tag/test.json"
+
       expect(response.status).to eq(200)
+
+      json = response.parsed_body
+
+      topic_list = json["topic_list"]
+
+      expect(topic_list["tags"].map { |t| t["id"] }).to contain_exactly(tag.id)
     end
 
     it "should handle invalid tags" do
@@ -150,6 +238,15 @@ describe TagsController do
 
       get "/tag/test"
       expect(response.status).to eq(200)
+    end
+
+    it "handles special tag 'none'" do
+      SiteSetting.allow_staff_to_tag_pms = true
+
+      sign_in(admin)
+
+      get "/tag/none.json"
+      expect(response.parsed_body['topic_list']['topics'].length).to eq(1)
     end
 
     context "with a category in the path" do
@@ -182,6 +279,13 @@ describe TagsController do
         expect(topic_ids).to include(topic_in_category.id)
         expect(topic_ids).to_not include(topic_out_of_category.id)
         expect(topic_ids).to_not include(topic_in_category_without_tag.id)
+      end
+
+      it "should produce the right next topic URL" do
+        get "/tags/c/#{category.slug_path.join("/")}/#{category.id}/#{tag.name}.json?per_page=1"
+
+        expect(response.parsed_body['topic_list']['more_topics_url'])
+          .to start_with("/tags/c/#{category.slug_path.join('/')}/#{category.id}/#{tag.name}")
       end
     end
 
@@ -328,19 +432,6 @@ describe TagsController do
     end
   end
 
-  describe '#check_hashtag' do
-    fab!(:tag) { Fabricate(:tag) }
-
-    it "should return the right response" do
-      get "/tags/check.json", params: { tag_values: [tag.name] }
-
-      expect(response.status).to eq(200)
-
-      response_tag = response.parsed_body["valid"].first
-      expect(response_tag["value"]).to eq(tag.name)
-    end
-  end
-
   describe "#update" do
     fab!(:tag) { Fabricate(:tag) }
 
@@ -460,6 +551,12 @@ describe TagsController do
         expect(response.status).to eq(200)
       end
 
+      it "can render a topic list from the latest endpoint" do
+        get "/tag/#{tag.name}/l/latest"
+        expect(response.status).to eq(200)
+        expect(response.body).to include("topic-list")
+      end
+
       it "can filter by two tags" do
         single_tag_topic; multi_tag_topic; all_tag_topic
 
@@ -577,6 +674,36 @@ describe TagsController do
           end
         end
       end
+    end
+  end
+
+  describe '#show_top' do
+    fab!(:tag)       { Fabricate(:tag) }
+
+    fab!(:category) { Fabricate(:category) }
+    fab!(:topic) { Fabricate(:topic, category: category) }
+    fab!(:tag_topic)  { Fabricate(:topic, category: category, tags: [tag]) }
+
+    before do
+      SiteSetting.top_page_default_timeframe = 'all'
+      TopTopic.create!(topic: topic, all_score: 1)
+      TopTopic.create!(topic: tag_topic, all_score: 1)
+    end
+
+    it "can filter by tag" do
+      get "/tag/#{tag.name}/l/top.json"
+      expect(response.status).to eq(200)
+
+      topic_ids = response.parsed_body["topic_list"]["topics"].map { |topic| topic["id"] }
+      expect(topic_ids).to eq([tag_topic.id])
+    end
+
+    it "can filter by both category and tag" do
+      get "/tags/c/#{category.slug}/#{category.id}/#{tag.name}/l/top.json"
+      expect(response.status).to eq(200)
+
+      topic_ids = response.parsed_body["topic_list"]["topics"].map { |topic| topic["id"] }
+      expect(topic_ids).to eq([tag_topic.id])
     end
   end
 
@@ -706,6 +833,13 @@ describe TagsController do
           response.parsed_body["results"].map { |j| j["id"] },
           ['common1', 'common2', 'group1tag', 'group1tag2']
         )
+      end
+
+      it 'returns error 400 for negative limit' do
+        get "/tags/filter/search.json", params: { q: '', limit: -1 }
+
+        expect(response.status).to eq(400)
+        expect(response.parsed_body['errors'].first).to eq(I18n.t('invalid_params', message: 'limit'))
       end
     end
   end

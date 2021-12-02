@@ -5,8 +5,8 @@ class Tag < ActiveRecord::Base
   include HasDestroyedWebHook
 
   RESERVED_TAGS = [
-    'c',
-    'none'
+    'none',
+    'constructor' # prevents issues with javascript's constructor of objects
   ]
 
   validates :name,
@@ -21,7 +21,13 @@ class Tag < ActiveRecord::Base
     where("lower(tags.name) IN (?)", name)
   end
 
-  scope :unused, -> { where(topic_count: 0, pm_topic_count: 0) }
+  # tags that have never been used and don't belong to a tag group
+  scope :unused, -> do
+    where(topic_count: 0, pm_topic_count: 0)
+      .joins("LEFT JOIN tag_group_memberships tgm ON tags.id = tgm.tag_id")
+      .where("tgm.tag_id IS NULL")
+  end
+
   scope :base_tags, -> { where(target_tag_id: nil) }
 
   has_many :tag_users, dependent: :destroy # notification settings
@@ -89,7 +95,9 @@ class Tag < ActiveRecord::Base
   end
 
   def self.top_tags(limit_arg: nil, category: nil, guardian: nil)
-    limit = limit_arg || SiteSetting.max_tags_in_filter_list
+    # we add 1 to max_tags_in_filter_list to efficiently know we have more tags
+    # than the limit. Frontend is responsible to enforce limit.
+    limit = limit_arg || (SiteSetting.max_tags_in_filter_list + 1)
     scope_category_ids = (guardian || Guardian.new).allowed_category_ids
 
     if category
@@ -114,9 +122,8 @@ class Tag < ActiveRecord::Base
     tag_names_with_counts.map { |row| row.tag_name }
   end
 
-  def self.pm_tags(limit_arg: nil, guardian: nil, allowed_user: nil)
+  def self.pm_tags(limit: 1000, guardian: nil, allowed_user: nil)
     return [] if allowed_user.blank? || !(guardian || Guardian.new).can_tag_pms?
-    limit = limit_arg || SiteSetting.max_tags_in_filter_list
     user_id = allowed_user.id
 
     DB.query_hash(<<~SQL).map!(&:symbolize_keys!)
@@ -137,16 +144,21 @@ class Tag < ActiveRecord::Base
                                AND gu.group_id = tg.group_id
        )
        GROUP BY tags.name
+       ORDER BY count DESC
        LIMIT #{limit}
     SQL
   end
 
   def self.include_tags?
-    SiteSetting.tagging_enabled && SiteSetting.show_filter_by_tag
+    SiteSetting.tagging_enabled
+  end
+
+  def url
+    "#{Discourse.base_path}/tag/#{UrlHelper.encode_component(self.name)}"
   end
 
   def full_url
-    "#{Discourse.base_url}/tag/#{self.name}"
+    "#{Discourse.base_url}/tag/#{UrlHelper.encode_component(self.name)}"
   end
 
   def index_search

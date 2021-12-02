@@ -1,5 +1,5 @@
-import { later } from "@ember/runloop";
 import { isAppWebview, postRNWebviewMessage } from "discourse/lib/utilities";
+import { later } from "@ember/runloop";
 
 // Send bg color to webview so iOS status bar matches site theme
 export default {
@@ -8,13 +8,19 @@ export default {
 
   initialize() {
     if (isAppWebview()) {
-      later(() => {
-        const header = document.querySelectorAll(".d-header")[0];
-        if (header) {
-          const styles = window.getComputedStyle(header);
-          postRNWebviewMessage("headerBg", styles.backgroundColor);
-        }
-      }, 500);
+      window
+        .matchMedia("(prefers-color-scheme: dark)")
+        .addListener(this.updateAppBackground);
+      this.updateAppBackground();
     }
-  }
+  },
+  updateAppBackground() {
+    later(() => {
+      const header = document.querySelector(".d-header-wrap .d-header");
+      if (header) {
+        const styles = window.getComputedStyle(header);
+        postRNWebviewMessage("headerBg", styles.backgroundColor);
+      }
+    }, 500);
+  },
 };

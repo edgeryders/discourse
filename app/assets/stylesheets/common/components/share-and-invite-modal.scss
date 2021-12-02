@@ -28,7 +28,7 @@
       margin-bottom: 8px;
 
       .post-date {
-        color: $primary-medium;
+        color: var(--primary-medium);
         font-size: $font-down-1;
       }
     }
@@ -76,12 +76,34 @@
       margin-bottom: 8px;
     }
 
+    .group-access-control {
+      .select-kit.multi-select input.filter-input {
+        padding-left: 8px;
+      }
+
+      .group-chooser {
+        width: 100%;
+      }
+    }
+
     .instructions {
       margin-bottom: 8px;
     }
 
-    .email-or-username-input {
+    .instructions.approval-notice {
+      color: var(--secondary-medium);
+    }
+
+    .invite-user-input {
       width: 100%;
+
+      .input-wrapper {
+        width: 100%;
+
+        .filter-input {
+          width: 100%;
+        }
+      }
     }
 
     .max-redemptions-allowed {

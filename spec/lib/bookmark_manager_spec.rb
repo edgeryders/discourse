@@ -21,6 +21,16 @@ RSpec.describe BookmarkManager do
       expect(bookmark.topic_id).to eq(post.topic_id)
     end
 
+    it "when topic is deleted it raises invalid access from guardian check" do
+      post.topic.trash!
+      expect { subject.create(post_id: post.id, name: name) }.to raise_error(Discourse::InvalidAccess)
+    end
+
+    it "when post is deleted it raises invalid access from guardian check" do
+      post.trash!
+      expect { subject.create(post_id: post.id, name: name) }.to raise_error(Discourse::InvalidAccess)
+    end
+
     it "updates the topic user bookmarked column to true if any post is bookmarked" do
       subject.create(post_id: post.id, name: name, reminder_type: reminder_type, reminder_at: reminder_at)
       tu = TopicUser.find_by(user: user)
@@ -43,24 +53,13 @@ RSpec.describe BookmarkManager do
     end
 
     context "when options are provided" do
-      let(:options) { { delete_when_reminder_sent: true } }
+      let(:options) { { auto_delete_preference: Bookmark.auto_delete_preferences[:when_reminder_sent] } }
 
       it "saves any additional options successfully" do
         subject.create(post_id: post.id, name: name, options: options)
         bookmark = Bookmark.find_by(user: user)
 
-        expect(bookmark.delete_when_reminder_sent).to eq(true)
-      end
-    end
-
-    context "when options are provided with null values" do
-      let(:options) { { delete_when_reminder_sent: nil } }
-
-      it "saves defaults successfully" do
-        subject.create(post_id: post.id, name: name, options: options)
-        bookmark = Bookmark.find_by(user: user)
-
-        expect(bookmark.delete_when_reminder_sent).to eq(false)
+        expect(bookmark.auto_delete_preference).to eq(1)
       end
     end
 
@@ -72,6 +71,13 @@ RSpec.describe BookmarkManager do
       it "adds an error to the manager" do
         subject.create(post_id: post.id)
         expect(subject.errors.full_messages).to include(I18n.t("bookmarks.errors.already_bookmarked_post"))
+      end
+    end
+
+    context "when the bookmark name is too long" do
+      it "adds an error to the manager" do
+        subject.create(post_id: post.id, name: "test" * 100)
+        expect(subject.errors.full_messages).to include("Name is too long (maximum is 100 characters)")
       end
     end
 
@@ -153,7 +159,7 @@ RSpec.describe BookmarkManager do
     end
 
     context "if the bookmark no longer exists" do
-      it "raises an invalid access error" do
+      it "raises a not found error" do
         expect { subject.destroy(9999) }.to raise_error(Discourse::NotFound)
       end
     end
@@ -185,12 +191,12 @@ RSpec.describe BookmarkManager do
     end
 
     context "when options are provided" do
-      let(:options) { { delete_when_reminder_sent: true } }
+      let(:options) { { auto_delete_preference: Bookmark.auto_delete_preferences[:when_reminder_sent] } }
 
       it "saves any additional options successfully" do
         update_bookmark
         bookmark.reload
-        expect(bookmark.delete_when_reminder_sent).to eq(true)
+        expect(bookmark.auto_delete_preference).to eq(1)
       end
     end
 
@@ -214,7 +220,7 @@ RSpec.describe BookmarkManager do
       before do
         bookmark.destroy!
       end
-      it "raises an invalid access error" do
+      it "raises a not found error" do
         expect { update_bookmark }.to raise_error(Discourse::NotFound)
       end
     end
@@ -285,6 +291,38 @@ RSpec.describe BookmarkManager do
 
     def notifications_for_user
       Notification.where(notification_type: Notification.types[:bookmark_reminder], user_id: bookmark.user.id)
+    end
+  end
+
+  describe ".toggle_pin" do
+    let!(:bookmark) { Fabricate(:bookmark, user: user) }
+
+    it "sets pinned to false if it is true" do
+      bookmark.update(pinned: true)
+      subject.toggle_pin(bookmark_id: bookmark.id)
+      expect(bookmark.reload.pinned).to eq(false)
+    end
+
+    it "sets pinned to true if it is false" do
+      bookmark.update(pinned: false)
+      subject.toggle_pin(bookmark_id: bookmark.id)
+      expect(bookmark.reload.pinned).to eq(true)
+    end
+
+    context "if the bookmark is belonging to some other user" do
+      let!(:bookmark) { Fabricate(:bookmark, user: Fabricate(:admin)) }
+      it "raises an invalid access error" do
+        expect { subject.toggle_pin(bookmark_id: bookmark.id) }.to raise_error(Discourse::InvalidAccess)
+      end
+    end
+
+    context "if the bookmark no longer exists" do
+      before do
+        bookmark.destroy!
+      end
+      it "raises a not found error" do
+        expect { subject.toggle_pin(bookmark_id: bookmark.id) }.to raise_error(Discourse::NotFound)
+      end
     end
   end
 end

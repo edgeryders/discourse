@@ -148,6 +148,35 @@ class StaffActionLogger
     ))
   end
 
+  def log_topic_closed(topic, opts = {})
+    raise Discourse::InvalidParameters.new(:topic) unless topic && topic.is_a?(Topic)
+    UserHistory.create!(params(opts).merge(
+      action: UserHistory.actions[opts[:closed] ? :topic_closed : :topic_opened],
+      topic_id: topic.id
+    ))
+  end
+
+  def log_topic_archived(topic, opts = {})
+    raise Discourse::InvalidParameters.new(:topic) unless topic && topic.is_a?(Topic)
+    UserHistory.create!(params(opts).merge(
+      action: UserHistory.actions[opts[:archived] ? :topic_archived : :topic_unarchived],
+      topic_id: topic.id
+    ))
+  end
+
+  def log_post_staff_note(post, opts = {})
+    raise Discourse::InvalidParameters.new(:post) unless post && post.is_a?(Post)
+
+    args = params(opts).merge(
+      action: UserHistory.actions[opts[:new_value].present? ? :post_staff_note_create : :post_staff_note_destroy],
+      post_id: post.id
+    )
+    args[:new_value] = opts[:new_value] if opts[:new_value].present?
+    args[:previous_value] = opts[:old_value] if opts[:old_value].present?
+
+    UserHistory.create!(params(opts).merge(args))
+  end
+
   def log_site_setting_change(setting_name, previous_value, new_value, opts = {})
     raise Discourse::InvalidParameters.new(:setting_name) unless setting_name.present? && SiteSetting.respond_to?(setting_name)
     UserHistory.create!(params(opts).merge(
@@ -294,7 +323,7 @@ class StaffActionLogger
     ))
   end
 
-  BADGE_FIELDS ||= %i{id name description long_description icon image badge_type_id
+  BADGE_FIELDS ||= %i{id name description long_description icon image_upload_id badge_type_id
     badge_grouping_id query allow_title multiple_grant listable target_posts
     enabled auto_revoke show_posts system}
 
@@ -782,17 +811,19 @@ class StaffActionLogger
     changes.delete("updated_at")
     old_values = []
     new_values = []
-    changes.each do |k, v|
-      old_values << "#{k}: #{v[0]}"
-      new_values << "#{k}: #{v[1]}"
-    end
+    changes
+      .sort_by { |k, _| k.to_s }
+      .each do |k, v|
+        old_values << "#{k}: #{v[0]}"
+        new_values << "#{k}: #{v[1]}"
+      end
 
     [old_values, new_values]
   end
 
   def params(opts = nil)
     opts ||= {}
-    { acting_user_id: @admin.id, context: opts[:context] }
+    { acting_user_id: @admin.id, context: opts[:context], details: opts[:details] }
   end
 
   def validate_category(category)

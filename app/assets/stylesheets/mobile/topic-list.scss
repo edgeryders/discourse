@@ -6,11 +6,6 @@
 // --------------------------------------------------
 
 .list-controls {
-  margin: 10px -3px 5px -3px;
-  .category-breadcrumb.hidden {
-    display: none;
-  }
-
   .container {
     display: flex;
     flex-wrap: wrap;
@@ -20,8 +15,6 @@
       display: flex;
       align-self: stretch;
       align-items: center;
-      margin: 0 3px 10px 3px;
-      order: 10; // always last for consistent placement
     }
   }
 
@@ -34,47 +27,13 @@
     display: flex;
     flex-wrap: wrap;
     width: 100%;
-    margin: 5px 0;
+    margin: 0.5em 0 0;
 
     button {
-      margin: 0 3px;
-
       &.select-kit-header {
         display: flex;
         height: 100%;
         flex: 1 1 auto;
-      }
-    }
-  }
-
-  .select-kit:not(.is-hidden) {
-    display: flex;
-    align-self: stretch;
-    margin-bottom: 10px;
-  }
-
-  .btn:not(.select-kit-header) {
-    margin-bottom: 10px;
-  }
-
-  .categories-admin-dropdown,
-  .tag-notifications-button {
-    order: 2; // after main nav
-  }
-
-  .category-navigation {
-    display: flex;
-    flex-wrap: wrap;
-    width: 100%;
-    .edit-category {
-      .d-icon {
-        margin: 0;
-      }
-      @media screen and (max-width: 374px) {
-        // Hide edit label on very tiny screens
-        .d-button-label {
-          display: none;
-        }
       }
     }
   }
@@ -86,12 +45,11 @@
     position: relative;
     .navigation-toggle {
       flex: 0 1 auto;
-      margin-bottom: 5px;
     }
     > li {
       margin-right: 0;
       font-size: $font-down-1;
-      border: 1px solid $primary-medium;
+      border: 1px solid var(--primary-medium);
     }
     > li > a {
       line-height: $line-height-large;
@@ -103,10 +61,10 @@
       }
     }
     .drop {
-      border: 1px solid $primary-low;
+      border: 1px solid var(--primary-low);
       position: absolute;
       z-index: z("dropdown") - 1;
-      background-color: $secondary;
+      background-color: var(--secondary);
       padding: 0 10px 10px 10px;
       width: 150px;
       top: 100%;
@@ -130,6 +88,23 @@
   margin-left: 0;
 }
 
+ol.category-breadcrumb {
+  margin: 0 -3px 5px -3px;
+  display: flex;
+  flex-wrap: wrap;
+  flex: 1 1 100%;
+  li.select-kit {
+    flex: 1 1 33%;
+    margin: 0 3px 5px 3px;
+    .select-kit-header .selected-name {
+      max-width: 80vw;
+      .badge-wrapper {
+        max-width: 100%;
+      }
+    }
+  }
+}
+
 // Base list
 // --------------------------------------------------
 
@@ -149,13 +124,13 @@
     position: relative;
     z-index: z("base") + 1; // Intentionally overlapping category to create bigger tap target
     a.title {
-      color: $primary;
+      color: var(--primary);
       padding: 0.5em 0 1.2em 0;
     }
     .topic-statuses {
       a {
         line-height: 0.8;
-        color: $primary-medium;
+        color: var(--primary-medium);
       }
     }
   }
@@ -169,7 +144,7 @@
     line-height: $line-height-small;
     padding: 0.15em 0.4em 0.2em 0.4em;
     .d-icon {
-      color: $secondary;
+      color: var(--secondary);
     }
 
     &.new-topic::before {
@@ -183,7 +158,7 @@
   .category-topic-link td.num .badge-notification {
     &.new-posts,
     &.unread-posts {
-      color: dark-light-choose($secondary, $secondary);
+      color: var(--secondary);
     }
   }
 
@@ -202,7 +177,7 @@
     .num .fa,
     a,
     a:visited {
-      color: dark-light-choose($primary-medium, $secondary-medium);
+      color: var(--primary-med-or-secondary-med);
     }
   }
 
@@ -211,7 +186,7 @@
     a {
       // let's make all ages dim on mobile so we're not
       // overwhelming people with info about each topic
-      color: dark-light-choose($primary-low-mid, $secondary-high) !important;
+      color: var(--primary-low-mid-or-secondary-high) !important;
     }
   }
 }
@@ -223,7 +198,7 @@
 
   td {
     padding: 12px 5px;
-    color: dark-light-choose($primary-medium, $secondary-high);
+    color: var(--primary-med-or-secondary-high);
     vertical-align: top;
   }
 
@@ -263,6 +238,21 @@
   .age {
     margin-left: 5px;
   }
+
+  // numbers get dimmer as they get colder
+  .coldmap {
+    &-high {
+      opacity: 0.4;
+    }
+
+    &-med {
+      opacity: 0.6;
+    }
+
+    &-low {
+      opacity: 0.8;
+    }
+  }
 }
 
 .subcategory-list-item.category {
@@ -270,11 +260,11 @@
   width: calc(100% + 20px);
   margin: 1.25em 10px 0;
   border-bottom: none !important;
-  border-top: 1px solid $primary-low !important;
+  border-top: 1px solid var(--primary-low) !important;
   &:last-of-type {
     margin-top: 0;
     margin-bottom: 1.25em;
-    border-bottom: 1px solid $primary-low !important;
+    border-bottom: 1px solid var(--primary-low) !important;
   }
   td:first-of-type {
     padding: 12px 0px;
@@ -288,7 +278,7 @@
 }
 
 tr.category-topic-link {
-  border-bottom: 1px solid $primary-low;
+  border-bottom: 1px solid var(--primary-low);
   &:last-of-type {
     border-bottom: none;
   }
@@ -307,7 +297,7 @@ tr.category-topic-link {
       margin-right: 5px;
     }
     a[href] {
-      color: $primary;
+      color: var(--primary);
     }
   }
 
@@ -362,18 +352,16 @@ tr.category-topic-link {
     float: left;
   }
   > footer {
-    border-top: 1px solid $primary-low;
+    border-top: 1px solid var(--primary-low);
     padding: 7px 10px;
-    figure {
+    .category-stat {
       float: left;
-      margin: 3px 7px 0 0;
-      color: dark-light-choose($primary, $secondary-low);
-      font-weight: bold;
-      font-size: $font-down-1;
-    }
-    figcaption {
-      display: inline;
+      margin: 3px 1em 0 0;
       font-weight: normal;
+      font-size: $font-down-1;
+      .value {
+        font-weight: bold;
+      }
     }
     .btn {
       float: right;
@@ -384,8 +372,8 @@ tr.category-topic-link {
 
 .category-list-item {
   padding: 0.5em 0 0.25em;
-  border-top: 1px solid $primary-low !important;
-  border-bottom: 1px solid $primary-low !important;
+  border-top: 1px solid var(--primary-low) !important;
+  border-bottom: 1px solid var(--primary-low) !important;
   margin-bottom: 2em;
 }
 
@@ -395,16 +383,16 @@ tr.category-topic-link {
   }
 }
 
+.category-topics-count a {
+  color: var(--primary);
+}
+
 .topic-list-bottom {
   margin: 20px 0 0 0;
 }
 
 // Misc. stuff
 // --------------------------------------------------
-.btn-group .dropdown-toggle:active,
-.btn-group.open .dropdown-toggle {
-  outline: 0;
-}
 
 .dropdown {
   position: relative;
@@ -413,94 +401,28 @@ tr.category-topic-link {
 .open .dropdown-toggle {
   outline: 0;
 }
-.caret {
-  display: inline-block;
-  width: 0;
-  height: 0;
-  vertical-align: middle;
-  border-top: 4px solid $primary;
-  border-right: 4px solid transparent;
-  border-left: 4px solid transparent;
-  content: "";
-  margin-left: 5px;
-}
 
 .fade.in {
   opacity: 1;
 }
 
-ol.category-breadcrumb {
-  margin: 0 0 5px 0;
-  display: flex;
-  flex-wrap: wrap;
-  flex: 1 1 100%;
-  li.select-kit {
-    flex: 1 1 33%;
-    margin: 0 3px 5px 3px;
-    .select-kit-header .selected-name {
-      max-width: 80vw;
-      .badge-wrapper {
-        max-width: 100%;
-      }
-    }
+.category-heading {
+  p {
+    font-size: $font-up-1;
+    margin-bottom: 0.75em;
   }
-}
-
-.top-lists {
-  h2 {
-    margin-left: 10px;
-  }
-  .topic-list {
-    padding-bottom: 10px;
-  }
-  .btn-default.pull-right {
-    margin-right: 10px;
-  }
-}
-
-.tags-admin-menu {
-  display: none;
-}
-
-.staff.tags-page #create-topic {
-  clear: right;
-}
-
-.topic-list-bottom h3 {
-  clear: both;
-  padding-top: 10px;
 }
 
 .category-logo.aspect-image {
   display: block;
-  margin: 8px 0;
-
+  margin: 1.5em 0 1em;
   img {
-    width: auto;
     max-width: 100%;
-    max-height: 150px;
-  }
-}
-
-@supports (--custom: property) {
-  .category-logo.aspect-image {
-    --max-height: 150px;
-    max-height: var(--max-height);
-    width: calc(var(--max-height) * var(--aspect-ratio));
-    max-width: 100%;
-    height: auto;
-
-    img {
-      width: 100%;
-      height: inherit;
-      max-width: initial;
-      max-height: initial;
-    }
   }
 }
 
 button.dismiss-read {
-  margin-right: 10px;
+  margin-bottom: 10px;
 }
 
 // base defines extra padding for easier click/top of title field
@@ -514,17 +436,35 @@ td .main-link {
   }
 }
 .topic-list {
-  .posts-map {
-    font-size: $font-up-1;
+  .num.posts-map button {
+    font-size: $font-up-2;
+    padding: 0;
+  }
+  .num.activity a {
+    padding: 0;
   }
   // so the topic excerpt is full width
   // as the containing div is 80%
   .topic-excerpt {
+    display: block;
     padding-right: 0;
     width: 120%;
+  }
+
+  .topic-excerpt-more {
+    color: var(--tertiary);
   }
 }
 
 .category-list.with-topics .category-list-item .category-description {
   display: none;
+}
+
+.category-list .category.muted a.category-title-link {
+  color: var(--primary-medium);
+  font-size: $font-down-1;
+}
+
+.muted-categories-link {
+  margin-left: 0;
 }

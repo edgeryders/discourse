@@ -194,8 +194,19 @@ describe Tag do
       Fabricate(:tag, name: "unused2", topic_count: 0, pm_topic_count: 0)]
     end
 
+    let(:tag_in_group) { Fabricate(:tag, name: "unused_in_group", topic_count: 0, pm_topic_count: 0) }
+    let!(:tag_group) { Fabricate(:tag_group, tag_names: [tag_in_group.name]) }
+
     it "returns the correct tags" do
       expect(Tag.unused.pluck(:name)).to contain_exactly("unused1", "unused2")
+    end
+  end
+
+  context "full_url" do
+    let(:tag) { Fabricate(:tag, name: "🚀") }
+
+    it "percent encodes emojis" do
+      expect(tag.full_url).to eq("http://test.localhost/tag/%F0%9F%9A%80")
     end
   end
 

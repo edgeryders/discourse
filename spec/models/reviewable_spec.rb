@@ -105,7 +105,7 @@ RSpec.describe Reviewable, type: :model do
       end
 
       it "works with the reviewable by group" do
-        SiteSetting.enable_category_group_review = true
+        SiteSetting.enable_category_group_moderation = true
         group = Fabricate(:group)
         reviewable.reviewable_by_group_id = group.id
         reviewable.save!
@@ -121,7 +121,7 @@ RSpec.describe Reviewable, type: :model do
       end
 
       it "doesn't allow review by group when disabled" do
-        SiteSetting.enable_category_group_review = false
+        SiteSetting.enable_category_group_moderation = false
         group = Fabricate(:group)
         reviewable.reviewable_by_group_id = group.id
         reviewable.save!
@@ -147,6 +147,18 @@ RSpec.describe Reviewable, type: :model do
           expect(reviewables).to include(qp)
           reviewables = Reviewable.list_for(user, username: user.username)
           expect(reviewables).not_to include(qp)
+        end
+
+        it 'can filter by who reviewed the flag' do
+          reviewable = Fabricate(:reviewable_flagged_post)
+          admin = Fabricate(:admin)
+          reviewable.perform(admin, :ignore)
+
+          reviewables = Reviewable.list_for(
+            user, status: :all, reviewed_by: admin.username
+          )
+
+          expect(reviewables).to contain_exactly(reviewable)
         end
 
         it 'Does not filter by status when status parameter is set to all' do
@@ -180,8 +192,8 @@ RSpec.describe Reviewable, type: :model do
           before do
             SiteSetting.reviewable_default_visibility = :high
             Reviewable.set_priorities(high: 10)
-            @queued_post = Fabricate(:reviewable_queued_post, score: 0, target: post)
-            @queued_user = Fabricate(:reviewable_user, score: 0)
+            @queued_post = Fabricate(:reviewable_queued_post, score: 0, target: post, force_review: true)
+            @queued_user = Fabricate(:reviewable_user, score: 0, force_review: true)
           end
 
           it 'includes queued posts when searching for pending reviewables' do

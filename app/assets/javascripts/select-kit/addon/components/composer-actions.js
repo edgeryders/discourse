@@ -1,16 +1,17 @@
-import I18n from "I18n";
-import DropdownSelectBoxComponent from "select-kit/components/dropdown-select-box";
 import {
-  PRIVATE_MESSAGE,
-  CREATE_TOPIC,
   CREATE_SHARED_DRAFT,
+  CREATE_TOPIC,
+  EDIT,
+  PRIVATE_MESSAGE,
   REPLY,
-  EDIT
 } from "discourse/models/composer";
+import discourseComputed from "discourse-common/utils/decorators";
 import Draft from "discourse/models/draft";
-import { computed } from "@ember/object";
-import { equal } from "@ember/object/computed";
+import DropdownSelectBoxComponent from "select-kit/components/dropdown-select-box";
+import I18n from "I18n";
+import bootbox from "bootbox";
 import { camelize } from "@ember/string";
+import { equal, gt } from "@ember/object/computed";
 import { isEmpty } from "@ember/utils";
 
 // Component can get destroyed and lose state
@@ -29,22 +30,35 @@ export default DropdownSelectBoxComponent.extend({
   pluginApiIdentifiers: ["composer-actions"],
   classNames: ["composer-actions"],
   isEditing: equal("action", EDIT),
+  isInSlowMode: gt("topic.slow_mode_seconds", 0),
 
   selectKitOptions: {
     icon: "iconForComposerAction",
     filterable: false,
-    showFullTitle: false
+    showFullTitle: false,
+    preventHeaderFocus: true,
   },
 
-  iconForComposerAction: computed("action", function() {
-    if (this.isEditing) {
-      return "pencil-alt";
-    } else if (this.action === CREATE_TOPIC) {
+  @discourseComputed("isEditing", "action", "whisper", "noBump", "isInSlowMode")
+  iconForComposerAction(isEditing, action, whisper, noBump, isInSlowMode) {
+    if (action === CREATE_TOPIC) {
       return "plus";
+    } else if (action === PRIVATE_MESSAGE) {
+      return "envelope";
+    } else if (action === CREATE_SHARED_DRAFT) {
+      return "far-clipboard";
+    } else if (whisper) {
+      return "far-eye-slash";
+    } else if (noBump) {
+      return "anchor";
+    } else if (isInSlowMode) {
+      return "hourglass-start";
+    } else if (isEditing) {
+      return "pencil-alt";
     } else {
       return "share";
     }
-  }),
+  },
 
   contentChanged() {
     this.set("seq", this.seq + 1);
@@ -86,12 +100,36 @@ export default DropdownSelectBoxComponent.extend({
     return {};
   },
 
-  content: computed("seq", function() {
+  @discourseComputed("seq")
+  content() {
     let items = [];
+
+    if (
+      this.action === REPLY &&
+      this.topic &&
+      this.topic.isPrivateMessage &&
+      this.topic.details &&
+      (this.topic.details.allowed_users.length > 1 ||
+        this.topic.details.allowed_groups.length > 0) &&
+      !this.isEditing &&
+      _topicSnapshot
+    ) {
+      items.push({
+        name: I18n.t(
+          "composer.composer_actions.reply_as_new_group_message.label"
+        ),
+        description: I18n.t(
+          "composer.composer_actions.reply_as_new_group_message.desc"
+        ),
+        icon: "plus",
+        id: "reply_as_new_group_message",
+      });
+    }
 
     if (
       this.action !== CREATE_TOPIC &&
       this.action !== CREATE_SHARED_DRAFT &&
+      !(this.action === REPLY && this.topic && this.topic.isPrivateMessage) &&
       !this.isEditing &&
       _topicSnapshot
     ) {
@@ -101,7 +139,7 @@ export default DropdownSelectBoxComponent.extend({
           "composer.composer_actions.reply_as_new_topic.desc"
         ),
         icon: "plus",
-        id: "reply_as_new_topic"
+        id: "reply_as_new_topic",
       });
     }
 
@@ -113,12 +151,11 @@ export default DropdownSelectBoxComponent.extend({
     ) {
       items.push({
         name: I18n.t("composer.composer_actions.reply_to_post.label", {
-          postNumber: _postSnapshot.post_number,
-          postUsername: _postSnapshot.username
+          postUsername: _postSnapshot.username,
         }),
         description: I18n.t("composer.composer_actions.reply_to_post.desc"),
         icon: "share",
-        id: "reply_to_post"
+        id: "reply_to_post",
       });
     }
 
@@ -135,7 +172,7 @@ export default DropdownSelectBoxComponent.extend({
           "composer.composer_actions.reply_as_private_message.desc"
         ),
         icon: "envelope",
-        id: "reply_as_private_message"
+        id: "reply_as_private_message",
       });
     }
 
@@ -152,7 +189,7 @@ export default DropdownSelectBoxComponent.extend({
         name: I18n.t("composer.composer_actions.reply_to_topic.label"),
         description: I18n.t("composer.composer_actions.reply_to_topic.desc"),
         icon: "share",
-        id: "reply_to_topic"
+        id: "reply_to_topic",
       });
     }
 
@@ -166,7 +203,7 @@ export default DropdownSelectBoxComponent.extend({
         name: I18n.t("composer.composer_actions.toggle_whisper.label"),
         description: I18n.t("composer.composer_actions.toggle_whisper.desc"),
         icon: "far-eye-slash",
-        id: "toggle_whisper"
+        id: "toggle_whisper",
       });
     }
 
@@ -182,7 +219,7 @@ export default DropdownSelectBoxComponent.extend({
           name: I18n.t("composer.composer_actions.shared_draft.label"),
           description: I18n.t("composer.composer_actions.shared_draft.desc"),
           icon: "far-clipboard",
-          id: "shared_draft"
+          id: "shared_draft",
         });
       }
 
@@ -201,7 +238,7 @@ export default DropdownSelectBoxComponent.extend({
           "composer.composer_actions.reply_as_new_topic.desc"
         ),
         icon: "share",
-        id: "create_topic"
+        id: "create_topic",
       });
     }
 
@@ -214,12 +251,12 @@ export default DropdownSelectBoxComponent.extend({
         name: I18n.t("composer.composer_actions.toggle_topic_bump.label"),
         description: I18n.t("composer.composer_actions.toggle_topic_bump.desc"),
         icon: "anchor",
-        id: "toggle_topic_bump"
+        id: "toggle_topic_bump",
       });
     }
 
     return items;
-  }),
+  },
 
   _replyFromExisting(options, post, topic) {
     this.closeComposer();
@@ -239,6 +276,21 @@ export default DropdownSelectBoxComponent.extend({
     model.toggleProperty("noBump");
   },
 
+  replyAsNewGroupMessageSelected(options) {
+    const recipients = [];
+
+    const details = this.topic.details;
+    details.allowed_users.forEach((u) => recipients.push(u.username));
+    details.allowed_groups.forEach((g) => recipients.push(g.name));
+
+    options.action = PRIVATE_MESSAGE;
+    options.recipients = recipients.join(",");
+    options.archetypeId = "private_message";
+    options.skipDraftCheck = true;
+
+    this._replyFromExisting(options, _postSnapshot, _topicSnapshot);
+  },
+
   replyToTopicSelected(options) {
     options.action = REPLY;
     options.topic = _topicSnapshot;
@@ -254,12 +306,14 @@ export default DropdownSelectBoxComponent.extend({
   },
 
   replyAsNewTopicSelected(options) {
-    Draft.get("new_topic").then(response => {
+    Draft.get("new_topic").then((response) => {
       if (response.draft) {
         bootbox.confirm(
           I18n.t("composer.composer_actions.reply_as_new_topic.confirm"),
-          result => {
-            if (result) this._replyAsNewTopicSelect(options);
+          (result) => {
+            if (result) {
+              this._replyAsNewTopicSelect(options);
+            }
           }
         );
       } else {
@@ -296,7 +350,7 @@ export default DropdownSelectBoxComponent.extend({
     }
 
     options.action = PRIVATE_MESSAGE;
-    options.usernames = usernames;
+    options.recipients = usernames;
     options.archetypeId = "private_message";
     options.skipDraftCheck = true;
 
@@ -339,6 +393,6 @@ export default DropdownSelectBoxComponent.extend({
         // eslint-disable-next-line no-console
         console.error(`No method '${action}' found`);
       }
-    }
-  }
+    },
+  },
 });

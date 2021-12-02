@@ -82,7 +82,9 @@ module TurboTests
     def check_for_migrations
       config =
         ActiveRecord::Base
-          .configurations["test"]
+          .configurations
+          .find_db_config("test")
+          .configuration_hash
           .merge("database" => "discourse_test_1")
 
       ActiveRecord::Tasks::DatabaseTasks.migrations_paths = ['db/migrate', 'db/post_migrate']
@@ -157,6 +159,7 @@ module TurboTests
         command = [
           "bundle", "exec", "rspec",
           *extra_args,
+          "--seed", rand(2**16).to_s,
           "--format", "TurboTests::JsonRowsFormatter",
           "--out", tmp_filename,
           *record_runtime_options,

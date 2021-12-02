@@ -7,10 +7,7 @@ class CategoryList
   self.preloaded_topic_custom_fields = Set.new
 
   attr_accessor :categories,
-                :uncategorized,
-                :draft,
-                :draft_key,
-                :draft_sequence
+                :uncategorized
 
   def initialize(guardian = nil, options = {})
     @guardian = guardian || Guardian.new
@@ -37,6 +34,7 @@ class CategoryList
         )
       end
     end
+
   end
 
   def preload_key
@@ -69,12 +67,22 @@ class CategoryList
     @all_topics.each do |t|
       # hint for the serializer
       t.include_last_poster = true if @options[:include_topics]
+      t.dismissed = dismissed_topic?(t)
       @topics_by_id[t.id] = t
     end
 
     category_featured_topics.each do |cft|
       @topics_by_category_id[cft.category_id] ||= []
       @topics_by_category_id[cft.category_id] << cft.topic_id
+    end
+  end
+
+  def dismissed_topic?(topic)
+    if @guardian.current_user
+      @dismissed_topic_users_lookup ||= DismissedTopicUser.lookup_for(@guardian.current_user, @all_topics)
+      @dismissed_topic_users_lookup.include?(topic.id)
+    else
+      false
     end
   end
 
@@ -92,7 +100,7 @@ class CategoryList
 
     @categories = @categories.to_a
 
-    notification_levels = CategoryUser.notification_levels_for(@guardian)
+    notification_levels = CategoryUser.notification_levels_for(@guardian.user)
     default_notification_level = CategoryUser.default_notification_level
 
     allowed_topic_create = Set.new(Category.topic_create_allowed(@guardian).pluck(:id))
@@ -112,7 +120,7 @@ class CategoryList
           to_delete << c
         end
       end
-      @categories.each { |c| c.subcategory_ids = subcategories[c.id] }
+      @categories.each { |c| c.subcategory_ids = subcategories[c.id] || [] }
       @categories.delete_if { |c| to_delete.include?(c) }
     end
 
@@ -136,7 +144,7 @@ class CategoryList
 
   def prune_empty
     return if SiteSetting.allow_uncategorized_topics
-    @categories.delete_if { |c| c.uncategorized? && c.displayable_topics.blank? }
+    @categories.delete_if { |c| c.uncategorized? }
   end
 
   # Attach some data for serialization to each topic

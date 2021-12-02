@@ -1,8 +1,9 @@
-import { isEmpty } from "@ember/utils";
-import { on, observes } from "discourse-common/utils/decorators";
+import { bind, observes, on } from "discourse-common/utils/decorators";
 import TextField from "discourse/components/text-field";
-import userSearch from "discourse/lib/user-search";
 import { findRawTemplate } from "discourse-common/lib/raw-templates";
+import { isEmpty } from "@ember/utils";
+import userSearch from "discourse/lib/user-search";
+import deprecated from "discourse-common/lib/deprecated";
 
 export default TextField.extend({
   autocorrect: false,
@@ -12,24 +13,30 @@ export default TextField.extend({
   single: false,
   fullWidthWrap: false,
 
-  init() {
-    this._super(...arguments);
+  @on("init")
+  deprecateComponent() {
+    deprecated(
+      "`{{user-selector}}` is deprecated. Please use `{{email-group-user-chooser}}` instead.",
+      { since: "2.7", dropFrom: "2.8" }
+    );
+  },
 
-    this._paste = e => {
-      let pastedText = "";
-      if (window.clipboardData && window.clipboardData.getData) {
-        // IE
-        pastedText = window.clipboardData.getData("Text");
-      } else if (e.clipboardData && e.clipboardData.getData) {
-        pastedText = e.clipboardData.getData("text/plain");
-      }
+  @bind
+  _paste(event) {
+    let pastedText = "";
 
-      if (pastedText.length > 0) {
-        this.importText(pastedText);
-        e.preventDefault();
-        return false;
-      }
-    };
+    if (window.clipboardData && window.clipboardData.getData) {
+      // IE
+      pastedText = window.clipboardData.getData("Text");
+    } else if (event.clipboardData && event.clipboardData.getData) {
+      pastedText = event.clipboardData.getData("text/plain");
+    }
+
+    if (pastedText.length > 0) {
+      this.importText(pastedText);
+      event.preventDefault();
+      return false;
+    }
   },
 
   didUpdateAttrs() {
@@ -43,12 +50,12 @@ export default TextField.extend({
   @on("willDestroyElement")
   _destroyAutocompleteInstance() {
     $(this.element).autocomplete("destroy");
-    this.element.addEventListener("paste", this._paste);
+    this.element.removeEventListener("paste", this._paste);
   },
 
   @on("didInsertElement")
   _createAutocompleteInstance(opts) {
-    const bool = n => {
+    const bool = (n) => {
       const val = this[n];
       return val === true || val === "true";
     };
@@ -102,7 +109,7 @@ export default TextField.extend({
             includeMentionableGroups,
             includeMessageableGroups,
             groupMembersOf: userSelectorComponent.groupMembersOf,
-            allowEmails
+            allowEmails,
           });
         },
 
@@ -114,13 +121,13 @@ export default TextField.extend({
             return v.username || v.name;
           } else {
             const excludes = allExcludedUsernames();
-            return v.usernames.filter(item => excludes.indexOf(item) === -1);
+            return v.usernames.filter((item) => excludes.indexOf(item) === -1);
           }
         },
 
         onChangeItems(items) {
           let hasGroups = false;
-          items = items.map(i => {
+          items = items.map((i) => {
             if (groups.indexOf(i) > -1) {
               hasGroups = true;
             }
@@ -138,7 +145,7 @@ export default TextField.extend({
 
           userSelectorComponent.setProperties({
             usernames: items.join(","),
-            hasGroups
+            hasGroups,
           });
           selected = items;
 
@@ -152,7 +159,7 @@ export default TextField.extend({
 
         reverseTransform(i) {
           return { username: i };
-        }
+        },
       });
   },
 
@@ -162,7 +169,7 @@ export default TextField.extend({
       usernames = this.usernames.split(",");
     }
 
-    (text || "").split(/[, \n]+/).forEach(val => {
+    (text || "").split(/[, \n]+/).forEach((val) => {
       val = val.replace(/^@+/, "").trim();
       if (
         val.length > 0 &&
@@ -182,10 +189,7 @@ export default TextField.extend({
   @observes("usernames")
   _clearInput() {
     if (arguments.length > 1 && isEmpty(this.usernames)) {
-      $(this.element)
-        .parent()
-        .find("a")
-        .click();
+      $(this.element).parent().find("a").click();
     }
-  }
+  },
 });

@@ -13,11 +13,16 @@ export default {
 
     if (lastAuthResult) {
       const router = container.lookup("router:main");
+
       router.one("didTransition", () => {
-        next(() =>
-          Discourse.authenticationComplete(JSON.parse(lastAuthResult))
-        );
+        const controllerName =
+          router.currentPath === "invites.show" ? "invites-show" : "login";
+
+        next(() => {
+          let controller = container.lookup(`controller:${controllerName}`);
+          controller.authenticationComplete(JSON.parse(lastAuthResult));
+        });
       });
     }
-  }
+  },
 };

@@ -32,6 +32,13 @@ describe Category do
     expect(cats.errors[:name]).to be_present
   end
 
+  describe "slug" do
+    it "converts to lower" do
+      category = Category.create!(name: "Hello World", slug: "Hello-World", user: user)
+      expect(category.slug).to eq("hello-world")
+    end
+  end
+
   describe "resolve_permissions" do
     it "can determine read_restricted" do
       read_restricted, resolved = Category.resolve_permissions(everyone: :full)
@@ -58,13 +65,13 @@ describe Category do
     fab!(:user) { Fabricate(:user) }
 
     it "will add the group to the reviewable" do
-      SiteSetting.enable_category_group_review = true
+      SiteSetting.enable_category_group_moderation = true
       reviewable = PostActionCreator.spam(user, post).reviewable
       expect(reviewable.reviewable_by_group_id).to eq(group.id)
     end
 
     it "will add the group to the reviewable even if created manually" do
-      SiteSetting.enable_category_group_review = true
+      SiteSetting.enable_category_group_moderation = true
       reviewable = ReviewableFlaggedPost.create!(
         created_by: user,
         payload: { raw: 'test raw' },
@@ -74,7 +81,7 @@ describe Category do
     end
 
     it "will not add add the group to the reviewable" do
-      SiteSetting.enable_category_group_review = false
+      SiteSetting.enable_category_group_moderation = false
       reviewable = PostActionCreator.spam(user, post).reviewable
       expect(reviewable.reviewable_by_group_id).to be_nil
     end
@@ -87,7 +94,7 @@ describe Category do
     end
 
     it "will remove the reviewable_by_group if the category is updated" do
-      SiteSetting.enable_category_group_review = true
+      SiteSetting.enable_category_group_moderation = true
       reviewable = PostActionCreator.spam(user, post).reviewable
       category.reviewable_by_group_id = nil
       category.save!
@@ -1185,4 +1192,36 @@ describe Category do
     end
   end
 
+  describe "#find_by_slug_path" do
+    it 'works for categories with slugs' do
+      category = Fabricate(:category, slug: 'cat1')
+
+      expect(Category.find_by_slug_path(['cat1'])).to eq(category)
+    end
+
+    it 'works for categories without slugs' do
+      SiteSetting.slug_generation_method = 'none'
+
+      category = Fabricate(:category, slug: 'cat1')
+
+      expect(Category.find_by_slug_path(["#{category.id}-category"])).to eq(category)
+    end
+
+    it 'works for subcategories with slugs' do
+      category = Fabricate(:category, slug: 'cat1')
+      subcategory = Fabricate(:category, slug: 'cat2', parent_category: category)
+
+      expect(Category.find_by_slug_path(['cat1', 'cat2'])).to eq(subcategory)
+    end
+
+    it 'works for subcategories without slugs' do
+      SiteSetting.slug_generation_method = 'none'
+
+      category = Fabricate(:category, slug: 'cat1')
+      subcategory = Fabricate(:category, slug: 'cat2', parent_category: category)
+
+      expect(Category.find_by_slug_path(['cat1', "#{subcategory.id}-category"])).to eq(subcategory)
+      expect(Category.find_by_slug_path(["#{category.id}-category", "#{subcategory.id}-category"])).to eq(subcategory)
+    end
+  end
 end
