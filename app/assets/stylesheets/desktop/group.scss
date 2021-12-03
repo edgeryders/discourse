@@ -3,9 +3,6 @@
     margin-right: 10px;
   }
 }
-.group-info {
-  margin-bottom: 20px;
-}
 
 .group-navigation {
   width: 15%;
@@ -15,13 +12,13 @@
     border: none;
 
     a {
-      color: dark-light-choose($primary-medium, $secondary-high);
+      color: var(--primary-med-or-secondary-high);
       padding: 8px 0;
 
       &.active {
         background-color: transparent;
         font-weight: bold;
-        color: $primary;
+        color: var(--primary);
 
         &:after {
           display: none;
@@ -45,8 +42,7 @@
   }
 }
 
-.group-details-button {
-  position: absolute;
-  top: 20px;
-  right: 20px;
+.groups-form.groups-notifications-form {
+  width: 500px;
+  max-width: 100%;
 }

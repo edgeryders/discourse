@@ -1,4 +1,8 @@
 .search-menu {
+  .menu-panel .panel-body-contents {
+    overflow-y: auto;
+  }
+
   .search-input {
     position: relative;
     padding: 0.5em 3px;
@@ -64,13 +68,14 @@
         align-items: center;
 
         .discourse-tags {
-          flex-wrap: wrap;
-          display: contents;
+          .discourse-tag {
+            margin-right: 0.25em;
+          }
         }
       }
 
       a.widget-link {
-        color: $tertiary;
+        color: var(--tertiary);
       }
     }
 
@@ -78,12 +83,12 @@
       display: flex;
       flex: 1 1 auto;
       .topic-statuses {
-        color: $primary-medium;
+        color: var(--primary-medium);
       }
     }
 
     .main-results + .secondary-results {
-      border-left: 1px solid $primary-low;
+      border-left: 1px solid var(--primary-low);
       margin-left: 1em;
       padding-left: 1em;
       max-width: 33%;
@@ -98,7 +103,7 @@
         margin-bottom: 1em;
         margin-top: 1em;
         height: 1px;
-        background: $primary-low;
+        background: var(--primary-low);
       }
 
       .search-result-tag {
@@ -115,10 +120,10 @@
 
       .search-result-group {
         .search-link {
-          color: $primary-high;
+          color: var(--primary-high);
 
           &:hover {
-            color: $primary;
+            color: var(--primary);
           }
         }
 
@@ -151,7 +156,7 @@
             &:hover {
               .name,
               .slug {
-                color: $primary-high;
+                color: var(--primary-high);
               }
             }
 
@@ -166,7 +171,7 @@
 
             .slug {
               font-size: $font-down-1;
-              color: $primary-high;
+              color: var(--primary-high);
             }
           }
         }
@@ -213,12 +218,17 @@
             }
 
             .username {
-              color: dark-light-choose($primary-high, $secondary-low);
+              color: var(--primary-high-or-secondary-low);
               font-size: $font-down-1;
             }
 
+            .custom-field {
+              color: var(--primary-high-or-secondary-low);
+              font-size: $font-down-2;
+            }
+
             .name {
-              color: dark-light-choose($primary-high, $secondary-low);
+              color: var(--primary-high-or-secondary-low);
               font-size: $font-0;
               font-weight: 700;
             }
@@ -228,6 +238,7 @@
     }
 
     .show-more {
+      box-sizing: border-box;
       padding: 5px;
     }
   }

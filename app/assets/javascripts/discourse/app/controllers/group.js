@@ -1,10 +1,9 @@
-import I18n from "I18n";
-import EmberObject, { action } from "@ember/object";
 import Controller, { inject as controller } from "@ember/controller";
-import discourseComputed from "discourse-common/utils/decorators";
-import { inject as service } from "@ember/service";
-import { readOnly } from "@ember/object/computed";
+import EmberObject, { action } from "@ember/object";
+import I18n from "I18n";
+import bootbox from "bootbox";
 import deprecated from "discourse-common/lib/deprecated";
+import discourseComputed from "discourse-common/utils/decorators";
 
 const Tab = EmberObject.extend({
   init() {
@@ -12,9 +11,9 @@ const Tab = EmberObject.extend({
 
     this.setProperties({
       route: this.route || `group.${this.name}`,
-      message: I18n.t(`groups.${this.i18nKey || this.name}`)
+      message: I18n.t(`groups.${this.i18nKey || this.name}`),
     });
-  }
+  },
 });
 
 export default Controller.extend({
@@ -22,8 +21,7 @@ export default Controller.extend({
   counts: null,
   showing: "members",
   destroying: null,
-  router: service(),
-  currentPath: readOnly("router.currentRouteName"),
+  showTooltip: false,
 
   @discourseComputed(
     "showMessages",
@@ -44,7 +42,7 @@ export default Controller.extend({
       route: "group.index",
       icon: "users",
       i18nKey: "members.title",
-      count: userCount
+      count: userCount,
     });
 
     const defaultTabs = [membersTab, Tab.create({ name: "activity" })];
@@ -55,7 +53,7 @@ export default Controller.extend({
           name: "requests",
           i18nKey: "requests.title",
           icon: "user-plus",
-          count: requestCount
+          count: requestCount,
         })
       );
     }
@@ -64,7 +62,7 @@ export default Controller.extend({
       defaultTabs.push(
         Tab.create({
           name: "messages",
-          i18nKey: "messages"
+          i18nKey: "messages",
         })
       );
     }
@@ -74,10 +72,17 @@ export default Controller.extend({
         Tab.create({
           name: "manage",
           i18nKey: "manage.title",
-          icon: "wrench"
+          icon: "wrench",
         })
       );
     }
+
+    defaultTabs.push(
+      Tab.create({
+        name: "permissions",
+        i18nKey: "permissions.title",
+      })
+    );
 
     return defaultTabs;
   },
@@ -89,11 +94,6 @@ export default Controller.extend({
     }
 
     return isGroupUser || (this.currentUser && this.currentUser.admin);
-  },
-
-  @discourseComputed("model.is_group_owner", "model.automatic")
-  canEditGroup(isGroupOwner, automatic) {
-    return !automatic && isGroupOwner;
   },
 
   @discourseComputed("model.displayName", "model.full_name")
@@ -112,7 +112,7 @@ export default Controller.extend({
       primary_group_flair_url: flairURL,
       primary_group_flair_bg_color: flairBgColor,
       primary_group_flair_color: flairColor,
-      primary_group_name: groupName
+      primary_group_name: groupName,
     };
   },
 
@@ -126,29 +126,41 @@ export default Controller.extend({
     return (
       this.currentUser &&
       (this.currentUser.canManageGroup(model) ||
-        (this.currentUser.admin && automatic))
+        (model.can_admin_group && automatic))
     );
   },
 
   @action
   messageGroup() {
-    this.send("createNewMessageViaParams", this.get("model.name"));
+    this.send("createNewMessageViaParams", {
+      recipients: this.get("model.name"),
+      hasGroups: true,
+    });
   },
 
   @action
   destroyGroup() {
     this.set("destroying", true);
 
+    const model = this.model;
+    let message = I18n.t("admin.groups.delete_confirm");
+
+    if (model.has_messages && model.message_count > 0) {
+      message = I18n.t("admin.groups.delete_with_messages_confirm", {
+        count: model.message_count,
+      });
+    }
+
     bootbox.confirm(
-      I18n.t("admin.groups.delete_confirm"),
+      message,
       I18n.t("no_value"),
       I18n.t("yes_value"),
-      confirmed => {
+      (confirmed) => {
         if (confirmed) {
-          this.model
+          model
             .destroy()
             .then(() => this.transitionToRoute("groups.index"))
-            .catch(error => {
+            .catch((error) => {
               // eslint-disable-next-line no-console
               console.error(error);
               bootbox.alert(I18n.t("admin.groups.delete_failed"));
@@ -161,14 +173,19 @@ export default Controller.extend({
     );
   },
 
+  @action
+  toggleDeleteTooltip() {
+    this.toggleProperty("showTooltip");
+  },
+
   actions: {
     destroy() {
       deprecated("Use `destroyGroup` action instead of `destroy`.", {
         since: "2.5.0",
-        dropFrom: "2.6.0"
+        dropFrom: "2.6.0",
       });
 
       this.destroyGroup();
-    }
-  }
+    },
+  },
 });

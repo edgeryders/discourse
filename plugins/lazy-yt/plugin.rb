@@ -5,11 +5,9 @@
 # version: 1.0.1
 # authors: Arpit Jalan
 # url: https://github.com/discourse/discourse/tree/master/plugins/lazy-yt
+# transpile_js: true
 
 hide_plugin if self.respond_to?(:hide_plugin)
-
-# javascript
-register_asset "javascripts/lazyYT.js"
 
 # stylesheet
 register_asset "stylesheets/lazyYT.css"
@@ -28,8 +26,10 @@ class Onebox::Engine::YoutubeOnebox
       video_height = (params['height'] && params['height'].to_i <= 500) ? params['height'] : 388 # embed height
       size_tags = ["width=\"#{video_width}\"", "height=\"#{video_height}\""]
 
-      og = get_opengraph.data
-      thumbnail_url = og[:image] || "https://img.youtube.com/vi/#{video_id}/hqdefault.jpg"
+      result = parse_embed_response
+      result ||= get_opengraph.data
+
+      thumbnail_url = result[:image] || "https://img.youtube.com/vi/#{video_id}/hqdefault.jpg"
 
       # Put in the LazyYT div instead of the iframe
       escaped_title = ERB::Util.html_escape(video_title)
@@ -53,6 +53,20 @@ class Onebox::Engine::YoutubeOnebox
     end
   end
 
+  alias_method :old_video_id, :video_id
+  alias_method :old_list_id, :list_id
+
+  def video_id
+    sanitize_yt_id(old_video_id)
+  end
+
+  def list_id
+    sanitize_yt_id(old_list_id)
+  end
+
+  def sanitize_yt_id(raw)
+    raw&.match?(/\A[\w-]+\z/) ? raw : nil
+  end
 end
 
 after_initialize do

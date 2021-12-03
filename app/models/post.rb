@@ -15,8 +15,9 @@ class Post < ActiveRecord::Base
     "image_url" # TODO(2021-06-01): remove
   ]
 
-  cattr_accessor :plugin_permitted_create_params
+  cattr_accessor :plugin_permitted_create_params, :plugin_permitted_update_params
   self.plugin_permitted_create_params = {}
+  self.plugin_permitted_update_params = {}
 
   # increase this number to force a system wide post rebake
   # Recreate `index_for_rebake_old` when the number is increased
@@ -34,7 +35,7 @@ class Post < ActiveRecord::Base
 
   has_many :post_replies
   has_many :replies, through: :post_replies
-  has_many :post_actions
+  has_many :post_actions, dependent: :destroy
   has_many :topic_links
   has_many :group_mentions, dependent: :destroy
 
@@ -52,13 +53,12 @@ class Post < ActiveRecord::Base
   has_many :revisions, -> { order(:number) }, foreign_key: :post_id, class_name: 'PostRevision'
 
   has_many :user_actions, foreign_key: :target_post_id
-  has_one :post_search_data, dependent: :delete
 
   belongs_to :image_upload, class_name: "Upload"
 
   validates_with PostValidator, unless: :skip_validation
 
-  after_save :index_search
+  after_commit :index_search
 
   # We can pass several creating options to a post via attributes
   attr_accessor :image_sizes, :quoted_post_numbers, :no_bump, :invalidate_oneboxes, :cooking_options, :skip_unique_check, :skip_validation
@@ -68,13 +68,18 @@ class Post < ActiveRecord::Base
   DOWNLOADED_IMAGES       ||= "downloaded_images"
   MISSING_UPLOADS         ||= "missing uploads"
   MISSING_UPLOADS_IGNORED ||= "missing uploads ignored"
-  NOTICE_TYPE             ||= "notice_type"
-  NOTICE_ARGS             ||= "notice_args"
+  NOTICE                  ||= "notice"
 
   SHORT_POST_CHARS ||= 1200
 
+  register_custom_field_type(LARGE_IMAGES, :json)
+  register_custom_field_type(BROKEN_IMAGES, :json)
+  register_custom_field_type(DOWNLOADED_IMAGES, :json)
+
   register_custom_field_type(MISSING_UPLOADS, :json)
   register_custom_field_type(MISSING_UPLOADS_IGNORED, :boolean)
+
+  register_custom_field_type(NOTICE, :json)
 
   scope :private_posts_for_user, ->(user) {
     where("posts.topic_id IN (#{Topic::PRIVATE_MESSAGES_SQL})", user_id: user.id)
@@ -162,6 +167,10 @@ class Post < ActiveRecord::Base
     includes(:post_details).find_by(post_details: { key: key, value: value })
   end
 
+  def self.find_by_number(topic_id, post_number)
+    find_by(topic_id: topic_id, post_number: post_number)
+  end
+
   def whisper?
     post_type == Post.types[:whisper]
   end
@@ -206,6 +215,7 @@ class Post < ActiveRecord::Base
       if topic.private_message?
         opts[:user_ids] = User.human_users.where("admin OR moderator").pluck(:id)
         opts[:user_ids] |= topic.allowed_users.pluck(:id)
+        opts[:user_ids] |= topic.allowed_group_users.pluck(:id)
       else
         opts[:group_ids] = topic.secure_group_ids
       end
@@ -215,12 +225,14 @@ class Post < ActiveRecord::Base
         .pluck(:id)
     end
 
-    MessageBus.publish(channel, message, opts)
+    if opts[:user_ids] != [] && opts[:group_ids] != []
+      MessageBus.publish(channel, message, opts)
+    end
   end
 
   def trash!(trashed_by = nil)
     self.topic_links.each(&:destroy)
-    self.delete_post_notices
+    self.save_custom_fields if self.custom_fields.delete(Post::NOTICE)
     super(trashed_by)
   end
 
@@ -255,8 +267,8 @@ class Post < ActiveRecord::Base
     Digest::SHA1.hexdigest(raw)
   end
 
-  def self.white_listed_image_classes
-    @white_listed_image_classes ||= ['avatar', 'favicon', 'thumbnail', 'emoji', 'ytp-thumbnail-image']
+  def self.allowed_image_classes
+    @allowed_image_classes ||= ['avatar', 'favicon', 'thumbnail', 'emoji', 'ytp-thumbnail-image']
   end
 
   def post_analyzer
@@ -266,7 +278,7 @@ class Post < ActiveRecord::Base
 
   %w{raw_mentions
     linked_hosts
-    image_count
+    embedded_media_count
     attachment_count
     link_count
     raw_links
@@ -301,7 +313,11 @@ class Post < ActiveRecord::Base
       each_upload_url do |url|
         uri = URI.parse(url)
         if FileHelper.is_supported_media?(File.basename(uri.path))
-          raw = raw.sub(Discourse.store.s3_upload_host, "#{Discourse.base_url}/#{Upload::SECURE_MEDIA_ROUTE}")
+          raw = raw.sub(
+            url, Rails.application.routes.url_for(
+              controller: "uploads", action: "show_secure", path: uri.path[1..-1], host: Discourse.current_hostname
+            )
+          )
         end
       end
     end
@@ -336,9 +352,9 @@ class Post < ActiveRecord::Base
     self.last_editor_id ? (User.find_by_id(self.last_editor_id) || user) : user
   end
 
-  def whitelisted_spam_hosts
+  def allowed_spam_hosts
     hosts = SiteSetting
-      .white_listed_spam_host_domains
+      .allowed_spam_host_domains
       .split('|')
       .map { |h| h.strip }
       .reject { |h| !h.include?('.') }
@@ -350,10 +366,10 @@ class Post < ActiveRecord::Base
 
   def total_hosts_usage
     hosts = linked_hosts.clone
-    whitelisted = whitelisted_spam_hosts
+    allowlisted = allowed_spam_hosts
 
     hosts.reject! do |h|
-      whitelisted.any? do |w|
+      allowlisted.any? do |w|
         h.end_with?(w)
       end
     end
@@ -419,8 +435,7 @@ class Post < ActiveRecord::Base
   end
 
   def delete_post_notices
-    self.custom_fields.delete(Post::NOTICE_TYPE)
-    self.custom_fields.delete(Post::NOTICE_ARGS)
+    self.custom_fields.delete(Post::NOTICE)
     self.save_custom_fields
   end
 
@@ -487,6 +502,10 @@ class Post < ActiveRecord::Base
       post_number == 1
   end
 
+  def is_category_description?
+    topic.present? && topic.is_category_topic? && is_first_post?
+  end
+
   def is_reply_by_email?
     via_email && post_number.present? && post_number > 1
   end
@@ -505,7 +524,7 @@ class Post < ActiveRecord::Base
       (topic.present? && (topic.private_message? || topic.category&.read_restricted))
   end
 
-  def hide!(post_action_type_id, reason = nil)
+  def hide!(post_action_type_id, reason = nil, custom_message: nil)
     return if hidden?
 
     reason ||= hidden_at ?
@@ -517,6 +536,7 @@ class Post < ActiveRecord::Base
     self.hidden = true
     self.hidden_at = Time.zone.now
     self.hidden_reason_id = reason
+    self.skip_unique_check = true
     save!
 
     Topic.where(
@@ -536,11 +556,16 @@ class Post < ActiveRecord::Base
         )
       }
 
+      message = custom_message
+      if message.nil?
+        message = hiding_again ? :post_hidden_again : :post_hidden
+      end
+
       Jobs.enqueue_in(
         5.seconds,
         :send_system_message,
         user_id: user.id,
-        message_type: hiding_again ? :post_hidden_again : :post_hidden,
+        message_type: message,
         message_options: options
       )
     end
@@ -892,7 +917,9 @@ class Post < ActiveRecord::Base
   end
 
   def index_search
-    SearchIndexer.index(self)
+    Scheduler::Defer.later "Index post for search" do
+      SearchIndexer.index(self)
+    end
   end
 
   def locked?
@@ -909,7 +936,6 @@ class Post < ActiveRecord::Base
       upload_ids << upload.id if upload.present?
     end
 
-    upload_ids |= Upload.where(id: downloaded_images.values).pluck(:id)
     post_uploads = upload_ids.map do |upload_id|
       { post_id: self.id, upload_id: upload_id }
     end
@@ -933,16 +959,14 @@ class Post < ActiveRecord::Base
     end
   end
 
-  def update_uploads_secure_status
+  def update_uploads_secure_status(source:)
     if Discourse.store.external?
-      self.uploads.each { |upload| upload.update_secure_status }
+      self.uploads.each { |upload| upload.update_secure_status(source: source) }
     end
   end
 
   def downloaded_images
-    JSON.parse(self.custom_fields[Post::DOWNLOADED_IMAGES].presence || "{}")
-  rescue JSON::ParserError
-    {}
+    self.custom_fields[Post::DOWNLOADED_IMAGES] || {}
   end
 
   def each_upload_url(fragments: nil, include_local_upload: true)
@@ -985,7 +1009,7 @@ class Post < ActiveRecord::Base
       next if Rails.configuration.multisite && src.exclude?(current_db)
 
       src = "#{SiteSetting.force_https ? "https" : "http"}:#{src}" if src.start_with?("//")
-      next unless Discourse.store.has_been_uploaded?(src) || (include_local_upload && src =~ /\A\/[^\/]/i)
+      next unless Discourse.store.has_been_uploaded?(src) || Upload.secure_media_url?(src) || (include_local_upload && src =~ /\A\/[^\/]/i)
 
       path = begin
         URI(UrlHelper.unencode(GlobalSetting.cdn_url ? src.sub(GlobalSetting.cdn_url, "") : src))&.path
@@ -1163,4 +1187,5 @@ end
 #  index_posts_on_topic_id_and_post_number   (topic_id,post_number) UNIQUE
 #  index_posts_on_topic_id_and_sort_order    (topic_id,sort_order)
 #  index_posts_on_user_id_and_created_at     (user_id,created_at)
+#  index_posts_user_and_likes                (user_id,like_count DESC,created_at DESC) WHERE (post_number > 1)
 #

@@ -133,10 +133,13 @@ RSpec.describe Admin::UsersController do
 
     it "works properly" do
       expect(user).not_to be_suspended
-      put "/admin/users/#{user.id}/suspend.json", params: {
-        suspend_until: 5.hours.from_now,
-        reason: "because I said so"
-      }
+
+      expect do
+        put "/admin/users/#{user.id}/suspend.json", params: {
+          suspend_until: 5.hours.from_now,
+          reason: "because I said so"
+        }
+      end.to change { Jobs::CriticalUserEmail.jobs.size }.by(0)
 
       expect(response.status).to eq(200)
 
@@ -147,6 +150,43 @@ RSpec.describe Admin::UsersController do
 
       log = UserHistory.where(target_user_id: user.id).order('id desc').first
       expect(log.details).to match(/because I said so/)
+    end
+
+    it "checks if user is suspended" do
+      put "/admin/users/#{user.id}/suspend.json", params: {
+        suspend_until: 5.hours.from_now,
+        reason: "because I said so"
+      }
+
+      put "/admin/users/#{user.id}/suspend.json", params: {
+        suspend_until: 5.hours.from_now,
+        reason: "because I said so too"
+      }
+
+      expect(response.status).to eq(409)
+      expect(response.parsed_body["message"]).to eq(
+        I18n.t(
+          "user.already_suspended",
+          staff: admin.username,
+          time_ago: FreedomPatches::Rails4.time_ago_in_words(user.suspend_record.created_at, true, scope: :'datetime.distance_in_words_verbose')
+        )
+      )
+    end
+
+    it "requires suspend_until and reason" do
+      expect(user).not_to be_suspended
+      put "/admin/users/#{user.id}/suspend.json", params: {}
+      expect(response.status).to eq(400)
+      user.reload
+      expect(user).not_to be_suspended
+
+      expect(user).not_to be_suspended
+      put "/admin/users/#{user.id}/suspend.json", params: {
+        suspend_until: 5.hours.from_now
+      }
+      expect(response.status).to eq(400)
+      user.reload
+      expect(user).not_to be_suspended
     end
 
     context "with an associated post" do
@@ -453,8 +493,14 @@ RSpec.describe Admin::UsersController do
     end
 
     it 'updates the moderator flag' do
-      Jobs.expects(:enqueue).with(:send_system_message, user_id: another_user.id, message_type: 'welcome_staff', message_options: { role: :moderator })
-      put "/admin/users/#{another_user.id}/grant_moderation.json"
+      expect_enqueued_with(job: :send_system_message, args: {
+        user_id: another_user.id,
+        message_type: 'welcome_staff',
+        message_options: { role: :moderator }
+      }) do
+        put "/admin/users/#{another_user.id}/grant_moderation.json"
+      end
+
       expect(response.status).to eq(200)
       another_user.reload
       expect(another_user.moderator).to eq(true)
@@ -727,6 +773,27 @@ RSpec.describe Admin::UsersController do
       reg_user.reload
       expect(reg_user).to be_silenced
     end
+
+    it "checks if user is silenced" do
+      put "/admin/users/#{user.id}/silence.json", params: {
+        silenced_till: 5.hours.from_now,
+        reason: "because I said so"
+      }
+
+      put "/admin/users/#{user.id}/silence.json", params: {
+        silenced_till: 5.hours.from_now,
+        reason: "because I said so too"
+      }
+
+      expect(response.status).to eq(409)
+      expect(response.parsed_body["message"]).to eq(
+        I18n.t(
+          "user.already_silenced",
+          staff: admin.username,
+          time_ago: FreedomPatches::Rails4.time_ago_in_words(user.silenced_record.created_at, true, scope: :'datetime.distance_in_words_verbose')
+        )
+      )
+    end
   end
 
   describe '#unsilence' do
@@ -798,12 +865,12 @@ RSpec.describe Admin::UsersController do
 
     before do
       SiteSetting.email_editable = false
-      SiteSetting.sso_url = "https://www.example.com/sso"
-      SiteSetting.enable_sso = true
-      SiteSetting.sso_overrides_email = true
-      SiteSetting.sso_overrides_name = true
-      SiteSetting.sso_overrides_username = true
-      SiteSetting.sso_secret = sso_secret
+      SiteSetting.discourse_connect_url = "https://www.example.com/sso"
+      SiteSetting.enable_discourse_connect = true
+      SiteSetting.auth_overrides_email = true
+      SiteSetting.auth_overrides_name = true
+      SiteSetting.auth_overrides_username = true
+      SiteSetting.discourse_connect_secret = sso_secret
       sso.sso_secret = sso_secret
     end
 
@@ -813,7 +880,7 @@ RSpec.describe Admin::UsersController do
       sso.email = "bob@bob.com"
       sso.external_id = "1"
 
-      user = DiscourseSingleSignOn.parse(sso.payload).lookup_or_create_user
+      user = DiscourseSingleSignOn.parse(sso.payload, secure_session: read_secure_session).lookup_or_create_user
 
       sso.name = "Bill"
       sso.username = "Hokli$$!!"
@@ -860,7 +927,7 @@ RSpec.describe Admin::UsersController do
       correct_payload = Rack::Utils.parse_query(sso.payload)
       post "/admin/users/sync_sso.json", params: correct_payload.merge(sig: "someincorrectsignature")
       expect(response.status).to eq(422)
-      expect(response.parsed_body["message"]).to include(I18n.t('sso.login_error'))
+      expect(response.parsed_body["message"]).to include(I18n.t('discourse_connect.login_error'))
       expect(response.parsed_body["message"]).not_to include(correct_payload["sig"])
     end
 
@@ -871,19 +938,21 @@ RSpec.describe Admin::UsersController do
       sso.external_id = ""
       post "/admin/users/sync_sso.json", params: Rack::Utils.parse_query(sso.payload)
       expect(response.status).to eq(422)
-      expect(response.parsed_body["message"]).to include(I18n.t('sso.blank_id_error'))
+      expect(response.parsed_body["message"]).to include(I18n.t('discourse_connect.blank_id_error'))
     end
   end
 
   describe '#disable_second_factor' do
     let(:second_factor) { user.create_totp(enabled: true) }
     let(:second_factor_backup) { user.generate_backup_codes }
+    let(:security_key) { Fabricate(:user_security_key, user: user) }
 
     describe 'as an admin' do
       before do
         sign_in(admin)
         second_factor
         second_factor_backup
+        security_key
         expect(user.reload.user_second_factors.totps.first).to eq(second_factor)
       end
 
@@ -894,6 +963,7 @@ RSpec.describe Admin::UsersController do
 
         expect(response.status).to eq(200)
         expect(user.reload.user_second_factors).to be_empty
+        expect(user.reload.security_keys).to be_empty
 
         job_args = Jobs::CriticalUserEmail.jobs.first["args"].first
 
@@ -907,9 +977,27 @@ RSpec.describe Admin::UsersController do
         expect(response.status).to eq(403)
       end
 
+      describe 'when user has only one second factor type enabled' do
+        it 'should succeed with security keys' do
+          user.user_second_factors.destroy_all
+
+          put "/admin/users/#{user.id}/disable_second_factor.json"
+
+          expect(response.status).to eq(200)
+        end
+        it 'should succeed with totp' do
+          user.security_keys.destroy_all
+
+          put "/admin/users/#{user.id}/disable_second_factor.json"
+
+          expect(response.status).to eq(200)
+        end
+      end
+
       describe 'when user does not have second factor enabled' do
         it 'should raise the right error' do
           user.user_second_factors.destroy_all
+          user.security_keys.destroy_all
 
           put "/admin/users/#{user.id}/disable_second_factor.json"
 
@@ -994,15 +1082,44 @@ RSpec.describe Admin::UsersController do
     fab!(:first_post) { Fabricate(:post, topic: topic, user: user) }
 
     it 'should merge source user to target user' do
+      Jobs.run_immediately!
       post "/admin/users/#{user.id}/merge.json", params: {
         target_username: target_user.username
       }
 
       expect(response.status).to eq(200)
-      expect(response.parsed_body["merged"]).to be_truthy
-      expect(response.parsed_body["user"]["id"]).to eq(target_user.id)
       expect(topic.reload.user_id).to eq(target_user.id)
       expect(first_post.reload.user_id).to eq(target_user.id)
+    end
+  end
+
+  describe '#sso_record' do
+    fab!(:sso_record) { SingleSignOnRecord.create!(user_id: user.id, external_id: '12345', external_email: user.email, last_payload: '') }
+
+    it "deletes the record" do
+      SiteSetting.discourse_connect_url = "https://www.example.com/sso"
+      SiteSetting.enable_discourse_connect = true
+
+      delete "/admin/users/#{user.id}/sso_record.json"
+      expect(response.status).to eq(200)
+      expect(user.single_sign_on_record).to eq(nil)
+    end
+  end
+
+  describe "#anonymize" do
+    it "will make the user anonymous" do
+      put "/admin/users/#{user.id}/anonymize.json"
+      expect(response.status).to eq(200)
+      expect(response.parsed_body['username']).to be_present
+    end
+
+    it "supports `anonymize_ip`" do
+      Jobs.run_immediately!
+      sl = Fabricate(:search_log, user_id: user.id)
+      put "/admin/users/#{user.id}/anonymize.json?anonymize_ip=127.0.0.2"
+      expect(response.status).to eq(200)
+      expect(response.parsed_body['username']).to be_present
+      expect(sl.reload.ip_address).to eq('127.0.0.2')
     end
   end
 

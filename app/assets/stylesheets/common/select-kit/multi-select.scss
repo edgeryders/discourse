@@ -1,7 +1,7 @@
 .select-kit {
   &.multi-select {
     width: 300px;
-    background: $secondary;
+    background: var(--secondary);
     border-radius: 0;
 
     .select-kit-row {
@@ -18,22 +18,22 @@
     }
 
     .multi-select-header {
-      background: $secondary;
-      border: 1px solid $primary-medium;
+      background: var(--secondary);
+      border: 1px solid var(--primary-medium);
 
-      &.is-focused {
-        box-shadow: shadow("focus");
-        border-radius: 0;
+      &.is-focused,
+      &:focus {
+        @include default-focus;
       }
     }
 
     &.is-disabled {
       .multi-select-header {
-        background: $primary-low;
-        border-color: $primary-low-mid;
-        color: $primary-medium;
+        background: var(--primary-low);
+        border-color: var(--primary-low-mid);
+        color: var(--primary-medium);
         .d-icon {
-          color: $primary-medium;
+          color: var(--primary-medium);
         }
       }
     }
@@ -41,19 +41,19 @@
     &.is-expanded {
       .select-kit-wrapper {
         display: block;
-        border: 1px solid $tertiary;
-        box-shadow: shadow("focus");
-        border-radius: 0;
       }
 
       .multi-select-header {
         border-radius: 0;
-        box-shadow: none;
-        outline: none;
+        @include default-focus;
       }
 
       .select-kit-body {
         border-radius: 0;
+        box-shadow: shadow("dropdown");
+        &.empty-body {
+          visibility: hidden;
+        }
       }
     }
 
@@ -139,15 +139,20 @@
       }
 
       .selected-name {
-        background: $primary-low;
+        background: var(--primary-low);
         padding: 0.25em;
         flex: 1;
         align-items: center;
         display: flex;
         justify-content: space-between;
+        max-width: calc(100% - 5px);
+
+        .name {
+          @include ellipsis;
+        }
 
         .d-icon {
-          color: $primary-low-mid;
+          color: var(--primary-low-mid);
           vertical-align: middle;
 
           &:last-child {
@@ -155,11 +160,7 @@
           }
         }
         &:hover .d-icon:last-child {
-          color: $danger;
-        }
-
-        &.is-highlighted {
-          box-shadow: 0 0 2px $danger, 0 1px 0 rgba(0, 0, 0, 0.05);
+          color: var(--danger);
         }
       }
     }

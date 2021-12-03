@@ -108,6 +108,26 @@ describe User do
       end
     end
 
+    context 'when user skipped the new user tips' do
+      let(:user) { Fabricate(:user) }
+
+      it 'should not initiate the bot' do
+        SiteSetting.default_other_skip_new_user_tips = true
+        expect { user }.to_not change { Post.count }
+      end
+
+      it 'should delete the existing PM' do
+        user.user_option.skip_new_user_tips = true
+
+        expect {
+          user.user_option.save!
+        }.to change { Topic.count }.by(-1)
+          .and change { UserHistory.count }.by(0)
+          .and change { user.unread_high_priority_notifications }.by(-1)
+          .and change { user.notifications.count }.by(-1)
+      end
+    end
+
     context 'when user is anonymous?' do
       before do
         SiteSetting.allow_anonymous_posting = true
@@ -145,6 +165,14 @@ describe User do
       user.destroy!
 
       expect(DiscourseNarrativeBot::Store.get(user.id)).to eq(nil)
+    end
+  end
+
+  describe '#manually_disabled_discobot?' do
+    it 'returns true if the user manually disabled new user tips' do
+      user.user_option.skip_new_user_tips = true
+
+      expect(user.manually_disabled_discobot?).to eq(true)
     end
   end
 end

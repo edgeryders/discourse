@@ -10,10 +10,12 @@
     grid-column-start: 1;
     grid-row-start: 1;
     grid-column-end: 2;
+    min-width: 120px;
   }
   .user-secondary-navigation {
     grid-column-start: 2;
     grid-row-start: 1;
+    min-width: 120px;
   }
   .user-additional-controls + .user-content,
   .user-secondary-navigation + .user-content {
@@ -36,7 +38,7 @@
 
   .user-content {
     box-sizing: border-box;
-    background-color: $secondary;
+    background-color: var(--secondary);
     table {
       width: 100%;
       margin-top: 12px;
@@ -45,7 +47,7 @@
 
   .about {
     margin-bottom: 0;
-    color: $secondary;
+    color: var(--secondary);
 
     .secondary {
       dl {
@@ -115,7 +117,7 @@
     .primary {
       display: flex;
       flex-wrap: wrap;
-      color: $primary;
+      color: var(--primary);
 
       .avatar {
         margin: 0 0 12px;
@@ -129,7 +131,7 @@
       }
 
       .bio {
-        color: $primary;
+        color: var(--primary);
         margin: 0 auto 8px;
         max-width: 700px;
         text-align: center;
@@ -305,32 +307,67 @@
 }
 
 .user-invites-page {
+  .user-invite-search input {
+    width: 100%;
+  }
+
   .admin-controls {
     flex-wrap: wrap;
     .pull-right {
       flex: 1 1 100%;
       font-size: $font-down-1;
-      padding: 0;
+      padding: 5px 0;
     }
   }
-  table {
-    tr:first-of-type {
+
+  table.user-invite-list {
+    thead {
       display: none;
     }
+
     tr {
-      display: flex;
-      flex-wrap: wrap;
-      margin-bottom: 1em;
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      padding: 0.25em;
     }
-    td:first-of-type {
-      margin-right: 1em;
-    }
-    td:nth-of-type(n + 3) {
+
+    .label {
       display: block;
-      width: 50%;
-      padding: 0.25em 0 1em 0;
+      color: var(--primary-medium);
+      font-size: $font-down-1;
+      margin: 0.5em 0 0.15em 0;
+    }
+
+    td.invite-type {
+      grid-column-start: 1;
+      grid-column-end: -2;
+      order: 1;
+      vertical-align: middle;
+    }
+
+    td.invite-actions {
+      order: 2;
+      align-self: center;
+      text-align: right;
+
+      button {
+        margin: 0.25em;
+      }
+    }
+
+    td.invite-updated-at {
+      grid-column-start: 1;
+      grid-column-end: 3;
+      order: 3;
+    }
+
+    td.invite-expires-at {
+      grid-column-start: 3;
+      grid-column-end: -1;
+      order: 4;
     }
   }
+
   .user-invite-none {
     margin-top: 1em;
   }

@@ -1,12 +1,18 @@
-# encoding: utf-8
-#
-# Never edit this file. It will be overwritten when translations are pulled from Transifex.
+# WARNING: Never edit this file.
+# It will be overwritten when translations are pulled from Crowdin.
 #
 # To work with us on translations, join this project:
-# https://www.transifex.com/projects/p/discourse-org/
+# https://translate.discourse.org/
 
 sw:
   js:
     presence:
-      replying: "anajibu"
-      editing: "inarekebishwa/hariri"
+      replying:
+        one: "anajibu"
+        other: "anajibu"
+      editing:
+        one: "inarekebishwa/hariri"
+        other: "inarekebishwa/hariri"
+      replying_to_topic:
+        one: "anajibu"
+        other: "anajibu"

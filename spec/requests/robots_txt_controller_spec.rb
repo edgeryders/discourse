@@ -52,7 +52,7 @@ RSpec.describe RobotsTxtController do
         set_subfolder "/forum"
 
         get '/robots.txt'
-        expect(response.body).to include("\nDisallow: /forum/admin")
+        expect(response.body).to include("\nDisallow: /forum/email/")
       end
     end
 
@@ -91,10 +91,12 @@ RSpec.describe RobotsTxtController do
         i = response.body.index('User-agent: *')
         expect(i).to be_present
         expect(response.body[i..-1]).to include("Disallow: /auth/")
+        # we have to insert Googlebot for special handling
+        expect(response.body[i..-1]).to include("User-agent: Googlebot")
       end
 
-      it "can whitelist user agents" do
-        SiteSetting.whitelisted_crawler_user_agents = "Googlebot|Twitterbot"
+      it "can allowlist user agents" do
+        SiteSetting.allowed_crawler_user_agents = "Googlebot|Twitterbot"
         get '/robots.txt'
         expect(response.body).to include('User-agent: Googlebot')
         expect(response.body).to include('User-agent: Twitterbot')
@@ -105,8 +107,8 @@ RSpec.describe RobotsTxtController do
         expect_allowed_and_disallowed_sections(allowed_index, disallow_all_index)
       end
 
-      it "can blacklist user agents" do
-        SiteSetting.blacklisted_crawler_user_agents = "Googlebot|Twitterbot"
+      it "can blocklist user agents" do
+        SiteSetting.blocked_crawler_user_agents = "Googlebot|Twitterbot"
         get '/robots.txt'
         expect(response.body).to include('User-agent: Googlebot')
         expect(response.body).to include('User-agent: Twitterbot')
@@ -117,9 +119,9 @@ RSpec.describe RobotsTxtController do
         expect_allowed_and_disallowed_sections(allow_index, disallow_index)
       end
 
-      it "ignores blacklist if whitelist is set" do
-        SiteSetting.whitelisted_crawler_user_agents = "Googlebot|Twitterbot"
-        SiteSetting.blacklisted_crawler_user_agents = "Bananabot"
+      it "ignores blocklist if allowlist is set" do
+        SiteSetting.allowed_crawler_user_agents = "Googlebot|Twitterbot"
+        SiteSetting.blocked_crawler_user_agents = "Bananabot"
         get '/robots.txt'
         expect(response.body).to_not include('Bananabot')
         expect(response.body).to include('User-agent: Googlebot')

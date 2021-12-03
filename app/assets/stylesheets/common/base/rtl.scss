@@ -24,7 +24,7 @@
 // The 'left' and 'right' in these selectors is not being flipped by r2.
 .rtl .nav-stacked a.active::after {
   border-left-color: transparent !important;
-  border-right-color: $secondary !important;
+  border-right-color: var(--secondary) !important;
 }
 .rtl code {
   direction: ltr !important;
@@ -55,10 +55,18 @@
 // This is for the support_mixed_text_direction setting
 .cooked ul[dir="ltr"],
 .d-editor-preview ul[dir="ltr"],
-.cooked ul[dir="rtl"],
-.d-editor-preview ul[dir="rtl"] {
-  padding-right: 40px;
+.rtl .cooked ul[dir="rtl"],
+.rtl .d-editor-preview ul[dir="rtl"] {
   padding-left: 40px;
+  padding-right: 0;
+}
+
+.cooked ul[dir="rtl"],
+.d-editor-preview ul[dir="rtl"],
+.rtl .cooked ul[dir="ltr"],
+.rtl .d-editor-preview ul[dir="ltr"] {
+  padding-left: 0;
+  padding-right: 40px;
 }
 
 // Fixes github oneboxes for RTL sites
@@ -118,5 +126,14 @@
     .nav-stacked {
       margin: 0 -10px 0 10px !important;
     }
+  }
+}
+
+.rtl .ace_placeholder {
+  direction: rtl !important;
+  text-align: right !important;
+
+  [dir="ltr"] {
+    text-align: left !important;
   }
 }

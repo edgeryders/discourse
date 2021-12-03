@@ -5,7 +5,7 @@ require 'rails_helper'
 RSpec.describe ListController do
   fab!(:user) { Fabricate(:user) }
   fab!(:topic) { Fabricate(:topic, user: user) }
-  fab!(:group) { Fabricate(:group) }
+  fab!(:group) { Fabricate(:group, name: "AwesomeGroup") }
   fab!(:admin) { Fabricate(:admin) }
 
   before do
@@ -52,6 +52,9 @@ RSpec.describe ListController do
 
       get "/latest.json?page=2147483647"
       expect(response.status).to eq(200)
+
+      get "/latest?search="
+      expect(response.status).to eq(200)
     end
 
     (Discourse.anonymous_filters - [:categories]).each do |filter|
@@ -85,6 +88,9 @@ RSpec.describe ListController do
   end
 
   describe "categories and X" do
+    let(:category) { Fabricate(:category_with_definition) }
+    let(:sub_category) { Fabricate(:category_with_definition, parent_category: category) }
+
     it "returns top topics" do
       Fabricate(:topic, like_count: 1000, posts_count: 100)
       TopTopic.refresh!
@@ -96,6 +102,12 @@ RSpec.describe ListController do
       get "/categories_and_latest.json"
       data = response.parsed_body
       expect(data["topic_list"]["topics"].length).to eq(2)
+    end
+
+    it "returns topics from subcategories when no_subcategories=false" do
+      Fabricate(:topic, category: sub_category)
+      get "/c/#{category.slug}/#{category.id}/l/latest.json?no_subcategories=false"
+      expect(response.parsed_body["topic_list"]["topics"].length).to eq(2)
     end
   end
 
@@ -173,20 +185,69 @@ RSpec.describe ListController do
   end
 
   describe '#private_messages_group' do
-    let(:user) do
-      user = Fabricate(:user)
-      group.add(user)
-      sign_in(user)
-      user
+    let(:user) { Fabricate(:user) }
+
+    describe 'with personal_messages disabled' do
+      let!(:topic) { Fabricate(:private_message_topic, allowed_groups: [group]) }
+
+      before do
+        group.add(user)
+        SiteSetting.enable_personal_messages = false
+      end
+
+      it 'should display group private messages for an admin' do
+        sign_in(Fabricate(:admin))
+
+        get "/topics/private-messages-group/#{user.username}/#{group.name}.json"
+
+        expect(response.status).to eq(200)
+
+        expect(response.parsed_body["topic_list"]["topics"].first["id"])
+          .to eq(topic.id)
+      end
+
+      it 'should display moderator group private messages for a moderator' do
+        moderator = Fabricate(:moderator)
+        group = Group.find(Group::AUTO_GROUPS[:moderators])
+        topic = Fabricate(:private_message_topic, allowed_groups: [group])
+
+        sign_in(moderator)
+
+        get "/topics/private-messages-group/#{moderator.username}/#{group.name}.json"
+        expect(response.status).to eq(200)
+      end
+
+      it "should not display group private messages for a moderator's group" do
+        moderator = Fabricate(:moderator)
+        sign_in(moderator)
+        group.add(moderator)
+
+        get "/topics/private-messages-group/#{user.username}/#{group.name}.json"
+
+        expect(response.status).to eq(404)
+      end
     end
 
     describe 'with unicode_usernames' do
-      before { SiteSetting.unicode_usernames = false }
+      before do
+        group.add(user)
+        sign_in(user)
+        SiteSetting.unicode_usernames = false
+      end
+
+      it 'should return the right response when user does not belong to group' do
+        Fabricate(:private_message_topic, allowed_groups: [group])
+
+        group.remove(user)
+
+        get "/topics/private-messages-group/#{user.username}/#{group.name}.json"
+
+        expect(response.status).to eq(404)
+      end
 
       it 'should return the right response' do
-        group.add(user)
         topic = Fabricate(:private_message_topic, allowed_groups: [group])
-        get "/topics/private-messages-group/#{user.username}/#{group.name}.json"
+        get "/topics/private-messages-group/#{user.username}/awesomegroup.json"
 
         expect(response.status).to eq(200)
 
@@ -196,7 +257,10 @@ RSpec.describe ListController do
     end
 
     describe 'with unicode_usernames' do
-      before { SiteSetting.unicode_usernames = true }
+      before do
+        sign_in(user)
+        SiteSetting.unicode_usernames = true
+      end
 
       it 'Returns a 200 with unicode group name' do
         unicode_group = Fabricate(:group, name: '群群组')
@@ -324,6 +388,13 @@ RSpec.describe ListController do
       expect(response.headers['X-Robots-Tag']).to eq('noindex')
     end
 
+    it 'renders latest RSS with query params' do
+      get "/latest.rss?status=closed"
+      expect(response.status).to eq(200)
+      expect(response.media_type).to eq('application/rss+xml')
+      expect(response.body).to_not include("<item>")
+    end
+
     it 'renders links correctly with subfolder' do
       set_subfolder "/forum"
       _post = Fabricate(:post, topic: topic, user: user)
@@ -363,14 +434,20 @@ RSpec.describe ListController do
 
       context 'with access to see the category' do
         it "succeeds" do
-          get "/c/#{category.slug}/l/latest"
+          get "/c/#{category.slug}/#{category.id}/l/latest"
           expect(response.status).to eq(200)
         end
       end
 
-      context 'with a link that includes an id' do
+      context 'with encoded slug in the category' do
+        let(:category) { Fabricate(:category, slug: "தமிழ்") }
+
+        before do
+          SiteSetting.slug_generation_method = "encoded"
+        end
+
         it "succeeds" do
-          get "/c/#{category.id}-category/l/latest"
+          get "/c/#{category.slug}/#{category.id}/l/latest"
           expect(response.status).to eq(200)
         end
       end
@@ -386,9 +463,9 @@ RSpec.describe ListController do
         end
 
         context "with invalid slug" do
-          xit "redirects" do
+          it "redirects" do
             get "/c/random_slug/another_random_slug/#{child_category.id}/l/latest"
-            expect(response).to redirect_to(child_category.url)
+            expect(response).to redirect_to("#{child_category.url}/l/latest")
           end
         end
       end
@@ -403,7 +480,7 @@ RSpec.describe ListController do
         }
 
         it 'uses the correct category' do
-          get "/c/#{other_category.slug}/l/latest.json"
+          get "/c/#{other_category.slug}/#{other_category.id}/l/latest.json"
           expect(response.status).to eq(200)
           body = response.parsed_body
           expect(body["topic_list"]["topics"].first["category_id"])
@@ -416,7 +493,7 @@ RSpec.describe ListController do
 
         context 'when parent and child are requested' do
           it "succeeds" do
-            get "/c/#{category.slug}/#{sub_category.slug}/l/latest"
+            get "/c/#{category.slug}/#{sub_category.slug}/#{sub_category.id}/l/latest"
             expect(response.status).to eq(200)
           end
         end
@@ -431,14 +508,14 @@ RSpec.describe ListController do
 
       describe 'feed' do
         it 'renders RSS' do
-          get "/c/#{category.slug}.rss"
+          get "/c/#{category.slug}/#{category.id}.rss"
           expect(response.status).to eq(200)
           expect(response.media_type).to eq('application/rss+xml')
         end
 
         it "renders RSS in subfolder correctly" do
           set_subfolder "/forum"
-          get "/c/#{category.slug}.rss"
+          get "/c/#{category.slug}/#{category.id}.rss"
           expect(response.status).to eq(200)
           expect(response.body).to_not include("/forum/forum")
           expect(response.body).to include("http://test.localhost/forum/c/#{category.slug}")
@@ -448,7 +525,7 @@ RSpec.describe ListController do
       describe "category default views" do
         it "has a top default view" do
           category.update!(default_view: 'top', default_top_period: 'monthly')
-          get "/c/#{category.slug}.json"
+          get "/c/#{category.slug}/#{category.id}.json"
           expect(response.status).to eq(200)
           json = response.parsed_body
           expect(json["topic_list"]["for_period"]).to eq("monthly")
@@ -456,7 +533,7 @@ RSpec.describe ListController do
 
         it "has a default view of nil" do
           category.update!(default_view: nil)
-          get "/c/#{category.slug}.json"
+          get "/c/#{category.slug}/#{category.id}.json"
           expect(response.status).to eq(200)
           json = response.parsed_body
           expect(json["topic_list"]["for_period"]).to be_blank
@@ -464,7 +541,7 @@ RSpec.describe ListController do
 
         it "has a default view of ''" do
           category.update!(default_view: '')
-          get "/c/#{category.slug}.json"
+          get "/c/#{category.slug}/#{category.id}.json"
           expect(response.status).to eq(200)
           json = response.parsed_body
           expect(json["topic_list"]["for_period"]).to be_blank
@@ -472,7 +549,7 @@ RSpec.describe ListController do
 
         it "has a default view of latest" do
           category.update!(default_view: 'latest')
-          get "/c/#{category.slug}.json"
+          get "/c/#{category.slug}/#{category.id}.json"
           expect(response.status).to eq(200)
           json = response.parsed_body
           expect(json["topic_list"]["for_period"]).to be_blank
@@ -481,13 +558,13 @@ RSpec.describe ListController do
 
       describe "renders canonical tag" do
         it 'for category default view' do
-          get "/c/#{category.slug}"
+          get "/c/#{category.slug}/#{category.id}"
           expect(response.status).to eq(200)
           expect(css_select("link[rel=canonical]").length).to eq(1)
         end
 
         it 'for category latest view' do
-          get "/c/#{category.slug}/l/latest"
+          get "/c/#{category.slug}/#{category.id}/l/latest"
           expect(response.status).to eq(200)
           expect(css_select("link[rel=canonical]").length).to eq(1)
         end
@@ -497,14 +574,14 @@ RSpec.describe ListController do
         let!(:amazing_category) { Fabricate(:category_with_definition, name: "Amazing Category") }
 
         it 'for category default view' do
-          get "/c/#{amazing_category.slug}"
+          get "/c/#{amazing_category.slug}/#{amazing_category.id}"
 
           expect(response.body).to have_tag "title", text: "Amazing Category - Discourse"
         end
 
         it 'for category latest view' do
           SiteSetting.short_site_description = "Best community"
-          get "/c/#{amazing_category.slug}/l/latest"
+          get "/c/#{amazing_category.slug}/#{amazing_category.id}/l/latest"
 
           expect(response.body).to have_tag "title", text: "Amazing Category - Discourse"
         end
@@ -535,10 +612,23 @@ RSpec.describe ListController do
       expect(json["topic_list"]["topics"].size).to eq(2)
     end
 
-    it "returns 404 if `hide_profile_and_presence` user option is checked" do
-      user.user_option.update_columns(hide_profile_and_presence: true)
-      get "/topics/created-by/#{user.username}.json"
-      expect(response.status).to eq(404)
+    context 'when `hide_profile_and_presence` is true' do
+      before do
+        user.user_option.update_columns(hide_profile_and_presence: true)
+      end
+
+      it "returns 404" do
+        get "/topics/created-by/#{user.username}.json"
+        expect(response.status).to eq(404)
+      end
+
+      it "should respond with a list when `allow_users_to_hide_profile` is false" do
+        SiteSetting.allow_users_to_hide_profile = false
+        get "/topics/created-by/#{user.username}.json"
+        expect(response.status).to eq(200)
+        json = response.parsed_body
+        expect(json["topic_list"]["topics"].size).to eq(2)
+      end
     end
   end
 
@@ -581,26 +671,35 @@ RSpec.describe ListController do
     end
   end
 
-  describe "private_messages_unread" do
-    before do
-      u = Fabricate(:user)
-      pm = Fabricate(:private_message_topic, user: u)
-      Fabricate(:post, user: u, topic: pm, post_number: 1)
-      pm.topic_allowed_users.create!(user: user)
+  describe "#private_messages_unread" do
+    fab!(:pm_user) { Fabricate(:user) }
+
+    fab!(:pm) do
+      Fabricate(:private_message_topic).tap do |t|
+        t.allowed_users << pm_user
+        create_post(user: pm_user, topic_id: t.id)
+      end
     end
 
     it "returns 403 error when the user can't see private message" do
       sign_in(Fabricate(:user))
-      get "/topics/private-messages-unread/#{user.username}.json"
-      expect(response).to be_forbidden
+      get "/topics/private-messages-unread/#{pm_user.username}.json"
+      expect(response.status).to eq(403)
     end
 
     it "succeeds when the user can see private messages" do
-      sign_in(user)
-      get "/topics/private-messages-unread/#{user.username}.json"
+      TopicUser.find_by(topic: pm, user: pm_user).update!(
+        notification_level: TopicUser.notification_levels[:tracking],
+        last_read_post_number: 0,
+      )
+
+      sign_in(pm_user)
+      get "/topics/private-messages-unread/#{pm_user.username}.json"
+
       expect(response.status).to eq(200)
       json = response.parsed_body
       expect(json["topic_list"]["topics"].size).to eq(1)
+      expect(json["topic_list"]["topics"][0]["id"]).to eq(pm.id)
     end
   end
 
@@ -644,6 +743,104 @@ RSpec.describe ListController do
       user.user_option.update_columns(hide_profile_and_presence: true)
       get "/u/#{user.username}/activity/topics.rss"
       expect(response.status).to eq(404)
+    end
+  end
+
+  describe "set_category" do
+    let(:category) { Fabricate(:category_with_definition) }
+    let(:subcategory) { Fabricate(:category_with_definition, parent_category_id: category.id) }
+    let(:subsubcategory) { Fabricate(:category_with_definition, parent_category_id: subcategory.id) }
+
+    before do
+      SiteSetting.max_category_nesting = 3
+    end
+
+    it "redirects to URL with the updated slug" do
+      get "/c/hello/world/bye/#{subsubcategory.id}"
+      expect(response.status).to eq(301)
+      expect(response).to redirect_to("/c/#{category.slug}/#{subcategory.slug}/#{subsubcategory.slug}/#{subsubcategory.id}")
+
+      get "/c/#{category.slug}/#{subcategory.slug}/#{subsubcategory.slug}/#{subsubcategory.id}"
+      expect(response.status).to eq(200)
+    end
+
+    it "redirects to URL with correct case slug" do
+      category.update!(slug: "hello")
+
+      get "/c/Hello/#{category.id}"
+      expect(response).to redirect_to("/c/hello/#{category.id}")
+
+      get "/c/hello/#{category.id}"
+      expect(response.status).to eq(200)
+    end
+
+    context "does not create a redirect loop" do
+      it "with encoded slugs" do
+        category = Fabricate(:category)
+        category.update_columns(slug: CGI.escape("systèmes"))
+
+        get "/c/syst%C3%A8mes/#{category.id}"
+        expect(response.status).to eq(200)
+      end
+
+      it "with lowercase encoded slugs" do
+        category = Fabricate(:category)
+        category.update_columns(slug: CGI.escape("systèmes").downcase)
+
+        get "/c/syst%C3%A8mes/#{category.id}"
+        expect(response.status).to eq(200)
+      end
+    end
+
+    context "with subfolder" do
+      it "main category redirects to URL containing the updated slug" do
+        set_subfolder "/forum"
+        get "/c/#{category.slug}"
+
+        expect(response.status).to eq(301)
+        expect(response).to redirect_to("/forum/c/#{category.slug}/#{category.id}")
+      end
+
+      it "sub-sub-category redirects to URL containing the updated slug" do
+        set_subfolder "/forum"
+        get "/c/hello/world/bye/#{subsubcategory.id}"
+
+        expect(response.status).to eq(301)
+        expect(response).to redirect_to("/forum/c/#{category.slug}/#{subcategory.slug}/#{subsubcategory.slug}/#{subsubcategory.id}")
+      end
+    end
+  end
+
+  describe "shared drafts" do
+    fab!(:category1) { Fabricate(:category) }
+    fab!(:category2) { Fabricate(:category) }
+
+    fab!(:topic1) { Fabricate(:topic, category: category1) }
+    fab!(:topic2) { Fabricate(:topic, category: category2) }
+
+    fab!(:shared_draft_topic) { Fabricate(:topic, category: category1) }
+    fab!(:shared_draft) { Fabricate(:shared_draft, topic: shared_draft_topic, category: category2) }
+
+    it "are not displayed if they are disabled" do
+      SiteSetting.shared_drafts_category = ""
+      sign_in(admin)
+
+      get "/c/#{category1.slug}/#{category1.id}.json"
+      expect(response.parsed_body['topic_list']['shared_drafts']).to eq(nil)
+      expect(response.parsed_body['topic_list']['topics'].map { |t| t['id'] }).to contain_exactly(topic1.id, shared_draft_topic.id)
+    end
+
+    it "are displayed in both shared drafts category and target category" do
+      SiteSetting.shared_drafts_category = category1.id
+      sign_in(admin)
+
+      get "/c/#{category1.slug}/#{category1.id}.json"
+      expect(response.parsed_body['topic_list']['shared_drafts']).to be_nil
+      expect(response.parsed_body['topic_list']['topics'].map { |t| t['id'] }).to contain_exactly(topic1.id, shared_draft_topic.id)
+
+      get "/c/#{category2.slug}/#{category2.id}.json"
+      expect(response.parsed_body['topic_list']['shared_drafts'].map { |t| t['id'] }).to contain_exactly(shared_draft_topic.id)
+      expect(response.parsed_body['topic_list']['topics'].map { |t| t['id'] }).to contain_exactly(topic2.id)
     end
   end
 end

@@ -39,6 +39,10 @@ Discourse::Application.configure do
 
     settings[:openssl_verify_mode] = GlobalSetting.smtp_openssl_verify_mode if GlobalSetting.smtp_openssl_verify_mode
 
+    if GlobalSetting.smtp_force_tls
+      settings[:tls] = true
+    end
+
     config.action_mailer.smtp_settings = settings.reject { |_, y| y.nil? }
   else
     config.action_mailer.delivery_method = :sendmail
@@ -65,4 +69,5 @@ Discourse::Application.configure do
     config.developer_emails = emails.split(",").map(&:downcase).map(&:strip)
   end
 
+  config.active_record.dump_schema_after_migration = false
 end

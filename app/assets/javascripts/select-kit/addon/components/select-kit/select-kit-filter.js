@@ -1,24 +1,24 @@
-import I18n from "I18n";
 import Component from "@ember/component";
+import I18n from "I18n";
+import UtilsMixin from "select-kit/mixins/utils";
+import { computed } from "@ember/object";
 import discourseComputed from "discourse-common/utils/decorators";
 import { isPresent } from "@ember/utils";
-import { computed } from "@ember/object";
+import layout from "select-kit/templates/components/select-kit/select-kit-filter";
 import { not } from "@ember/object/computed";
-import UtilsMixin from "select-kit/mixins/utils";
 
 export default Component.extend(UtilsMixin, {
-  layoutName: "select-kit/templates/components/select-kit/select-kit-filter",
+  layout,
   classNames: ["select-kit-filter"],
   classNameBindings: ["isExpanded:is-expanded"],
-  attributeBindings: ["selectKitId:data-select-kit-id"],
-  selectKitId: computed("selectKit.uniqueID", function() {
-    return `${this.selectKit.uniqueID}-filter`;
-  }),
+  attributeBindings: ["role"],
+
+  role: "searchbox",
 
   isHidden: computed(
     "selectKit.options.{filterable,allowAny,autoFilterable}",
     "content.[]",
-    function() {
+    function () {
       return (
         !this.selectKit.options.filterable &&
         !this.selectKit.options.allowAny &&
@@ -46,8 +46,20 @@ export default Component.extend(UtilsMixin, {
   },
 
   actions: {
+    onPaste() {},
+
     onInput(event) {
       this.selectKit.onInput(event);
+      return true;
+    },
+
+    onKeyup(event) {
+      if (event.keyCode === 13 && this.selectKit.enterDisabled) {
+        this.element.querySelector("input").focus();
+        event.preventDefault();
+        event.stopPropagation();
+        return false;
+      }
       return true;
     },
 
@@ -88,8 +100,15 @@ export default Component.extend(UtilsMixin, {
         return false;
       }
 
-      if (event.keyCode === 13 && !this.selectKit.highlighted) {
+      if (
+        event.keyCode === 13 &&
+        (!this.selectKit.highlighted || this.selectKit.enterDisabled)
+      ) {
         this.element.querySelector("input").focus();
+        if (this.selectKit.enterDisabled) {
+          event.preventDefault();
+          event.stopPropagation();
+        }
         return false;
       }
 
@@ -104,6 +123,7 @@ export default Component.extend(UtilsMixin, {
         this.selectKit.close(event);
         return;
       }
-    }
-  }
+      this.selectKit.set("highlighted", null);
+    },
+  },
 });

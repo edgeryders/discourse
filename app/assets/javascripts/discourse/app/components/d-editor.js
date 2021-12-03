@@ -1,35 +1,42 @@
-import I18n from "I18n";
-import { debounce, later, next, schedule, scheduleOnce } from "@ember/runloop";
-import { inject as service } from "@ember/service";
-import Component from "@ember/component";
-/*global Mousetrap:true */
-import discourseComputed, {
-  on,
-  observes
-} from "discourse-common/utils/decorators";
-import { categoryHashtagTriggerRule } from "discourse/lib/category-hashtags";
-import { search as searchCategoryTag } from "discourse/lib/category-tag-search";
-import { generateCookFunction } from "discourse/lib/text";
-import { getRegister } from "discourse-common/lib/get-owner";
-import { findRawTemplate } from "discourse-common/lib/raw-templates";
-import { siteDir } from "discourse/lib/text-direction";
+import { ajax } from "discourse/lib/ajax";
 import {
-  determinePostReplaceSelection,
-  clipboardData,
-  safariHacksDisabled,
   caretPosition,
-  inCodeBlock
+  clipboardHelpers,
+  determinePostReplaceSelection,
+  inCodeBlock,
+  safariHacksDisabled,
 } from "discourse/lib/utilities";
-import toMarkdown from "discourse/lib/to-markdown";
-import deprecated from "discourse-common/lib/deprecated";
-import { wantsNewWindow } from "discourse/lib/intercept-click";
-import { translations } from "pretty-text/emoji/data";
+import discourseComputed, {
+  observes,
+  on,
+} from "discourse-common/utils/decorators";
 import { emojiSearch, isSkinTonableEmoji } from "pretty-text/emoji";
-import { emojiUrlFor } from "discourse/lib/text";
-import showModal from "discourse/lib/show-modal";
+import { emojiUrlFor, generateCookFunction } from "discourse/lib/text";
+import { later, next, schedule, scheduleOnce } from "@ember/runloop";
+import Component from "@ember/component";
+import I18n from "I18n";
+import Mousetrap from "mousetrap";
 import { Promise } from "rsvp";
-import { isTesting } from "discourse-common/config/environment";
 import { SKIP } from "discourse/lib/autocomplete";
+import { categoryHashtagTriggerRule } from "discourse/lib/category-hashtags";
+import deprecated from "discourse-common/lib/deprecated";
+import discourseDebounce from "discourse-common/lib/debounce";
+import { findRawTemplate } from "discourse-common/lib/raw-templates";
+import { getRegister } from "discourse-common/lib/get-owner";
+import { isEmpty } from "@ember/utils";
+import { isTesting } from "discourse-common/config/environment";
+import { linkSeenHashtags } from "discourse/lib/link-hashtags";
+import { linkSeenMentions } from "discourse/lib/link-mentions";
+import { loadOneboxes } from "discourse/lib/load-oneboxes";
+import loadScript from "discourse/lib/load-script";
+import { resolveCachedShortUrls } from "pretty-text/upload-short-url";
+import { search as searchCategoryTag } from "discourse/lib/category-tag-search";
+import { inject as service } from "@ember/service";
+import showModal from "discourse/lib/show-modal";
+import { siteDir } from "discourse/lib/text-direction";
+import toMarkdown from "discourse/lib/to-markdown";
+import { translations } from "pretty-text/emoji/data";
+import { wantsNewWindow } from "discourse/lib/intercept-click";
 
 // Our head can be a static string or a function that returns a string
 // based on input (like for numbered lists).
@@ -49,7 +56,7 @@ function getButtonLabel(labelKey, defaultLabel) {
 const OP = {
   NONE: 0,
   REMOVED: 1,
-  ADDED: 2
+  ADDED: 2,
 };
 
 const FOUR_SPACES_INDENT = "4-spaces-indent";
@@ -70,27 +77,29 @@ class Toolbar {
     this.groups = [
       { group: "fontStyles", buttons: [] },
       { group: "insertions", buttons: [] },
-      { group: "extras", buttons: [] }
+      { group: "extras", buttons: [] },
     ];
 
     this.addButton({
-      trimLeading: true,
       id: "bold",
       group: "fontStyles",
       icon: "bold",
       label: getButtonLabel("composer.bold_label", "B"),
       shortcut: "B",
-      perform: e => e.applySurround("**", "**", "bold_text")
+      preventFocus: true,
+      trimLeading: true,
+      perform: (e) => e.applySurround("**", "**", "bold_text"),
     });
 
     this.addButton({
-      trimLeading: true,
       id: "italic",
       group: "fontStyles",
       icon: "italic",
       label: getButtonLabel("composer.italic_label", "I"),
       shortcut: "I",
-      perform: e => e.applySurround("*", "*", "italic_text")
+      preventFocus: true,
+      trimLeading: true,
+      perform: (e) => e.applySurround("*", "*", "italic_text"),
     });
 
     if (opts.showLink) {
@@ -98,28 +107,32 @@ class Toolbar {
         id: "link",
         group: "insertions",
         shortcut: "K",
+        preventFocus: true,
         trimLeading: true,
-        sendAction: event => this.context.send("showLinkModal", event)
+        sendAction: (event) => this.context.send("showLinkModal", event),
       });
     }
 
     this.addButton({
-      id: "quote",
+      id: "blockquote",
       group: "insertions",
       icon: "quote-right",
       shortcut: "Shift+9",
-      perform: e =>
+      preventFocus: true,
+      perform: (e) =>
         e.applyList("> ", "blockquote_text", {
           applyEmptyLines: true,
-          multiline: true
-        })
+          multiline: true,
+        }),
     });
 
     this.addButton({
       id: "code",
       group: "insertions",
       shortcut: "Shift+C",
-      action: (...args) => this.context.send("formatCode", args)
+      preventFocus: true,
+      trimLeading: true,
+      action: (...args) => this.context.send("formatCode", args),
     });
 
     this.addButton({
@@ -128,7 +141,8 @@ class Toolbar {
       icon: "list-ul",
       shortcut: "Shift+8",
       title: "composer.ulist_title",
-      perform: e => e.applyList("* ", "list_item")
+      preventFocus: true,
+      perform: (e) => e.applyList("* ", "list_item"),
     });
 
     this.addButton({
@@ -137,8 +151,12 @@ class Toolbar {
       icon: "list-ol",
       shortcut: "Shift+7",
       title: "composer.olist_title",
-      perform: e =>
-        e.applyList(i => (!i ? "1. " : `${parseInt(i, 10) + 1}. `), "list_item")
+      preventFocus: true,
+      perform: (e) =>
+        e.applyList(
+          (i) => (!i ? "1. " : `${parseInt(i, 10) + 1}. `),
+          "list_item"
+        ),
     });
 
     if (siteSettings.support_mixed_text_direction) {
@@ -148,7 +166,8 @@ class Toolbar {
         icon: "exchange-alt",
         shortcut: "Shift+6",
         title: "composer.toggle_direction",
-        perform: e => e.toggleDirection()
+        preventFocus: true,
+        perform: (e) => e.toggleDirection(),
       });
     }
 
@@ -166,10 +185,11 @@ class Toolbar {
       className: button.className || button.id,
       label: button.label,
       icon: button.label ? null : button.icon || button.id,
-      action: button.action || (a => this.context.send("toolbarButton", a)),
-      perform: button.perform || function() {},
+      action: button.action || ((a) => this.context.send("toolbarButton", a)),
+      perform: button.perform || function () {},
       trimLeading: button.trimLeading,
-      popupMenu: button.popupMenu || false
+      popupMenu: button.popupMenu || false,
+      preventFocus: button.preventFocus || false,
     };
 
     if (button.sendAction) {
@@ -180,7 +200,7 @@ class Toolbar {
     if (button.shortcut) {
       const mac = /Mac|iPod|iPhone|iPad/.test(navigator.platform);
       const mod = mac ? "Meta" : "Ctrl";
-      var shortcutTitle = `${mod}+${button.shortcut}`;
+      let shortcutTitle = `${mod}+${button.shortcut}`;
 
       // Mac users are used to glyphs for shortcut keys
       if (mac) {
@@ -231,10 +251,13 @@ export default Component.extend({
   showLink: true,
   emojiPickerIsActive: false,
   emojiStore: service("emoji-store"),
+  isEditorFocused: false,
 
   @discourseComputed("placeholder")
   placeholderTranslated(placeholder) {
-    if (placeholder) return I18n.t(placeholder);
+    if (placeholder) {
+      return I18n.t(placeholder);
+    }
     return null;
   },
 
@@ -261,12 +284,14 @@ export default Component.extend({
 
     scheduleOnce("afterRender", this, this._readyNow);
 
-    const mouseTrap = Mousetrap(this.element.querySelector(".d-editor-input"));
+    this._mouseTrap = new Mousetrap(
+      this.element.querySelector(".d-editor-input")
+    );
     const shortcuts = this.get("toolbar.shortcuts");
 
-    Object.keys(shortcuts).forEach(sc => {
+    Object.keys(shortcuts).forEach((sc) => {
       const button = shortcuts[sc];
-      mouseTrap.bind(sc, () => {
+      this._mouseTrap.bind(sc, () => {
         button.action(button);
         return false;
       });
@@ -275,7 +300,7 @@ export default Component.extend({
     // disable clicking on links in the preview
     $(this.element.querySelector(".d-editor-preview")).on(
       "click.preview",
-      e => {
+      (e) => {
         if (wantsNewWindow(e)) {
           return;
         }
@@ -304,7 +329,10 @@ export default Component.extend({
       this.appEvents.on("composer:insert-text", this, "_insertText");
       this.appEvents.on("composer:replace-text", this, "_replaceText");
     }
-    this._mouseTrap = mouseTrap;
+
+    if (isTesting()) {
+      this.element.addEventListener("paste", this.paste.bind(this));
+    }
   },
 
   _insertBlock(text) {
@@ -323,11 +351,12 @@ export default Component.extend({
       this.appEvents.off("composer:replace-text", this, "_replaceText");
     }
 
-    const mouseTrap = this._mouseTrap;
-    Object.keys(this.get("toolbar.shortcuts")).forEach(sc =>
-      mouseTrap.unbind(sc)
-    );
+    this._mouseTrap.reset();
     $(this.element.querySelector(".d-editor-preview")).off("click.preview");
+
+    if (isTesting()) {
+      this.element.removeEventListener("paste", this.paste);
+    }
   },
 
   @discourseComputed()
@@ -337,7 +366,7 @@ export default Component.extend({
     );
     toolbar.context = this;
 
-    _createCallbacks.forEach(cb => cb(toolbar));
+    _createCallbacks.forEach((cb) => cb(toolbar));
 
     if (this.extraButtons) {
       this.extraButtons(toolbar);
@@ -351,7 +380,7 @@ export default Component.extend({
     }
 
     const markdownOptions = this.markdownOptions || {};
-    return generateCookFunction(markdownOptions).then(cook => {
+    return generateCookFunction(markdownOptions).then((cook) => {
       this._cachedCookFunction = cook;
       return cook(text);
     });
@@ -364,20 +393,58 @@ export default Component.extend({
 
     const value = this.value;
 
-    this.cachedCookAsync(value).then(cooked => {
+    this.cachedCookAsync(value).then((cooked) => {
       if (this.isDestroyed) {
         return;
       }
 
-      if (this.preview === cooked) return;
+      if (this.preview === cooked) {
+        return;
+      }
 
       this.set("preview", cooked);
+
+      if (this.siteSettings.enable_diffhtml_preview) {
+        const cookedElement = document.createElement("div");
+        cookedElement.innerHTML = cooked;
+
+        linkSeenHashtags($(cookedElement));
+        linkSeenMentions($(cookedElement), this.siteSettings);
+        resolveCachedShortUrls(this.siteSettings, cookedElement);
+        loadOneboxes(
+          cookedElement,
+          ajax,
+          null,
+          null,
+          this.siteSettings.max_oneboxes_per_post,
+          false,
+          true
+        );
+
+        loadScript("/javascripts/diffhtml.min.js").then(() => {
+          // changing the contents of the preview element between two uses of
+          // diff.innerHTML did not apply the diff correctly
+          window.diff.release(this.element.querySelector(".d-editor-preview"));
+          window.diff.innerHTML(
+            this.element.querySelector(".d-editor-preview"),
+            cookedElement.innerHTML,
+            {
+              parser: {
+                rawElements: ["script", "noscript", "style", "template"],
+              },
+            }
+          );
+        });
+      }
+
       schedule("afterRender", () => {
-        if (this._state !== "inDOM") {
+        if (this._state !== "inDOM" || !this.element) {
           return;
         }
         const $preview = $(this.element.querySelector(".d-editor-preview"));
-        if ($preview.length === 0) return;
+        if ($preview.length === 0) {
+          return;
+        }
 
         if (this.previewUpdated) {
           this.previewUpdated($preview);
@@ -396,7 +463,7 @@ export default Component.extend({
     if (isTesting()) {
       this._updatePreview();
     } else {
-      debounce(this, this._updatePreview, 30);
+      discourseDebounce(this, this._updatePreview, 30);
     }
   },
 
@@ -406,11 +473,14 @@ export default Component.extend({
     $(this.element.querySelector(".d-editor-input")).autocomplete({
       template: findRawTemplate("category-tag-autocomplete"),
       key: "#",
-      afterComplete: () => this._focusTextArea(),
-      transformComplete: obj => {
+      afterComplete: (value) => {
+        this.set("value", value);
+        return this._focusTextArea();
+      },
+      transformComplete: (obj) => {
         return obj.text;
       },
-      dataSource: term => {
+      dataSource: (term) => {
         if (term.match(/\s/)) {
           return null;
         }
@@ -418,7 +488,7 @@ export default Component.extend({
       },
       triggerRule: (textarea, opts) => {
         return categoryHashtagTriggerRule(textarea, opts);
-      }
+      },
     });
   },
 
@@ -430,7 +500,7 @@ export default Component.extend({
     $editorInput.autocomplete({
       template: findRawTemplate("emoji-selector-autocomplete"),
       key: ":",
-      afterComplete: text => {
+      afterComplete: (text) => {
         this.set("value", text);
         this._focusTextArea();
       },
@@ -440,7 +510,7 @@ export default Component.extend({
           return false;
         }
 
-        const matches = /(?:^|[>.,\/#!$%^&*;:{}=\-_`~()])(:(?!:).?[\w-]*:?(?!:)(?:t\d?)?:?) ?$/gi.exec(
+        const matches = /(?:^|[\s.\?,@\/#!%&*;:\[\]{}=\-_()])(:(?!:).?[\w-]*:?(?!:)(?:t\d?)?:?) ?$/gi.exec(
           text.substring(0, cp)
         );
 
@@ -449,16 +519,13 @@ export default Component.extend({
         }
       },
 
-      transformComplete: v => {
+      transformComplete: (v) => {
         if (v.code) {
           this.emojiStore.track(v.code);
           return `${v.code}:`;
         } else {
           $editorInput.autocomplete({ cancel: true });
-          this.setProperties({
-            isEditorFocused: $("textarea.d-editor-input").is(":focus"),
-            emojiPickerIsActive: true
-          });
+          this.set("emojiPickerIsActive", true);
 
           schedule("afterRender", () => {
             const filterInput = document.querySelector(
@@ -475,8 +542,8 @@ export default Component.extend({
         }
       },
 
-      dataSource: term => {
-        return new Promise(resolve => {
+      dataSource: (term) => {
+        return new Promise((resolve) => {
           const full = `:${term}`;
           term = term.toLowerCase();
 
@@ -493,7 +560,7 @@ export default Component.extend({
                 "smile",
                 "wink",
                 "sunny",
-                "blush"
+                "blush",
               ]);
             }
           }
@@ -518,21 +585,24 @@ export default Component.extend({
               if (scale) {
                 return resolve([`${name}:t${scale}`]);
               } else {
-                return resolve([2, 3, 4, 5, 6].map(x => `${name}:t${x}`));
+                return resolve([2, 3, 4, 5, 6].map((x) => `${name}:t${x}`));
               }
             }
           }
 
-          const options = emojiSearch(term, { maxResults: 5 });
+          const options = emojiSearch(term, {
+            maxResults: 5,
+            diversity: this.emojiStore.diversity,
+          });
 
           return resolve(options);
         })
-          .then(list =>
-            list.map(code => {
+          .then((list) =>
+            list.map((code) => {
               return { code, src: emojiUrlFor(code) };
             })
           )
-          .then(list => {
+          .then((list) => {
             if (list.length) {
               list.push({ label: I18n.t("composer.more_emoji"), term });
             }
@@ -540,13 +610,13 @@ export default Component.extend({
           });
       },
 
-      triggerRule: textarea =>
-        !inCodeBlock(textarea.value, caretPosition(textarea))
+      triggerRule: (textarea) =>
+        !inCodeBlock(textarea.value, caretPosition(textarea)),
     });
   },
 
   _getSelected(trimLeading, opts) {
-    if (!this.ready) {
+    if (!this.ready || !this.element) {
       return;
     }
 
@@ -581,18 +651,24 @@ export default Component.extend({
     }
   },
 
-  _selectText(from, length) {
-    schedule("afterRender", () => {
+  _selectText(from, length, opts = { scroll: true }) {
+    next(() => {
+      if (!this.element) {
+        return;
+      }
+
       const textarea = this.element.querySelector("textarea.d-editor-input");
       const $textarea = $(textarea);
-      const oldScrollPos = $textarea.scrollTop();
-      if (!this.capabilities.isIOS || safariHacksDisabled()) {
-        $textarea.focus();
-      }
       textarea.selectionStart = from;
       textarea.selectionEnd = from + length;
-      next(() => $textarea.trigger("change"));
-      $textarea.scrollTop(oldScrollPos);
+      $textarea.trigger("change");
+      if (opts.scroll) {
+        const oldScrollPos = $textarea.scrollTop();
+        if (!this.capabilities.isIOS || safariHacksDisabled()) {
+          $textarea.focus();
+        }
+        $textarea.scrollTop(oldScrollPos);
+      }
     });
   },
 
@@ -603,7 +679,7 @@ export default Component.extend({
     const applyEmptyLines = opts && opts.applyEmptyLines;
 
     return lines
-      .map(l => {
+      .map((l) => {
         if (!applyEmptyLines && l.length === 0) {
           return l;
         }
@@ -743,12 +819,12 @@ export default Component.extend({
     const newSelection = determinePostReplaceSelection({
       selection: { start: textarea.selectionStart, end: textarea.selectionEnd },
       needle: { start: needleStart, end: needleStart + oldVal.length },
-      replacement: { start: needleStart, end: needleStart + newVal.length }
+      replacement: { start: needleStart, end: needleStart + newVal.length },
     });
 
     if (opts.index && opts.regex) {
       let i = -1;
-      const newValue = val.replace(opts.regex, match => {
+      const newValue = val.replace(opts.regex, (match) => {
         i++;
         return i === opts.index ? newVal : match;
       });
@@ -829,10 +905,22 @@ export default Component.extend({
       text = text.substring(0, text.length - 1);
     }
 
-    let rows = text.split("\n");
+    text = text.split("");
+    let cell = false;
+    text.forEach((char, index) => {
+      if (char === "\n" && cell) {
+        text[index] = "\r";
+      }
+      if (char === '"') {
+        text[index] = "";
+        cell = !cell;
+      }
+    });
+
+    let rows = text.join("").replace(/\r/g, "<br>").split("\n");
 
     if (rows.length > 1) {
-      const columns = rows.map(r => r.split("\t").length);
+      const columns = rows.map((r) => r.split("\t").length);
       const isTable =
         columns.reduce((a, b) => a && columns[0] === b && b > 1) &&
         !(columns[0] === 2 && rows[0].split("\t")[0].match(/^•$|^\d+.$/)); // to skip tab delimited lists
@@ -842,7 +930,7 @@ export default Component.extend({
         rows.splice(1, 0, splitterRow);
 
         return (
-          "|" + rows.map(r => r.split("\t").join("|")).join("|\n|") + "|\n"
+          "|" + rows.map((r) => r.split("\t").join("|")).join("|\n|") + "|\n"
         );
       }
     }
@@ -858,12 +946,15 @@ export default Component.extend({
   },
 
   paste(e) {
-    if (!$(".d-editor-input").is(":focus")) {
+    if (!$(".d-editor-input").is(":focus") && !isTesting()) {
       return;
     }
 
     const isComposer = $("#reply-control .d-editor-input").is(":focus");
-    let { clipboard, canPasteHtml, canUpload } = clipboardData(e, isComposer);
+    let { clipboard, canPasteHtml, canUpload } = clipboardHelpers(e, {
+      siteSettings: this.siteSettings,
+      canUpload: isComposer,
+    });
 
     let plainText = clipboard.getData("text/plain");
     let html = clipboard.getData("text/html");
@@ -879,7 +970,7 @@ export default Component.extend({
       !isInlinePasting &&
       !isCodeBlock
     ) {
-      plainText = plainText.trim().replace(/\r/g, "");
+      plainText = plainText.replace(/\r/g, "");
       const table = this._extractTable(plainText);
       if (table) {
         this.appEvents.trigger("composer:insert-text", table);
@@ -941,7 +1032,6 @@ export default Component.extend({
         return;
       }
 
-      this.set("isEditorFocused", $("textarea.d-editor-input").is(":focus"));
       this.set("emojiPickerIsActive", !this.emojiPickerIsActive);
     },
 
@@ -949,7 +1039,7 @@ export default Component.extend({
       let selected = this._getSelected();
       const captures = selected.pre.match(/\B:(\w*)$/);
 
-      if (_.isEmpty(captures)) {
+      if (isEmpty(captures)) {
         if (selected.pre.match(/\S$/)) {
           this._addText(selected, ` :${code}:`);
         } else {
@@ -975,15 +1065,16 @@ export default Component.extend({
       const selected = this._getSelected(button.trimLeading);
       const toolbarEvent = {
         selected,
-        selectText: (from, length) => this._selectText(from, length),
+        selectText: (from, length) =>
+          this._selectText(from, length, { scroll: false }),
         applySurround: (head, tail, exampleKey, opts) =>
           this._applySurround(selected, head, tail, exampleKey, opts),
         applyList: (head, exampleKey, opts) =>
           this._applyList(selected, head, exampleKey, opts),
-        addText: text => this._addText(selected, text),
-        replaceText: text => this._addText({ pre: "", post: "" }, text),
+        addText: (text) => this._addText(selected, text),
+        replaceText: (text) => this._addText({ pre: "", post: "" }, text),
         getText: () => this.value,
-        toggleDirection: () => this._toggleDirection()
+        toggleDirection: () => this._toggleDirection(),
       };
 
       if (button.sendAction) {
@@ -1007,7 +1098,7 @@ export default Component.extend({
 
       showModal("insert-hyperlink").setProperties({
         linkText,
-        toolbarEvent
+        toolbarEvent,
       });
     },
 
@@ -1052,6 +1143,14 @@ export default Component.extend({
           );
         }
       }
-    }
-  }
+    },
+
+    focusIn() {
+      this.set("isEditorFocused", true);
+    },
+
+    focusOut() {
+      this.set("isEditorFocused", false);
+    },
+  },
 });

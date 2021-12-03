@@ -1,9 +1,8 @@
-# encoding: utf-8
-#
-# Never edit this file. It will be overwritten when translations are pulled from Transifex.
+# WARNING: Never edit this file.
+# It will be overwritten when translations are pulled from Crowdin.
 #
 # To work with us on translations, join this project:
-# https://www.transifex.com/projects/p/discourse-org/
+# https://translate.discourse.org/
 
 vi:
   js:
@@ -15,6 +14,14 @@ vi:
       average_rating: "Trung bình: <strong>%{average}</strong>."
       public:
         title: "Bình chọn <strong>công khai</strong>"
+      multiple:
+        help:
+          at_least_min_options:
+            other: "Chọn ít nhất <strong>%{count}</strong> tùy chọn."
+          up_to_max_options:
+            other: "Chọn tối đa <strong>%{count}</strong> tùy chọn."
+          x_options:
+            other: "Chọn <strong>%{count}</strong> tùy chọn."
       cast-votes:
         title: "Thay đổi bình chọn của bạn"
         label: "Bình chọn ngay!"
@@ -33,6 +40,8 @@ vi:
         title: "Đóng thăm dò"
         label: "Đóng"
         confirm: "Bạn có muốn đóng thăm dò này ?"
+      breakdown:
+        count: "Đếm"
       error_while_toggling_status: "Đã có lỗi xảy ra khi chuyển trạng thái của thăm dò."
       error_while_casting_votes: "Đã có lỗi xảy ra làm ảnh hưởng đến bình chọn của bạn."
       error_while_fetching_voters: "Đã có lỗi xảy ra khi hiển thị những người tham gia bình chọn."
@@ -47,13 +56,7 @@ vi:
           regular: Một lựa chọn
           multiple: Nhiều lựa chọn
           number: Xếp hạng
-        poll_result:
-          label: Kết quả
         poll_config:
-          max: Tối đa
-          min: Tối thiểu
           step: Bước
         poll_public:
           label: Hiển thị người đã bình chọn
-        poll_options:
-          label: Nhập mỗi lựa chọn trong thăm dò vào một dòng

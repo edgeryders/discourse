@@ -30,7 +30,12 @@ module DiscourseNarrativeBot
             next_opts = self.class::TRANSITION_TABLE.fetch(next_state)
             prerequisite = next_opts[:prerequisite]
 
-            break if !prerequisite || instance_eval(&prerequisite)
+            if (!prerequisite || instance_eval(&prerequisite)) && !(
+              SiteSetting.discourse_narrative_bot_skip_tutorials.present? &&
+              SiteSetting.discourse_narrative_bot_skip_tutorials.split("|").include?(next_state.to_s))
+
+              break
+            end
 
             [:next_state, :next_instructions].each do |key|
               opts[key] = next_opts[key]
@@ -132,7 +137,7 @@ module DiscourseNarrativeBot
       src = Discourse.base_url + DiscourseNarrativeBot::Engine.routes.url_helpers.certificate_path(options)
       alt = CGI.escapeHTML(I18n.t("#{self.class::I18N_KEY}.certificate.alt"))
 
-      "<img class='discobot-certificate' src='#{src}' width='650' height='464' alt='#{alt}'>"
+      "<iframe class='discobot-certificate' src='#{src}' width='650' height='464' alt='#{alt}'></iframe>"
     end
 
     protected
@@ -179,7 +184,7 @@ module DiscourseNarrativeBot
     end
 
     def i18n_post_args(extra = {})
-      { base_uri: Discourse.base_uri }.merge(extra)
+      { base_uri: Discourse.base_path }.merge(extra)
     end
 
     def valid_topic?(topic_id)

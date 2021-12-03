@@ -9,11 +9,17 @@ describe UsersEmailController do
   fab!(:moderator) { Fabricate(:moderator) }
 
   describe "#confirm-new-email" do
-    it 'redirects to login for signed out accounts' do
+    it 'does not redirect to login for signed out accounts, this route works fine as anon user' do
       get "/u/confirm-new-email/asdfasdf"
 
-      expect(response.status).to eq(302)
-      expect(response.redirect_url).to eq("http://test.localhost/login")
+      expect(response.status).to eq(200)
+    end
+
+    it 'does not redirect to login for signed out accounts on login_required sites, this route works fine as anon user' do
+      SiteSetting.login_required = true
+      get "/u/confirm-new-email/asdfasdf"
+
+      expect(response.status).to eq(200)
     end
 
     it 'errors out for invalid tokens' do
@@ -25,7 +31,7 @@ describe UsersEmailController do
       expect(response.body).to include(I18n.t('change_email.already_done'))
     end
 
-    it 'does not change email if accounts mismatch' do
+    it 'does not change email if accounts mismatch for a signed in user' do
       updater = EmailUpdater.new(guardian: user.guardian, user: user)
       updater.change_to('new.n.cool@example.com')
 
@@ -124,6 +130,57 @@ describe UsersEmailController do
 
           user.reload
           expect(user.email).to eq("new.n.cool@example.com")
+        end
+
+        context "rate limiting" do
+          before { RateLimiter.clear_all!; RateLimiter.enable }
+          after  { RateLimiter.disable }
+
+          it "rate limits by IP" do
+            freeze_time
+
+            6.times do
+              put "/u/confirm-new-email", params: {
+                token: "blah",
+                second_factor_token: "000000",
+                second_factor_method: UserSecondFactor.methods[:totp]
+              }
+
+              expect(response.status).to eq(302)
+            end
+
+            put "/u/confirm-new-email", params: {
+              token: "blah",
+              second_factor_token: "000000",
+              second_factor_method: UserSecondFactor.methods[:totp]
+            }
+
+            expect(response.status).to eq(429)
+          end
+
+          it "rate limits by username" do
+            freeze_time
+
+            6.times do |x|
+              user.email_change_requests.last.update(change_state: EmailChangeRequest.states[:complete])
+              put "/u/confirm-new-email", params: {
+                token: user.email_tokens.last.token,
+                second_factor_token: "000000",
+                second_factor_method: UserSecondFactor.methods[:totp]
+              }, env: { "REMOTE_ADDR": "1.2.3.#{x}" }
+
+              expect(response.status).to eq(302)
+            end
+
+            user.email_change_requests.last.update(change_state: EmailChangeRequest.states[:authorizing_new])
+            put "/u/confirm-new-email", params: {
+              token: user.email_tokens.last.token,
+              second_factor_token: "000000",
+              second_factor_method: UserSecondFactor.methods[:totp]
+            }, env: { "REMOTE_ADDR": "1.2.3.4" }
+
+            expect(response.status).to eq(429)
+          end
         end
       end
 
@@ -371,8 +428,8 @@ describe UsersEmailController do
         end
       end
 
-      it 'raises an error when new email domain is present in email_domains_blacklist site setting' do
-        SiteSetting.email_domains_blacklist = "mailinator.com"
+      it 'raises an error when new email domain is present in blocked_email_domains site setting' do
+        SiteSetting.blocked_email_domains = "mailinator.com"
 
         put "/u/#{user.username}/preferences/email.json", params: {
           email: "not_good@mailinator.com"
@@ -381,8 +438,8 @@ describe UsersEmailController do
         expect(response).to_not be_successful
       end
 
-      it 'raises an error when new email domain is not present in email_domains_whitelist site setting' do
-        SiteSetting.email_domains_whitelist = "discourse.org"
+      it 'raises an error when new email domain is not present in allowed_email_domains site setting' do
+        SiteSetting.allowed_email_domains = "discourse.org"
 
         put "/u/#{user.username}/preferences/email.json", params: {
           email: new_email

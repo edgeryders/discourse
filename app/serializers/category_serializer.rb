@@ -12,6 +12,7 @@ class CategorySerializer < SiteCategorySerializer
              :email_in_allow_strangers,
              :mailinglist_mirror,
              :all_topics_wiki,
+             :allow_unlimited_owner_edits_on_first_post,
              :can_delete,
              :cannot_delete_reason,
              :is_special,
@@ -26,7 +27,7 @@ class CategorySerializer < SiteCategorySerializer
   end
 
   def include_reviewable_by_group_name?
-    SiteSetting.enable_category_group_review? && object.reviewable_by_group_id.present?
+    SiteSetting.enable_category_group_moderation? && object.reviewable_by_group_id.present?
   end
 
   def group_permissions
@@ -42,6 +43,10 @@ class CategorySerializer < SiteCategorySerializer
       end
       perms
     end
+  end
+
+  def include_available_groups?
+    scope && scope.can_edit?(object)
   end
 
   def available_groups

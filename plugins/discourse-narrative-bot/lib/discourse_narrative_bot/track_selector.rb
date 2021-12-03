@@ -61,7 +61,7 @@ module DiscourseNarrativeBot
             klass.new.input(@input, @user, post: @post, skip: skip_track?)
           end
         elsif is_reply && (@is_pm_to_bot || public_reply?)
-          like_user_post
+          like_user_post if @is_pm_to_bot
           bot_commands
         end
       elsif data && data.dig(:state)&.to_sym != :end && is_topic_action?
@@ -126,7 +126,9 @@ module DiscourseNarrativeBot
 
     def bot_commands(hint = true)
       raw =
-        if match_data = match_trigger?("#{self.class.dice_trigger} (\\d+)d(\\d+)")
+        if @user.manually_disabled_discobot?
+          I18n.t(self.class.i18n_key('random_mention.discobot_disabled'))
+        elsif match_data = match_trigger?("#{self.class.dice_trigger} (\\d+)d(\\d+)")
           DiscourseNarrativeBot::Dice.roll(match_data[1].to_i, match_data[2].to_i)
         elsif match_trigger?(self.class.quote_trigger)
           DiscourseNarrativeBot::QuoteGenerator.generate(@user)
@@ -222,9 +224,15 @@ module DiscourseNarrativeBot
       end
     end
 
+    @@cooked_triggers = {}
+
+    def cook(trigger)
+      @@cooked_triggers[trigger] ||= PrettyText.cook("@#{self.discobot_username} #{trigger}")
+    end
+
     def match_trigger?(trigger)
       # we remove the leading <p> to allow for trigger to be at the end of a paragraph
-      cooked_trigger = PrettyText.cook("@#{self.discobot_username} #{trigger}")[3..-1]
+      cooked_trigger = cook(trigger)[3..-1]
       regexp = Regexp.new(cooked_trigger, 'i')
       match = @post.cooked.match(regexp)
 

@@ -1,19 +1,22 @@
-import getURL from "discourse-common/lib/get-url";
-import I18n from "I18n";
 import Category from "discourse/models/category";
-import User from "discourse/models/user";
-import { isRTL } from "discourse/lib/text-direction";
-import { censor } from "pretty-text/censored-words";
-import { emojiUnescape } from "discourse/lib/text";
-import Site from "discourse/models/site";
-import { longDate } from "discourse/lib/formatter";
-import { none } from "@ember/object/computed";
-import { computed } from "@ember/object";
-import { ajax } from "discourse/lib/ajax";
+import I18n from "I18n";
 import { Promise } from "rsvp";
 import RestModel from "discourse/models/rest";
+import User from "discourse/models/user";
+import Topic from "discourse/models/topic";
+import { ajax } from "discourse/lib/ajax";
+import { computed } from "@ember/object";
 import discourseComputed from "discourse-common/utils/decorators";
 import { formattedReminderTime } from "discourse/lib/bookmark";
+import getURL from "discourse-common/lib/get-url";
+import { longDate } from "discourse/lib/formatter";
+import { none } from "@ember/object/computed";
+
+export const AUTO_DELETE_PREFERENCES = {
+  NEVER: 0,
+  WHEN_REMINDER_SENT: 1,
+  ON_OWNER_REPLY: 2,
+};
 
 const Bookmark = RestModel.extend({
   newBookmark: none("id"),
@@ -24,11 +27,27 @@ const Bookmark = RestModel.extend({
   },
 
   destroy() {
-    if (this.newBookmark) return Promise.resolve();
+    if (this.newBookmark) {
+      return Promise.resolve();
+    }
 
     return ajax(this.url, {
-      type: "DELETE"
+      type: "DELETE",
     });
+  },
+
+  togglePin() {
+    if (this.newBookmark) {
+      return Promise.resolve();
+    }
+
+    return ajax(this.url + "/toggle_pin", {
+      type: "PUT",
+    });
+  },
+
+  pinAction() {
+    return this.pinned ? "unpin" : "pin";
   },
 
   @discourseComputed("highest_post_number", "url")
@@ -66,22 +85,8 @@ const Bookmark = RestModel.extend({
       FIRST_POST: firstPost,
       CREATED_AT: createdAtDate,
       LAST_POST: lastPost,
-      BUMPED_AT: bumpedAtDate
+      BUMPED_AT: bumpedAtDate,
     });
-  },
-
-  @discourseComputed("title")
-  fancyTitle(title) {
-    let fancyTitle = censor(
-      emojiUnescape(title) || "",
-      Site.currentProp("censored_regexp")
-    );
-
-    if (this.siteSettings.support_mixed_text_direction) {
-      const titleDir = isRTL(title) ? "rtl" : "ltr";
-      return `<span dir="${titleDir}">${fancyTitle}</span>`;
-    }
-    return fancyTitle;
   },
 
   @discourseComputed("created_at")
@@ -98,7 +103,7 @@ const Bookmark = RestModel.extend({
     const title = this.title;
     const newTags = [];
 
-    tags.forEach(function(tag) {
+    tags.forEach(function (tag) {
       if (title.toLowerCase().indexOf(tag) === -1) {
         newTags.push(tag);
       }
@@ -120,11 +125,22 @@ const Bookmark = RestModel.extend({
     ).capitalize();
   },
 
-  loadItems() {
-    return ajax(`/u/${this.user.username}/bookmarks.json`, { cache: "false" });
+  @discourseComputed("linked_post_number", "fancy_title", "topic_id")
+  topicLink(linked_post_number, fancy_title, id) {
+    return Topic.create({ id, fancy_title, linked_post_number });
   },
 
-  loadMore() {
+  loadItems(params) {
+    let url = `/u/${this.user.username}/bookmarks.json`;
+
+    if (params) {
+      url += "?" + $.param(params);
+    }
+
+    return ajax(url, { cache: "false" });
+  },
+
+  loadMore(additionalParams) {
     if (!this.more_bookmarks_url) {
       return Promise.resolve();
     }
@@ -136,7 +152,15 @@ const Bookmark = RestModel.extend({
       if (params) {
         moreUrl += "?" + params;
       }
+      if (additionalParams) {
+        if (moreUrl.includes("?")) {
+          moreUrl += "&" + $.param(additionalParams);
+        } else {
+          moreUrl += "?" + $.param(additionalParams);
+        }
+      }
     }
+
     return ajax({ url: moreUrl });
   },
 
@@ -149,18 +173,17 @@ const Bookmark = RestModel.extend({
     return User.create({
       username: post_user_username,
       avatar_template: avatarTemplate,
-      name: name
+      name: name,
     });
-  }
+  },
 });
 
 Bookmark.reopenClass({
   create(args) {
     args = args || {};
-    args.siteSettings = args.siteSettings || Discourse.SiteSettings;
-    args.currentUser = args.currentUser || Discourse.currentUser;
+    args.currentUser = args.currentUser || User.current();
     return this._super(args);
-  }
+  },
 });
 
 export default Bookmark;

@@ -2,21 +2,25 @@
 
 class UserAuthenticator
 
-  def initialize(user, session, authenticator_finder = Users::OmniauthCallbacksController)
+  def initialize(user, session, authenticator_finder: Users::OmniauthCallbacksController, require_password: true)
     @user = user
     @session = session
-    @auth_session = session[:authentication]
+    if session&.dig(:authentication) && session[:authentication].is_a?(Hash)
+      @auth_result = Auth::Result.from_session_data(session[:authentication], user: user)
+    end
     @authenticator_finder = authenticator_finder
+    @require_password = require_password
   end
 
   def start
     if authenticated?
       @user.active = true
-    else
+      @auth_result.apply_user_attributes!
+    elsif @require_password
       @user.password_required!
     end
 
-    @user.skip_email_validation = true if @auth_session && @auth_session[:skip_email_validation].present?
+    @user.skip_email_validation = true if @auth_result && @auth_result.skip_email_validation
   end
 
   def has_authenticator?
@@ -25,18 +29,21 @@ class UserAuthenticator
 
   def finish
     if authenticator
-      authenticator.after_create_account(@user, @auth_session)
+      authenticator.after_create_account(@user, @auth_result)
       confirm_email
     end
-    @session[:authentication] = @auth_session = nil if @auth_session
+    @session[:authentication] = @auth_result = nil if @session&.dig(:authentication)
   end
 
   def email_valid?
-    @auth_session && @auth_session[:email_valid]
+    @auth_result&.email_valid
   end
 
   def authenticated?
-    @auth_session && @auth_session[:email]&.downcase == @user.email.downcase && @auth_session[:email_valid].to_s == "true"
+    return false if !@auth_result
+    return false if @auth_result&.email&.downcase != @user.email.downcase
+    return false if !@auth_result.email_valid
+    true
   end
 
   private
@@ -55,7 +62,7 @@ class UserAuthenticator
   end
 
   def authenticator_name
-    @auth_session && @auth_session[:authenticator_name]
+    @auth_result&.authenticator_name
   end
 
 end

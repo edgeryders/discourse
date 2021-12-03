@@ -24,9 +24,12 @@ class SiteSerializer < ApplicationSerializer
     :wizard_required,
     :topic_featured_link_allowed_category_ids,
     :user_themes,
+    :user_color_schemes,
+    :default_dark_color_scheme,
     :censored_regexp,
     :shared_drafts_category_id,
-    :custom_emoji_translation
+    :custom_emoji_translation,
+    :watched_words_replace
   )
 
   has_many :categories, serializer: SiteCategorySerializer, embed: :objects
@@ -40,15 +43,36 @@ class SiteSerializer < ApplicationSerializer
       Theme.where('id = :default OR user_selectable',
                     default: SiteSetting.default_theme_id)
         .order(:name)
-        .pluck(:id, :name)
-        .map { |id, n| { theme_id: id, name: n, default: id == SiteSetting.default_theme_id } }
+        .pluck(:id, :name, :color_scheme_id)
+        .map { |id, n, cs| { theme_id: id, name: n, default: id == SiteSetting.default_theme_id, color_scheme_id: cs } }
         .as_json
     end
   end
 
+  def user_color_schemes
+    cache_fragment("user_color_schemes") do
+      schemes = ColorScheme.where('user_selectable').order(:name)
+      ActiveModel::ArraySerializer.new(schemes, each_serializer: ColorSchemeSelectableSerializer).as_json
+    end
+  end
+
+  def default_dark_color_scheme
+    ColorScheme.find_by_id(SiteSetting.default_dark_mode_color_scheme_id).as_json
+  end
+
   def groups
     cache_anon_fragment("group_names") do
-      object.groups.order(:name).pluck(:id, :name).map { |id, name| { id: id, name: name } }.as_json
+      object.groups.order(:name)
+        .select(:id, :name, :flair_icon, :flair_upload_id, :flair_bg_color, :flair_color)
+        .map do |g|
+          {
+            id: g.id,
+            name: g.name,
+            flair_url: g.flair_url,
+            flair_bg_color: g.flair_bg_color,
+            flair_color: g.flair_color,
+          }
+        end.as_json
     end
   end
 
@@ -159,7 +183,11 @@ class SiteSerializer < ApplicationSerializer
   end
 
   def include_shared_drafts_category_id?
-    scope.can_create_shared_draft?
+    scope.can_see_shared_draft? && SiteSetting.shared_drafts_enabled?
+  end
+
+  def watched_words_replace
+    WordWatcher.word_matcher_regexps(:replace)
   end
 
   private

@@ -4,22 +4,28 @@ class EmailValidator < ActiveModel::EachValidator
 
   def validate_each(record, attribute, value)
     unless value =~ EmailValidator.email_regex
-      record.errors.add(attribute, I18n.t(:'user.email.invalid'))
+      if Invite === record && attribute == :email
+        record.errors.add(:base, I18n.t(:'invite.invalid_email', email: value))
+      else
+        record.errors.add(attribute, I18n.t(:'user.email.invalid'))
+      end
+      invalid = true
     end
 
     unless EmailValidator.allowed?(value)
       record.errors.add(attribute, I18n.t(:'user.email.not_allowed'))
+      invalid = true
     end
 
-    if record.errors[attribute].blank? && value && ScreenedEmail.should_block?(value)
+    if !invalid && ScreenedEmail.should_block?(value)
       record.errors.add(attribute, I18n.t(:'user.email.blocked'))
     end
   end
 
   def self.allowed?(email)
-    if (setting = SiteSetting.email_domains_whitelist).present?
+    if (setting = SiteSetting.allowed_email_domains).present?
       return email_in_restriction_setting?(setting, email) || is_developer?(email)
-    elsif (setting = SiteSetting.email_domains_blacklist).present?
+    elsif (setting = SiteSetting.blocked_email_domains).present?
       return !(email_in_restriction_setting?(setting, email) && !is_developer?(email))
     end
 

@@ -38,14 +38,18 @@ end
 
 bot.update!(admin: true, moderator: false)
 
+bot.create_user_option! if !bot.user_option
+
 bot.user_option.update!(
   email_messages_level: UserOption.email_level_types[:never],
   email_level: UserOption.email_level_types[:never]
 )
 
+bot.create_user_profile! if !bot.user_profile
+
 if !bot.user_profile.bio_raw
   bot.user_profile.update!(
-    bio_raw: I18n.t('discourse_narrative_bot.bio', site_title: SiteSetting.title, discobot_username: bot.username)
+    bio_raw: I18n.t('discourse_narrative_bot.bio')
   )
 end
 

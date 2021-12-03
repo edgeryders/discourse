@@ -30,12 +30,6 @@ class CategoriesController < ApplicationController
     }
 
     @category_list = CategoryList.new(guardian, category_options)
-    @category_list.draft_key = Draft::NEW_TOPIC
-    @category_list.draft_sequence = DraftSequence.current(
-      current_user,
-      Draft::NEW_TOPIC
-    )
-    @category_list.draft = Draft.get(current_user, Draft::NEW_TOPIC, @category_list.draft_sequence) if current_user
 
     if category_options[:is_homepage] && SiteSetting.short_site_description.present?
       @title = "#{SiteSetting.title} - #{SiteSetting.short_site_description}"
@@ -131,7 +125,7 @@ class CategoriesController < ApplicationController
 
     @category =
       begin
-        Category.new(category_params.merge(user: current_user))
+        Category.new(required_create_params.merge(user: current_user))
       rescue ArgumentError => e
         return render json: { errors: [e.message] }, status: 422
       end
@@ -210,7 +204,7 @@ class CategoriesController < ApplicationController
 
   def find_by_slug
     params.require(:category_slug)
-    @category = Category.find_by_slug(params[:category_slug], params[:parent_category_slug])
+    @category = Category.find_by_slug_path(params[:category_slug].split('/'))
 
     raise Discourse::NotFound unless @category.present?
 
@@ -264,29 +258,22 @@ class CategoriesController < ApplicationController
       result.topic_list = TopicQuery.new(nil, topic_options).list_top_for(SiteSetting.top_page_default_timeframe.to_sym)
     end
 
-    draft_key = Draft::NEW_TOPIC
-    draft_sequence = DraftSequence.current(current_user, draft_key)
-    draft = Draft.get(current_user, draft_key, draft_sequence) if current_user
-
-    %w{category topic}.each do |type|
-      result.public_send(:"#{type}_list").draft = draft
-      result.public_send(:"#{type}_list").draft_key = draft_key
-      result.public_send(:"#{type}_list").draft_sequence = draft_sequence
-    end
-
     render_serialized(result, CategoryAndTopicListsSerializer, root: false)
   end
 
   def required_param_keys
-    [:name, :color, :text_color]
+    [:name]
+  end
+
+  def required_create_params
+    required_param_keys.each do |key|
+      params.require(key)
+    end
+    category_params
   end
 
   def category_params
     @category_params ||= begin
-      required_param_keys.each do |key|
-        params.require(key)
-      end
-
       if p = params[:permissions]
         p.each do |k, v|
           p[k] = v.to_i
@@ -302,10 +289,14 @@ class CategoriesController < ApplicationController
       result = params.permit(
         *required_param_keys,
         :position,
+        :name,
+        :color,
+        :text_color,
         :email_in,
         :email_in_allow_strangers,
         :mailinglist_mirror,
         :all_topics_wiki,
+        :allow_unlimited_owner_edits_on_first_post,
         :parent_category_id,
         :auto_close_hours,
         :auto_close_based_on_last_post,
@@ -335,7 +326,7 @@ class CategoriesController < ApplicationController
         allowed_tags: [],
         allowed_tag_groups: []
       )
-      if SiteSetting.enable_category_group_review?
+      if SiteSetting.enable_category_group_moderation?
         result[:reviewable_by_group_id] = Group.find_by(name: params[:reviewable_by_group_name])&.id
       end
 

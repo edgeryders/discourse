@@ -14,8 +14,8 @@
   <div class='admins-list' itemscope itemtype='http://schema.org/ItemList'>
     <% @about.admins.each do |user| %>
       <div itemprop='itemListElement' itemscope itemtype='http://schema.org/ListItem'>
-        <meta itemprop='url' content='<%= user_path(user) %>'>
-        <a href='<%= user_path(user) %>' itemprop='item'>
+        <meta itemprop='url' content='<%= user_path(user.username_lower) %>'>
+        <a href='<%= user_path(user.username_lower) %>' itemprop='item'>
           <span itemprop='image'>
             <img width="45" height="45" class="avatar" src="<%= user.small_avatar_url %>">
           </span>
@@ -35,8 +35,8 @@
     <div class='moderators-list' itemscope itemtype='http://schema.org/ItemList'>
       <% @about.moderators.each do |user| %>
         <div itemprop='itemListElement' itemscope itemtype='http://schema.org/ListItem'>
-          <meta itemprop='url' content='<%= user_path(user) %>'>
-          <a href='<%= user_path(user) %>' itemprop='item'>
+          <meta itemprop='url' content='<%= user_path(user.username_lower) %>'>
+          <a href='<%= user_path(user.username_lower) %>' itemprop='item'>
             <span itemprop='image'>
               <img width="45" height="45" class="avatar" src="<%= user.small_avatar_url %>">
             </span>
@@ -61,36 +61,42 @@
       <tr>
         <th>&nbsp;</th>
         <th><%=t 'js.about.stat.all_time' %></th>
+        <th><%=t 'js.about.stat.last_day' %></th>
         <th><%=t 'js.about.stat.last_7_days' %></th>
         <th><%=t 'js.about.stat.last_30_days' %></th>
       </tr>
       <tr>
         <td class='title'><%=t 'js.about.topic_count' %></td>
         <td><%= stats["topic_count"] %></td>
+        <td><%= stats["topics_last_day"] %></td>
         <td><%= stats["topics_7_days"] %></td>
         <td><%= stats["topics_30_days"] %></td>
       </tr>
       <tr>
         <td><%=t 'js.about.post_count' %></td>
         <td><%= stats["post_count"] %></td>
+        <td><%= stats["posts_last_day"] %></td>
         <td><%= stats["posts_7_days"] %></td>
         <td><%= stats["posts_30_days"] %></td>
       </tr>
       <tr>
         <td><%=t 'js.about.user_count' %></td>
         <td><%= stats["user_count"] %></td>
+        <td><%= stats["users_last_day"] %></td>
         <td><%= stats["users_7_days"] %></td>
         <td><%= stats["users_30_days"] %></td>
       </tr>
       <tr>
         <td><%=t 'js.about.active_user_count' %></td>
         <td>&mdash;</td>
+        <td><%= stats["active_users_last_day"] %></td>
         <td><%= stats["active_users_7_days"] %></td>
         <td><%= stats["active_users_30_days"] %></td>
       </tr>
       <tr>
         <td><%=t 'js.about.like_count' %></td>
         <td><%= stats["like_count"] %></td>
+        <td><%= stats["likes_last_day"] %></td>
         <td><%= stats["likes_7_days"] %></td>
         <td><%= stats["likes_30_days"] %></td>
       </tr>

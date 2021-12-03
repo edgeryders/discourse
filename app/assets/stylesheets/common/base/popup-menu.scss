@@ -1,7 +1,7 @@
 .popup-menu {
-  background-color: $secondary;
+  background-color: var(--secondary);
   width: 14em;
-  border: 1px solid $primary-low;
+  border: 1px solid var(--primary-low);
   z-index: z("dropdown");
   box-shadow: shadow("card");
 
@@ -10,7 +10,7 @@
     list-style: none;
 
     li {
-      border-bottom: 1px solid rgba($primary-low, 0.5);
+      border-bottom: 1px solid rgba(var(--primary-low-rgb), 0.5);
 
       &:last-child {
         border: none;
@@ -19,40 +19,45 @@
   }
 
   .btn {
+    justify-content: left;
     text-align: left;
     background: none;
     width: 100%;
     padding: 0.75em;
     border-radius: 0;
+    margin: 0;
 
     .d-icon {
-      color: $primary-medium;
+      color: var(--primary-medium);
+      align-self: flex-start;
     }
 
+    &:focus,
     &:hover {
-      color: $primary;
-      background: $tertiary-low;
+      color: var(--primary);
+      background: var(--tertiary-low);
 
       .d-icon {
-        color: $primary-medium;
+        color: var(--primary-medium);
       }
     }
 
     &.popup-menu-btn-danger {
       .d-icon {
-        color: $danger;
+        color: var(--danger);
       }
 
       .d-button-label {
-        color: $primary;
+        color: var(--primary);
       }
 
+      &:focus,
       &:hover {
         .d-icon,
         .d-button-label {
-          color: $danger;
+          color: var(--danger);
         }
-        background: $danger-low;
+        background: var(--danger-low);
       }
     }
   }

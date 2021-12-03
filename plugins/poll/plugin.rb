@@ -8,9 +8,10 @@
 
 register_asset "stylesheets/common/poll.scss"
 register_asset "stylesheets/common/poll-ui-builder.scss"
+register_asset "stylesheets/common/poll-breakdown.scss"
 register_asset "stylesheets/desktop/poll.scss", :desktop
+register_asset "stylesheets/desktop/poll-ui-builder.scss", :desktop
 register_asset "stylesheets/mobile/poll.scss", :mobile
-register_asset "stylesheets/mobile/poll-ui-builder.scss", :mobile
 
 register_svg_icon "far fa-check-square"
 
@@ -67,7 +68,7 @@ after_initialize do
             raise StandardError.new I18n.t("poll.user_cant_post_in_topic")
           end
 
-          poll = Poll.includes(poll_options: :poll_votes).find_by(post_id: post_id, name: poll_name)
+          poll = Poll.includes(:poll_options).find_by(post_id: post_id, name: poll_name)
 
           raise StandardError.new I18n.t("poll.no_poll_with_this_name", name: poll_name) unless poll
           raise StandardError.new I18n.t("poll.poll_must_be_open_to_vote") if poll.is_closed?
@@ -84,10 +85,17 @@ after_initialize do
           available_options = poll.poll_options.map { |o| o.digest }.to_set
           options.select! { |o| available_options.include?(o) }
 
+          self.validate_votes!(poll, options)
           raise StandardError.new I18n.t("poll.requires_at_least_1_valid_option") if options.empty?
 
           new_option_ids = poll.poll_options.each_with_object([]) do |option, obj|
             obj << option.id if options.include?(option.digest)
+          end
+
+          old_option_ids = poll.poll_options.each_with_object([]) do |option, obj|
+            if option.poll_votes.where(user_id: user.id).exists?
+              obj << option.id
+            end
           end
 
           # remove non-selected votes
@@ -95,12 +103,6 @@ after_initialize do
             .where(poll: poll, user: user)
             .where.not(poll_option_id: new_option_ids)
             .delete_all
-
-          old_option_ids = poll.poll_options.each_with_object([]) do |option, obj|
-            if option.poll_votes.any? { |v| v.user_id == user.id }
-              obj << option.id
-            end
-          end
 
           # create missing votes
           (new_option_ids - old_option_ids).each do |option_id|
@@ -115,6 +117,26 @@ after_initialize do
           post.publish_message!("/polls/#{post.topic_id}", payload)
 
           [serialized_poll, options]
+        end
+      end
+
+      def validate_votes!(poll, options)
+        num_of_options = options.length
+
+        if poll.multiple?
+          if num_of_options < poll.min
+            raise StandardError.new(I18n.t(
+              "poll.min_vote_per_user",
+              count: poll.min
+            ))
+          elsif num_of_options > poll.max
+            raise StandardError.new(I18n.t(
+              "poll.max_vote_per_user",
+              count: poll.max
+            ))
+          end
+        elsif num_of_options > 1
+          raise StandardError.new(I18n.t("poll.one_vote_per_user"))
         end
       end
 
@@ -328,6 +350,7 @@ after_initialize do
           type: poll["type"].presence || "regular",
           status: poll["status"].presence || "open",
           visibility: poll["public"] == "true" ? "everyone" : "secret",
+          title: poll["title"],
           results: poll["results"].presence || "always",
           min: poll["min"],
           max: poll["max"],
@@ -364,6 +387,12 @@ after_initialize do
           p.css("li[#{DATA_PREFIX}option-id]").each do |o|
             option_id = o.attributes[DATA_PREFIX + "option-id"].value.to_s
             poll["options"] << { "id" => option_id, "html" => o.inner_html.strip }
+          end
+
+          # title
+          title_element = p.css(".poll-title").first
+          if title_element
+            poll["title"] = title_element.inner_html.strip
           end
 
           poll
@@ -562,7 +591,7 @@ after_initialize do
 
   register_post_custom_field_type(DiscoursePoll::HAS_POLLS, :boolean)
 
-  topic_view_post_custom_fields_whitelister { [DiscoursePoll::HAS_POLLS] }
+  topic_view_post_custom_fields_allowlister { [DiscoursePoll::HAS_POLLS] }
 
   add_to_class(:topic_view, :polls) do
     @polls ||= begin
@@ -574,7 +603,6 @@ after_initialize do
 
       if post_with_polls.present?
         Poll
-          .includes(poll_options: :poll_votes, poll_votes: :poll_option)
           .where(post_id: post_with_polls)
           .each do |p|
             polls[p.post_id] ||= []
@@ -590,7 +618,7 @@ after_initialize do
     @preloaded_polls ||= if @topic_view.present?
       @topic_view.polls[object.id]
     else
-      Poll.includes(poll_options: :poll_votes).where(post: object)
+      Poll.includes(:poll_options).where(post: object)
     end
   end
 
@@ -608,11 +636,12 @@ after_initialize do
 
   add_to_serializer(:post, :polls_votes, false) do
     preloaded_polls.map do |poll|
-      user_poll_votes = poll.poll_votes.each_with_object([]) do |vote, obj|
-        if vote.user_id == scope.user.id
-          obj << vote.poll_option.digest
-        end
-      end
+      user_poll_votes =
+        poll
+          .poll_votes
+          .where(user_id: scope.user.id)
+          .joins(:poll_option)
+          .pluck("poll_options.digest")
 
       [poll.name, user_poll_votes]
     end.to_h

@@ -97,12 +97,26 @@ class StdOutDemux
   end
 end
 
+class SeedHelper
+  def self.paths
+    DiscoursePluginRegistry.seed_paths
+  end
+
+  def self.filter
+    # Allows a plugin to exclude any specified seed data files from running
+    DiscoursePluginRegistry.seedfu_filter.any? ?
+      /^(?!.*(#{DiscoursePluginRegistry.seedfu_filter.to_a.join("|")})).*$/ : nil
+  end
+end
+
 task 'multisite:migrate' => ['db:load_config', 'environment', 'set_locale'] do |_, args|
   if ENV["RAILS_ENV"] != "production"
     raise "Multisite migrate is only supported in production"
   end
 
-  concurrency = (ENV['MIGRATE_CONCURRENCY'].presence || "20").to_i
+  # TODO: Switch to processes for concurrent migrations because Rails migration
+  # is not thread safe by default.
+  concurrency = 1
 
   puts "Multisite migrator is running using #{concurrency} threads"
   puts
@@ -148,17 +162,35 @@ task 'multisite:migrate' => ['db:load_config', 'environment', 'set_locale'] do |
     end.each(&:join)
   end
 
+  def check_exceptions(exceptions)
+    if exceptions.length > 0
+      STDERR.puts
+      STDERR.puts "-" * 80
+      STDERR.puts "#{exceptions.length} migrations failed!"
+      while !exceptions.empty?
+        db, e = exceptions.pop
+        STDERR.puts
+        STDERR.puts "Failed to migrate #{db}"
+        STDERR.puts e.inspect
+        STDERR.puts e.backtrace
+        STDERR.puts
+      end
+      exit 1
+    end
+  end
+
   execute_concurently(concurrency, exceptions) do |db|
     puts "Migrating #{db}"
     ActiveRecord::Tasks::DatabaseTasks.migrate
   end
 
-  seed_paths = DiscoursePluginRegistry.seed_paths
-  SeedFu.seed(seed_paths, /001_refresh/)
+  check_exceptions(exceptions)
+
+  SeedFu.seed(SeedHelper.paths, /001_refresh/)
 
   execute_concurently(concurrency, exceptions) do |db|
     puts "Seeding #{db}"
-    SeedFu.seed(seed_paths)
+    SeedFu.seed(SeedHelper.paths, SeedHelper.filter)
 
     if !Discourse.skip_post_deployment_migrations? && ENV['SKIP_OPTIMIZE_ICONS'] != '1'
       SiteIconManager.ensure_optimized!
@@ -166,21 +198,7 @@ task 'multisite:migrate' => ['db:load_config', 'environment', 'set_locale'] do |
   end
 
   $stdout = old_stdout
-
-  if exceptions.length > 0
-    STDERR.puts
-    STDERR.puts "-" * 80
-    STDERR.puts "#{exceptions.length} migrations failed!"
-    while !exceptions.empty?
-      db, e = exceptions.pop
-      STDERR.puts
-      STDERR.puts "Failed to migrate #{db}"
-      STDERR.puts e.inspect
-      STDERR.puts e.backtrace
-      STDERR.puts
-    end
-    exit 1
-  end
+  check_exceptions(exceptions)
 
   Rake::Task['db:_dump'].invoke
 end
@@ -201,12 +219,11 @@ task 'db:migrate' => ['load_config', 'environment', 'set_locale'] do |_, args|
   end
 
   SeedFu.quiet = true
+  SeedFu.seed(SeedHelper.paths, SeedHelper.filter)
 
-  # Allows a plugin to exclude any specified seed data files from running
-  filter = DiscoursePluginRegistry.seedfu_filter.any? ?
-    /^(?!.*(#{DiscoursePluginRegistry.seedfu_filter.to_a.join("|")})).*$/ : nil
-
-  SeedFu.seed(DiscoursePluginRegistry.seed_paths, filter)
+  if Rails.env.development?
+    Rake::Task['db:schema:cache:dump'].invoke
+  end
 
   if !Discourse.skip_post_deployment_migrations? && ENV['SKIP_OPTIMIZE_ICONS'] != '1'
     SiteIconManager.ensure_optimized!
@@ -280,6 +297,180 @@ task 'db:stats' => 'environment' do
 
   puts
   print_table(DB.query_hash(sql))
+end
+
+task 'db:ensure_post_migrations' do
+  if ['1', 'true'].include?(ENV['SKIP_POST_DEPLOYMENT_MIGRATIONS'])
+    cmd = `cat /proc/#{Process.pid}/cmdline | xargs -0 echo`
+    ENV["SKIP_POST_DEPLOYMENT_MIGRATIONS"] = "0"
+    exec cmd
+  end
+end
+
+class NormalizedIndex
+  attr_accessor :name, :original, :normalized, :table
+
+  def initialize(original)
+    @original = original
+    @normalized = original.sub(/(create.*index )(\S+)(.*)/i, '\1idx\3')
+    @name = original.match(/create.*index (\S+)/i)[1]
+    @table = original.match(/create.*index \S+ on public\.(\S+)/i)[1]
+  end
+
+  def ==(other)
+    other&.normalized == normalized
+  end
+end
+
+def normalize_index_names(names)
+  names.map do |name|
+    NormalizedIndex.new(name)
+  end.reject { |i| i.name.include?("ccnew") }
+end
+
+desc 'Validate indexes'
+task 'db:validate_indexes', [:arg] => ['db:ensure_post_migrations', 'environment'] do |_, args|
+
+  db = TemporaryDb.new
+  db.start
+  db.migrate
+
+  ActiveRecord::Base.establish_connection(
+    adapter: 'postgresql',
+    database: 'discourse',
+    port: db.pg_port,
+    host: 'localhost'
+  )
+
+  expected = DB.query_single <<~SQL
+    SELECT indexdef FROM pg_indexes
+    WHERE schemaname = 'public'
+    ORDER BY indexdef
+  SQL
+
+  expected_tables = DB.query_single <<~SQL
+    SELECT tablename
+    FROM pg_tables
+    WHERE schemaname = 'public'
+  SQL
+
+  ActiveRecord::Base.establish_connection
+
+  db.stop
+
+  puts
+
+  fix_indexes = (ENV["FIX_INDEXES"] == "1" || args[:arg] == "fix")
+  inconsistency_found = false
+
+  RailsMultisite::ConnectionManagement.each_connection do |db_name|
+
+    puts "Testing indexes on the #{db_name} database", ""
+
+    current = DB.query_single <<~SQL
+      SELECT indexdef FROM pg_indexes
+      WHERE schemaname = 'public'
+      ORDER BY indexdef
+    SQL
+
+    missing = expected - current
+    extra = current - expected
+
+    extra.reject! { |x| x =~ /idx_recent_regular_post_search_data/ }
+
+    renames = []
+    normalized_missing = normalize_index_names(missing)
+    normalized_extra = normalize_index_names(extra)
+
+    normalized_extra.each do |extra_index|
+      if missing_index = normalized_missing.select { |x| x == extra_index }.first
+        renames << [extra_index, missing_index]
+        missing.delete missing_index.original
+        extra.delete extra_index.original
+      end
+    end
+
+    if db_name != "default" && renames.length == 0 && missing.length == 0 && extra.length == 0
+      next
+    end
+
+    if renames.length > 0
+      inconsistency_found = true
+
+      puts "Renamed indexes"
+      renames.each do |extra_index, missing_index|
+        puts "#{extra_index.name} should be renamed to #{missing_index.name}"
+      end
+      puts
+
+      if fix_indexes
+        puts "fixing indexes"
+
+        renames.each do |extra_index, missing_index|
+          DB.exec "ALTER INDEX #{extra_index.name} RENAME TO #{missing_index.name}"
+        end
+
+        puts
+      end
+    end
+
+    if missing.length > 0
+      inconsistency_found = true
+
+      puts "Missing Indexes", ""
+      missing.each do |m|
+        puts m
+      end
+      if fix_indexes
+        puts "Adding missing indexes..."
+        missing.each do |m|
+          begin
+            DB.exec(m)
+          rescue => e
+            $stderr.puts "Error running: #{m} - #{e}"
+          end
+        end
+      end
+    else
+      puts "No missing indexes", ""
+    end
+
+    if extra.length > 0
+      inconsistency_found = true
+
+      puts "", "Extra Indexes", ""
+      extra.each do |e|
+        puts e
+      end
+
+      if fix_indexes
+        puts "Removing extra indexes"
+        extra.each do |statement|
+          if match = /create .*index (\S+) on public\.(\S+)/i.match(statement)
+            index_name, table_name = match[1], match[2]
+            if expected_tables.include?(table_name)
+              puts "Dropping #{index_name}"
+              begin
+                DB.exec("DROP INDEX #{index_name}")
+              rescue => e
+                $stderr.puts "Error dropping index #{index_name} - #{e}"
+              end
+            else
+              $stderr.puts "Skipping #{index_name} since #{table_name} should not exist - maybe an old plugin created it"
+            end
+          else
+            $stderr.puts "ERROR - BAD REGEX - UNABLE TO PARSE INDEX - #{statement}"
+          end
+        end
+      end
+    else
+      puts "No extra indexes", ""
+    end
+  end
+
+  if inconsistency_found && !fix_indexes
+    exit 1
+  end
 end
 
 desc 'Rebuild indexes'

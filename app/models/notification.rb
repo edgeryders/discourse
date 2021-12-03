@@ -4,6 +4,8 @@ class Notification < ActiveRecord::Base
   belongs_to :user
   belongs_to :topic
 
+  has_one :shelved_notification
+
   MEMBERSHIP_REQUEST_CONSOLIDATION_WINDOW_HOURS = 24
 
   validates_presence_of :data
@@ -110,7 +112,11 @@ class Notification < ActiveRecord::Base
                         code_review_commit_approved: 21,
                         membership_request_accepted: 22,
                         membership_request_consolidated: 23,
-                        bookmark_reminder: 24
+                        bookmark_reminder: 24,
+                        reaction: 25,
+                        votes_released: 26,
+                        event_reminder: 27,
+                        event_invitation: 28
                        )
   end
 
@@ -278,7 +284,11 @@ class Notification < ActiveRecord::Base
   end
 
   def send_email
-    NotificationEmailer.process_notification(self) if !skip_send_email
+    return if skip_send_email
+
+    user.do_not_disturb? ?
+      ShelvedNotification.create(notification_id: self.id) :
+      NotificationEmailer.process_notification(self)
   end
 
 end

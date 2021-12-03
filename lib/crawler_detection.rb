@@ -37,20 +37,28 @@ module CrawlerDetection
 
   end
 
+  def self.show_browser_update?(user_agent)
+    return false if SiteSetting.browser_update_user_agents.blank?
+
+    @browser_update_matchers ||= {}
+    matcher = @browser_update_matchers[SiteSetting.browser_update_user_agents] ||= to_matcher(SiteSetting.browser_update_user_agents)
+    user_agent.match?(matcher)
+  end
+
   # Given a user_agent that returns true from crawler?, should its request be allowed?
   def self.allow_crawler?(user_agent)
-    return true if SiteSetting.whitelisted_crawler_user_agents.blank? &&
-      SiteSetting.blacklisted_crawler_user_agents.blank?
+    return true if SiteSetting.allowed_crawler_user_agents.blank? &&
+      SiteSetting.blocked_crawler_user_agents.blank?
 
-    @whitelisted_matchers ||= {}
-    @blacklisted_matchers ||= {}
+    @allowlisted_matchers ||= {}
+    @blocklisted_matchers ||= {}
 
-    if SiteSetting.whitelisted_crawler_user_agents.present?
-      whitelisted = @whitelisted_matchers[SiteSetting.whitelisted_crawler_user_agents] ||= to_matcher(SiteSetting.whitelisted_crawler_user_agents)
-      !user_agent.nil? && user_agent.match?(whitelisted)
+    if SiteSetting.allowed_crawler_user_agents.present?
+      allowlisted = @allowlisted_matchers[SiteSetting.allowed_crawler_user_agents] ||= to_matcher(SiteSetting.allowed_crawler_user_agents)
+      !user_agent.nil? && user_agent.match?(allowlisted)
     else
-      blacklisted = @blacklisted_matchers[SiteSetting.blacklisted_crawler_user_agents] ||= to_matcher(SiteSetting.blacklisted_crawler_user_agents)
-      user_agent.nil? || !user_agent.match?(blacklisted)
+      blocklisted = @blocklisted_matchers[SiteSetting.blocked_crawler_user_agents] ||= to_matcher(SiteSetting.blocked_crawler_user_agents)
+      user_agent.nil? || !user_agent.match?(blocklisted)
     end
   end
 

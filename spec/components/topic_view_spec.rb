@@ -36,6 +36,48 @@ describe TopicView do
     expect { TopicView.new(topic.id, admin) }.not_to raise_error
   end
 
+  context "filter options" do
+    fab!(:p0) { Fabricate(:post, topic: topic) }
+    fab!(:p1) { Fabricate(:post, topic: topic, post_type: Post.types[:moderator_action]) }
+    fab!(:p2) { Fabricate(:post, topic: topic, post_type: Post.types[:small_action]) }
+
+    it "omits moderator actions and small posts when only_regular is set" do
+      tv = TopicView.new(topic.id, nil)
+      expect(tv.filtered_post_ids).to eq([p0.id, p1.id, p2.id])
+
+      tv = TopicView.new(topic.id, nil, only_regular: true)
+      expect(tv.filtered_post_ids).to eq([p0.id])
+    end
+
+    it "omits the first post when exclude_first is set" do
+      tv = TopicView.new(topic.id, nil, exclude_first: true)
+      expect(tv.filtered_post_ids).to eq([p0.id, p1.id, p2.id])
+    end
+  end
+
+  context 'custom filters' do
+    fab!(:p0) { Fabricate(:post, topic: topic) }
+    fab!(:p1) { Fabricate(:post, topic: topic, wiki: true) }
+
+    it 'allows to register custom filters' do
+      tv = TopicView.new(topic.id, evil_trout, { filter: 'wiki' })
+      expect(tv.filter_posts({ filter: "wiki" })).to eq([p0, p1])
+
+      TopicView.add_custom_filter("wiki") do |posts, topic_view|
+        posts.where(wiki: true)
+      end
+
+      tv = TopicView.new(topic.id, evil_trout, { filter: 'wiki' })
+      expect(tv.filter_posts).to eq([p1])
+
+      tv = TopicView.new(topic.id, evil_trout, { filter: 'whatever' })
+      expect(tv.filter_posts).to eq([p0, p1])
+
+      ensure
+        TopicView.instance_variable_set(:@custom_filters, {})
+    end
+  end
+
   context "setup_filtered_posts" do
     describe "filters posts with ignored users" do
       fab!(:ignored_user) { Fabricate(:ignored_user, user: evil_trout, ignored_user: user) }
@@ -244,8 +286,28 @@ describe TopicView do
       end
 
       it "generates a canonical correctly for paged results" do
-        expect(TopicView.new(1234, user, post_number: 10 * TopicView.chunk_size)
-          .canonical_path).to eql("/1234?page=10")
+        5.times { |i| Fabricate(:post, post_number: i + 1, topic: topic) }
+
+        expect(TopicView.new(1234, user, post_number: 5, limit: 2)
+          .canonical_path).to eql("/1234?page=3")
+      end
+
+      it "generates canonical path correctly by skipping whisper posts" do
+        2.times { |i| Fabricate(:post, post_number: i + 1, topic: topic) }
+        2.times { |i| Fabricate(:whisper, post_number: i + 3, topic: topic) }
+        Fabricate(:post, post_number: 5, topic: topic)
+
+        expect(TopicView.new(1234, user, post_number: 5, limit: 2)
+          .canonical_path).to eql("/1234?page=2")
+      end
+
+      it "generates canonical path correctly for mega topics" do
+        2.times { |i| Fabricate(:post, post_number: i + 1, topic: topic) }
+        2.times { |i| Fabricate(:whisper, post_number: i + 3, topic: topic) }
+        Fabricate(:post, post_number: 5, topic: topic)
+
+        expect(TopicView.new(1234, user, post_number: 5, limit: 2, is_mega_topic: true)
+          .canonical_path).to eql("/1234?page=3")
       end
     end
 
@@ -253,21 +315,25 @@ describe TopicView do
       let!(:post) { Fabricate(:post, topic: topic, user: user) }
       let!(:post2) { Fabricate(:post, topic: topic, user: user) }
       let!(:post3) { Fabricate(:post, topic: topic, user: user) }
+      let!(:post4) { Fabricate(:post, topic: topic, user: user) }
+      let!(:post5) { Fabricate(:post, topic: topic, user: user) }
 
       before do
         TopicView.stubs(:chunk_size).returns(2)
       end
 
       it "should return the next page" do
-        expect(TopicView.new(topic.id, user).next_page).to eql(2)
+        expect(TopicView.new(topic.id, user, { post_number: post.post_number }).next_page).to eql(3)
       end
     end
 
     context '.post_counts_by_user' do
       it 'returns the two posters with their appropriate counts' do
         Fabricate(:post, topic: topic, user: evil_trout, post_type: Post.types[:whisper])
+        # Should not be counted
+        Fabricate(:post, topic: topic, user: evil_trout, post_type: Post.types[:whisper], action_code: 'assign')
 
-        expect(topic_view.post_counts_by_user.to_a).to match_array([[first_poster.id, 2], [evil_trout.id, 2]])
+        expect(TopicView.new(topic.id, admin).post_counts_by_user.to_a).to match_array([[first_poster.id, 2], [evil_trout.id, 2]])
 
         expect(TopicView.new(topic.id, first_poster).post_counts_by_user.to_a).to match_array([[first_poster.id, 2], [evil_trout.id, 1]])
       end
@@ -311,6 +377,37 @@ describe TopicView do
         PostTiming.process_timings(evil_trout, topic.id, 1, [[1, 1000]])
         expect(TopicView.new(topic.id, evil_trout).read?(1)).to eq(true)
         expect(TopicView.new(topic.id, evil_trout).topic_user).to be_present
+      end
+    end
+
+    context "#user_post_bookmarks" do
+      let!(:user) { Fabricate(:user) }
+      let!(:bookmark1) { Fabricate(:bookmark, post: Fabricate(:post, topic: topic), user: user) }
+      let!(:bookmark2) { Fabricate(:bookmark, post: Fabricate(:post, topic: topic), user: user) }
+      let!(:bookmark3) { Fabricate(:bookmark, post: Fabricate(:post, topic: topic)) }
+
+      it "returns all the bookmarks in the topic for a user" do
+        expect(TopicView.new(topic.id, user).user_post_bookmarks.pluck(:id)).to match_array(
+          [bookmark1.id, bookmark2.id]
+        )
+      end
+    end
+
+    context "#first_post_bookmark_reminder_at" do
+      let!(:user) { Fabricate(:user) }
+      let!(:bookmark1) { Fabricate(:bookmark_next_business_day_reminder, post: topic.first_post, user: user) }
+
+      it "gets the first post bookmark reminder at for the user" do
+        expect(TopicView.new(topic.id, user).first_post_bookmark_reminder_at).to eq_time(bookmark1.reminder_at)
+      end
+
+      context "when the topic is deleted" do
+        it "gets the first post bookmark reminder at for the user" do
+          topic_view = TopicView.new(topic, user)
+          PostDestroyer.new(Fabricate(:admin), topic.first_post).destroy
+          topic.reload
+          expect(topic_view.first_post_bookmark_reminder_at).to eq_time(bookmark1.reminder_at)
+        end
       end
     end
 
@@ -566,8 +663,50 @@ describe TopicView do
   context "page_title" do
     fab!(:tag1) { Fabricate(:tag) }
     fab!(:tag2) { Fabricate(:tag, topic_count: 2) }
+    fab!(:op_post) { Fabricate(:post, topic: topic) }
+    fab!(:post1) { Fabricate(:post, topic: topic) }
+    fab!(:whisper) { Fabricate(:post, topic: topic, post_type: Post.types[:whisper]) }
 
     subject { TopicView.new(topic.id, evil_trout).page_title }
+
+    context "when a post number is specified" do
+      context "admins" do
+        it "see post number and username for all posts" do
+          title = TopicView.new(topic.id, admin, post_number: 0).page_title
+          expect(title).to eq(topic.title)
+          title = TopicView.new(topic.id, admin, post_number: 1).page_title
+          expect(title).to eq(topic.title)
+
+          title = TopicView.new(topic.id, admin, post_number: 2).page_title
+          expect(title).to eq("#{topic.title} - #2 by #{post1.user.username}")
+          title = TopicView.new(topic.id, admin, post_number: 3).page_title
+          expect(title).to eq("#{topic.title} - #3 by #{whisper.user.username}")
+        end
+      end
+
+      context "regular users" do
+        it "see post number and username for regular posts" do
+          title = TopicView.new(topic.id, evil_trout, post_number: 0).page_title
+          expect(title).to eq(topic.title)
+          title = TopicView.new(topic.id, evil_trout, post_number: 1).page_title
+          expect(title).to eq(topic.title)
+
+          title = TopicView.new(topic.id, evil_trout, post_number: 2).page_title
+          expect(title).to eq("#{topic.title} - #2 by #{post1.user.username}")
+        end
+
+        it "see only post number for whisper posts" do
+          title = TopicView.new(topic.id, evil_trout, post_number: 3).page_title
+          expect(title).to eq("#{topic.title} - #3")
+          post2 = Fabricate(:post, topic: topic)
+          topic.reload
+          title = TopicView.new(topic.id, evil_trout, post_number: 3).page_title
+          expect(title).to eq("#{topic.title} - #3")
+          title = TopicView.new(topic.id, evil_trout, post_number: 4).page_title
+          expect(title).to eq("#{topic.title} - #4 by #{post2.user.username}")
+        end
+      end
+    end
 
     context "uncategorized topic" do
       context "topic_page_title_includes_category is false" do
@@ -738,6 +877,32 @@ describe TopicView do
         expect(topic_view_for_post(2).image_url).to eq(nil)
         expect(topic_view_for_post(3).image_url).to end_with(post3_upload.url)
       end
+    end
+  end
+
+  describe '#show_read_indicator?' do
+    let(:topic) { Fabricate(:topic) }
+    let(:pm_topic) { Fabricate(:private_message_topic) }
+
+    it "shows read indicator for private messages" do
+      group = Fabricate(:group, users: [admin], publish_read_state: true)
+      pm_topic.topic_allowed_groups = [Fabricate.build(:topic_allowed_group, group: group)]
+
+      topic_view = TopicView.new(pm_topic.id, admin)
+      expect(topic_view.show_read_indicator?).to be_truthy
+    end
+
+    it "does not show read indicator if groups do not have read indicator enabled" do
+      topic_view = TopicView.new(pm_topic.id, admin)
+      expect(topic_view.show_read_indicator?).to be_falsey
+    end
+
+    it "does not show read indicator for topics with allowed groups" do
+      group = Fabricate(:group, users: [admin], publish_read_state: true)
+      topic.topic_allowed_groups = [Fabricate.build(:topic_allowed_group, group: group)]
+
+      topic_view = TopicView.new(topic.id, admin)
+      expect(topic_view.show_read_indicator?).to be_falsey
     end
   end
 end

@@ -1,9 +1,10 @@
-import { scheduleOnce } from "@ember/runloop";
 import Component from "@ember/component";
+import { scheduleOnce } from "@ember/runloop";
 export default Component.extend({
   classNames: ["modal-body"],
   fixed: false,
   dismissable: true,
+  autoFocus: true,
 
   didInsertElement() {
     this._super(...arguments);
@@ -28,14 +29,6 @@ export default Component.extend({
   },
 
   _afterFirstRender() {
-    if (
-      !this.site.mobileView &&
-      this.autoFocus !== "false" &&
-      this.element.querySelector("input")
-    ) {
-      this.element.querySelector("input").focus();
-    }
-
     const maxHeight = this.maxHeight;
     if (maxHeight) {
       const maxHeightFloat = parseFloat(maxHeight) / 100.0;
@@ -56,15 +49,19 @@ export default Component.extend({
         "fixed",
         "subtitle",
         "rawSubtitle",
-        "dismissable"
+        "dismissable",
+        "headerClass",
+        "autoFocus"
       )
     );
   },
 
   _clearFlash() {
-    $("#modal-alert")
-      .hide()
-      .removeClass("alert-error", "alert-success");
+    const modalAlert = document.getElementById("modal-alert");
+    if (modalAlert) {
+      modalAlert.style.display = "none";
+      modalAlert.classList.remove("alert-info", "alert-error", "alert-success");
+    }
   },
 
   _flash(msg) {
@@ -74,5 +71,5 @@ export default Component.extend({
       .addClass(`alert alert-${msg.messageClass || "success"}`)
       .html(msg.text || "")
       .fadeIn();
-  }
+  },
 });
