@@ -80,3 +80,6 @@ copyright
 !/plugins/discourse-webkit-components
 
 .powenv
+
+# Ignore RubyMine settings which are individual for every developer.
+.idea/**/*

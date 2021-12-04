@@ -9,7 +9,7 @@ import EditCategorySettings from 'discourse/components/edit-category-settings';
 import TopicListItem from 'discourse/components/topic-list-item';
 import DiscourseURL from 'discourse/lib/url';
 import { withPluginApi } from 'discourse/lib/plugin-api';
-import { calendarRange, firstDayOfWeek } from '../lib/date-utilities';
+import { calendarRange } from '../lib/date-utilities';
 import { CREATE_TOPIC } from "discourse/models/composer";
 import { scheduleOnce, bind } from "@ember/runloop";
 import EmberObject from "@ember/object";
@@ -19,6 +19,7 @@ export default {
   name: 'events-edits',
   initialize(container) {
     const siteSettings = container.lookup('site-settings:main');
+    const currentUser = container.lookup("current-user:main");
 
     Composer.serializeOnCreate('event');
     Composer.serializeToTopic('event', 'topic.event');
@@ -31,8 +32,7 @@ export default {
 
       @discourseComputed('category.events_min_trust_to_create')
       canCreateEvent(minTrust) {
-        const user = Discourse.User.current();
-        return user.staff || user.trust_level >= minTrust;
+        return currentUser.staff || currentUser.trust_level >= minTrust;
       }
     });
 
@@ -68,8 +68,7 @@ export default {
 
       @discourseComputed('category.events_min_trust_to_create')
       canCreateEvent(minTrust) {
-        const user = Discourse.User.current();
-        return user.staff || user.trust_level >= minTrust;
+        return currentUser.staff || currentUser.trust_level >= minTrust;
       },
 
       @discourseComputed('last_read_post_number', 'highest_post_number')
@@ -98,10 +97,10 @@ export default {
           items = items.reject((item) => item.name === 'agenda' || item.name === 'calendar');
 
           if (category.events_agenda_enabled) {
-            items.push(Discourse.NavItem.fromText('agenda', args));
+            items.push(NavItem.fromText('agenda', args));
           }
           if (category.events_calendar_enabled) {
-            items.push(Discourse.NavItem.fromText('calendar', args));
+            items.push(NavItem.fromText('calendar', args));
           }
         }
 
@@ -143,7 +142,7 @@ export default {
             rowBelowTitle = true;
           }
 
-          if (Discourse.SiteSettings.events_event_label_short_after_title) {
+          if (this.siteSettings.events_event_label_short_after_title) {
             $('.date-time-container', this.element).insertAfter($linkTopLine);
             rowBelowTitle = true;
           }
@@ -175,7 +174,6 @@ export default {
     const calendarRoutes = [
       `Calendar`,
       `CalendarCategory`,
-      `CalendarParentCategory`,
       `CalendarCategoryNone`
     ];
 
@@ -228,13 +226,14 @@ export default {
 
     const categoryRoutes = [
       'category',
-      'parentCategory',
       'categoryNone'
     ];
 
     categoryRoutes.forEach(function(route){
       withPluginApi('0.8.12', api => {
         api.modifyClass(`route:discovery.${route}`, {
+          pluginId: 'events',
+
           afterModel(model, transition) {
             const filter = this.filter(model.category);
             if (filter === 'calendar' || filter === 'agenda') {
@@ -256,6 +255,8 @@ export default {
       api.addDiscoveryQueryParam('start', { replace: true, refreshModel: true });
 
       api.modifyClass('controller:preferences/interface', {
+        pluginId: 'events',
+
         @discourseComputed("makeThemeDefault")
         saveAttrNames(makeDefault) {
           let attrs = this._super(makeDefault);
@@ -287,6 +288,8 @@ export default {
       const user = api.getCurrentUser();
       if (user && user.admin) {
         api.modifyClass('model:site-setting', {
+          pluginId: 'events',
+
           @discourseComputed('valid_values')
           allowsNone() {
             if (this.get('setting') === 'events_timezone_default') {
@@ -299,6 +302,8 @@ export default {
       }
 
       api.modifyClass('controller:topic', {
+        pluginId: 'events',
+
         @observes('model.id')
         subscribeCalendarEvents() {
           this.unsubscribeCalendarEvents();
@@ -328,6 +333,8 @@ export default {
       });
 
       api.modifyClass('controller:composer', {
+        pluginId: 'events',
+
         @discourseComputed('model.action', 'model.event', 'model.category.events_required', 'lastValidatedAt')
         eventValidation(action, event, eventsRequired, lastValidatedAt) {
           if (action === CREATE_TOPIC && eventsRequired && !event) {

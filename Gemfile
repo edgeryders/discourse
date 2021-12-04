@@ -262,8 +262,8 @@ gem 'kaminari', '1.1.1'
 
 
 # damingo (Github ID), 2017-08-22, #annotator
-gem 'annotator_store', git: 'https://github.com/edgeryders/annotator_store-gem', branch: 'master'
-# gem 'annotator_store', path: '~/Projects/annotator_store-gem'
+# gem 'annotator_store', git: 'https://github.com/edgeryders/annotator_store-gem', branch: 'master'
+gem 'annotator_store', path: '~/Projects/annotator_store-gem'
 
 
 # NOTE: This is a quickfix to make sure the gem is loaded for annotator_store. It is specified in the annotator_store/Gemfile
@@ -274,7 +274,9 @@ gem "administrate-field-nested_has_many", git: 'https://github.com/edgeryders/ad
 # gem 'administrate-field-nested_has_many', path: '~/Projects/administrate-field-nested_has_many'
 
 
-gem 'administrate-field-belongs_to_search'
+# TODO
+gem "administrate-field-belongs_to_search", git: 'https://github.com/edgeryders/administrate-field-belongs_to_search.git', branch: 'master'
+# gem 'administrate-field-belongs_to_search'
 # https://github.com/thoughtbot/administrate
 #gem 'administrate'
 
