@@ -1,17 +1,26 @@
 # Official Discourse Advertising Plugin
 
+Official Plugin Topic & Documentation: https://meta.discourse.org/t/official-advertising-ad-plugin-for-discourse/33734
+
 This is the official Discourse advertising plugin.  It allows advertisements to be served by supported advertising platforms for users with a Discourse forum.
 
 **Authors**: 		[Sarah Ni](https://github.com/cyberkoi) & [Vi Nguyen](https://github.com/ladydanger)
-**Version**: 			1.0.1
-**Contributors**: See credits section below
+
+**Version**: 			1.2.5
+
+**Contributors**: See [credits section](#credits)  below
+
 **License**: 			MIT License
+
 **Supported Discourse Version**: 1.4
+
 **Supported Ad Platforms**:
+* House Ads: Your own ads served from Discourse
 * [Google Adsense](http://www.google.com.au/adsense/start/why-adsense.html)
 * [Google Double Click for Publishers](https://www.google.com/dfp)
 * [Amazon Affiliates](http://affiliate-program.amazon.com) - Banner and Product Link Ads
-* [CodeFund](https://codefund.io) - Ethical Ad Platform for Developers
+* [Carbon Ads](https://www.carbonads.net/)
+* [AdButler](https://www.adbutler.com/)
 
 
 ## Quick Start in 3 Steps
@@ -27,7 +36,7 @@ For non-docker or local development installation (those with programming experie
 ### Step 1 - Install the Official Discourse Advertising Plugin
 
 
-As seen in a [how-to on meta.discourse.org](https://meta.discourse.org/t/advanced-troubleshooting-with-docker/15927#Example:%20Install%20a%20plugin), simply **add the plugin's repository url to your container's app.yml file**:
+As seen in a [how-to on meta.discourse.org](https://meta.discourse.org/t/install-plugins-in-discourse/19157), simply **add the plugin's repository url to your container's app.yml file**:
 
 ```yml
 hooks:
@@ -50,6 +59,18 @@ git pull
 
 There are 2 easy steps for configuring your Discourse settings to enable advertisements to display in your Discourse forum.
 
+#### House Ads
+
+If you don't want to use an external ad platform, but want to show your own ads, then House Ads are for you!
+Define your ads by going to the Admin section of your Discourse forum, and go to the Plugins section.
+On the left, you should see a link called "House Ads".
+
+Begin by creating your ads. Give each a short descriptive name and enter the html for each.
+Style them using a custom theme (Admin > Customize > Themes).
+Lastly, click the Settings button in the House Ads UI and choose which of your ads to show in each of
+the ad slots. The ads will start showing as soon as you add them to slots.
+
+
 #### Step 2(a) - Choose Your Advertisement Platform
 
 <ul>
@@ -57,9 +78,11 @@ There are 2 easy steps for configuring your Discourse settings to enable adverti
 <li>Click on Settings and a left vertical navigation bar should appear.</li>
 <li>Choose your advertisement platform.</li>
 <ul>
+<li>House Ads - if you want to create and serve ads from your Discourse instance.</li>
 <li>Adsense - if using Adsense as your advertisement platform.</li>
 <li>DFP - if using the DoubleClick for Publishers advertisement platform.</li>
-<li>CodeFund - if using the CodeFund ethical advertisement platform.</li>
+<li>Carbon Ads - if using the Carbon Ads advertisement platform.</li>
+<li>AdButler - if using the AdButler advertisement platform.</li>
 </ul>
 </ul>
 
@@ -84,9 +107,36 @@ Only for Product Link and Banner Ads.
 
 ![](https://www.dropbox.com/sc/l67fb5c3tl8bq3d/AAAAMmccMW3kkIeBR7cBdWoFa?dl=1)
 
-##### CodeFund Embed Tag to Discourse's Site Settings
+##### Carbon Ads Script Tag to Discourse's Site Settings
 
-![CodeFund Instructions](https://s3-us-west-2.amazonaws.com/codesponsor/discourse-codefund-instructions.png)
+![Carbon Ads](https://d11a6trkgmumsb.cloudfront.net/original/3X/3/a/3acc7488db2b53733cdd427d3cb1b76361c786e1.png)
+
+##### AdButler Ads Zone URL to Discourse's Site Settings
+
+This plugin only support AdButler "Standard Zones". Text and VAST are not supported.
+
+If you browse to a zone in the AdButler admin, then you can find the Publisher ID (PPPPPP) and the Zone ID (ZZZZZZ) in the URL of your browser's address bar:
+
+`https://admin.adbutler.com/?ID=PPPPPP&p=textadzone.view&zoneID=ZZZZZZ`
+
+Configure the ads in Admin > Settings > AdButler.
+Enter the publisher id in the "adbutler publisher id" setting, and enter the Zone IDs in the different
+zone id settings as desired.
+
+By default, ads are assumed to be size 728 x 90, or 320 x 50 in mobile view.
+To use different size ads, customize using CSS in your site's theme. Override the following CSS:
+
+```css
+.adbutler-ad {
+  width: 728px;
+  height: 90px;
+}
+
+.adbutler-mobile-ad {
+  width: 320px;
+  height: 50px;
+}
+```
 
 ### Step 3 - See Your Ad
 
@@ -97,9 +147,11 @@ Once you've configured your settings and your advertising platform has ads that 
 
 In this section, we go into more detail on:
 * Available Locations for Ad Display
-* Ad Sizes Supported
 * Trust Levels
-* Languages Supported
+* Personal messages
+* Groups
+* Categories
+* Tags
 
 ### Available Locations for Ad Display
 
@@ -115,23 +167,6 @@ The following are available locations along with a description and an image show
 
 ![](https://www.dropbox.com/sc/rm5bcn8c85niul1/AAAUVW-hn56XtCl_XTNlE19Ra?dl=1)
 
-### Advertisement Sizes Supported
-
-This plugin supports the following ad sizes for the following locations.
-
-All locations except post bottom | Post bottom location | Mobile
---- | --- | ---
-728 x 90 | 728 x 90 | 320 x 50
-336 x 280 | 336 x 280 |
-300 x 250 | 300 x 250 |
-970 x 90 | 970 x 90 |
-468 x 60 | 468 x 60 |
-234 x 60 | 234 x 60 |
-125 x 125 | |
-180 x 150 | |
-200 x 200 | |
-250 x 250 | |
-
 
 ### Trust Levels
 
@@ -145,12 +180,21 @@ You can use the ```ad_platform_through_trust_level``` dropdown to disable ads fo
 
 To find more about trust levels in Discourse, refer to [Discourse's posts on trust levels](https://meta.discourse.org/t/what-do-user-trust-levels-do/4924)
 
-### Languages Supported
+### Personal messages
 
-* Chinese (Simplified)
-* English
-* French
-* Spanish
+By default, ads won't be shown in personal messages. To enable ads in personal messages, use the "no ads for personal messages" setting.
+
+### Groups
+
+To give some users an ad-free experience, put the users in groups and add those groups to the "no ads for groups" setting.
+
+### Categories
+
+To disable ads in certain categories, add them to the "no ads for categories" setting. Also consider using the "no ads for restricted categories" to disable ads in all categories that have read access restrictions.
+
+### Tags
+
+Individual topics can have ads disabled by using tags, and entering those tags in the "no ads for tags" setting. This is useful if some topics violate ad network policies.
 
 ## Other Installation
 
@@ -198,4 +242,4 @@ Open an Issue on this repository to start a chat.
 **Our Coaches**: 					Very special thank you to our coaches and honorary coach - [@georg](https://github.com/georg), [@betaass](https://github.com/betaass), [@adelsmee](https://github.com/adelsmee), [@davich](https://github.com/davich), [@link664](https://github.com/link664), [@tomjadams](https://github.com/tomjadams), [@compactcode](https://github.com/compactcode), [@joffotron](https://github.com/joffotron), [@jocranford](https://github.com/jocranford), [@saramic](https://github.com/saramic), [@madpilot](https://github.com/madpilot), [@catkins](https://github.com/catkins)
 
 **Rails Girls**: 			Thanks [@sareg0](https://github.com/sareg0) and the Rails Girls Team for the opportunity to participate in Rails Girls Summer of Code 2015.
-<p>To create this plugin we referenced the <a href="https://github.com/discourse/discourse-google-dfp">original dfp plugin</a> (created by  <a href="https://github.com/search?q=neil+lalonde&ref=opensearch&type=Users">nlalonde</a>) and the <a href="https://meta.discourse.org/t/google-adsense-plugin/11763/133">adsense plugin</a>.</p>
+<p>To create this plugin we referenced the <a href="https://github.com/discourse/discourse-google-dfp">original dfp plugin</a> (created by <a href="https://github.com/nlalonde">@nlalonde</a>) and the <a href="https://meta.discourse.org/t/google-adsense-plugin/11763/133">adsense plugin</a>.</p>

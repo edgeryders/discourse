@@ -1,16 +1,21 @@
-# encoding: utf-8
-#
-# Never edit this file. It will be overwritten when translations are pulled from Transifex.
+# WARNING: Never edit this file.
+# It will be overwritten when translations are pulled from Crowdin.
 #
 # To work with us on translations, join this project:
-# https://www.transifex.com/projects/p/discourse-org/
+# https://translate.discourse.org/
 
 sk:
   js:
     adplugin:
-      advertisement_label: 'REKLAMA'
+      advertisement_label: 'РЕКЛАМА'
   admin_js:
     admin:
       site_settings:
         categories:
           amazon_plugin: 'Amazon'
+      adplugin:
+        house_ads:
+          new: "Nový"
+          settings: "Nastavenia"
+          save: "Uložiť"
+          delete: "Odstrániť"

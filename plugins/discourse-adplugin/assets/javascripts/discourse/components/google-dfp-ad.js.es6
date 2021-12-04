@@ -1,23 +1,30 @@
+import AdComponent from "discourse/plugins/discourse-adplugin/discourse/components/ad-component";
+import discourseComputed, { on } from "discourse-common/utils/decorators";
 import loadScript from "discourse/lib/load-script";
 
-var currentUser = Discourse.User.current(),
-  _loaded = false,
+let _loaded = false,
   _promise = null,
-  ads = {};
+  ads = {},
+  nextSlotNum = 1,
+  renderCounts = {};
+
+function getNextSlotNum() {
+  return nextSlotNum++;
+}
 
 function splitWidthInt(value) {
-  var str = value.substring(0, 3);
+  let str = value.substring(0, 3);
   return str.trim();
 }
 
 function splitHeightInt(value) {
-  var str = value.substring(4, 7);
+  let str = value.substring(4, 7);
   return str.trim();
 }
 
 // This creates an array for the values of the custom targeting key
 function valueParse(value) {
-  var final = value.replace(/ /g, "");
+  let final = value.replace(/ /g, "");
   final = final.replace(/['"]+/g, "");
   final = final.split(",");
   return final;
@@ -25,251 +32,173 @@ function valueParse(value) {
 
 // This creates an array for the key of the custom targeting key
 function keyParse(word) {
-  var key = word;
+  let key = word;
   key = key.replace(/['"]+/g, "");
   key = key.split("\n");
   return key;
 }
 
-// This sets the key and value for custom targeting
-var Foo = function(key, value, adslot) {
-  this.locationKey = key;
-  this.locationValue = value;
-  this.adslot = adslot;
-};
-
-Foo.prototype.bar = function() {
-  if (this.locationKey) {
-    this.adslot.setTargeting(this.locationKey, this.locationValue);
-  }
-};
-
 // This should call adslot.setTargeting(key for that location, value for that location)
-function custom_targeting(key_array, value_array, location) {
-  var f;
-  for (var i = 0; i < key_array.length; i++) {
-    var wordValue = valueParse(value_array[i]);
-    f = new Foo(key_array[i], wordValue, location);
-    f.bar();
+function custom_targeting(key_array, value_array, adSlot) {
+  for (let i = 0; i < key_array.length; i++) {
+    if (key_array[i]) {
+      adSlot.setTargeting(key_array[i], valueParse(value_array[i]));
+    }
   }
 }
 
-function defineSlot(divId, placement, settings, isMobile) {
+const DESKTOP_SETTINGS = {
+  "topic-list-top": {
+    code: "dfp_topic_list_top_code",
+    sizes: "dfp_topic_list_top_ad_sizes",
+    targeting_keys: "dfp_target_topic_list_top_key_code",
+    targeting_values: "dfp_target_topic_list_top_value_code",
+  },
+  "topic-above-post-stream": {
+    code: "dfp_topic_above_post_stream_code",
+    sizes: "dfp_topic_above_post_stream_ad_sizes",
+    targeting_keys: "dfp_target_topic_above_post_stream_key_code",
+    targeting_values: "dfp_target_topic_above_post_stream_value_code",
+  },
+  "topic-above-suggested": {
+    code: "dfp_topic_above_suggested_code",
+    sizes: "dfp_topic_above_suggested_ad_sizes",
+    targeting_keys: "dfp_target_topic_above_suggested_key_code",
+    targeting_values: "dfp_target_topic_above_suggested_value_code",
+  },
+  "post-bottom": {
+    code: "dfp_post_bottom_code",
+    sizes: "dfp_post_bottom_ad_sizes",
+    targeting_keys: "dfp_target_post_bottom_key_code",
+    targeting_values: "dfp_target_post_bottom_value_code",
+  },
+};
+
+const MOBILE_SETTINGS = {
+  "topic-list-top": {
+    code: "dfp_mobile_topic_list_top_code",
+    sizes: "dfp_mobile_topic_list_top_ad_sizes",
+    targeting_keys: "dfp_target_topic_list_top_key_code",
+    targeting_values: "dfp_target_topic_list_top_value_code",
+  },
+  "topic-above-post-stream": {
+    code: "dfp_mobile_topic_above_post_stream_code",
+    sizes: "dfp_mobile_topic_above_post_stream_ad_sizes",
+    targeting_keys: "dfp_target_topic_above_post_stream_key_code",
+    targeting_values: "dfp_target_topic_above_post_stream_value_code",
+  },
+  "topic-above-suggested": {
+    code: "dfp_mobile_topic_above_suggested_code",
+    sizes: "dfp_mobile_topic_above_suggested_ad_sizes",
+    targeting_keys: "dfp_target_topic_above_suggested_key_code",
+    targeting_values: "dfp_target_topic_above_suggested_value_code",
+  },
+  "post-bottom": {
+    code: "dfp_mobile_post_bottom_code",
+    sizes: "dfp_mobile_post_bottom_ad_sizes",
+    targeting_keys: "dfp_target_post_bottom_key_code",
+    targeting_values: "dfp_target_post_bottom_value_code",
+  },
+};
+
+function getWidthAndHeight(placement, settings, isMobile) {
+  let config, size;
+
+  if (isMobile) {
+    config = MOBILE_SETTINGS[placement];
+  } else {
+    config = DESKTOP_SETTINGS[placement];
+  }
+
+  if (!renderCounts[placement]) {
+    renderCounts[placement] = 0;
+  }
+
+  const sizes = (settings[config.sizes] || "").split("|");
+
+  if (sizes.length === 1) {
+    size = sizes[0];
+  } else {
+    size = sizes[renderCounts[placement] % sizes.length];
+    renderCounts[placement] += 1;
+  }
+
+  if (size === "fluid") {
+    return { width: "fluid", height: "fluid" };
+  }
+
+  const sizeObj = {
+    width: parseInt(splitWidthInt(size), 10),
+    height: parseInt(splitHeightInt(size), 10),
+  };
+
+  if (!isNaN(sizeObj.width) && !isNaN(sizeObj.height)) {
+    return sizeObj;
+  }
+}
+
+function defineSlot(
+  divId,
+  placement,
+  settings,
+  isMobile,
+  width,
+  height,
+  categoryTarget
+) {
   if (!settings.dfp_publisher_id) {
     return;
   }
-
-  var ad, width, height;
 
   if (ads[divId]) {
     return ads[divId];
   }
 
-  if (
-    placement === "topic-list-top" &&
-    settings.dfp_topic_list_top_code &&
-    settings.dfp_topic_list_top_ad_sizes
-  ) {
-    if (isMobile) {
-      width = parseInt(
-        splitWidthInt(settings.dfp_mobile_topic_list_top_ad_sizes)
-      );
-      height = parseInt(
-        splitHeightInt(settings.dfp_mobile_topic_list_top_ad_sizes)
-      );
-      ad = window.googletag
-        .defineSlot(
-          "/" +
-            settings.dfp_publisher_id +
-            "/" +
-            settings.dfp_mobile_topic_list_top_code,
-          [width, height],
-          divId
-        )
-        .addService(window.googletag.pubads());
-      custom_targeting(
-        keyParse(Discourse.SiteSettings.dfp_target_topic_list_top_key_code),
-        keyParse(settings.dfp_target_topic_list_top_value_code),
-        ad
-      );
-    } else {
-      width = parseInt(splitWidthInt(settings.dfp_topic_list_top_ad_sizes));
-      height = parseInt(splitHeightInt(settings.dfp_topic_list_top_ad_sizes));
-      ad = window.googletag
-        .defineSlot(
-          "/" +
-            settings.dfp_publisher_id +
-            "/" +
-            settings.dfp_topic_list_top_code,
-          [width, height],
-          divId
-        )
-        .addService(window.googletag.pubads());
-      custom_targeting(
-        keyParse(settings.dfp_target_topic_list_top_key_code),
-        keyParse(settings.dfp_target_topic_list_top_value_code),
-        ad
-      );
-    }
-  } else if (
-    placement === "topic-above-post-stream" &&
-    settings.dfp_topic_above_post_stream_code &&
-    settings.dfp_topic_above_post_stream_ad_sizes
-  ) {
-    if (isMobile) {
-      width = parseInt(
-        splitWidthInt(settings.dfp_mobile_topic_above_post_stream_ad_sizes)
-      );
-      height = parseInt(
-        splitHeightInt(settings.dfp_mobile_topic_above_post_stream_ad_sizes)
-      );
-      ad = window.googletag
-        .defineSlot(
-          "/" +
-            settings.dfp_publisher_id +
-            "/" +
-            settings.dfp_mobile_topic_above_post_stream_code,
-          [width, height],
-          divId
-        )
-        .addService(window.googletag.pubads());
-      custom_targeting(
-        keyParse(settings.dfp_target_topic_above_post_stream_key_code),
-        keyParse(settings.dfp_target_topic_above_post_stream_value_code),
-        ad
-      );
-    } else {
-      width = parseInt(
-        splitWidthInt(settings.dfp_topic_above_post_stream_ad_sizes)
-      );
-      height = parseInt(
-        splitHeightInt(settings.dfp_topic_above_post_stream_ad_sizes)
-      );
-      ad = window.googletag
-        .defineSlot(
-          "/" +
-            settings.dfp_publisher_id +
-            "/" +
-            settings.dfp_topic_above_post_stream_code,
-          [width, height],
-          divId
-        )
-        .addService(window.googletag.pubads());
-      custom_targeting(
-        keyParse(settings.dfp_target_topic_above_post_stream_key_code),
-        keyParse(settings.dfp_target_topic_above_post_stream_value_code),
-        ad
-      );
-    }
-  } else if (
-    placement === "topic-above-suggested" &&
-    settings.dfp_topic_above_suggested_code &&
-    settings.dfp_topic_above_suggested_ad_sizes
-  ) {
-    if (isMobile) {
-      width = parseInt(
-        splitWidthInt(settings.dfp_mobile_topic_above_suggested_ad_sizes)
-      );
-      height = parseInt(
-        splitHeightInt(settings.dfp_mobile_topic_above_suggested_ad_sizes)
-      );
-      ad = window.googletag
-        .defineSlot(
-          "/" +
-            settings.dfp_publisher_id +
-            "/" +
-            settings.dfp_mobile_topic_above_suggested_code,
-          [width, height],
-          divId
-        )
-        .addService(window.googletag.pubads());
-      custom_targeting(
-        keyParse(settings.dfp_target_topic_above_suggested_key_code),
-        keyParse(settings.dfp_target_topic_above_suggested_value_code),
-        ad
-      );
-    } else {
-      width = parseInt(
-        splitWidthInt(settings.dfp_topic_above_suggested_ad_sizes)
-      );
-      height = parseInt(
-        splitHeightInt(settings.dfp_topic_above_suggested_ad_sizes)
-      );
-      ad = window.googletag
-        .defineSlot(
-          "/" +
-            settings.dfp_publisher_id +
-            "/" +
-            settings.dfp_topic_above_suggested_code,
-          [width, height],
-          divId
-        )
-        .addService(window.googletag.pubads());
-      custom_targeting(
-        keyParse(settings.dfp_target_topic_above_suggested_key_code),
-        keyParse(settings.dfp_target_topic_above_suggested_value_code),
-        ad
-      );
-    }
-  } else if (
-    placement === "post-bottom" &&
-    settings.dfp_post_bottom_code &&
-    settings.dfp_post_bottom_ad_sizes
-  ) {
-    if (isMobile) {
-      width = parseInt(splitWidthInt(settings.dfp_mobile_post_bottom_ad_sizes));
-      height = parseInt(
-        splitHeightInt(settings.dfp_mobile_post_bottom_ad_sizes)
-      );
-      ad = window.googletag
-        .defineSlot(
-          "/" +
-            settings.dfp_publisher_id +
-            "/" +
-            settings.dfp_mobile_post_bottom_code,
-          [width, height],
-          divId
-        )
-        .addService(window.googletag.pubads());
-      custom_targeting(
-        keyParse(settings.dfp_target_post_bottom_key_code),
-        keyParse(settings.dfp_target_post_bottom_value_code),
-        ad
-      );
-    } else {
-      width = parseInt(splitWidthInt(settings.dfp_post_bottom_ad_sizes));
-      height = parseInt(splitHeightInt(settings.dfp_post_bottom_ad_sizes));
-      ad = window.googletag
-        .defineSlot(
-          "/" + settings.dfp_publisher_id + "/" + settings.dfp_post_bottom_code,
-          [width, height],
-          divId
-        )
-        .addService(window.googletag.pubads());
-      custom_targeting(
-        keyParse(settings.dfp_target_post_bottom_key_code),
-        keyParse(settings.dfp_target_post_bottom_value_code),
-        ad
-      );
-    }
+  let ad, config, publisherId;
+
+  if (isMobile) {
+    publisherId = settings.dfp_publisher_id_mobile || settings.dfp_publisher_id;
+    config = MOBILE_SETTINGS[placement];
+  } else {
+    publisherId = settings.dfp_publisher_id;
+    config = DESKTOP_SETTINGS[placement];
   }
 
-  if (ad) {
-    ads[divId] = { ad: ad, width: width, height: height };
-    return ads[divId];
+  ad = window.googletag.defineSlot(
+    "/" + publisherId + "/" + settings[config.code],
+    [width, height],
+    divId
+  );
+
+  custom_targeting(
+    keyParse(settings[config.targeting_keys]),
+    keyParse(settings[config.targeting_values]),
+    ad
+  );
+
+  if (categoryTarget) {
+    ad.setTargeting("discourse-category", categoryTarget);
   }
+
+  ad.addService(window.googletag.pubads());
+
+  ads[divId] = { ad, width, height };
+  return ads[divId];
 }
 
 function destroySlot(divId) {
   if (ads[divId] && window.googletag) {
-    window.googletag.cmd.push(function() {
-      window.googletag.destroySlots([ads[divId].ad]);
-      delete ads[divId];
-    });
+    window.googletag.destroySlots([ads[divId].ad]);
+    delete ads[divId];
   }
 }
 
 function loadGoogle() {
+  /**
+   * Refer to this article for help:
+   * https://support.google.com/admanager/answer/4578089?hl=en
+   */
+
   if (_loaded) {
     return Ember.RSVP.resolve();
   }
@@ -279,124 +208,212 @@ function loadGoogle() {
   }
 
   // The boilerplate code
-  var dfpSrc =
+  let dfpSrc =
     ("https:" === document.location.protocol ? "https:" : "http:") +
-    "//www.googletagservices.com/tag/js/gpt.js";
-  _promise = loadScript(dfpSrc, { scriptTag: true }).then(function() {
+    "//securepubads.g.doubleclick.net/tag/js/gpt.js";
+  _promise = loadScript(dfpSrc, { scriptTag: true }).then(function () {
     _loaded = true;
     if (window.googletag === undefined) {
+      // eslint-disable-next-line no-console
       console.log("googletag is undefined!");
     }
 
-    window.googletag.cmd.push(function() {
+    window.googletag.cmd.push(function () {
+      // Infinite scroll requires SRA:
       window.googletag.pubads().enableSingleRequest();
-      window.googletag.pubads().disableInitialLoad(); // we always use refresh() to fetch the ads
+
+      // we always use refresh() to fetch the ads:
+      window.googletag.pubads().disableInitialLoad();
+
       window.googletag.enableServices();
     });
   });
 
+  window.googletag = window.googletag || { cmd: [] };
+
   return _promise;
 }
 
-// Ember component - the class is the adblock and css
-export default Ember.Component.extend({
-  width: 728,
-  height: 90,
-
+export default AdComponent.extend({
   classNameBindings: ["adUnitClass"],
   classNames: ["google-dfp-ad"],
   loadedGoogletag: false,
   refreshOnChange: null,
+  lastAdRefresh: null,
+  width: Ember.computed.alias("size.width"),
+  height: Ember.computed.alias("size.height"),
 
-  divId: function() {
-    if (this.get("postNumber")) {
-      return (
-        "div-gpt-ad-" + this.get("placement") + "-" + this.get("postNumber")
-      );
+  @discourseComputed
+  size() {
+    return getWidthAndHeight(
+      this.get("placement"),
+      this.siteSettings,
+      this.site.mobileView
+    );
+  },
+
+  @discourseComputed(
+    "siteSettings.dfp_publisher_id",
+    "siteSettings.dfp_publisher_id_mobile",
+    "site.mobileView"
+  )
+  publisherId(globalId, mobileId, isMobile) {
+    if (isMobile) {
+      return mobileId || globalId;
     } else {
-      return "div-gpt-ad-" + this.get("placement");
+      return globalId;
     }
-  }.property("placement", "postNumber"),
+  },
 
-  adUnitClass: function() {
-    return "dfp-ad-" + this.get("placement");
-  }.property("placement"),
+  @discourseComputed("placement", "postNumber")
+  divId(placement, postNumber) {
+    let slotNum = getNextSlotNum();
+    if (postNumber) {
+      return `div-gpt-ad-${slotNum}-${placement}-${postNumber}`;
+    } else {
+      return `div-gpt-ad-${slotNum}-${placement}`;
+    }
+  },
 
-  adWrapperStyle: function() {
-    return `width: ${this.get("width")}px; height: ${this.get(
-      "height"
-    )}px;`.htmlSafe();
-  }.property("width", "height"),
+  @discourseComputed("placement", "showAd")
+  adUnitClass(placement, showAd) {
+    return showAd ? `dfp-ad-${placement}` : "";
+  },
 
-  adTitleStyleMobile: function() {
-    return `width: ${this.get("width")}px;`.htmlSafe();
-  }.property("width"),
+  @discourseComputed("width", "height")
+  adWrapperStyle(w, h) {
+    if (w !== "fluid") {
+      return `width: ${w}px; height: ${h}px;`.htmlSafe();
+    }
+  },
 
-  showAd: function() {
+  @discourseComputed("width")
+  adTitleStyleMobile(w) {
+    if (w !== "fluid") {
+      return `width: ${w}px;`.htmlSafe();
+    }
+  },
+
+  @discourseComputed(
+    "publisherId",
+    "showToTrustLevel",
+    "showToGroups",
+    "showAfterPost",
+    "showOnCurrentPage",
+    "size"
+  )
+  showAd(
+    publisherId,
+    showToTrustLevel,
+    showToGroups,
+    showAfterPost,
+    showOnCurrentPage,
+    size
+  ) {
     return (
-      Discourse.SiteSettings.dfp_publisher_id && this.get("checkTrustLevels")
+      publisherId &&
+      showToTrustLevel &&
+      showToGroups &&
+      showAfterPost &&
+      showOnCurrentPage &&
+      size
     );
-  }.property("checkTrustLevels"),
+  },
 
-  checkTrustLevels: function() {
+  @discourseComputed("currentUser.trust_level")
+  showToTrustLevel(trustLevel) {
     return !(
-      currentUser &&
-      currentUser.get("trust_level") >
-        Discourse.SiteSettings.dfp_through_trust_level
+      trustLevel && trustLevel > this.siteSettings.dfp_through_trust_level
     );
-  }.property("trust_level"),
+  },
 
-  refreshAd: function() {
-    var slot = ads[this.get("divId")];
+  @discourseComputed("postNumber")
+  showAfterPost(postNumber) {
+    if (!postNumber) {
+      return true;
+    }
+
+    return this.isNthPost(parseInt(this.siteSettings.dfp_nth_post_code, 10));
+  },
+
+  // 3 second delay between calls to refresh ads in a component.
+  // Ember often calls updated() more than once, and *sometimes*
+  // updated() is called after _initGoogleDFP().
+  shouldRefreshAd() {
+    const lastAdRefresh = this.get("lastAdRefresh");
+    if (!lastAdRefresh) {
+      return true;
+    }
+    return new Date() - lastAdRefresh > 3000;
+  },
+
+  @on("didUpdate")
+  updated() {
+    if (this.get("listLoading") || !this.shouldRefreshAd()) {
+      return;
+    }
+
+    let slot = ads[this.get("divId")];
     if (!(slot && slot.ad)) {
       return;
     }
 
-    var self = this,
-      ad = slot.ad;
+    let ad = slot.ad,
+      categorySlug = this.get("currentCategorySlug");
 
-    if (this.get("loadedGoogletag") && this.get("refreshOnChange")) {
-      window.googletag.cmd.push(function() {
-        ad.setTargeting(
-          "discourse-category",
-          self.get("category") ? self.get("category") : "0"
-        );
+    if (this.get("loadedGoogletag")) {
+      this.set("lastAdRefresh", new Date());
+      window.googletag.cmd.push(() => {
+        ad.setTargeting("discourse-category", categorySlug || "0");
         window.googletag.pubads().refresh([ad]);
       });
     }
-  }.observes("refreshOnChange"),
+  },
 
-  _initGoogleDFP: function() {
+  @on("didInsertElement")
+  _initGoogleDFP() {
+    if (Ember.testing) {
+      return; // Don't load external JS during tests
+    }
+
     if (!this.get("showAd")) {
       return;
     }
 
-    var self = this;
-    loadGoogle(this.siteSettings)
-      .then(function() {
-        self.set("loadedGoogletag", true);
-        window.googletag.cmd.push(function() {
-          let slot = defineSlot(
-            self.get("divId"),
-            self.get("placement"),
-            self.siteSettings,
-            self.site.mobileView
-          );
-          if (slot && slot.ad) {
-            slot.ad.setTargeting(
-              "discourse-category",
-              self.get("category") ? self.get("category") : "0"
-            );
-            self.set("width", slot.width);
-            self.set("height", slot.height);
-            window.googletag.display(self.get("divId"));
-            window.googletag.pubads().refresh([slot.ad]);
-          }
-        });
-      });
-  }.on("didInsertElement"),
+    loadGoogle().then(() => {
+      this.set("loadedGoogletag", true);
+      this.set("lastAdRefresh", new Date());
 
-  cleanup: function() {
+      window.googletag.cmd.push(() => {
+        let slot = defineSlot(
+          this.get("divId"),
+          this.get("placement"),
+          this.siteSettings,
+          this.site.mobileView,
+          this.get("width"),
+          this.get("height"),
+          this.get("currentCategorySlug") || "0"
+        );
+        if (slot && slot.ad) {
+          // Display has to be called before refresh
+          // and after the slot div is in the page.
+          window.googletag.display(this.get("divId"));
+          window.googletag.pubads().refresh([slot.ad]);
+        }
+      });
+    });
+  },
+
+  willRender() {
+    this._super(...arguments);
+
+    if (!this.get("showAd")) {
+      return;
+    }
+  },
+
+  @on("willDestroyElement")
+  cleanup() {
     destroySlot(this.get("divId"));
-  }.on("willDestroyElement")
+  },
 });

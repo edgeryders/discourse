@@ -1,9 +1,8 @@
-# encoding: utf-8
-#
-# Never edit this file. It will be overwritten when translations are pulled from Transifex.
+# WARNING: Never edit this file.
+# It will be overwritten when translations are pulled from Crowdin.
 #
 # To work with us on translations, join this project:
-# https://www.transifex.com/projects/p/discourse-org/
+# https://translate.discourse.org/
 
 zh_TW:
   admin_js:
@@ -11,3 +10,9 @@ zh_TW:
       site_settings:
         categories:
           amazon_plugin: 'Amazon'
+      adplugin:
+        house_ads:
+          new: "新使用者"
+          settings: "設定"
+          save: "儲存"
+          delete: "刪除"

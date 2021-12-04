@@ -2,7 +2,7 @@
 # about: Allows you to manage events in Discourse
 # version: 0.1
 # authors: Angus McLeod
-# url: https://github.com/angusmcleod/discourse-events
+# url: https://github.com/paviliondev/discourse-events
 
 register_asset 'stylesheets/common/events.scss'
 register_asset 'stylesheets/desktop/events.scss', :desktop
@@ -11,7 +11,8 @@ register_asset 'lib/jquery.timepicker.min.js'
 register_asset 'lib/jquery.timepicker.scss'
 register_asset 'lib/moment-timezone-with-data-2012-2022.js'
 
-gem 'icalendar', '2.4.1'
+gem 'ice_cube', '0.16.4'
+gem 'icalendar', '2.5.3'
 
 Discourse.top_menu_items.push(:agenda)
 Discourse.anonymous_top_menu_items.push(:agenda)
@@ -187,13 +188,14 @@ after_initialize do
   add_to_serializer(:current_user, :calendar_first_day_week) { object.custom_fields['calendar_first_day_week'] }
   register_editable_user_custom_field :calendar_first_day_week if defined? register_editable_user_custom_field
 
-  UserApiKey::SCOPES.reverse_merge!(
-    CalendarEvents::USER_API_KEY_SCOPE.to_sym => [
-      [:get, 'list#calendar_ics'],
-      [:get, 'list#agenda_ics'],
-      [:get, 'list#calendar_feed'],
-      [:get, 'list#agenda_feed'],
-    ],
+  add_user_api_key_scope(CalendarEvents::USER_API_KEY_SCOPE.to_sym,
+    methods: :get,
+    actions: ['list#calendar_ics',
+              'list#agenda_ics',
+              'list#calendar_feed',
+              'list#agenda_feed'],
+    formats: [:ics, :rss],
+    params: [:tags, :assigned, :time_zone, ListControllerEventsExtension::USER_API_KEY.to_sym, ListControllerEventsExtension::USER_API_CLIENT_ID.to_sym ]
   )
 
   add_to_class(:guardian, :can_create_event?) do |category|
@@ -293,7 +295,7 @@ on(:custom_wizard_ready) do
     CustomWizard.class == Module &&
     defined?(CustomWizard::FieldSerializer) == 'constant'
     
-    CustomWizard::Field.add_assets('event', 'discourse-events', ['components', 'templates', 'lib'])
+    CustomWizard::Field.register('event', 'discourse-events', ['components', 'templates', 'lib'])
     add_to_serializer(CustomWizard::Field, :event_timezones) { EventsTimezoneDefaultSiteSetting.values if object.type === 'event'}
   end
 end
@@ -301,7 +303,7 @@ end
 on(:user_destroyed) do |user|
   user_id = user.id
   topic_ids = TopicCustomField.where(name: 'event_going').pluck(:topic_id)
-  topics = Topic.find(topic_ids) if topic_ids
+  topics = Topic.where(id: topic_ids) if topic_ids.present?
 
   if topics
     topics.each do |topic|

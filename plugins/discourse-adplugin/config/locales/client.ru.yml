@@ -1,18 +1,44 @@
-# encoding: utf-8
-#
-# Never edit this file. It will be overwritten when translations are pulled from Transifex.
+# WARNING: Never edit this file.
+# It will be overwritten when translations are pulled from Crowdin.
 #
 # To work with us on translations, join this project:
-# https://www.transifex.com/projects/p/discourse-org/
+# https://translate.discourse.org/
 
 ru:
   js:
     adplugin:
-      advertisement_label: 'Реклама'
+      advertisement_label: 'РЕКЛАМА'
   admin_js:
     admin:
       site_settings:
         categories:
+          ad_plugin: 'Рекламный плагин'
           dfp_plugin: 'DFP/Ad Manager'
+          adsense_plugin: 'AdSense'
           amazon_plugin: 'Amazon'
-          codefund_plugin: 'Плагин CodeFund'
+          carbonads_plugin: 'Carbon Ads'
+          adbutler_plugin: 'AdButler'
+      adplugin:
+        house_ads:
+          title: "Собственные рекламные объявления"
+          new: "Новое"
+          settings: "Настройки"
+          new_name: "Название"
+          save: "Сохранить"
+          delete: "Удалить"
+          description: "Определить свои собственные рекламные объявления и где они должны отображаться."
+          get_started: "Начните с создания нового объявления."
+          filter_placeholder: "Выберите объявления..."
+          more_settings: "Больше настроек"
+          topic_list_top:
+            title: "Список рекламных объявлений"
+            description: "Объявления для показа над списком тем."
+          topic_above_post_stream:
+            title: "Реклама , расположенная над темами"
+            description: "Объявления, отображаемые над заголовком темы при её открытии."
+          topic_above_suggested:
+            title: "Реклама над перечнем похожих тем."
+            description: "Объявления, отображаемые после последнего сообщения в теме над перечнем похожих тем."
+          post_bottom:
+            title: "Между сообщениями"
+            description: "Показывать рекламу между сообщениями, после каждых N сообщений."

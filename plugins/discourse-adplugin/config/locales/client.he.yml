@@ -1,9 +1,8 @@
-# encoding: utf-8
-#
-# Never edit this file. It will be overwritten when translations are pulled from Transifex.
+# WARNING: Never edit this file.
+# It will be overwritten when translations are pulled from Crowdin.
 #
 # To work with us on translations, join this project:
-# https://www.transifex.com/projects/p/discourse-org/
+# https://translate.discourse.org/
 
 he:
   js:
@@ -13,4 +12,33 @@ he:
     admin:
       site_settings:
         categories:
+          ad_plugin: 'תוסף פרסום'
+          dfp_plugin: 'DFP/Ad Manager'
+          adsense_plugin: 'AdSense'
           amazon_plugin: 'אמזון'
+          carbonads_plugin: 'Carbon Ads'
+          adbutler_plugin: 'AdButler'
+      adplugin:
+        house_ads:
+          title: "מודעות הבית"
+          new: "חדש"
+          settings: "הגדרות"
+          new_name: "מודעת בית חדשה"
+          save: "שמירה"
+          delete: "מחיקה"
+          description: "הגדרת פרסומות משלך והיכן הן תוצגנה."
+          get_started: "ניתן להתחיל ביצירת פרסומת חדשה."
+          filter_placeholder: "בחירת פרסומות…"
+          more_settings: "הגדרות נוספות"
+          topic_list_top:
+            title: "פרסומות בראש רשימת הנושאים"
+            description: "פרסומות שתופענה בראש עמוד רשימת הנושים."
+          topic_above_post_stream:
+            title: "מעל שרשור הודעות של נושא"
+            description: "פרסומות שתופענה מעל כותרת הנושא בעמוד הנושא."
+          topic_above_suggested:
+            title: "בנושא מעל ההצעות"
+            description: "פרסומות שתופענה לאחר הפוסט האחרון בנושא, מעל לנושאים המוצעים"
+          post_bottom:
+            title: "בין פוסטים"
+            description: "פרסומות שתופענה בין פוסטים, לאחר כל N פוסטים."

@@ -1,178 +1,75 @@
+# frozen_string_literal: true
+
 # name: discourse-adplugin
 # about: Ad Plugin for Discourse
-# version: 1.0.2
+# version: 1.2.5
 # authors: Vi and Sarah (@ladydanger and @cyberkoi)
 # url: https://github.com/discourse/discourse-adplugin
 
-register_css <<CSS
+register_asset "stylesheets/adplugin.scss"
 
-@import "common/foundation/variables";
-@import "common/foundation/mixins";
+add_admin_route 'admin.adplugin.house_ads.title', 'houseAds'
 
-.google-dfp-ad {
-  padding: 3px 0;
-  margin-bottom: 10px;
-  clear: both;
-}
+enabled_site_setting :discourse_adplugin_enabled
 
-.google-dfp-ad  .dfp-ad-unit {
-  margin: 0 auto;
-}
+module ::AdPlugin
+  def self.plugin_name
+    'discourse-adplugin'.freeze
+  end
 
-.google-adsense {
-  padding: 3px 0;
-  margin-bottom: 10px;
-  clear: both;
-}
+  def self.pstore_get(key)
+    PluginStore.get(AdPlugin.plugin_name, key)
+  end
 
-.google-adsense.adsense-responsive {
-  width: 100%;
-}
+  def self.pstore_set(key, value)
+    PluginStore.set(AdPlugin.plugin_name, key, value)
+  end
 
-.google-adsense .google-adsense-label {
-  width: 728px;
-  max-width: 100%;
-  margin: 0 auto;
-}
+  def self.pstore_delete(key)
+    PluginStore.remove(AdPlugin.plugin_name, key)
+  end
+end
 
-.google-adsense.adsense-responsive .google-adsense-label {
-  width: 100%;
-  text-align: center;
-}
+after_initialize do
+  require_dependency File.expand_path('../app/models/house_ad', __FILE__)
+  require_dependency File.expand_path('../app/models/house_ad_setting', __FILE__)
+  require_dependency File.expand_path('../app/controllers/house_ads_controller', __FILE__)
+  require_dependency File.expand_path('../app/controllers/house_ad_settings_controller', __FILE__)
+  require_dependency 'application_controller'
 
-.google-adsense .adsense-unit {
-  margin: 0 auto;
-}
+  add_to_serializer :site, :house_creatives do
+    AdPlugin::HouseAdSetting.settings_and_ads
+  end
 
-.google-adsense .google-adsense-label h2 {
-  margin: 4px 0 !important;
-  color: #858a8c;
-  text-transform: uppercase;
-  font-size: 12px;
-  font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
-  font-weight: normal;
-}
+  add_to_serializer :topic_view, :tags_disable_ads do
+    return false if !SiteSetting.tagging_enabled || !SiteSetting.no_ads_for_tags.present?
+    return false if object.topic.tags.empty?
+    !(SiteSetting.no_ads_for_tags.split('|') & object.topic.tags.map(&:name)).empty?
+  end
 
-.google-adsense .google-adsense-content {
-  margin: 0 auto;
-}
+  class ::AdstxtController < ::ApplicationController
+    skip_before_action :preload_json, :check_xhr, :redirect_to_login_if_required
 
-.google-adsense.adsense-post-bottom {
-  max-width: 735px;
-  padding: 0 11px;
-}
+    def index
+      raise Discourse::NotFound unless SiteSetting.ads_txt.present?
 
-@media all
-and (max-width : 775px) {
-  .google-adsense.adsense-post-bottom {
-    box-sizing: border-box;
-    width: 100%;
-  }
-}
+      render plain: SiteSetting.ads_txt
+    end
+  end
 
-.amazon-product-links {
-  padding: 3px;
-  margin-bottom: 10px;
-  clear: both;
-}
+  class AdPlugin::Engine < ::Rails::Engine
+    engine_name 'adplugin'
+    isolate_namespace AdPlugin
+  end
 
-.amazon-product-links  .amazon-unit {
-  margin: 0 auto;
-}
+  AdPlugin::Engine.routes.draw do
+    root to: 'house_ads#index'
+    resources :house_creatives, only: [:index, :show, :create, :update, :destroy], controller: 'house_ads'
+    resources :house_settings, only: [:update], controller: 'house_ad_settings'
+  end
 
-.amazon-product-links .amazon-product-links-label {
-  width: 728px;
-  margin: 0 auto;
-}
-
-.amazon-product-links .amazon-product-links-label h2 {
-  margin: 4px 0 !important;
-  color: #858a8c;
-  text-transform: uppercase;
-  font-size: 12px;
-  font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
-  font-weight: normal;
-}
-
-.google-dfp-ad .google-dfp-ad-label {
-  width: 728px;
-  margin: 0 auto;
-}
-
-.google-dfp-ad .google-dfp-ad-label h2 {
-  margin: 4px 0 !important;
-  color: #858a8c;
-  text-transform: uppercase;
-  font-size: 12px;
-  font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
-  font-weight: normal;
-}
-
-.google-dfp-ad.dfp-ad-post-bottom {
-  .google-dfp-ad-label, .dfp-ad-unit {
-    margin: 0 0 0 52px;
-  }
-}
-
-.codefund-wrapper {
-  z-index: 1;
-  font-family: system, "Helvetica Neue", Helvetica, Arial;
-  font-size: 13px;
-  box-sizing: border-box;
-  width: 100%;
-  line-height: 1.5;
-  display: block;
-  background-color: $primary-very-low;
-  padding: 12px 11px;
-  text-align: left;
-  margin: 12px 0;
-}
-
-.codefund-wrapper .codefund-text {
-  color: dark-light-choose($primary-medium, $secondary-medium);
-  text-decoration: none;
-  cursor: pointer;
-}
-
-.codefund-wrapper .codefund-text:hover {
-  text-decoration: underline;
-}
-
-.codefund-wrapper .codefund-text strong {
-  color: $primary;
-}
-
-.codefund-wrapper .codefund-powered-by:hover {
-  text-decoration: underline;
-}
-
-.codefund-wrapper .codefund-label {
-  margin-right: 4px;
-  padding: 2px 6px;
-  border-radius: 3px;
-  background-color:  $tertiary;
-  color: $secondary;
-}
-
-.codefund-wrapper .codefund-label:hover {
-  text-decoration: none !important;
-}
-
-.codefund-wrapper .codefund-powered-by {
-  text-decoration: none;
-  color: dark-light-choose($primary-medium, $secondary-medium);
-  float: right;
-  font-size: 12px;
-}
-
-.codefund-wrapper .codefund-powered-by:hover {
-  text-decoration: underline;
-  cursor: pointer;
-}
-
-.codefund-wrapper.codefund-post-bottom {
-  width: 757px;
-  text-align: center;
-}
-
-CSS
+  Discourse::Application.routes.append do
+    get '/ads.txt' => "adstxt#index"
+    mount ::AdPlugin::Engine, at: '/admin/plugins/pluginad', constraints: AdminConstraint.new
+  end
+end

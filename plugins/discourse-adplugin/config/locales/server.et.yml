@@ -1,9 +1,8 @@
-# encoding: utf-8
-#
-# Never edit this file. It will be overwritten when translations are pulled from Transifex.
+# WARNING: Never edit this file.
+# It will be overwritten when translations are pulled from Crowdin.
 #
 # To work with us on translations, join this project:
-# https://www.transifex.com/projects/p/discourse-org/
+# https://translate.discourse.org/
 
 et:
   site_settings:
@@ -15,6 +14,11 @@ et:
     adsense_mobile_topic_above_suggested_ad_size: "Vali oma reklaami suurus"
     adsense_post_bottom_ad_sizes: "Vali oma reklaami suurus"
     adsense_mobile_post_bottom_ad_size: "Vali oma reklaami suurus"
+    amazon_topic_list_top_ad_width_code: "Sisesta oma reklaami laius"
     amazon_topic_list_top_ad_height_code: "Sisesta oma reklaami kõrgus"
     amazon_topic_above_post_stream_ad_width_code: "Sisesta oma reklaami laius"
     amazon_topic_above_post_stream_ad_height_code: "Sisesta oma reklaami kõrgus"
+    amazon_topic_above_suggested_ad_width_code: "Sisesta oma reklaami laius"
+    amazon_topic_above_suggested_ad_height_code: "Sisesta oma reklaami kõrgus"
+    amazon_post_bottom_ad_width_code: "Sisesta oma reklaami laius"
+    amazon_post_bottom_ad_height_code: "Sisesta oma reklaami kõrgus"

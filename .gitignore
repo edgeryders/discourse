@@ -86,3 +86,7 @@ copyright
 !/plugins/discourse-graphryder
 
 .powenv
+
+# Ignore RubyMine settings which are individual for every developer.
+.idea/**/*
+

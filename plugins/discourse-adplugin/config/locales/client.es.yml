@@ -1,19 +1,44 @@
-# encoding: utf-8
-#
-# Never edit this file. It will be overwritten when translations are pulled from Transifex.
+# WARNING: Never edit this file.
+# It will be overwritten when translations are pulled from Crowdin.
 #
 # To work with us on translations, join this project:
-# https://www.transifex.com/projects/p/discourse-org/
+# https://translate.discourse.org/
 
 es:
   js:
     adplugin:
-      advertisement_label: 'ANUNCIO'
+      advertisement_label: 'PUBLICIDAD'
   admin_js:
     admin:
       site_settings:
         categories:
+          ad_plugin: 'Ad Plugin'
           dfp_plugin: 'DFP/Ad Manager'
           adsense_plugin: 'AdSense'
           amazon_plugin: 'Amazon'
-          codefund_plugin: 'CodeFund'
+          carbonads_plugin: 'Carbon Ads'
+          adbutler_plugin: 'AdButler'
+      adplugin:
+        house_ads:
+          title: "Publicidad interna"
+          new: "Nuevo"
+          settings: "Ajustes"
+          new_name: "Nueva publicidad interna"
+          save: "Guardar"
+          delete: "Eliminar"
+          description: "Define tus propias publicidades y dónde deben mostrarse."
+          get_started: "Comienza creando un nueva publicidad."
+          filter_placeholder: "Seleccionar anuncios..."
+          more_settings: "Más ajustes"
+          topic_list_top:
+            title: "Anuncios destacados de la lista de temas"
+            description: "Anuncios a mostrar en la parte superior de las listas de temas."
+          topic_above_post_stream:
+            title: "Tema arriba de la lista de publicaciones"
+            description: "Publicidades que se muestran arriba del título de un tema en la página de temas."
+          topic_above_suggested:
+            title: "Tema de arriba sugerido"
+            description: "Publicidades que se muestran después de la última publicación en un tema, arriba de los temas sugeridos."
+          post_bottom:
+            title: "Entre publicaciones"
+            description: "Publicidades que se muestran entre publicaciones, después de cada N publicaciones."

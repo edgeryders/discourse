@@ -1,9 +1,8 @@
-# encoding: utf-8
-#
-# Never edit this file. It will be overwritten when translations are pulled from Transifex.
+# WARNING: Never edit this file.
+# It will be overwritten when translations are pulled from Crowdin.
 #
 # To work with us on translations, join this project:
-# https://www.transifex.com/projects/p/discourse-org/
+# https://translate.discourse.org/
 
 fi:
   js:
@@ -13,4 +12,33 @@ fi:
     admin:
       site_settings:
         categories:
+          ad_plugin: 'Mainos lisäosa'
+          dfp_plugin: 'DFP/Ad Manager'
+          adsense_plugin: 'AdSense'
           amazon_plugin: 'Amazon'
+          carbonads_plugin: 'Carbon Ads'
+          adbutler_plugin: 'AdButler'
+      adplugin:
+        house_ads:
+          title: "Omat mainokset"
+          new: "Uudet"
+          settings: "Asetukset"
+          new_name: "Uusi oma mainos"
+          save: "Tallenna"
+          delete: "Poista"
+          description: "Määritä omat mainoksesi ja missä ne tulisi näyttää. "
+          get_started: "Aloita luomalla uusi mainos. "
+          filter_placeholder: "Valitse mainokset... "
+          more_settings: "Lisää asetuksia"
+          topic_list_top:
+            title: "Ketjulistan yläpuoliset mainokset"
+            description: "Mainokset, jotka näytetään aihelistaus-sivun yläreunassa. "
+          topic_above_post_stream:
+            title: "Mainoskenttä viestivirran yläpuolella"
+            description: "Mainokset, jotka näytetään ketjun otsikon yläpuolella ketjussa"
+          topic_above_suggested:
+            title: "Mainoskenttä ehdotettujen yläpuolella"
+            description: "Mainokset, jotka näytetään viimeisen kirjoituksen jälkeen ketjussa, ehdotettujen ketjujen yläpuolella. "
+          post_bottom:
+            title: "Kirjoitusten välissä "
+            description: "Mainokset, jotka näytetään kirjoitusten välissä joka N kirjoituksen välein. "

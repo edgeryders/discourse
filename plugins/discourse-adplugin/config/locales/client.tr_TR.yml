@@ -1,13 +1,44 @@
-# encoding: utf-8
-#
-# Never edit this file. It will be overwritten when translations are pulled from Transifex.
+# WARNING: Never edit this file.
+# It will be overwritten when translations are pulled from Crowdin.
 #
 # To work with us on translations, join this project:
-# https://www.transifex.com/projects/p/discourse-org/
+# https://translate.discourse.org/
 
 tr_TR:
+  js:
+    adplugin:
+      advertisement_label: 'REKLAM'
   admin_js:
     admin:
       site_settings:
         categories:
+          ad_plugin: 'Reklam Eklentisi'
+          dfp_plugin: 'DFP/Reklam Yöneticisi'
+          adsense_plugin: 'AdSense'
           amazon_plugin: 'Amazon'
+          carbonads_plugin: 'Carbon Reklamları'
+          adbutler_plugin: 'AdButler'
+      adplugin:
+        house_ads:
+          title: "Yerel Reklamlar"
+          new: "Yeni"
+          settings: "Ayarlar"
+          new_name: "Yeni Yerel Reklam"
+          save: "Kaydet"
+          delete: "Sil"
+          description: "Kendi reklamlarınızı ve nerede gösterileceklerini tanımlayın."
+          get_started: "Yeni reklam oluşturmaya başlayın."
+          filter_placeholder: "Reklamları seçin..."
+          more_settings: "Gelişmiş Ayarlar"
+          topic_list_top:
+            title: "Konu listesi üstü reklamlar"
+            description: "Sayfaların konu listesinin en üstünde gözükecek reklamlar."
+          topic_above_post_stream:
+            title: "Yayın akışının üzerindeki konu"
+            description: "Konu sayfasında bir konunun başlığının üzerinde gösterilecek reklamlar."
+          topic_above_suggested:
+            title: "Önerilen konular üstü"
+            description: "Bir konudaki son gönderiden sonra, önerilen konuların üstünde gösterilecek reklamlar."
+          post_bottom:
+            title: "Gönderiler arasında"
+            description: "Her N gönderiden sonra, gönderiler arasında gösterilecek reklamlar."
