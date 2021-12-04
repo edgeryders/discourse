@@ -1,10 +1,10 @@
 body {
-  .d-header {
+  .d-header-wrap {
     top: 31px;
   }
 
   &.docked {
-    .d-header {
+    .d-header-wrap {
       top: 0;
     }
   }
