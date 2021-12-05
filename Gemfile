@@ -198,7 +198,7 @@ gem 'htmlentities', require: false
 gem 'rack-mini-profiler', require: ['enable_rails_patches']
 
 gem 'unicorn', require: false, platform: :ruby
-gem 'puma', require: false
+gem 'puma', '< 5', require: false
 gem 'rbtrace', require: false, platform: :mri
 gem 'gc_tracer', require: false, platform: :mri
 
