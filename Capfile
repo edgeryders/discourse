@@ -45,6 +45,7 @@ install_plugin Capistrano::Sidekiq::Systemd
 # https://github.com/seuros/capistrano-puma
 require 'capistrano/puma'
 install_plugin Capistrano::Puma  # Default puma tasks
+install_plugin Capistrano::Puma::Daemon #  https://github.com/seuros/capistrano-puma/issues/237#issuecomment-761040375
 install_plugin Capistrano::Puma::Monit  # if you need the monit tasks
 install_plugin Capistrano::Puma::Workers  # if you want to control the workers (in cluster mode)
 

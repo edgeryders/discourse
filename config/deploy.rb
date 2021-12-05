@@ -1,3 +1,19 @@
+
+# quickfix: https://github.com/seuros/capistrano-puma/issues/237#issuecomment-714212752
+namespace :puma do
+  Rake::Task[:smart_restart].clear_actions
+  desc "Overwritten puma:restart task"
+  task :smart_restart do
+    puts "Overwriting puma:smart_restart to ensure that puma is running. Effectively, we are just starting Puma."
+    puts "A solution to this should be found."
+    invoke "puma:stop"
+    invoke "puma:start"
+  end
+end
+set :puma_phased_restart, false
+
+
+
 set :application,     'discourse_multisite'
 set :repo_url,        'https://github.com/edgeryders/discourse.git'
 set :branch,          'multisite'
