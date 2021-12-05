@@ -5,7 +5,9 @@ class AddImapGroupIdToIncomingEmail < ActiveRecord::Migration[6.0]
 
   def up
     execute <<~SQL
-      ALTER TABLE incoming_emails ADD COLUMN IF NOT EXISTS imap_group_id bigint NULL
+-- ALTER TABLE incoming_emails ADD COLUMN IF NOT EXISTS imap_group_id bigint NULL
+-- Quickfix: Make it work with PostgreSQL 9.5 (damingo 2021-12-05)
+      ALTER TABLE incoming_emails ADD COLUMN imap_group_id bigint NULL
     SQL
 
     execute <<~SQL
