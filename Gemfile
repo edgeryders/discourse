@@ -257,10 +257,6 @@ gem 'unix-crypt', '1.3.0'   #, :require_name => 'unix_crypt'
 
 
 
-# NOTE: Quickfix as 1.2 breaks administrate
-gem 'kaminari', '1.1.1'
-
-
 # damingo (Github ID), 2017-08-22, #annotator
 gem 'annotator_store', git: 'https://github.com/edgeryders/annotator_store-gem', branch: 'master'
 # gem 'annotator_store', path: '~/Projects/annotator_store-gem'
@@ -295,4 +291,6 @@ group :development do
   gem 'capistrano-sidekiq', '2.0.0.beta4' #, require: false
   # https://github.com/capistrano/bundler
   gem 'capistrano-bundler', '~> 1.6'
+  # https://github.com/fphilipe/i18n-debug
+  gem 'i18n-debug'
 end
