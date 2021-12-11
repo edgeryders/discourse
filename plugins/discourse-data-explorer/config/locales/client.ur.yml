@@ -1,9 +1,8 @@
-# encoding: utf-8
-#
-# Never edit this file. It will be overwritten when translations are pulled from Transifex.
+# WARNING: Never edit this file.
+# It will be overwritten when translations are pulled from Crowdin.
 #
 # To work with us on translations, join this project:
-# https://www.transifex.com/projects/p/discourse-org/
+# https://translate.discourse.org/
 
 ur:
   js:
@@ -24,11 +23,10 @@ ur:
         title: "ڈیٹا بیس سکیمہ"
         filter: "تلاش کریں..."
         sensitive: "اس کالم کے مواد میں خاص طور پر حساس یا نِجی معلومات موجود ہوسکتی ہے۔ براہ مہربانی، اِس کالم کے مواد کا استعمال کرتے وقت احتیاط کریں۔"
-        type_help: "<a href='http://www.postgresql.org/docs/9.3/static/datatype.html#DATATYPE-TABLE' target='_blank'>اقسام</a>"
       types:
         bool:
-          'yes': "ہاں "
-          'no': "نہیں "
+          yes: "ہاں "
+          no: "نہیں "
           null_: "خالی"
       export: "برآمد"
       save: "تبدیلیاں محفوظ کریں"

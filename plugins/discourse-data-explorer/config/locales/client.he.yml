@@ -1,9 +1,8 @@
-# encoding: utf-8
-#
-# Never edit this file. It will be overwritten when translations are pulled from Transifex.
+# WARNING: Never edit this file.
+# It will be overwritten when translations are pulled from Crowdin.
 #
 # To work with us on translations, join this project:
-# https://www.transifex.com/projects/p/discourse-org/
+# https://translate.discourse.org/
 
 he:
   js:
@@ -12,7 +11,8 @@ he:
         no_semicolons: "הסרת הנקודה פסיק מהשאילתה."
         dirty: "עליך לשמור את השאילתה בטרם ההרצה."
     explorer:
-      admins_only: "דפדפן הנתונים זמין רק למנהלים."
+      or: "או"
+      admins_only: "דפדפן הנתונים זמין למנהלים בלבד."
       allow_groups: "לאפשר לקבוצות לגשת לשאילתה הזאת"
       title: "דפדפן נתונים"
       create: "יצירת חדשה"
@@ -21,16 +21,22 @@ he:
       import:
         label: "ייבוא"
         modal: "ייבוא שאילתה"
+      help:
+        label: "עזרה"
+        modal_title: "עזרה עם דפדפן הנתונים"
+        auto_resolution: "<h2>אבחנת יישות אוטומטית</h2> <p>כאשר השאילתה שלך מחזירה מזהה יישות, סייר הנתונים עשוי להחליף אותו בשם היישות ובפרטים מועילים נוספים אוטומטית בתוצאות השאילתה. אבחנה אוטומטית זמינה עבור <i><b>user_id</b></i>,‏ <i><b>group_id</b></i>,‏ <i><b>topic_id</b></i>,‏ <i><b>category_id</b></i> ו־<i><b>badge_id</b></i>. כדי לנסות זאת יש להריץ את השאילתה הבאה:</p> <pre><code>SELECT user_id\nFROM posts</code></pre>"
+        custom_params: "<h2>יצירת משתנים מותאמים אישית</h2> <p>כדי ליצור משתנים מותאמים אישית לשאילתות שלך, יש להציב זאת בראש השאילתה ולהיצמד לתבנית:</p> ‎<pre><code>‎-- [params]\n‎-- int :num = 1\n\nSELECT :num</code></pre> <p><i>לתשומך לבך: השורה הראשונה עם [params] נחוצה, בצירוף שני מינוסים לפניה וכל משתנה מותאם אישית שעליו ברצונך להכריז.</i></p>"
+        default_values: "<h3>ערכי בררת מחדל</h3> <p>ניתן להכריז על משתנים עם או בלי ערכי בררת מחדל. ערכי בררת מחדל יופיעו בשדה טקסט מעל לעורך השאילתות אותם ניתן לערוך בהתאם לצורך. משתנים שמוכרזים ללא ערכי בררת מחדל עדיין ייצרו שדה טקסט אך הם יהיו ריקים ויודגשו באדום.</p> <pre><code>‎-- [params]\n‎-- text :username = my_username\n‎-- int :age</code></pre>"
+        data_types: "<h3>סוגי נתונים</h3> <p>להלן סוגי הנתונים הנפוצים בהם ניתן להשתמש:</p> <ul> <li><b>integer</b> - מספר שלם וחיובי בגודל ארבעה בתים</li> <li><b>text</b> - מחרוזת תווים באורך משתנה</li> <li><b>boolean</b> – אמת/שקר</li> <li><b>date</b> - תאריך בלוח השנה (שנה, חודש, יום)</li> </ul> <p>למידע נוסף על סוגי נתונים ניתן לבקר <a href='http://www.postgresql.org/docs/9.3/static/datatype.html#DATATYPE-TABLE' target='_blank'>באתר הזה</a>.</p>"
       schema:
-        title: "סכימת מסד הנתונים"
+        title: "סכמת מסד הנתונים"
         filter: "חיפוש…"
         sensitive: "תכני העמודה הזו עשויים להכיל מידע רגיש או פרטי. נא לנקוט במשנה זהירות בעת השימוש בעמודה זו."
-        type_help: "<a href='http://www.postgresql.org/docs/9.3/static/datatype.html#DATATYPE-TABLE' target='_blank'>סוגים</a>"
       types:
         bool:
-          'yes': "כן"
-          'no': "לא"
-          null_: "אפס"
+          yes: "כן"
+          no: "לא"
+          null_: "ריק"
       export: "ייצוא"
       save: "שמירת שינויים"
       saverun: "שמירת השינויים והרצה"
@@ -41,8 +47,10 @@ he:
       recover: "ביטול מחיקת השאילתה"
       download_json: "JSON"
       download_csv: "CSV"
-      others_dirty: "בשאילתה נערכו שינויים שטרם נשמרו ועשויים ללכת לאיבוד בעת ניווט למקום אחר."
-      run_time: "השאילתה הושלמה תוך %{value} מילישניות"
+      show_table: "טבלה"
+      show_graph: "תרשים"
+      others_dirty: "בשאילתה נערכו שינויים שטרם נשמרו ועשויים ללכת לאיבוד עקב ניווט למקום אחר."
+      run_time: "השאילתה הושלמה תוך %{value} מילישניות."
       result_count:
         one: "תוצאה אחת."
         two: "2 תוצאות."
@@ -64,7 +72,7 @@ he:
       explain_label: "לכלול תכנית שאילתה?"
       save_params: "הגדרת בררות מחדל"
       reset_params: "איפוס"
-      search_placeholder: "חיפוש..."
-      no_search_results: "לא הצלחנו למצוא תוצאות שתואמות לטקסט שלך, עמך הסליחה."
+      search_placeholder: "חיפוש…"
+      no_search_results: "לא הצלחנו למצוא תוצאות שעונות לטקסט שלך, עמך הסליחה."
     group:
       reports: "דוחות"

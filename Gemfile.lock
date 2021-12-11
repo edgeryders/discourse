@@ -17,7 +17,7 @@ GIT
 
 GIT
   remote: https://github.com/edgeryders/administrate-field-nested_has_many.git
-  revision: 1b941abaddd1aa55bafb51d1138bfb5ed2585bed
+  revision: 1f848ca896a50351c0bb21e3a0a0ed0af5b3a29c
   branch: master
   specs:
     administrate-field-nested_has_many (1.1.0)
@@ -26,7 +26,7 @@ GIT
 
 GIT
   remote: https://github.com/edgeryders/annotator_store-gem
-  revision: fe3bf076c322ba695f22a70729515c18e81c106a
+  revision: 31d310280e1543bc7e871ff05b093a7f5835de82
   branch: master
   specs:
     annotator_store (1.0.0)

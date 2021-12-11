@@ -1,8 +1,9 @@
 import {
   default as computed,
+  observes,
   on,
-  observes
 } from "discourse-common/utils/decorators";
+import getURL from "discourse-common/lib/get-url";
 import RestModel from "discourse/models/rest";
 
 const Query = RestModel.extend({
@@ -38,7 +39,7 @@ const Query = RestModel.extend({
     const newParams = {};
     const oldParams = this.params;
     const paramInfo = this.param_info || [];
-    paramInfo.forEach(pinfo => {
+    paramInfo.forEach((pinfo) => {
       const name = pinfo.identifier;
       if (oldParams[pinfo.identifier]) {
         newParams[name] = oldParams[name];
@@ -46,6 +47,10 @@ const Query = RestModel.extend({
         newParams[name] = pinfo["default"];
       } else if (pinfo["type"] === "boolean") {
         newParams[name] = "false";
+      } else if (pinfo["type"] === "user_id") {
+        newParams[name] = null;
+      } else if (pinfo["type"] === "user_list") {
+        newParams[name] = null;
       } else {
         newParams[name] = "";
       }
@@ -56,9 +61,7 @@ const Query = RestModel.extend({
   @computed("id")
   downloadUrl(id) {
     // TODO - can we change this to use the store/adapter?
-    return Discourse.getURL(
-      `/admin/plugins/explorer/queries/${id}.json?export=1`
-    );
+    return getURL(`/admin/plugins/explorer/queries/${id}.json?export=1`);
   },
 
   createProperties() {
@@ -75,7 +78,7 @@ const Query = RestModel.extend({
       props.id = this.id;
     }
     return props;
-  }
+  },
 });
 
 Query.reopenClass({
@@ -83,11 +86,11 @@ Query.reopenClass({
     "name",
     "description",
     "sql",
-    "created_by",
+    "user_id",
     "created_at",
     "group_ids",
-    "last_run_at"
-  ]
+    "last_run_at",
+  ],
 });
 
 export default Query;

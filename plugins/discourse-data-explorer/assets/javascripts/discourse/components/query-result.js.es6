@@ -1,4 +1,7 @@
+import { findRawTemplate } from "discourse-common/lib/raw-templates";
+import I18n from "I18n";
 import { ajax } from "discourse/lib/ajax";
+import getURL from "discourse-common/lib/get-url";
 import Badge from "discourse/models/badge";
 import { default as computed } from "discourse-common/utils/decorators";
 
@@ -12,7 +15,7 @@ function randomIdShort() {
 
 function transformedRelTable(table, modelClass) {
   const result = {};
-  table.forEach(item => {
+  table.forEach((item) => {
     if (modelClass) {
       result[item.id] = modelClass.create(item);
     } else {
@@ -30,22 +33,9 @@ const QueryResultComponent = Ember.Component.extend({
   params: Ember.computed.alias("content.params"),
   explainText: Ember.computed.alias("content.explain"),
   hasExplain: Ember.computed.notEmpty("content.explain"),
-
-  init() {
-    this._super(...arguments);
-
-    // TODO: After `__DISCOURSE_RAW_TEMPLATES` is in stable this should be updated
-    // to use only `import { findRawTemplate } from "discourse-common/lib/raw-templates"`
-    if (window.__DISCOURSE_RAW_TEMPLATES) {
-      this.findRawTemplate = requirejs(
-        "discourse-common/lib/raw-templates"
-      ).findRawTemplate;
-    } else {
-      this.findRawTemplate = requirejs(
-        "discourse/lib/raw-templates"
-      ).findRawTemplate;
-    }
-  },
+  chartDatasetName: Ember.computed.reads("columnDispNames.1"),
+  chartValues: Ember.computed.mapBy("content.rows", "1"),
+  showChart: false,
 
   @computed("content.result_count")
   resultCount(count) {
@@ -61,14 +51,14 @@ const QueryResultComponent = Ember.Component.extend({
   @computed("content.duration")
   duration(contentDuration) {
     return I18n.t("explorer.run_time", {
-      value: I18n.toNumber(contentDuration, { precision: 1 })
+      value: I18n.toNumber(contentDuration, { precision: 1 }),
     });
   },
 
   @computed("params.[]")
   parameterAry(params) {
     let arr = [];
-    for (var key in params) {
+    for (let key in params) {
       if (params.hasOwnProperty(key)) {
         arr.push({ key, value: params[key] });
       }
@@ -81,7 +71,7 @@ const QueryResultComponent = Ember.Component.extend({
     if (!columns) {
       return [];
     }
-    return columns.map(colName => {
+    return columns.map((colName) => {
       if (colName.endsWith("_id")) {
         return colName.slice(0, -3);
       }
@@ -95,7 +85,7 @@ const QueryResultComponent = Ember.Component.extend({
 
   @computed
   fallbackTemplate() {
-    return this.findRawTemplate("javascripts/explorer/text");
+    return findRawTemplate("javascripts/explorer/text");
   },
 
   @computed("content", "columns.[]")
@@ -109,7 +99,7 @@ const QueryResultComponent = Ember.Component.extend({
         viewName = this.get("content.colrender")[idx];
       }
 
-      const template = this.findRawTemplate(`javascripts/explorer/${viewName}`);
+      const template = findRawTemplate(`javascripts/explorer/${viewName}`);
 
       return { name: viewName, template };
     });
@@ -135,6 +125,51 @@ const QueryResultComponent = Ember.Component.extend({
   @computed("site.groups")
   transformedGroupTable(groups) {
     return transformedRelTable(groups);
+  },
+
+  @computed(
+    "rows.[]",
+    "content.colrender.[]",
+    "content.result_count",
+    "colCount"
+  )
+  canShowChart(rows, colRender, resultCount, colCount) {
+    const hasTwoColumns = colCount === 2;
+    const secondColumnContainsNumber =
+      resultCount > 0 && typeof rows[0][1] === "number";
+    const secondColumnContainsId = colRender[1];
+
+    return (
+      hasTwoColumns && secondColumnContainsNumber && !secondColumnContainsId
+    );
+  },
+
+  @computed("content.rows.[]", "content.colrender.[]")
+  chartLabels(rows, colRender) {
+    const labelSelectors = {
+      user: (user) => user.username,
+      badge: (badge) => badge.name,
+      topic: (topic) => topic.title,
+      group: (group) => group.name,
+      category: (category) => category.name,
+    };
+
+    const relationName = colRender[0];
+
+    if (relationName) {
+      const lookupFunc = this[`lookup${relationName.capitalize()}`];
+      const labelSelector = labelSelectors[relationName];
+
+      if (lookupFunc && labelSelector) {
+        return rows.map((r) => {
+          const relation = lookupFunc.call(this, r[0]);
+          const label = labelSelector(relation);
+          return this._cutChartLabel(label);
+        });
+      }
+    }
+
+    return rows.map((r) => this._cutChartLabel(r[0]));
   },
 
   lookupUser(id) {
@@ -177,7 +212,7 @@ const QueryResultComponent = Ember.Component.extend({
     form.setAttribute("method", "post");
     form.setAttribute(
       "action",
-      Discourse.getURL(
+      getURL(
         this.download_url() +
           this.get("query.id") +
           "/run." +
@@ -200,7 +235,7 @@ const QueryResultComponent = Ember.Component.extend({
     addInput("explain", this.hasExplain);
     addInput("limit", "1000000");
 
-    ajax("/session/csrf.json").then(csrf => {
+    ajax("/session/csrf.json").then((csrf) => {
       addInput("authenticity_token", csrf.csrf);
 
       document.body.appendChild(form);
@@ -209,14 +244,29 @@ const QueryResultComponent = Ember.Component.extend({
     });
   },
 
+  _cutChartLabel(label) {
+    const labelString = label.toString();
+    if (labelString.length > 25) {
+      return `${labelString.substring(0, 25)}...`;
+    } else {
+      return labelString;
+    }
+  },
+
   actions: {
     downloadResultJson() {
       this.downloadResult("json");
     },
     downloadResultCsv() {
       this.downloadResult("csv");
-    }
-  }
+    },
+    showChart() {
+      this.set("showChart", true);
+    },
+    showTable() {
+      this.set("showChart", false);
+    },
+  },
 });
 
 export default QueryResultComponent;

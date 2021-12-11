@@ -12,14 +12,11 @@ describe DataExplorer::QueryController do
   end
 
   def make_query(sql, opts = {}, group_ids = [])
-    q = DataExplorer::Query.new
-    q.id = Fabrication::Sequencer.sequence("query-id", 1)
-    q.name = opts[:name] || "Query number #{q.id}"
-    q.description = "A description for query number #{q.id}"
-    q.group_ids = group_ids
-    q.sql = sql
-    q.save
-    q
+    query = DataExplorer::Query.create!(name: opts[:name] || "Query number", description: "A description for query number", sql: sql, hidden: opts[:hidden] || false)
+    group_ids.each do |group_id|
+      query.query_groups.create!(group_id: group_id)
+    end
+    query
   end
 
   describe "Admin" do
@@ -79,6 +76,16 @@ describe DataExplorer::QueryController do
         expect(response_json['queries'].length).to eq(Queries.default.count + 2)
         expect(response_json['queries'][0]['name']).to eq('A')
         expect(response_json['queries'][1]['name']).to eq('B')
+      end
+
+      it "doesn't show hidden/deleted queries" do
+        DataExplorer::Query.destroy_all
+        make_query('SELECT 1 as value', name: 'A', hidden: false)
+        make_query('SELECT 1 as value', name: 'B', hidden: true)
+        make_query('SELECT 1 as value', name: 'C', hidden: true)
+        get :index, format: :json
+        expect(response.status).to eq(200)
+        expect(response_json['queries'].length).to eq(Queries.default.count + 1)
       end
     end
 
@@ -350,20 +357,30 @@ describe DataExplorer::QueryController do
       end
 
       it "returns a 404 when the user should not have access to the query " do
-        user = Fabricate(:user)
-        log_in_user(user)
+        other_user = Fabricate(:user)
+        log_in_user(other_user)
 
         get :group_reports_index, params: { group_name: group.name }, format: :json
         expect(response.status).to eq(404)
       end
 
       it "return a 200 when the user has access the the query" do
-        user = Fabricate(:user)
-        log_in_user(user)
         group.add(user)
 
         get :group_reports_index, params: { group_name: group.name }, format: :json
         expect(response.status).to eq(200)
+      end
+
+      it "does not return hidden queries" do
+
+        group.add(user)
+        make_query('SELECT 1 as value', { name: 'A', hidden: true }, ["#{group.id}"])
+        make_query('SELECT 1 as value', { name: 'B' }, ["#{group.id}"])
+
+        get :group_reports_index, params: { group_name: group.name }, format: :json
+        expect(response.status).to eq(200)
+        expect(response_json['queries'].length).to eq(1)
+        expect(response_json['queries'][0]['name']).to eq('B')
       end
     end
 
@@ -376,8 +393,6 @@ describe DataExplorer::QueryController do
       end
 
       it "returns a 404 when the user should not have access to the query " do
-        user = Fabricate(:user)
-        log_in_user(user)
         group.add(user)
         query = make_query('SELECT 1 as value', {}, [])
 
@@ -386,13 +401,19 @@ describe DataExplorer::QueryController do
       end
 
       it "return a 200 when the user has access the the query" do
-        user = Fabricate(:user)
-        log_in_user(user)
         group.add(user)
         query = make_query('SELECT 1 as value', {}, [group.id.to_s])
 
         get :group_reports_run, params: { group_name: group.name, id: query.id }, format: :json
         expect(response.status).to eq(200)
+      end
+
+      it "return a 404 when the query is hidden" do
+        group.add(user)
+        query = make_query('SELECT 1 as value', { hidden: true }, [group.id.to_s])
+
+        get :group_reports_run, params: { group_name: group.name, id: query.id }, format: :json
+        expect(response.status).to eq(404)
       end
     end
 
@@ -417,6 +438,16 @@ describe DataExplorer::QueryController do
 
         get :group_reports_show, params: { group_name: group.name, id: query.id }, format: :json
         expect(response.status).to eq(200)
+      end
+
+      it "return a 404 when the query is hidden" do
+        user = Fabricate(:user)
+        log_in_user(user)
+        group.add(user)
+        query = make_query('SELECT 1 as value', { hidden: true }, [group.id.to_s])
+
+        get :group_reports_show, params: { group_name: group.name, id: query.id }, format: :json
+        expect(response.status).to eq(404)
       end
     end
   end

@@ -1,9 +1,8 @@
-# encoding: utf-8
-#
-# Never edit this file. It will be overwritten when translations are pulled from Transifex.
+# WARNING: Never edit this file.
+# It will be overwritten when translations are pulled from Crowdin.
 #
 # To work with us on translations, join this project:
-# https://www.transifex.com/projects/p/discourse-org/
+# https://translate.discourse.org/
 
 pl_PL:
   js:
@@ -13,6 +12,7 @@ pl_PL:
         dirty: "Musisz zapisać zapytanie zanim je wykonasz."
     explorer:
       admins_only: "Eksplorator danych jest dostępny wyłącznie dla administratorów."
+      allow_groups: "Zezwól grupom na dostęp do tego zapytania"
       title: "Eksplorator danych"
       create: "Stwórz nowy"
       create_placeholder: "Nazwa zapytania…"
@@ -20,15 +20,18 @@ pl_PL:
       import:
         label: "Import"
         modal: "Importuj zapytanie"
+      help:
+        label: "Pomoc"
+        modal_title: "Pomoc eksploratora danych"
+        data_types: "<h3>Typy danych</h3> <p>Tutaj są powszechnie używane typy danych, których możesz użyć:</p> <ul> <li><b>liczba całkowita</b> - podpisane czterobajtowe liczby całkowite</li> <li><b>tekst</b> - ciąg znaków o zmiennej długości</li> <li><b>liczba logiczna</b> - prawda/fałsz</li> <li><b>data</b> - data kalendarzowa (rok, miesiąc, dzień)</li> </ul> <p>Aby uzyskać więcej informacji na temat typów danych, odwiedź <a href='http://www.postgresql.org/docs/9.3/static/datatype.html#DATATYPE-TABLE' target='_blank'>tę stronę</a></p>"
       schema:
         title: "Schemat bazy danych"
         filter: "Wyszukiwanie..."
         sensitive: "Zawartość tej kolumny może zawierać szczególnie wrażliwe lub prywatne dane. Prosimy o zachowanie ostrożności przy używaniu tych danych."
-        type_help: "<a href='http://www.postgresql.org/docs/9.3/static/datatype.html#DATATYPE-TABLE' target='_blank'>Typy</a>"
       types:
         bool:
-          'yes': "Tak"
-          'no': "Nie"
+          yes: "Tak"
+          no: "Nie"
           null_: "Null"
       export: "Eksport"
       save: "Zapisz zmiany"
@@ -41,6 +44,7 @@ pl_PL:
       download_json: "JSON"
       download_csv: "CSV"
       others_dirty: "Zapytanie ma niezapisane zmiany, które utracisz, jeśli przejdziesz w inne miejsce."
+      run_time: "Zapytanie zakończone w %{value} ms."
       result_count:
         one: "%{count}wynik."
         few: "%{count}wyniki."
@@ -58,6 +62,7 @@ pl_PL:
       query_description: "Opis"
       query_time: "Ostatnio wykonano"
       query_user: "Stworzone przez"
+      column: "Kolumna %{number}"
       explain_label: "Dołączyć plan zapytania?"
       save_params: "Ustaw domyślne"
       reset_params: "Przywróć"
