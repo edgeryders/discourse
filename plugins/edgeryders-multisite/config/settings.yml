@@ -13,20 +13,20 @@ security:
     default: false
     shadowed_by_global: true
 login:
-  enable_sso:
+  enable_discourse_connect:
     client: true
     default: true
     validator: "EnableSsoValidator"
-  sso_url:
+  discourse_connect_url:
     default: 'https://communities.edgeryders.eu/session/sso_provider'
     regex: '^https?:\/\/.+[^\/]$'
-  sso_overrides_email:
+  auth_overrides_email:
     default: true
     validator: "SsoOverridesEmailValidator"
-  sso_overrides_username: true
-  sso_overrides_name: true
-  sso_overrides_avatar:
+  auth_overrides_username: true
+  auth_overrides_name: true
+  discourse_connect_overrides_avatar:
     default: true
     client: true
-  sso_overrides_profile_background: true
-  sso_overrides_card_background: true
+  discourse_connect_overrides_profile_background: true
+  discourse_connect_overrides_card_background: true
