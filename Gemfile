@@ -258,14 +258,14 @@ gem 'unix-crypt', '1.3.0'   #, :require_name => 'unix_crypt'
 
 
 # damingo (Github ID), 2017-08-22, #annotator
-gem 'annotator_store', git: 'https://github.com/edgeryders/annotator_store-gem', branch: 'master'
-# gem 'annotator_store', path: '~/Projects/annotator_store-gem'
+# gem 'discourse-annotator', git: 'https://github.com/edgeryders/discourse-annotator', branch: 'master'
+gem 'discourse-annotator', path: '~/Projects/discourse-annotator'
 
 
-# NOTE: This is a quickfix to make sure the gem is loaded for annotator_store. It is specified in the annotator_store/Gemfile
+# NOTE: This is a quickfix to make sure the gem is loaded for discourse-annotator. It is specified in the discourse-annotator/Gemfile
 # as a dependency but this doesn't load the gem "uninitialized constant Administrate::Field::NestedHasMany"
 # The gems main file (administrate-field-nested_has_many/lib/administrate/field/nested_has_many.rb) is supposed to
-# be required in `annotator_store/lib/annotator_store.rb` but that doesn't work.
+# be required in `discourse-annotator/lib/annotator_store.rb` but that doesn't work.
 gem "administrate-field-nested_has_many", git: 'https://github.com/edgeryders/administrate-field-nested_has_many.git', branch: 'master'
 # gem 'administrate-field-nested_has_many', path: '~/Projects/administrate-field-nested_has_many'
 
