@@ -25,19 +25,6 @@ GIT
       cocoon (~> 1.2, >= 1.2.11)
 
 GIT
-  remote: https://github.com/edgeryders/annotator_store-gem
-  revision: f275088c9868d2f48d72836d540ef66fb8e96330
-  branch: master
-  specs:
-    annotator_store (1.0.0)
-      administrate (= 0.12.0)
-      ancestry (= 3.2.1)
-      deep_cloneable (~> 3.0.0)
-      jbuilder
-      kaminari (= 1.1.1)
-      redcarpet
-
-GIT
   remote: https://github.com/edgeryders/capistrano-puma.git
   revision: c413c3c3f1cfc879bbd0ae063dd3fc16729c064d
   specs:
@@ -45,6 +32,19 @@ GIT
       capistrano (~> 3.7)
       capistrano-bundler
       puma (>= 4.0, < 6.0)
+
+GIT
+  remote: https://github.com/edgeryders/discourse-annotator
+  revision: e97d1575d5e6374c92b5771156318010f03e9fb5
+  branch: master
+  specs:
+    discourse-annotator (1.0.0)
+      administrate (= 0.12.0)
+      ancestry (= 3.2.1)
+      deep_cloneable (~> 3.1.0)
+      jbuilder
+      kaminari (= 1.1.1)
+      redcarpet
 
 GEM
   remote: https://rubygems.org/
@@ -182,7 +182,7 @@ GEM
     datetime_picker_rails (0.0.7)
       momentjs-rails (>= 2.8.1)
     debug_inspector (1.1.0)
-    deep_cloneable (3.0.0)
+    deep_cloneable (3.1.0)
       activerecord (>= 3.1.0, < 7)
     diff-lcs (1.4.4)
     diffy (3.4.0)
@@ -601,7 +601,6 @@ DEPENDENCIES
   administrate-field-belongs_to_search!
   administrate-field-nested_has_many!
   annotate
-  annotator_store!
   aws-sdk-s3
   aws-sdk-sns
   barber
@@ -623,6 +622,7 @@ DEPENDENCIES
   cppjieba_rb
   css_parser
   diffy
+  discourse-annotator!
   discourse-ember-rails (= 0.18.6)
   discourse-ember-source (~> 3.12.2)
   discourse-fonts
