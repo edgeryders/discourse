@@ -5,8 +5,12 @@
 .category-heading {
   margin-bottom: 1rem;
 
+  p {
+    font-size: 1.4rem;
+  }
+
   summary {
-    font-size: 1.5em;
+    font-size: 1.4rem;
   }
 
   details p {
@@ -19,9 +23,13 @@
   }
 
   details {
+    h2 {
+      font-size: 1.8rem;
+    }
+
     .tmp-rtl {
       h2 {
-        font-size: 1.9em;
+        font-size: 1.9rem;
       }
 
       p {
@@ -35,6 +43,7 @@
 
 .header-buttons {
   .sign-up-button {
+    white-space: nowrap;
     padding: 6px 10px;
   }
 }
