@@ -253,7 +253,7 @@ gem 'rails_failover', require: false
 
 # damingo (Github ID), 2017-08-22, #password_migration
 gem 'bcrypt', '3.1.3'
-gem 'unix-crypt', '1.3.0'   #, :require_name => 'unix_crypt'
+gem 'unix-crypt', '1.3.0' #, :require_name => 'unix_crypt'
 
 
 
