@@ -25,8 +25,3 @@ login:
     validator: "SsoOverridesEmailValidator"
   auth_overrides_username: true
   auth_overrides_name: true
-  discourse_connect_overrides_avatar:
-    default: true
-    client: true
-  discourse_connect_overrides_profile_background: true
-  discourse_connect_overrides_card_background: true
