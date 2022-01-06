@@ -17,7 +17,7 @@ GIT
 
 GIT
   remote: https://github.com/edgeryders/administrate-field-nested_has_many.git
-  revision: 1f848ca896a50351c0bb21e3a0a0ed0af5b3a29c
+  revision: 670a42416438f1685c3963a5bcb83238e1c060b4
   branch: master
   specs:
     administrate-field-nested_has_many (1.1.0)
