@@ -23,7 +23,6 @@ install_plugin Capistrano::Puma::Daemon # https://github.com/seuros/capistrano-p
 install_plugin Capistrano::Puma::Monit  # if you need the monit tasks
 install_plugin Capistrano::Puma::Workers  # if you want to control the workers (in cluster mode)
 
-
 # Include tasks from other gems included in your Gemfile
 #
 # For documentation on these, see for example:
@@ -41,8 +40,8 @@ require 'capistrano/rails'
 require 'capistrano/chruby'
 require 'capistrano/bundler'
 require 'capistrano/sidekiq'
-require 'capistrano/sidekiq/monit'
-
+install_plugin Capistrano::Sidekiq
+install_plugin Capistrano::Sidekiq::Systemd
 
 # Load custom tasks from `lib/capistrano/tasks` if you have any defined
 Dir.glob("lib/capistrano/tasks/*.rake").each { |r| import r }
