@@ -258,8 +258,8 @@ gem 'unix-crypt', '1.3.0' #, :require_name => 'unix_crypt'
 
 
 # damingo (Github ID), 2017-08-22, #annotator
-# gem 'discourse-annotator', git: 'https://github.com/edgeryders/discourse-annotator', branch: 'master'
-gem 'discourse-annotator', path: '~/Projects/discourse-annotator'
+gem 'discourse-annotator', git: 'https://github.com/edgeryders/discourse-annotator', branch: 'master'
+# gem 'discourse-annotator', path: '~/Projects/discourse-annotator'
 
 # NOTE: This is a quickfix to make sure the gem is loaded for discourse-annotator. It is specified in the discourse-annotator/Gemfile
 # as a dependency but this doesn't load the gem "uninitialized constant Administrate::Field::NestedHasMany"
