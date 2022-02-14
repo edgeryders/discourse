@@ -5,11 +5,6 @@ class AddAnnotationsCounterCache < ActiveRecord::Migration[5.2]
 
     add_index :annotator_store_localized_tags, [:tag_id, :language_id], unique: true
 
-
-    DiscourseAnnotator::LocalizedCode.create_or_update_all
-
-    DiscourseAnnotator::Code.find_each {|t| t.update_attribute(:annotations_count, t.annotations.count ) }
-
   end
 
 

@@ -3,9 +3,9 @@ class AddAnnotationsTopicColumn < ActiveRecord::Migration[5.2]
   def up
     add_column :annotator_store_annotations, :topic_id, :bigint
 
-    DiscourseAnnotator::Annotation.find_each do |a|
-      a.update_column(:topic_id, a.post&.topic_id)
-    end
+    # DiscourseAnnotator::Annotation.find_each do |a|
+    #   a.update_column(:topic_id, a.post&.topic_id)
+    # end
 
   end
 

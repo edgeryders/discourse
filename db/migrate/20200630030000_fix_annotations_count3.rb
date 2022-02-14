@@ -2,7 +2,6 @@ class FixAnnotationsCount3 < ActiveRecord::Migration[5.2]
 
 
   def change
-    DiscourseAnnotator::Code.fix_annotations_count
   end
 
 
