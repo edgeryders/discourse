@@ -135,7 +135,7 @@ after_initialize do
     # https://edgeryders.eu/t/using-the-edgeryders-eu-apis/7904
     # https://edgeryders.eu/t/it-development-plan-for-the-h2020-projects/9202#heading--2-2-posting
     def create
-      return render_json_error("Not allowed.") unless SiteSetting.enable_sso_provider
+      return render_json_error("Not allowed.") unless SiteSetting.enable_discourse_connect_provider
       unless params[:auth_key].present? && params[:auth_key] == Rails.application.secrets.auth_key
         return render_json_error("auth_key: Is invalid.")
       end
