@@ -14,7 +14,6 @@ class AnnotationsStoreAddTypes < ActiveRecord::Migration[5.2]
       t.column :end, :string
     end
 
-    AnnotatorStore::Annotation.update_all(type: 'AnnotatorStore::TextAnnotation')
 
 
   end
