@@ -33,8 +33,10 @@ GIT
       capistrano-bundler
       puma (>= 4.0, < 6.0)
 
-PATH
-  remote: ../discourse-annotator
+GIT
+  remote: https://github.com/edgeryders/discourse-annotator
+  revision: 7acfda20b2e32281b84cb36dbe3f4ef5ec719e19
+  branch: master
   specs:
     discourse-annotator (1.0.0)
       administrate (= 0.12.0)
