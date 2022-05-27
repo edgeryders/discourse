@@ -35,7 +35,7 @@ GIT
 
 GIT
   remote: https://github.com/edgeryders/discourse-annotator
-  revision: 0f03a086ed8f0eafa56efd82fc7f23aa4e1d04b4
+  revision: ae05461e295e49b4e90191a4263c85bc2a994b2b
   branch: master
   specs:
     discourse-annotator (1.0.0)
