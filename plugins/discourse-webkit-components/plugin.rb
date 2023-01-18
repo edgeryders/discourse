@@ -36,3 +36,4 @@ after_initialize do
     mount ::WebkitComponents::Engine, at: '/webkit_components'
   end
 end
+
