@@ -26,6 +26,8 @@ Discourse::Application.configure do
 
   config.log_level = :info
 
+  config.pool = 30
+
   if GlobalSetting.smtp_address
     settings = {
       address: GlobalSetting.smtp_address,
