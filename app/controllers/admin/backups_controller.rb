@@ -37,10 +37,6 @@ class Admin::BackupsController < Admin::AdminController
       with_uploads: params.fetch(:with_uploads) == "true",
       client_id: params[:client_id],
     }
-
-    # damingo (Github ID), 2023-01-21. Tmp fix as otherwise manual backups fail silently.
-    # opts[:fork] = false
-
     BackupRestore.backup!(current_user.id, opts)
   rescue BackupRestore::OperationRunningError
     render_error("backup.operation_already_running")
