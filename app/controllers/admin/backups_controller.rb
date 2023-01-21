@@ -39,7 +39,7 @@ class Admin::BackupsController < Admin::AdminController
     }
 
     # damingo (Github ID), 2023-01-21. Tmp fix as otherwise manual backups fail silently.
-    opts[:fork] = false
+    # opts[:fork] = false
 
     BackupRestore.backup!(current_user.id, opts)
   rescue BackupRestore::OperationRunningError
