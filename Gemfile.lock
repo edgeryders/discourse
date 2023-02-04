@@ -35,7 +35,7 @@ GIT
 
 GIT
   remote: https://github.com/edgeryders/discourse-annotator
-  revision: 45d21fa8c06eb8cad8e30bae896ecf25a07457e9
+  revision: 18f08e26452076057c2940286eaf37e007e60fc1
   branch: master
   specs:
     discourse-annotator (1.0.0)
@@ -445,7 +445,7 @@ GEM
       msgpack (>= 0.4.3)
       optimist (>= 3.0.0)
     rchardet (1.8.0)
-    redcarpet (3.5.1)
+    redcarpet (3.6.0)
     redis (4.2.5)
     redis-namespace (1.8.1)
       redis (>= 3.0.4)
