@@ -14,24 +14,20 @@ export default MultiSelectComponent.extend({
 
   selectKitOptions: {
     filterable: true,
-    selectedNameComponent: "selectedNameComponent",
+    selectedChoiceComponent: "selectedChoiceComponent",
   },
 
   modifyComponentForRow(collection) {
-    if (
-      collection === MAIN_COLLECTION &&
-      this.settingName &&
-      this.settingName.indexOf("color") > -1
-    ) {
+    if (collection === MAIN_COLLECTION && this.settingName?.includes("color")) {
       return "create-color-row";
     }
   },
 
-  selectedNameComponent: computed("settingName", function () {
-    if (this.settingName && this.settingName.indexOf("color") > -1) {
-      return "selected-color";
+  selectedChoiceComponent: computed("settingName", function () {
+    if (this.settingName?.includes("color")) {
+      return "selected-choice-color";
     } else {
-      return "selected-name";
+      return "selected-choice";
     }
   }),
 

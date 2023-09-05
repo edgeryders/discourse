@@ -6,6 +6,10 @@ import { iconHTML } from "discourse-common/lib/icon-library";
 import { isValidLink } from "discourse/lib/click-track";
 import { number } from "discourse/lib/formatter";
 import { spinnerHTML } from "discourse/helpers/loading-spinner";
+import { escape } from "pretty-text/sanitizer";
+import domFromString from "discourse-common/lib/dom-from-string";
+import getURL from "discourse-common/lib/get-url";
+import { updateUserStatusOnMention } from "discourse/lib/update-user-status-on-mention";
 
 let _beforeAdoptDecorators = [];
 let _afterAdoptDecorators = [];
@@ -31,6 +35,9 @@ function createDetachedElement(nodeName) {
 }
 
 export default class PostCooked {
+  originalQuoteContents = null;
+  tippyInstances = [];
+
   constructor(attrs, decoratorHelper, currentUser) {
     this.attrs = attrs;
     this.expanding = false;
@@ -52,17 +59,25 @@ export default class PostCooked {
   }
 
   init() {
+    this.originalQuoteContents = null;
+    // todo should be a better way of detecting if it is composer preview
+    this._isInComposerPreview = !this.decoratorHelper;
+
     const cookedDiv = this._computeCooked();
-    const $cookedDiv = $(cookedDiv);
+    this.cookedDiv = cookedDiv;
 
-    this._insertQuoteControls($cookedDiv);
-    this._showLinkCounts($cookedDiv);
-    this._fixImageSizes($cookedDiv);
-    this._applySearchHighlight($cookedDiv);
-
+    this._insertQuoteControls(cookedDiv);
+    this._showLinkCounts(cookedDiv);
+    this._applySearchHighlight(cookedDiv);
+    this._initUserStatusOnMentions();
     this._decorateAndAdopt(cookedDiv);
 
     return cookedDiv;
+  }
+
+  destroy() {
+    this._stopTrackingMentionedUsersStatus();
+    this._destroyTippyInstances();
   }
 
   _decorateAndAdopt(cooked) {
@@ -73,8 +88,7 @@ export default class PostCooked {
     _afterAdoptDecorators.forEach((d) => d(cooked, this.decoratorHelper));
   }
 
-  _applySearchHighlight($html) {
-    const html = $html[0];
+  _applySearchHighlight(html) {
     const highlight = this.attrs.highlightTerm;
 
     if (highlight && highlight.length > 2) {
@@ -90,154 +104,148 @@ export default class PostCooked {
     }
   }
 
-  _fixImageSizes($html) {
-    if (!this.decoratorHelper || !this.decoratorHelper.widget) {
-      return;
-    }
-    let siteSettings = this.decoratorHelper.widget.siteSettings;
-
-    if (siteSettings.disable_image_size_calculations) {
-      return;
-    }
-
-    const maxImageWidth = siteSettings.max_image_width;
-    const maxImageHeight = siteSettings.max_image_height;
-
-    let maxWindowWidth;
-    $html.find("img:not(.avatar)").each((idx, img) => {
-      // deferring work only for posts with images
-      // we got to use screen here, cause nothing is rendered yet.
-      // long term we may want to allow for weird margins that are enforced, instead of hardcoding at 70/20
-      maxWindowWidth =
-        maxWindowWidth || $(window).width() - (this.attrs.mobileView ? 20 : 70);
-      if (maxImageWidth < maxWindowWidth) {
-        maxWindowWidth = maxImageWidth;
-      }
-
-      const aspect = img.height / img.width;
-      if (img.width > maxWindowWidth) {
-        img.width = maxWindowWidth;
-        img.height = parseInt(maxWindowWidth * aspect, 10);
-      }
-
-      // very unlikely but lets fix this too
-      if (img.height > maxImageHeight) {
-        img.height = maxImageHeight;
-        img.width = parseInt(maxWindowWidth / aspect, 10);
-      }
-    });
-  }
-
-  _showLinkCounts($html) {
+  _showLinkCounts(html) {
     const linkCounts = this.attrs.linkCounts;
     if (!linkCounts) {
       return;
     }
+
+    // find the best <a> element in each onebox and display link counts only
+    // for that one (the best element is the most significant one to the
+    // viewer)
+    const bestElements = new Map();
+    html.querySelectorAll("aside.onebox").forEach((onebox) => {
+      // look in headings first
+      for (let i = 1; i <= 6; ++i) {
+        const hLinks = onebox.querySelectorAll(`h${i} a[href]`);
+        if (hLinks.length > 0) {
+          bestElements.set(onebox, hLinks[0]);
+          return;
+        }
+      }
+
+      // use the header otherwise
+      const hLinks = onebox.querySelectorAll("header a[href]");
+      if (hLinks.length > 0) {
+        bestElements.set(onebox, hLinks[0]);
+      }
+    });
 
     linkCounts.forEach((lc) => {
       if (!lc.clicks || lc.clicks < 1) {
         return;
       }
 
-      $html.find("a[href]").each((i, e) => {
-        const $link = $(e);
-        const href = $link.attr("href");
-
+      html.querySelectorAll("a[href]").forEach((link) => {
+        const href = link.getAttribute("href");
         let valid = href === lc.url;
 
         // this might be an attachment
         if (lc.internal && /^\/uploads\//.test(lc.url)) {
-          valid = href.indexOf(lc.url) >= 0;
+          valid = href.includes(lc.url);
         }
 
-        // Match server-side behaviour for internal links with query params
+        // match server-side behavior for internal links with query params
         if (lc.internal && /\?/.test(href)) {
           valid = href.split("?")[0] === lc.url;
         }
 
-        // don't display badge counts on category badge & oneboxes (unless when explicitely stated)
-        if (valid && isValidLink($link)) {
-          const title = I18n.t("topic_map.clicks", { count: lc.clicks });
-          $link.append(
-            ` <span class='badge badge-notification clicks' title='${title}'>${number(
-              lc.clicks
-            )}</span>`
-          );
+        // don't display badge counts on category badge & oneboxes (unless when explicitly stated)
+        if (valid && isValidLink(link)) {
+          const onebox = link.closest(".onebox");
+
+          if (
+            !onebox ||
+            !bestElements.has(onebox) ||
+            bestElements.get(onebox) === link
+          ) {
+            const title = I18n.t("topic_map.clicks", { count: lc.clicks });
+
+            link.appendChild(document.createTextNode(" "));
+            link.appendChild(
+              domFromString(
+                `<span class='badge badge-notification clicks' title='${title}'>${number(
+                  lc.clicks
+                )}</span>`
+              )[0]
+            );
+          }
         }
       });
     });
   }
 
-  _toggleQuote($aside) {
+  async _toggleQuote(aside) {
     if (this.expanding) {
       return;
     }
 
     this.expanding = true;
+    const blockQuote = aside.querySelector("blockquote");
 
-    $aside.data("expanded", !$aside.data("expanded"));
+    if (!blockQuote) {
+      return;
+    }
 
-    const finished = () => (this.expanding = false);
+    if (aside.dataset.expanded) {
+      delete aside.dataset.expanded;
+    } else {
+      aside.dataset.expanded = true;
+    }
 
-    if ($aside.data("expanded")) {
-      this._updateQuoteElements($aside, "chevron-up");
+    const quoteId = blockQuote.id;
+
+    if (aside.dataset.expanded) {
+      this._updateQuoteElements(aside, "chevron-up");
+
       // Show expanded quote
-      const $blockQuote = $("> blockquote", $aside);
-      $aside.data("original-contents", $blockQuote.html());
+      this.originalQuoteContents.set(quoteId, blockQuote.innerHTML);
 
       const originalText =
-        $blockQuote.text().trim() ||
-        $("> blockquote", this.attrs.cooked).text().trim();
+        blockQuote.textContent.trim() ||
+        this.attrs.cooked.querySelector("blockquote").textContent.trim();
 
-      $blockQuote.html(spinnerHTML);
+      blockQuote.innerHTML = spinnerHTML;
 
-      let topicId = this.attrs.topicId;
-      if ($aside.data("topic")) {
-        topicId = $aside.data("topic");
-      }
+      const topicId = parseInt(aside.dataset.topic || this.attrs.topicId, 10);
+      const postId = parseInt(aside.dataset.post, 10);
 
-      const postId = parseInt($aside.data("post"), 10);
-      topicId = parseInt(topicId, 10);
+      try {
+        const result = await ajax(`/posts/by_number/${topicId}/${postId}`);
 
-      ajax(`/posts/by_number/${topicId}/${postId}`)
-        .then((result) => {
-          const post = this.decoratorHelper.getModel();
-          const quotedPosts = post.quoted || {};
-          quotedPosts[result.id] = result;
-          post.set("quoted", quotedPosts);
+        const post = this._post();
+        const quotedPosts = post.quoted || {};
+        quotedPosts[result.id] = result;
+        post.set("quoted", quotedPosts);
 
-          const div = createDetachedElement("div");
-          div.classList.add("expanded-quote");
-          div.dataset.postId = result.id;
-          div.innerHTML = result.cooked;
+        const div = createDetachedElement("div");
+        div.classList.add("expanded-quote");
+        div.dataset.postId = result.id;
+        div.innerHTML = result.cooked;
 
-          this._decorateAndAdopt(div);
+        this._decorateAndAdopt(div);
 
-          highlightHTML(div, originalText, {
-            matchCase: true,
-          });
-          $blockQuote.showHtml(div, "fast", finished);
-        })
-        .catch((e) => {
-          if ([403, 404].includes(e.jqXHR.status)) {
-            const icon = e.jqXHR.status === 403 ? "lock" : "far-trash-alt";
-            $blockQuote.showHtml(
-              $(`<div class='expanded-quote'>${iconHTML(icon)}</div>`),
-              "fast",
-              finished
-            );
-          }
+        highlightHTML(div, originalText, {
+          matchCase: true,
         });
+
+        blockQuote.innerHTML = "";
+        blockQuote.appendChild(div);
+      } catch (e) {
+        if ([403, 404].includes(e.jqXHR.status)) {
+          const icon = e.jqXHR.status === 403 ? "lock" : "far-trash-alt";
+          blockQuote.innerHTML = `<div class='expanded-quote icon-only'>${iconHTML(
+            icon
+          )}</div>`;
+        }
+      }
     } else {
       // Hide expanded quote
-      this._updateQuoteElements($aside, "chevron-down");
-      $("blockquote", $aside).showHtml(
-        $aside.data("original-contents"),
-        "fast",
-        finished
-      );
+      this._updateQuoteElements(aside, "chevron-down");
+      blockQuote.innerHTML = this.originalQuoteContents.get(blockQuote.id);
     }
-    return false;
+
+    this.expanding = false;
   }
 
   _urlForPostNumber(postNumber) {
@@ -246,66 +254,103 @@ export default class PostCooked {
       : this.attrs.topicUrl;
   }
 
-  _updateQuoteElements($aside, desc) {
-    let navLink = "";
+  _updateQuoteElements(aside, desc) {
     const quoteTitle = I18n.t("post.follow_quote");
-    let postNumber = $aside.data("post");
-    let topicNumber = $aside.data("topic");
+    const postNumber = aside.dataset.post;
+    const topicNumber = aside.dataset.topic;
 
     // If we have a post reference
-    if (topicNumber && topicNumber === this.attrs.topicId && postNumber) {
-      let icon = iconHTML("arrow-up");
+    let navLink = "";
+    if (
+      topicNumber &&
+      postNumber &&
+      topicNumber === this.attrs.topicId?.toString()
+    ) {
+      const icon = iconHTML("arrow-up");
       navLink = `<a href='${this._urlForPostNumber(
         postNumber
       )}' title='${quoteTitle}' class='btn-flat back'>${icon}</a>`;
     }
 
     // Only add the expand/contract control if it's not a full post
+    const titleElement = aside.querySelector(".title");
     let expandContract = "";
-    const isExpanded = $aside.data("expanded") === true;
-    if (!$aside.data("full")) {
-      let icon = iconHTML(desc, { title: "post.expand_collapse" });
-      const quoteId = $aside.find("blockquote").attr("id");
-      expandContract = `<button aria-controls="${quoteId}" aria-expanded="${isExpanded}" class="quote-toggle btn-flat">${icon}</button>`;
-      $(".title", $aside).css("cursor", "pointer");
-    }
-    if (this.ignoredUsers && this.ignoredUsers.length > 0) {
-      const username = $aside.find(".title").text().trim().slice(0, -1);
-      if (username.length > 0 && this.ignoredUsers.includes(username)) {
-        $aside.find("p").remove();
-        $aside.addClass("ignored-user");
+
+    if (!aside.dataset.full) {
+      const icon = iconHTML(desc, { title: "post.expand_collapse" });
+      const quoteId = aside.querySelector("blockquote")?.id;
+
+      if (quoteId) {
+        const isExpanded = aside.dataset.expanded === "true";
+        expandContract = `<button aria-controls="${quoteId}" aria-expanded="${isExpanded}" class="quote-toggle btn-flat">${icon}</button>`;
+
+        if (titleElement) {
+          titleElement.style.cursor = "pointer";
+        }
       }
     }
-    $(".quote-controls", $aside).html(expandContract + navLink);
+
+    if (this.ignoredUsers?.length && titleElement) {
+      const username = titleElement.innerText.trim().slice(0, -1);
+
+      if (username.length > 0 && this.ignoredUsers.includes(username)) {
+        aside.querySelectorAll("p").forEach((el) => el.remove());
+        aside.classList.add("ignored-user");
+      }
+    }
+
+    const quoteControls = aside.querySelector(".quote-controls");
+    if (quoteControls) {
+      quoteControls.innerHTML = expandContract + navLink;
+    }
   }
 
-  _insertQuoteControls($html) {
-    const $quotes = $html.find("aside.quote");
-    if ($quotes.length === 0) {
+  _insertQuoteControls(html) {
+    const quotes = html.querySelectorAll("aside.quote");
+    if (quotes.length === 0) {
       return;
     }
 
-    $quotes.each((index, e) => {
-      const $aside = $(e);
-      if ($aside.data("post")) {
-        const quoteId = `quote-id-${$aside.data("topic")}-${$aside.data(
-          "post"
-        )}-${index}`;
-        $aside.find("blockquote").attr("id", quoteId);
+    this.originalQuoteContents = new Map();
 
-        this._updateQuoteElements($aside, "chevron-down");
-        const $title = $(".title", $aside);
+    quotes.forEach((aside, index) => {
+      if (aside.dataset.post) {
+        const quoteId = `quote-id-${aside.dataset.topic}-${aside.dataset.post}-${index}`;
+
+        const blockquote = aside.querySelector("blockquote");
+        if (blockquote) {
+          blockquote.id = quoteId;
+        }
+
+        this._updateQuoteElements(aside, "chevron-down");
+        const title = aside.querySelector(".title");
+
+        if (!title) {
+          return;
+        }
+
+        // If post/topic is not found then display username, skip controls
+        if (aside.classList.contains("quote-post-not-found")) {
+          if (aside.dataset.username) {
+            title.innerHTML = escape(aside.dataset.username);
+          } else {
+            title.remove();
+          }
+
+          return;
+        }
 
         // Unless it's a full quote, allow click to expand
-        if (!($aside.data("full") || $title.data("has-quote-controls"))) {
-          $title.on("click", (e2) => {
-            let $target = $(e2.target);
-            if ($target.closest("a").length) {
+        if (!aside.dataset.full && !title.dataset.hasQuoteControls) {
+          title.addEventListener("click", (e) => {
+            if (e.target.closest("a")) {
               return true;
             }
-            this._toggleQuote($aside);
+
+            this._toggleQuote(aside);
           });
-          $title.data("has-quote-controls", true);
+
+          title.dataset.hasQuoteControls = true;
         }
       }
     });
@@ -328,6 +373,53 @@ export default class PostCooked {
     }
 
     return cookedDiv;
+  }
+
+  _initUserStatusOnMentions() {
+    if (!this._isInComposerPreview) {
+      this._trackMentionedUsersStatus();
+      this._rerenderUserStatusOnMentions();
+    }
+  }
+
+  _destroyTippyInstances() {
+    this.tippyInstances.forEach((instance) => {
+      instance.destroy();
+    });
+  }
+
+  _rerenderUserStatusOnMentions() {
+    this._destroyTippyInstances();
+    this._post()?.mentioned_users?.forEach((user) =>
+      this._rerenderUserStatusOnMention(this.cookedDiv, user)
+    );
+  }
+
+  _rerenderUserStatusOnMention(postElement, user) {
+    const href = getURL(`/u/${user.username.toLowerCase()}`);
+    const mentions = postElement.querySelectorAll(`a.mention[href="${href}"]`);
+
+    mentions.forEach((mention) => {
+      updateUserStatusOnMention(mention, user.status, this.tippyInstances);
+    });
+  }
+
+  _trackMentionedUsersStatus() {
+    this._post()?.mentioned_users?.forEach((user) => {
+      user.trackStatus?.();
+      user.on?.("status-changed", this, "_rerenderUserStatusOnMentions");
+    });
+  }
+
+  _stopTrackingMentionedUsersStatus() {
+    this._post()?.mentioned_users?.forEach((user) => {
+      user.stopTrackingStatus?.();
+      user.off?.("status-changed", this, "_rerenderUserStatusOnMentions");
+    });
+  }
+
+  _post() {
+    return this.decoratorHelper?.getModel?.();
   }
 }
 

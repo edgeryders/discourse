@@ -1,7 +1,7 @@
 import {
   acceptance,
   exists,
-  queryAll,
+  query,
 } from "discourse/tests/helpers/qunit-helpers";
 import { click, fillIn, visit } from "@ember/test-helpers";
 import { test } from "qunit";
@@ -19,15 +19,15 @@ acceptance("Composer topic featured links", function (needs) {
     await click("#create-topic");
     await fillIn("#reply-title", "http://www.example.com/has-title.html");
     assert.ok(
-      queryAll(".d-editor-preview").html().trim().indexOf("onebox") > 0,
+      query(".d-editor-preview").innerHTML.trim().includes("onebox"),
       "it pastes the link into the body and previews it"
     );
     assert.ok(
       exists(".d-editor-textarea-wrapper .popup-tip.good"),
       "the body is now good"
     );
-    assert.equal(
-      queryAll(".title-input input").val(),
+    assert.strictEqual(
+      query(".title-input input").value,
       "An interesting article",
       "title is from the oneboxed article"
     );
@@ -38,15 +38,15 @@ acceptance("Composer topic featured links", function (needs) {
     await click("#create-topic");
     await fillIn("#reply-title", "http://www.example.com/no-title.html");
     assert.ok(
-      queryAll(".d-editor-preview").html().trim().indexOf("onebox") > 0,
+      query(".d-editor-preview").innerHTML.trim().includes("onebox"),
       "it pastes the link into the body and previews it"
     );
     assert.ok(
       exists(".d-editor-textarea-wrapper .popup-tip.good"),
       "the body is now good"
     );
-    assert.equal(
-      queryAll(".title-input input").val(),
+    assert.strictEqual(
+      query(".title-input input").value,
       "http://www.example.com/no-title.html",
       "title is unchanged"
     );
@@ -56,8 +56,8 @@ acceptance("Composer topic featured links", function (needs) {
     await visit("/");
     await click("#create-topic");
     await fillIn("#reply-title", "https://www.youtube.com/watch?v=dQw4w9WgXcQ");
-    assert.equal(
-      queryAll(".title-input input").val(),
+    assert.strictEqual(
+      query(".title-input input").value,
       "Rick Astley - Never Gonna Give You Up (Video)",
       "title is from the oneboxed article"
     );
@@ -68,15 +68,15 @@ acceptance("Composer topic featured links", function (needs) {
     await click("#create-topic");
     await fillIn("#reply-title", "http://www.example.com/nope-onebox.html");
     assert.ok(
-      queryAll(".d-editor-preview").html().trim().indexOf("onebox") > 0,
+      query(".d-editor-preview").innerHTML.trim().includes("onebox"),
       "it pastes the link into the body and previews it"
     );
     assert.ok(
       exists(".d-editor-textarea-wrapper .popup-tip.good"),
       "link is pasted into body"
     );
-    assert.equal(
-      queryAll(".title-input input").val(),
+    assert.strictEqual(
+      query(".title-input input").value,
       "http://www.example.com/nope-onebox.html",
       "title is unchanged"
     );
@@ -87,18 +87,17 @@ acceptance("Composer topic featured links", function (needs) {
     await click("#create-topic");
     const title = "http://" + window.location.hostname + "/internal-page.html";
     await fillIn("#reply-title", title);
-    assert.equal(
-      queryAll(".d-editor-preview").html().trim().indexOf("onebox"),
-      -1,
+    assert.ok(
+      !query(".d-editor-preview").innerHTML.trim().includes("onebox"),
       "onebox preview doesn't show"
     );
-    assert.equal(
-      queryAll(".d-editor-input").val().length,
+    assert.strictEqual(
+      query(".d-editor-input").value.length,
       0,
       "link isn't put into the post"
     );
-    assert.equal(
-      queryAll(".title-input input").val(),
+    assert.strictEqual(
+      query(".title-input input").value,
       title,
       "title is unchanged"
     );
@@ -112,15 +111,15 @@ acceptance("Composer topic featured links", function (needs) {
       "http://www.example.com/has-title-and-a-url-that-is-more-than-80-characters-because-thats-good-for-seo-i-guess.html"
     );
     assert.ok(
-      queryAll(".d-editor-preview").html().trim().indexOf("onebox") > 0,
+      query(".d-editor-preview").innerHTML.trim().includes("onebox"),
       "it pastes the link into the body and previews it"
     );
     assert.ok(
       exists(".d-editor-textarea-wrapper .popup-tip.good"),
       "the body is now good"
     );
-    assert.equal(
-      queryAll(".title-input input").val(),
+    assert.strictEqual(
+      query(".title-input input").value,
       "An interesting article",
       "title is from the oneboxed article"
     );
@@ -130,18 +129,17 @@ acceptance("Composer topic featured links", function (needs) {
     await visit("/");
     await click("#create-topic");
     await fillIn("#reply-title", "http://www.example.com/has-title.html test");
-    assert.equal(
-      queryAll(".d-editor-preview").html().trim().indexOf("onebox"),
-      -1,
+    assert.ok(
+      !query(".d-editor-preview").innerHTML.trim().includes("onebox"),
       "onebox preview doesn't show"
     );
-    assert.equal(
-      queryAll(".d-editor-input").val().length,
+    assert.strictEqual(
+      query(".d-editor-input").value.length,
       0,
       "link isn't put into the post"
     );
-    assert.equal(
-      queryAll(".title-input input").val(),
+    assert.strictEqual(
+      query(".title-input input").value,
       "http://www.example.com/has-title.html test",
       "title is unchanged"
     );
@@ -155,14 +153,14 @@ acceptance("Composer topic featured links", function (needs) {
       "https://twitter.com/discourse/status/1357664660724482048"
     );
     assert.ok(
-      queryAll(".d-editor-preview").html().trim().indexOf("onebox") > 0,
+      query(".d-editor-preview").innerHTML.trim().includes("onebox"),
       "it pastes the link into the body and previews it"
     );
     assert.ok(
       exists(".d-editor-textarea-wrapper .popup-tip.good"),
       "the body is now good"
     );
-    assert.blank(queryAll(".title-input input").val(), "title is blank");
+    assert.blank(query(".title-input input").value, "title is blank");
   });
 });
 
@@ -181,25 +179,25 @@ acceptance(
       await visit("/");
       await click("#create-topic");
       assert.ok(
-        queryAll(".d-editor-textarea-wrapper.disabled").length,
+        exists(".d-editor-textarea-wrapper.disabled"),
         "textarea is disabled"
       );
       await fillIn("#reply-title", "http://www.example.com/has-title.html");
       assert.ok(
-        queryAll(".d-editor-preview").html().trim().indexOf("onebox") > 0,
+        query(".d-editor-preview").innerHTML.trim().includes("onebox"),
         "it pastes the link into the body and previews it"
       );
       assert.ok(
         exists(".d-editor-textarea-wrapper .popup-tip.good"),
         "the body is now good"
       );
-      assert.equal(
-        queryAll(".title-input input").val(),
+      assert.strictEqual(
+        query(".title-input input").value,
         "An interesting article",
         "title is from the oneboxed article"
       );
       assert.ok(
-        queryAll(".d-editor-textarea-wrapper.disabled").length === 0,
+        !exists(".d-editor-textarea-wrapper.disabled"),
         "textarea is enabled"
       );
     });

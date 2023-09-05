@@ -1,5 +1,8 @@
 # frozen_string_literal: true
 
+GIT_INITIAL_BRANCH_SUPPORTED =
+  Gem::Version.new(`git --version`.match(/[\d\.]+/)[0]) >= Gem::Version.new("2.28.0")
+
 module Helpers
   extend ActiveSupport::Concern
 
@@ -14,8 +17,9 @@ module Helpers
   end
 
   def log_in_user(user)
+    cookie_jar = ActionDispatch::Request.new(request.env).cookie_jar
     provider = Discourse.current_user_provider.new(request.env)
-    provider.log_on_user(user, session, cookies)
+    provider.log_on_user(user, session, cookie_jar)
     provider
   end
 
@@ -24,8 +28,8 @@ module Helpers
   end
 
   def fixture_file(filename)
-    return '' if filename.blank?
-    file_path = File.expand_path(Rails.root + 'spec/fixtures/' + filename)
+    return "" if filename.blank?
+    file_path = File.expand_path(Rails.root + "spec/fixtures/" + filename)
     File.read(file_path)
   end
 
@@ -42,24 +46,23 @@ module Helpers
   end
 
   def create_post(args = {})
+    # Pretty much all the tests with `create_post` will fail without this
+    # since allow_uncategorized_topics is now false by default
+    SiteSetting.allow_uncategorized_topics = true unless args[:allow_uncategorized_topics] == false
+
     args[:title] ||= "This is my title #{Helpers.next_seq}"
     args[:raw] ||= "This is the raw body of my post, it is cool #{Helpers.next_seq}"
     args[:topic_id] = args[:topic].id if args[:topic]
+    automated_group_refresh_required = args[:user].blank?
     user = args.delete(:user) || Fabricate(:user)
+    Group.refresh_automatic_groups! if automated_group_refresh_required
     args[:category] = args[:category].id if args[:category].is_a?(Category)
     creator = PostCreator.new(user, args)
     post = creator.create
 
-    if creator.errors.present?
-      raise StandardError.new(creator.errors.full_messages.join(" "))
-    end
+    raise StandardError.new(creator.errors.full_messages.join(" ")) if creator.errors.present?
 
     post
-  end
-
-  def generate_username(length = 10)
-    range = [*'a'..'z']
-    Array.new(length) { range.sample }.join
   end
 
   def stub_guardian(user)
@@ -81,20 +84,12 @@ module Helpers
     expect(result).to eq(true)
   end
 
-  def fill_email(mail, from, to, body = nil, subject = nil, cc = nil)
-    result = mail.gsub("FROM", from).gsub("TO", to)
-    result.gsub!(/Hey.*/m, body)  if body
-    result.sub!(/We .*/, subject) if subject
-    result.sub!("CC", cc.presence || "")
-    result
-  end
-
   def email(email_name)
     fixture_file("emails/#{email_name}.eml")
   end
 
   def create_staff_only_tags(tag_names)
-    create_limited_tags('Staff Tags', Group::AUTO_GROUPS[:staff], tag_names)
+    create_limited_tags("Staff Tags", Group::AUTO_GROUPS[:staff], tag_names)
   end
 
   def create_limited_tags(tag_group_name, group_id, tag_names)
@@ -102,12 +97,12 @@ module Helpers
     TagGroupPermission.where(
       tag_group: tag_group,
       group_id: Group::AUTO_GROUPS[:everyone],
-      permission_type: TagGroupPermission.permission_types[:full]
+      permission_type: TagGroupPermission.permission_types[:full],
     ).update(permission_type: TagGroupPermission.permission_types[:readonly])
     TagGroupPermission.create!(
       tag_group: tag_group,
       group_id: group_id,
-      permission_type: TagGroupPermission.permission_types[:full]
+      permission_type: TagGroupPermission.permission_types[:full],
     )
     tag_names.each do |name|
       tag_group.tags << (Tag.where(name: name).first || Fabricate(:tag, name: name))
@@ -115,10 +110,7 @@ module Helpers
   end
 
   def create_hidden_tags(tag_names)
-    tag_group = Fabricate(:tag_group,
-      name: 'Hidden Tags',
-      permissions: { staff: :full }
-    )
+    tag_group = Fabricate(:tag_group, name: "Hidden Tags", permissions: { staff: :full })
     tag_names.each do |name|
       tag_group.tags << (Tag.where(name: name).first || Fabricate(:tag, name: name))
     end
@@ -133,7 +125,7 @@ module Helpers
   end
 
   def capture_output(output_name)
-    if ENV['RAILS_ENABLE_TEST_STDOUT']
+    if ENV["RAILS_ENABLE_TEST_STDOUT"]
       yield
       return
     end
@@ -157,19 +149,29 @@ module Helpers
     capture_output(:stderr, &block)
   end
 
-  def set_subfolder(f)
-    global_setting :relative_url_root, f
-    old_root = ActionController::Base.config.relative_url_root
-    ActionController::Base.config.relative_url_root = f
+  def set_subfolder(new_root)
+    global_setting :relative_url_root, new_root
 
-    before_next_spec do
-      ActionController::Base.config.relative_url_root = old_root
+    old_root = ActionController::Base.config.relative_url_root
+    ActionController::Base.config.relative_url_root = new_root
+    Rails.application.routes.stubs(:relative_url_root).returns(new_root)
+
+    before_next_spec { ActionController::Base.config.relative_url_root = old_root }
+
+    if RSpec.current_example.metadata[:type] == :system
+      Capybara.app.map("/") { run lambda { |env| [404, {}, [""]] } }
+      Capybara.app.map(new_root) { run Rails.application }
+
+      before_next_spec do
+        Capybara.app.map(new_root) { run lambda { |env| [404, {}, [""]] } }
+        Capybara.app.map("/") { run Rails.application }
+      end
     end
   end
 
   def setup_git_repo(files)
     repo_dir = Dir.mktmpdir
-    `cd #{repo_dir} && git init .`
+    `cd #{repo_dir} && git init . #{"--initial-branch=main" if GIT_INITIAL_BRANCH_SUPPORTED}`
     `cd #{repo_dir} && git config user.email 'someone@cool.com'`
     `cd #{repo_dir} && git config user.name 'The Cool One'`
     `cd #{repo_dir} && git config commit.gpgsign 'false'`
@@ -180,5 +182,42 @@ module Helpers
     end
     `cd #{repo_dir} && git commit -am 'first commit'`
     repo_dir
+  end
+
+  def stub_const(target, const, value)
+    old = target.const_get(const)
+    target.send(:remove_const, const)
+    target.const_set(const, value)
+    yield
+  ensure
+    target.send(:remove_const, const)
+    target.const_set(const, old)
+  end
+
+  def track_sql_queries
+    queries = []
+    callback = ->(*, payload) do
+      queries << payload.fetch(:sql) unless %w[CACHE SCHEMA].include?(payload.fetch(:name))
+    end
+
+    ActiveSupport::Notifications.subscribed(callback, "sql.active_record") { yield }
+
+    queries
+  end
+
+  def stub_ip_lookup(stub_addr, ips)
+    Addrinfo
+      .stubs(:getaddrinfo)
+      .with { |addr, _| addr == stub_addr }
+      .returns(
+        ips.map { |ip| Addrinfo.new([IPAddr.new(ip).ipv6? ? "AF_INET6" : "AF_INET", 80, nil, ip]) },
+      )
+  end
+
+  def with_search_indexer_enabled
+    SearchIndexer.enable
+    yield
+  ensure
+    SearchIndexer.disable
   end
 end

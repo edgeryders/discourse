@@ -1,22 +1,40 @@
 # frozen_string_literal: true
 
-require 'rails_helper'
+RSpec.describe UserArchivedMessage do
+  fab!(:user) { Fabricate(:user) }
+  fab!(:user_2) { Fabricate(:user) }
 
-describe UserArchivedMessage do
-  it 'Does not move archived muted messages back to inbox' do
-    user = Fabricate(:admin)
-    user2 = Fabricate(:admin)
+  fab!(:private_message) do
+    create_post(
+      user: user,
+      skip_validations: true,
+      target_usernames: [user_2.username, user.username].join(","),
+      archetype: Archetype.private_message,
+    ).topic
+  end
 
-    topic = create_post(user: user,
-                        skip_validations: true,
-                        target_usernames: [user2.username, user.username].join(","),
-                        archetype: Archetype.private_message).topic
+  describe ".move_to_inbox!" do
+    it "moves topic back to inbox correctly" do
+      UserArchivedMessage.archive!(user.id, private_message)
 
-    UserArchivedMessage.archive!(user.id, topic)
-    expect(topic.message_archived?(user)).to eq(true)
+      expect do UserArchivedMessage.move_to_inbox!(user.id, private_message) end.to change {
+        private_message.message_archived?(user)
+      }.from(true).to(false)
+    end
 
-    TopicUser.change(user.id, topic.id, notification_level: TopicUser.notification_levels[:muted])
-    UserArchivedMessage.move_to_inbox!(user.id, topic)
-    expect(topic.message_archived?(user)).to eq(true)
+    it "does not move archived muted messages back to inbox" do
+      UserArchivedMessage.archive!(user.id, private_message)
+
+      expect(private_message.message_archived?(user)).to eq(true)
+
+      TopicUser.change(
+        user.id,
+        private_message.id,
+        notification_level: TopicUser.notification_levels[:muted],
+      )
+      UserArchivedMessage.move_to_inbox!(user.id, private_message)
+
+      expect(private_message.message_archived?(user)).to eq(true)
+    end
   end
 end

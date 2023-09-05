@@ -1,6 +1,9 @@
+import I18n from "I18n";
 import {
   acceptance,
-  queryAll,
+  count,
+  exists,
+  query,
   visible,
 } from "discourse/tests/helpers/qunit-helpers";
 import { click, currentURL, fillIn, visit } from "@ember/test-helpers";
@@ -8,24 +11,35 @@ import DiscourseURL from "discourse/lib/url";
 import selectKit from "discourse/tests/helpers/select-kit-helper";
 import sinon from "sinon";
 import { test } from "qunit";
+import pretender from "discourse/tests/helpers/create-pretender";
 
 acceptance("Category Edit", function (needs) {
   needs.user();
-  needs.settings({ email_in: true });
+  needs.settings({ email_in: true, tagging_enabled: true });
 
   test("Editing the category", async function (assert) {
     await visit("/c/bug");
 
     await click("button.edit-category");
-    assert.equal(
+    assert.strictEqual(
       currentURL(),
       "/c/bug/edit/general",
       "it jumps to the correct screen"
     );
 
-    assert.equal(queryAll(".badge-category").text(), "bug");
+    assert.strictEqual(
+      query(".category-breadcrumb .badge-category").innerText,
+      "bug"
+    );
+    assert.strictEqual(
+      query(".category-color-editor .badge-category").innerText,
+      "bug"
+    );
     await fillIn("input.category-name", "testing");
-    assert.equal(queryAll(".badge-category").text(), "testing");
+    assert.strictEqual(
+      query(".category-color-editor .badge-category").innerText,
+      "testing"
+    );
 
     await fillIn(".edit-text-color input", "ff0000");
 
@@ -33,7 +47,7 @@ acceptance("Category Edit", function (needs) {
     await fillIn(".d-editor-input", "this is the new topic template");
 
     await click("#save-category");
-    assert.equal(
+    assert.strictEqual(
       currentURL(),
       "/c/bug/edit/general",
       "it stays on the edit screen"
@@ -45,7 +59,7 @@ acceptance("Category Edit", function (needs) {
     await searchPriorityChooser.selectRowByValue(1);
 
     await click("#save-category");
-    assert.equal(
+    assert.strictEqual(
       currentURL(),
       "/c/bug/edit/settings",
       "it stays on the edit screen"
@@ -60,9 +74,80 @@ acceptance("Category Edit", function (needs) {
     );
   });
 
+  test("Editing required tag groups", async function (assert) {
+    await visit("/c/bug/edit/tags");
+
+    assert.ok(exists(".minimum-required-tags"));
+
+    assert.ok(exists(".required-tag-groups"));
+    assert.strictEqual(count(".required-tag-group-row"), 0);
+
+    await click(".add-required-tag-group");
+    assert.strictEqual(count(".required-tag-group-row"), 1);
+
+    await click(".add-required-tag-group");
+    assert.strictEqual(count(".required-tag-group-row"), 2);
+
+    await click(".delete-required-tag-group");
+    assert.strictEqual(count(".required-tag-group-row"), 1);
+
+    const tagGroupChooser = selectKit(
+      ".required-tag-group-row .tag-group-chooser"
+    );
+    await tagGroupChooser.expand();
+    await tagGroupChooser.selectRowByValue("TagGroup1");
+
+    await click("#save-category");
+    assert.strictEqual(count(".required-tag-group-row"), 1);
+
+    await click(".delete-required-tag-group");
+    assert.strictEqual(count(".required-tag-group-row"), 0);
+
+    await click("#save-category");
+    assert.strictEqual(count(".required-tag-group-row"), 0);
+  });
+
+  test("Editing allowed tags and tag groups", async function (assert) {
+    await visit("/c/bug/edit/tags");
+
+    const allowedTagChooser = selectKit("#category-allowed-tags");
+    await allowedTagChooser.expand();
+    await allowedTagChooser.selectRowByValue("monkey");
+
+    await allowedTagChooser.collapse();
+    const allowedTagGroupChooser = selectKit("#category-allowed-tag-groups");
+    await allowedTagGroupChooser.expand();
+    await allowedTagGroupChooser.selectRowByValue("TagGroup1");
+
+    await click("#save-category");
+
+    const payload = JSON.parse(
+      pretender.handledRequests[pretender.handledRequests.length - 1]
+        .requestBody
+    );
+    assert.deepEqual(payload.allowed_tags, ["monkey"]);
+    assert.deepEqual(payload.allowed_tag_groups, ["TagGroup1"]);
+
+    await allowedTagGroupChooser.collapse();
+    await allowedTagChooser.expand();
+    await allowedTagChooser.deselectItemByValue("monkey");
+
+    await allowedTagGroupChooser.expand();
+    await allowedTagGroupChooser.deselectItemByValue("TagGroup1");
+
+    await click("#save-category");
+
+    const removePayload = JSON.parse(
+      pretender.handledRequests[pretender.handledRequests.length - 1]
+        .requestBody
+    );
+    assert.deepEqual(removePayload.allowed_tags, []);
+    assert.deepEqual(removePayload.allowed_tag_groups, []);
+  });
+
   test("Index Route", async function (assert) {
     await visit("/c/bug/edit");
-    assert.equal(
+    assert.strictEqual(
       currentURL(),
       "/c/bug/edit/general",
       "it redirects to the general tab"
@@ -71,12 +156,12 @@ acceptance("Category Edit", function (needs) {
 
   test("Slugless Route", async function (assert) {
     await visit("/c/1-category/edit");
-    assert.equal(
+    assert.strictEqual(
       currentURL(),
       "/c/1-category/edit/general",
       "it goes to the general tab"
     );
-    assert.equal(queryAll("input.category-name").val(), "bug");
+    assert.strictEqual(query("input.category-name").value, "bug");
   });
 
   test("Error Saving", async function (assert) {
@@ -84,11 +169,15 @@ acceptance("Category Edit", function (needs) {
     await fillIn(".email-in", "duplicate@example.com");
     await click("#save-category");
 
-    assert.ok(visible(".bootbox"));
-    assert.equal(queryAll(".bootbox .modal-body").html(), "duplicate email");
+    assert.strictEqual(
+      query(".dialog-body").textContent.trim(),
+      I18n.t("generic_error_with_reason", {
+        error: "duplicate email",
+      })
+    );
 
-    await click(".bootbox .btn-primary");
-    assert.ok(!visible(".bootbox"));
+    await click(".dialog-footer .btn-primary");
+    assert.ok(!visible(".dialog-body"));
   });
 
   test("Subcategory list settings", async function (assert) {
@@ -146,6 +235,6 @@ acceptance("Category Edit - no permission to edit", function (needs) {
 
   test("returns 404", async function (assert) {
     await visit("/c/bug/edit");
-    assert.equal(currentURL(), "/404");
+    assert.strictEqual(currentURL(), "/404");
   });
 });

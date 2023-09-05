@@ -3,6 +3,8 @@
 class BootstrapController < ApplicationController
   include ApplicationHelper
 
+  skip_before_action :redirect_to_login_if_required, :check_xhr
+
   # This endpoint allows us to produce the data required to start up Discourse via JSON API,
   # so that you don't have to scrape the HTML for `data-*` payloads
   def index
@@ -15,54 +17,80 @@ class BootstrapController < ApplicationController
     end
 
     @stylesheets = []
-    add_scheme(scheme_id, 'all')
-    add_scheme(dark_scheme_id, '(prefers-color-scheme: dark)')
+
+    add_scheme(scheme_id, "all", "light-scheme")
+    add_scheme(dark_scheme_id, "(prefers-color-scheme: dark)", "dark-scheme")
+
     if rtl?
       add_style(mobile_view? ? :mobile_rtl : :desktop_rtl)
     else
       add_style(mobile_view? ? :mobile : :desktop)
     end
-    add_style(:admin) if staff?
-    Discourse.find_plugin_css_assets(
-      include_official: allow_plugins?,
-      include_unofficial: allow_third_party_plugins?,
-      mobile_view: mobile_view?,
-      desktop_view: !mobile_view?,
-      request: request
-    ).each do |file|
-      add_style(file, plugin: true)
+    add_style(rtl? ? :admin_rtl : :admin) if staff?
+    add_style(rtl? ? :wizard_rtl : :wizard) if admin?
+
+    assets_fake_request = ActionDispatch::Request.new(request.env.dup)
+    assets_for_url = params[:for_url]
+    if assets_for_url
+      path, query = assets_for_url.split("?", 2)
+      assets_fake_request.env["PATH_INFO"] = path
+      assets_fake_request.env["QUERY_STRING"] = query
     end
-    add_style(mobile_view? ? :mobile_theme : :desktop_theme) if theme_ids.present?
+
+    Discourse
+      .find_plugin_css_assets(
+        include_official: allow_plugins?,
+        include_unofficial: allow_third_party_plugins?,
+        mobile_view: mobile_view?,
+        desktop_view: !mobile_view?,
+        request: assets_fake_request,
+        rtl: rtl?,
+      )
+      .each { |file| add_style(file, plugin: true) }
+    add_style(mobile_view? ? :mobile_theme : :desktop_theme) if theme_id.present?
 
     extra_locales = []
     if ExtraLocalesController.client_overrides_exist?
-      extra_locales << ExtraLocalesController.url('overrides')
-    end
-    if staff?
-      extra_locales << ExtraLocalesController.url('admin')
+      extra_locales << ExtraLocalesController.url("overrides")
     end
 
-    plugin_js = Discourse.find_plugin_js_assets(
-      include_official: allow_plugins?,
-      include_unofficial: allow_third_party_plugins?,
-      request: request
-    ).map { |f| script_asset_path(f) }
+    extra_locales << ExtraLocalesController.url("admin") if staff?
+
+    extra_locales << ExtraLocalesController.url("wizard") if admin?
+
+    plugin_js =
+      Discourse
+        .find_plugin_js_assets(
+          include_official: allow_plugins?,
+          include_unofficial: allow_third_party_plugins?,
+          request: assets_fake_request,
+        )
+        .map { |f| script_asset_path(f) }
+
+    plugin_test_js =
+      if Rails.env != "production"
+        script_asset_path("plugin-tests")
+      else
+        []
+      end
 
     bootstrap = {
-      theme_ids: theme_ids,
+      theme_id: theme_id,
+      theme_color: "##{ColorScheme.hex_for_name("header_background", scheme_id)}",
       title: SiteSetting.title,
       current_homepage: current_homepage,
       locale_script: locale,
       stylesheets: @stylesheets,
       plugin_js: plugin_js,
-      plugin_test_js: [script_asset_path("plugin_tests")],
+      plugin_test_js: plugin_test_js,
       setup_data: client_side_setup_data,
       preloaded: @preloaded,
       html: create_html,
       theme_html: create_theme_html,
       html_classes: html_classes,
       html_lang: html_lang,
-      login_path: main_app.login_path
+      login_path: main_app.login_path,
+      authentication_data: authentication_data,
     }
     bootstrap[:extra_locales] = extra_locales if extra_locales.present?
     bootstrap[:csrf_token] = form_authenticity_token if current_user
@@ -70,24 +98,45 @@ class BootstrapController < ApplicationController
     render_json_dump(bootstrap: bootstrap)
   end
 
-private
-  def add_scheme(scheme_id, media)
-    return if scheme_id.to_i == -1
-    theme_id = theme_ids&.first
+  def plugin_css_for_tests
+    urls =
+      Discourse
+        .find_plugin_css_assets(include_disabled: true, desktop_view: true)
+        .map do |target|
+          details = Stylesheet::Manager.new().stylesheet_details(target, "all")
+          details[0][:new_href]
+        end
 
-    if style = Stylesheet::Manager.color_scheme_stylesheet_details(scheme_id, media, theme_id)
-      @stylesheets << { href: style[:new_href], media: media }
+    stylesheet = <<~CSS
+      /* For use in tests only - `@import`s all plugin stylesheets */
+      #{urls.map { |url| "@import \"#{url}\";" }.join("\n")}
+    CSS
+
+    render plain: stylesheet, content_type: "text/css"
+  end
+
+  private
+
+  def add_scheme(scheme_id, media, css_class)
+    return if scheme_id.to_i == -1
+
+    if style =
+         Stylesheet::Manager.new(theme_id: theme_id).color_scheme_stylesheet_details(
+           scheme_id,
+           media,
+         )
+      @stylesheets << { href: style[:new_href], media: media, class: css_class }
     end
   end
 
   def add_style(target, opts = nil)
-    if styles = Stylesheet::Manager.stylesheet_details(target, 'all', theme_ids)
+    if styles = Stylesheet::Manager.new(theme_id: theme_id).stylesheet_details(target, "all")
       styles.each do |style|
         @stylesheets << {
           href: style[:new_href],
-          media: 'all',
+          media: "all",
           theme_id: style[:theme_id],
-          target: style[:target]
+          target: style[:target],
         }.merge(opts || {})
       end
     end
@@ -106,7 +155,11 @@ private
   end
 
   def add_plugin_html(html, key)
-    add_if_present(html, key, DiscoursePluginRegistry.build_html("server:#{key.to_s.dasherize}", self))
+    add_if_present(
+      html,
+      key,
+      DiscoursePluginRegistry.build_html("server:#{key.to_s.dasherize}", self),
+    )
   end
 
   def create_theme_html
@@ -115,11 +168,15 @@ private
 
     theme_view = mobile_view? ? :mobile : :desktop
 
-    add_if_present(theme_html, :body_tag, Theme.lookup_field(theme_ids, theme_view, 'body_tag'))
-    add_if_present(theme_html, :head_tag, Theme.lookup_field(theme_ids, theme_view, 'head_tag'))
-    add_if_present(theme_html, :header, Theme.lookup_field(theme_ids, theme_view, 'header'))
-    add_if_present(theme_html, :translations, Theme.lookup_field(theme_ids, :translations, I18n.locale))
-    add_if_present(theme_html, :js, Theme.lookup_field(theme_ids, :extra_js, nil))
+    add_if_present(theme_html, :body_tag, Theme.lookup_field(theme_id, theme_view, "body_tag"))
+    add_if_present(theme_html, :head_tag, Theme.lookup_field(theme_id, theme_view, "head_tag"))
+    add_if_present(theme_html, :header, Theme.lookup_field(theme_id, theme_view, "header"))
+    add_if_present(
+      theme_html,
+      :translations,
+      Theme.lookup_field(theme_id, :translations, I18n.locale),
+    )
+    add_if_present(theme_html, :js, Theme.lookup_field(theme_id, :extra_js, nil))
 
     theme_html
   end
@@ -127,5 +184,4 @@ private
   def add_if_present(hash, key, val)
     hash[key] = val if val.present?
   end
-
 end

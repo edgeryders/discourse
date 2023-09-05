@@ -1,30 +1,45 @@
-import { gt, not, or } from "@ember/object/computed";
+import { alias, gt, not, or } from "@ember/object/computed";
 import { propertyNotEqual, setting } from "discourse/lib/computed";
 import CanCheckEmails from "discourse/mixins/can-check-emails";
-import Controller from "@ember/controller";
-import EmberObject from "@ember/object";
+import Controller, { inject as controller } from "@ember/controller";
+import EmberObject, { action } from "@ember/object";
 import I18n from "I18n";
-import bootbox from "bootbox";
 import discourseComputed from "discourse-common/utils/decorators";
 import { findAll } from "discourse/models/login-method";
+import DiscourseURL from "discourse/lib/url";
 import getURL from "discourse-common/lib/get-url";
-import { iconHTML } from "discourse-common/lib/icon-library";
 import { popupAjaxError } from "discourse/lib/ajax-error";
+import { inject as service } from "@ember/service";
+import { next } from "@ember/runloop";
+import showModal from "discourse/lib/show-modal";
+import { exportUserArchive } from "discourse/lib/export-csv";
 
 export default Controller.extend(CanCheckEmails, {
+  dialog: service(),
+  user: controller(),
+  canDownloadPosts: alias("user.viewingSelf"),
+
   init() {
     this._super(...arguments);
 
-    this.saveAttrNames = ["name", "title", "primary_group_id"];
+    this.saveAttrNames = [
+      "name",
+      "title",
+      "primary_group_id",
+      "flair_group_id",
+      "status",
+    ];
     this.set("revoking", {});
   },
 
   canEditName: setting("enable_names"),
+  canSelectUserStatus: setting("enable_user_status"),
   canSaveUser: true,
 
   newNameInput: null,
   newTitleInput: null,
   newPrimaryGroupInput: null,
+  newStatus: null,
 
   revoking: null,
 
@@ -45,6 +60,7 @@ export default Controller.extend(CanCheckEmails, {
   },
 
   canSelectTitle: gt("model.availableTitles.length", 0),
+  canSelectFlair: gt("model.availableFlairs.length", 0),
 
   @discourseComputed("model.filteredGroups")
   canSelectPrimaryGroup(primaryGroupOptions) {
@@ -124,6 +140,42 @@ export default Controller.extend(CanCheckEmails, {
     return findAll().length > 0;
   },
 
+  @discourseComputed(
+    "siteSettings.max_allowed_secondary_emails",
+    "model.can_edit_email"
+  )
+  canAddEmail(maxAllowedSecondaryEmails, canEditEmail) {
+    return maxAllowedSecondaryEmails > 0 && canEditEmail;
+  },
+
+  @action
+  resendConfirmationEmail(email, event) {
+    event?.preventDefault();
+    email.set("resending", true);
+    this.model
+      .addEmail(email.email)
+      .then(() => {
+        email.set("resent", true);
+      })
+      .finally(() => {
+        email.set("resending", false);
+      });
+  },
+
+  @action
+  showUserStatusModal(status) {
+    showModal("user-status", {
+      title: "user_status.set_custom_status",
+      modalClass: "user-status",
+      model: {
+        status,
+        hidePauseNotifications: true,
+        saveAction: (s) => this.set("newStatus", s),
+        deleteAction: () => this.set("newStatus", null),
+      },
+    });
+  },
+
   actions: {
     save() {
       this.set("saved", false);
@@ -132,6 +184,8 @@ export default Controller.extend(CanCheckEmails, {
         name: this.newNameInput,
         title: this.newTitleInput,
         primary_group_id: this.newPrimaryGroupInput,
+        flair_group_id: this.newFlairGroupId,
+        status: this.newStatus,
       });
 
       return this.model
@@ -148,52 +202,39 @@ export default Controller.extend(CanCheckEmails, {
       this.model.destroyEmail(email);
     },
 
-    resendConfirmationEmail(email) {
-      email.set("resending", true);
-      this.model
-        .addEmail(email.email)
-        .then(() => {
-          email.set("resent", true);
-        })
-        .finally(() => {
-          email.set("resending", false);
-        });
-    },
-
     delete() {
-      this.set("deleting", true);
-      const message = I18n.t("user.delete_account_confirm"),
-        model = this.model,
-        buttons = [
+      this.dialog.alert({
+        message: I18n.t("user.delete_account_confirm"),
+        buttons: [
           {
-            label: I18n.t("cancel"),
-            class: "d-modal-cancel",
-            link: true,
-            callback: () => {
-              this.set("deleting", false);
-            },
-          },
-          {
-            label:
-              iconHTML("exclamation-triangle") + I18n.t("user.delete_account"),
-            class: "btn btn-danger",
-            callback() {
-              model.delete().then(
+            icon: "exclamation-triangle",
+            label: I18n.t("user.delete_account"),
+            class: "btn-danger",
+            action: () => {
+              return this.model.delete().then(
                 () => {
-                  bootbox.alert(
-                    I18n.t("user.deleted_yourself"),
-                    () => (window.location = getURL("/"))
-                  );
+                  next(() => {
+                    this.dialog.alert({
+                      message: I18n.t("user.deleted_yourself"),
+                      didConfirm: () =>
+                        DiscourseURL.redirectAbsolute(getURL("/")),
+                      didCancel: () =>
+                        DiscourseURL.redirectAbsolute(getURL("/")),
+                    });
+                  });
                 },
                 () => {
-                  bootbox.alert(I18n.t("user.delete_yourself_not_allowed"));
+                  this.dialog.alert(I18n.t("user.delete_yourself_not_allowed"));
                   this.set("deleting", false);
                 }
               );
             },
           },
-        ];
-      bootbox.dialog(message, buttons, { classes: "delete-account" });
+          {
+            label: I18n.t("composer.cancel"),
+          },
+        ],
+      });
     },
 
     revokeAccount(account) {
@@ -205,7 +246,7 @@ export default Controller.extend(CanCheckEmails, {
           if (result.success) {
             this.model.associated_accounts.removeObject(account);
           } else {
-            bootbox.alert(result.message);
+            this.dialog.alert(result.message);
           }
         })
         .catch(popupAjaxError)
@@ -214,6 +255,13 @@ export default Controller.extend(CanCheckEmails, {
 
     connectAccount(method) {
       method.doLogin({ reconnect: true });
+    },
+
+    exportUserArchive() {
+      this.dialog.yesNoConfirm({
+        message: I18n.t("user.download_archive.confirm"),
+        didConfirm: () => exportUserArchive(),
+      });
     },
   },
 });

@@ -1,15 +1,64 @@
-{{#load-more class="paginated-topics-list" selector=".paginated-topics-list .topic-list tr" action=(action "loadMore")}}
-  {{basic-topic-list topicList=model
-                     hideCategory=hideCategory
-                     showPosters=showPosters
-                     bulkSelectEnabled=bulkSelectEnabled
-                     selected=selected
-                     hasIncoming=hasIncoming
-                     incomingCount=incomingCount
-                     showInserted=(action "showInserted")
-                     tagsForUser=tagsForUser
-                     onScroll=saveScrollPosition
-                     scrollOnLoad=true}}
+{{#if this.noContent}}
+  <EmptyState
+    @title={{this.model.emptyState.title}}
+    @body={{this.model.emptyState.body}}
+  />
+{{else}}
+  <LoadMore
+    @class="paginated-topics-list"
+    @selector=".paginated-topics-list .topic-list .topic-list-item"
+    @action={{action "loadMore"}}
+  >
+    <TopicDismissButtons
+      @position="top"
+      @selectedTopics={{this.selected}}
+      @model={{this.model}}
+      @showResetNew={{this.showResetNew}}
+      @showDismissRead={{this.showDismissRead}}
+      @resetNew={{action "resetNew"}}
+    />
 
-  {{conditional-loading-spinner condition=model.loadingMore}}
-{{/load-more}}
+    {{#if (gt this.incomingCount 0)}}
+      <div class="show-mores">
+        <a
+          tabindex="0"
+          href
+          {{on "click" this.showInserted}}
+          class="alert alert-info clickable"
+        >
+          <CountI18n
+            @key="topic_count_"
+            @suffix="latest"
+            @count={{this.incomingCount}}
+          />
+        </a>
+      </div>
+    {{/if}}
+
+    <BasicTopicList
+      @topicList={{this.model}}
+      @hideCategory={{this.hideCategory}}
+      @showPosters={{this.showPosters}}
+      @bulkSelectEnabled={{this.bulkSelectEnabled}}
+      @bulkSelectAction={{action "refresh"}}
+      @selected={{this.selected}}
+      @tagsForUser={{this.tagsForUser}}
+      @canBulkSelect={{this.canBulkSelect}}
+      @toggleBulkSelect={{action "toggleBulkSelect"}}
+      @updateAutoAddTopicsToBulkSelect={{action
+        "updateAutoAddTopicsToBulkSelect"
+      }}
+    />
+
+    <TopicDismissButtons
+      @position="bottom"
+      @selectedTopics={{this.selected}}
+      @model={{this.model}}
+      @showResetNew={{this.showResetNew}}
+      @showDismissRead={{this.showDismissRead}}
+      @resetNew={{action "resetNew"}}
+    />
+
+    <ConditionalLoadingSpinner @condition={{this.model.loadingMore}} />
+  </LoadMore>
+{{/if}}

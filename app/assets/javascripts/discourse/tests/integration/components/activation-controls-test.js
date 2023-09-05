@@ -1,27 +1,18 @@
-import componentTest, {
-  setupRenderingTest,
-} from "discourse/tests/helpers/component-test";
-import {
-  discourseModule,
-  queryAll,
-} from "discourse/tests/helpers/qunit-helpers";
-import hbs from "htmlbars-inline-precompile";
+import { module, test } from "qunit";
+import { setupRenderingTest } from "discourse/tests/helpers/component-test";
+import { render } from "@ember/test-helpers";
+import { exists } from "discourse/tests/helpers/qunit-helpers";
+import { hbs } from "ember-cli-htmlbars";
 
-discourseModule(
-  "Integration | Component | activation-controls",
-  function (hooks) {
-    setupRenderingTest(hooks);
+module("Integration | Component | activation-controls", function (hooks) {
+  setupRenderingTest(hooks);
 
-    componentTest("hides change email button", {
-      template: hbs`{{activation-controls}}`,
-      beforeEach() {
-        this.siteSettings.enable_local_logins = false;
-        this.siteSettings.email_editable = false;
-      },
+  test("hides change email button", async function (assert) {
+    this.siteSettings.enable_local_logins = false;
+    this.siteSettings.email_editable = false;
 
-      test(assert) {
-        assert.equal(queryAll("button.edit-email").length, 0);
-      },
-    });
-  }
-);
+    await render(hbs`<ActivationControls />`);
+
+    assert.ok(!exists("button.edit-email"));
+  });
+});

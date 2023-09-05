@@ -19,9 +19,12 @@ function getOpts(opts) {
       currentUser: context.currentUser,
       censoredRegexp: context.site.censored_regexp,
       customEmojiTranslation: context.site.custom_emoji_translation,
+      emojiDenyList: context.site.denied_emojis,
       siteSettings: context.siteSettings,
       formatUsername,
-      watchedWordsReplacements: context.site.watched_words_replace,
+      watchedWordsReplace: context.site.watched_words_replace,
+      watchedWordsLink: context.site.watched_words_link,
+      additionalOptions: context.site.markdown_additional_options,
     },
     opts
   );
@@ -41,11 +44,18 @@ export function cookAsync(text, options) {
 }
 
 // Warm up pretty text with a set of options and return a function
-// which can be used to cook without rebuilding prettytext every time
+// which can be used to cook without rebuilding pretty-text every time
 export function generateCookFunction(options) {
   return loadMarkdownIt().then(() => {
     const prettyText = createPrettyText(options);
     return (text) => prettyText.cook(text);
+  });
+}
+
+export function generateLinkifyFunction(options) {
+  return loadMarkdownIt().then(() => {
+    const prettyText = createPrettyText(options);
+    return prettyText.opts.engine.linkify;
   });
 }
 
@@ -56,6 +66,12 @@ export function sanitize(text, options) {
 export function sanitizeAsync(text, options) {
   return loadMarkdownIt().then(() => {
     return createPrettyText(options).sanitize(text);
+  });
+}
+
+export function parseAsync(md, options = {}, env = {}) {
+  return loadMarkdownIt().then(() => {
+    return createPrettyText(options).opts.engine.parse(md, env);
   });
 }
 
@@ -81,6 +97,7 @@ function createPrettyText(options) {
 
 function emojiOptions() {
   let siteSettings = helperContext().siteSettings;
+  let context = helperContext();
   if (!siteSettings.enable_emoji) {
     return;
   }
@@ -90,6 +107,7 @@ function emojiOptions() {
     emojiSet: siteSettings.emoji_set,
     enableEmojiShortcuts: siteSettings.enable_emoji_shortcuts,
     inlineEmoji: siteSettings.enable_inline_emoji_translation,
+    emojiDenyList: context.site.denied_emojis,
     emojiCDNUrl: siteSettings.external_emoji_url,
   };
 }
@@ -108,4 +126,53 @@ export function emojiUrlFor(code) {
   if (opts) {
     return buildEmojiUrl(code, opts);
   }
+}
+
+function encode(str) {
+  return str.replaceAll("<", "&lt;").replaceAll(">", "&gt;");
+}
+
+function traverse(element, callback) {
+  if (callback(element)) {
+    element.childNodes.forEach((child) => traverse(child, callback));
+  }
+}
+
+export function excerpt(cooked, length) {
+  let result = "";
+  let resultLength = 0;
+
+  const div = document.createElement("div");
+  div.innerHTML = cooked;
+  traverse(div, (element) => {
+    if (resultLength >= length) {
+      return;
+    }
+
+    if (element.nodeType === Node.TEXT_NODE) {
+      if (resultLength + element.textContent.length > length) {
+        const text = element.textContent.slice(0, length - resultLength);
+        result += encode(text);
+        result += "&hellip;";
+        resultLength += text.length;
+      } else {
+        result += encode(element.textContent);
+        resultLength += element.textContent.length;
+      }
+    } else if (element.tagName === "A") {
+      result += element.outerHTML;
+      resultLength += element.innerText.length;
+    } else if (element.tagName === "IMG") {
+      if (element.classList.contains("emoji")) {
+        result += element.outerHTML;
+      } else {
+        result += "[image]";
+        resultLength += "[image]".length;
+      }
+    } else {
+      return true;
+    }
+  });
+
+  return result;
 }

@@ -5,13 +5,17 @@
 
 // Animation Keyframes
 @keyframes ping {
-  from {
-    transform: scale(0.25);
-    opacity: 1;
+  0% {
+    transform: scale(0.6);
+    box-shadow: 0 0 0 0 rgba(var(--success-rgb), 0.7);
   }
-  to {
-    transform: scale(2);
-    opacity: 0;
+  70% {
+    transform: scale(1);
+    box-shadow: 0 0 0 10px rgba(var(--success-rgb), 0);
+  }
+  100% {
+    transform: scale(0.95);
+    box-shadow: 0 0 0 0 rgba(var(--success-rgb), 0);
   }
 }
 
@@ -67,16 +71,17 @@ body {
   background-attachment: fixed;
   background-size: cover;
   min-height: 100%;
+  box-sizing: border-box;
 
   @include clearfix;
 }
 
 // setting a static limit on big and small prevents nesting abuse
 big {
-  font-size: $font-up-5;
+  font-size: var(--font-up-5);
 }
 small {
-  font-size: $font-down-2;
+  font-size: var(--font-down-2);
 }
 
 blockquote {
@@ -90,7 +95,7 @@ h3,
 h4,
 h5,
 h6 {
-  font-family: $heading-font-family;
+  font-family: var(--heading-font-family);
   margin-top: 0;
   margin-bottom: 0.5rem;
 }
@@ -145,7 +150,7 @@ input {
     margin-top: 0.17em;
     margin-right: 0.43em;
     margin-left: 0.1em;
-    line-height: $line-height-small;
+    line-height: var(--line-height-small);
     cursor: pointer;
     flex-shrink: 0; // Adding for safety, Safari will shrink checkboxes
   }
@@ -193,7 +198,7 @@ textarea {
 
   &:focus:required:invalid:focus {
     border-color: var(--danger);
-    box-shadow: shadow("focus-danger");
+    box-shadow: var(--shadow-focus-danger);
   }
 }
 
@@ -213,77 +218,58 @@ input {
   &[type="tel"],
   &[type="color"] {
     @include appearance-none;
+    @include form-item-sizing;
     display: inline-block;
-    padding: $input-padding;
     margin-bottom: 9px;
-    font-size: $font-0;
-    line-height: $line-height-small;
     color: var(--primary);
     background-color: var(--secondary);
     border: 1px solid var(--primary-medium);
-    border-radius: 0;
-    box-sizing: border-box;
-    min-height: 30px;
+    border-radius: var(--d-input-border-radius);
     &:focus {
       @include default-focus;
     }
   }
+
+  &[type="time"] {
+    max-width: 140px;
+  }
+}
+
+input[type="search"] {
+  &::-webkit-search-cancel-button,
+  &::-webkit-search-decoration {
+    -webkit-appearance: none;
+    appearance: none;
+  }
+}
+
+// Fixes Safari height inconsistency
+::-webkit-datetime-edit {
+  display: inline;
+}
+
+// Fixes Webkit inconsistencies (Safari/Chrome)
+::-webkit-datetime-edit-fields-wrapper,
+::-webkit-datetime-edit-text,
+::-webkit-datetime-edit-month-field,
+::-webkit-datetime-edit-day-field,
+::-webkit-datetime-edit-year-field {
+  padding-top: 0;
+  padding-bottom: 0;
 }
 
 ::placeholder {
   text-overflow: ellipsis;
 }
 
-.input {
-  &-prepend,
-  &-append {
-    margin-bottom: 5px;
-    input[class*="span"] {
-      display: inline-block;
-    }
-    input,
-    select {
-      position: relative;
-      margin-bottom: 0;
-      vertical-align: middle;
-      border-radius: 0;
-      &:focus {
-        z-index: z("base") + 1;
-      }
-    }
-    .add-on {
-      display: inline-flex;
-      align-items: center;
-      width: auto;
-      padding: 0 0.5em;
-      height: 28px;
-      background-color: var(--primary-low);
-      border: 1px solid var(--primary-medium);
-    }
-    .add-on,
-    .btn {
-      &:first-child {
-        margin-right: -1px;
-      }
-      &:last-child {
-        margin-left: -1px;
-        border-radius: 0 3px 3px 0;
-      }
-    }
-  }
-
-  &-prepend {
-    .add-on,
-    .btn {
-      margin-right: -1px;
-    }
-  }
-}
-
 textarea {
+  padding: $vpad $hpad;
+  box-sizing: border-box;
   height: auto;
   background-color: var(--secondary);
   border: 1px solid var(--primary-medium);
+  border-radius: 0;
+
   &:focus {
     @include default-focus;
   }
@@ -306,7 +292,6 @@ table {
 
 .sortable {
   white-space: nowrap;
-  cursor: pointer;
   .discourse-no-touch & {
     &:hover,
     &:focus {
@@ -317,6 +302,7 @@ table {
     margin-left: 0.25em;
   }
   @include unselectable;
+  cursor: pointer;
 }
 
 .radio,
@@ -346,11 +332,10 @@ table {
 }
 
 .wrap {
-  @extend .clearfix;
+  max-width: var(--d-max-width);
   margin-right: auto;
   margin-left: auto;
-  padding: 0 8px;
-
+  padding: 0 10px;
   .contents {
     position: relative;
   }
@@ -364,20 +349,6 @@ table {
 
 .full-width {
   margin-left: 12px;
-}
-
-.top-space {
-  margin-top: 10px;
-}
-
-.message {
-  border-radius: 8px;
-  background-color: var(--secondary);
-  padding: 14px;
-
-  h2 {
-    margin-bottom: 20px;
-  }
 }
 
 .clear-transitions {
@@ -400,15 +371,6 @@ table {
   border-radius: 50%;
 }
 
-.profiler-results.profiler-left {
-  top: 60px !important;
-}
-
-.flex-center-align {
-  display: flex;
-  align-items: center;
-}
-
 .unread-high-priority-notifications {
   color: var(--secondary);
   background: var(--success);
@@ -420,7 +382,7 @@ table {
 
 .d-header .header-dropdown-toggle .do-not-disturb-background {
   position: absolute;
-  left: 2px;
+  left: 0;
   bottom: -1px;
   z-index: 1002;
 }
@@ -443,6 +405,37 @@ table {
   }
 }
 
+.d-header .header-dropdown-toggle .user-status-background {
+  position: absolute;
+  right: -3px;
+  bottom: -1px;
+  z-index: 1002;
+}
+
+.user-status-background {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.25em;
+  height: 1.25em;
+  background-color: var(--secondary);
+  border-radius: 50%;
+
+  .emoji {
+    width: 14px;
+    height: 14px;
+    display: block;
+  }
+}
+
+.user-menu .quick-access-panel li.user-status .relative-date {
+  text-align: left;
+  font-size: var(--font-down-3);
+  padding-top: 0.45em;
+  margin-left: 0.75em;
+  color: var(--primary-medium);
+}
+
 .user-menu .quick-access-panel li.do-not-disturb {
   display: flex;
   flex: 0 0 100%;
@@ -462,7 +455,7 @@ table {
 
     .relative-date {
       text-align: left;
-      font-size: $font-down-3;
+      font-size: var(--font-down-3);
       padding-top: 3px;
       margin-left: 0.75em;
       color: var(--primary-medium);
@@ -496,74 +489,6 @@ table {
       margin-bottom: 0;
     }
   }
-}
-
-.ring-backdrop-spotlight {
-  position: absolute;
-  width: 80px;
-  height: 80px;
-  top: -18px;
-  right: -18px;
-  background-image: radial-gradient(
-    40px at 50% 50%,
-    rgba(255, 255, 255, 0.15) 95%,
-    rgba(var(--always-black-rgb), 0.65) 100%
-  );
-}
-
-.ring-backdrop {
-  position: absolute;
-  width: 80px;
-  height: 80px;
-  top: -18px !important;
-  right: -18px !important;
-  box-shadow: 0 0 0 9999px rgba(var(--always-black-rgb), 0.65);
-  z-index: z("modal", "overlay");
-}
-
-.ring-first-notification {
-  position: absolute;
-  text-align: left;
-  right: 70px;
-  top: 60px;
-  width: 230px;
-  line-height: $line-height-medium;
-
-  > span:first-child {
-    display: inline-block;
-    margin-bottom: 36px;
-  }
-
-  .skip-new-user-tips {
-    font-size: $font-down-1;
-    text-decoration: underline;
-  }
-
-  &,
-  .skip-new-user-tips {
-    color: #eee;
-  }
-}
-
-.ring {
-  $gradient-start: transparent;
-  $gradient-end: #090;
-  background: -webkit-radial-gradient($gradient-start, $gradient-end);
-  background: -o-radial-gradient($gradient-start, $gradient-end);
-  background: -moz-radial-gradient($gradient-start, $gradient-end);
-  background: radial-gradient($gradient-start, $gradient-end);
-  top: -11px !important;
-  right: 23.5px !important;
-  border-radius: 100%;
-  width: 20px;
-  height: 20px;
-  -moz-animation-iteration-count: infinite;
-  -webkit-animation-iteration-count: infinite;
-  -webkit-transform-origin: center;
-  -moz-animation-duration: 3s;
-  -webkit-animation-duration: 3s;
-  -moz-animation-name: ping;
-  -webkit-animation-name: ping;
 }
 
 .fade {
@@ -602,7 +527,7 @@ table {
 .content-list {
   h3 {
     color: var(--primary-medium);
-    font-size: $font-up-1;
+    font-size: var(--font-up-1);
     padding-left: 5px;
     margin-bottom: 10px;
   }
@@ -631,6 +556,7 @@ table {
         &.active {
           font-weight: bold;
           color: var(--primary);
+          background: var(--d-selected);
         }
       }
     }
@@ -640,24 +566,18 @@ table {
 .form-vertical {
   input,
   textarea,
-  select,
-  .input-prepend,
-  .input-append {
+  select {
     display: inline-block;
     margin-bottom: 0;
     flex: 0 0 auto;
+    max-width: 100%;
   }
 
-  .control-group {
-    @include clearfix;
-  }
-
-  .control-label {
-    font-family: $heading-font-family;
-
+  .control-label:not(.checkbox-label) {
+    font-family: var(--heading-font-family);
     font-weight: bold;
-    font-size: $font-up-2;
-    line-height: $line-height-large;
+    font-size: var(--font-up-2);
+    line-height: var(--line-height-large);
   }
 
   .controls {
@@ -667,8 +587,21 @@ table {
 
 // Special elements
 
+#main-outlet-wrapper {
+  box-sizing: border-box;
+  width: 100%;
+  display: grid;
+  grid-template-areas: "sidebar content";
+  grid-template-columns: 0 minmax(0, 1fr); // 0 column width needs to be set for CSS transitions
+  gap: 0;
+
+  #main-outlet {
+    grid-area: content;
+  }
+}
+
 #main-outlet {
-  padding-top: 1.8em;
+  padding-top: 1.5em;
 }
 
 #main {
@@ -703,7 +636,7 @@ table {
 
 #loading-message {
   position: absolute;
-  font-size: $font-up-5;
+  font-size: var(--font-up-5);
   text-align: center;
   top: 120px;
   left: 500px;
@@ -826,19 +759,16 @@ table {
 }
 
 .topic-statuses {
-  display: inline;
+  // avoid adding margin/padding on this parent; sometimes it appears as an empty container
   float: left;
-  margin-right: 0.15em;
   .topic-status {
     margin: 0;
     display: inline-flex;
     color: var(--primary-medium);
+    margin-right: 0.2em;
     .d-icon {
       height: 0.74em;
       width: 0.75em;
-    }
-    &:not(:last-child) {
-      margin-right: 0.15em;
     }
   }
 
@@ -848,13 +778,22 @@ table {
 }
 
 .broken-theme-alert {
-  font-size: $base-font-size;
+  font-size: var(--base-font-size);
   font-weight: bold;
   padding: 5px 0;
-  background: var(--danger-medium);
+  background: var(--danger);
   text-align: center;
   z-index: z("max");
   color: var(--secondary);
+
+  a {
+    color: var(--secondary);
+    text-decoration: underline;
+  }
+
+  .theme-error-suffix {
+    font-weight: normal;
+  }
 }
 
 .controls {
@@ -875,5 +814,20 @@ table {
         margin: 0;
       }
     }
+  }
+}
+
+a#skip-link {
+  padding: 0.25em 0.5em;
+  position: fixed;
+  top: -50px;
+  left: 1em;
+  color: var(--secondary);
+  background: var(--tertiary);
+  transition: top 0.3s ease-out;
+  z-index: z("header") + 1;
+  &:focus {
+    top: 0px;
+    transition: top 0.15s ease-in;
   }
 }

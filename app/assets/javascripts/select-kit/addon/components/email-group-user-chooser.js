@@ -12,7 +12,6 @@ export default UserChooserComponent.extend({
   },
 
   selectKitOptions: {
-    headerComponent: "email-group-user-chooser-header",
     filterComponent: "email-group-user-chooser-filter",
     fullWidthWrap: false,
     autoWrap: false,
@@ -36,6 +35,7 @@ export default UserChooserComponent.extend({
           } else {
             reconstructed.isUser = true;
             reconstructed.name = item.name;
+            reconstructed.showUserStatus = this.showUserStatus;
           }
         } else if (item.name) {
           reconstructed.id = item.name;

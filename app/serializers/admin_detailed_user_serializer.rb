@@ -1,7 +1,6 @@
 # frozen_string_literal: true
 
 class AdminDetailedUserSerializer < AdminUserSerializer
-
   attributes :moderator,
              :can_grant_admin,
              :can_revoke_admin,
@@ -12,6 +11,7 @@ class AdminDetailedUserSerializer < AdminUserSerializer
              :like_given_count,
              :post_count,
              :topic_count,
+             :post_edits_count,
              :flags_given_count,
              :flags_received_count,
              :private_topics_count,
@@ -22,6 +22,8 @@ class AdminDetailedUserSerializer < AdminUserSerializer
              :full_suspend_reason,
              :suspended_till,
              :silence_reason,
+             :penalty_counts,
+             :next_penalty,
              :primary_group_id,
              :badge_count,
              :warnings_received_count,
@@ -32,7 +34,10 @@ class AdminDetailedUserSerializer < AdminUserSerializer
              :second_factor_enabled,
              :can_disable_second_factor,
              :can_delete_sso_record,
-             :api_key_count
+             :api_key_count,
+             :external_ids,
+             :similar_users,
+             :similar_users_count
 
   has_one :approved_by, serializer: BasicUserSerializer, embed: :objects
   has_one :suspended_by, serializer: BasicUserSerializer, embed: :objects
@@ -96,6 +101,20 @@ class AdminDetailedUserSerializer < AdminUserSerializer
     object.silence_reason
   end
 
+  def penalty_counts
+    TrustLevel3Requirements.new(object).penalty_counts
+  end
+
+  def next_penalty
+    step_number = penalty_counts.total
+    steps = SiteSetting.penalty_step_hours.split("|")
+    step_number = [step_number, steps.length].min
+    penalty_hours = steps[step_number]
+    Integer(penalty_hours, 10).hours.from_now
+  rescue StandardError
+    nil
+  end
+
   def silenced_by
     object.silenced_record.try(:acting_user)
   end
@@ -126,6 +145,37 @@ class AdminDetailedUserSerializer < AdminUserSerializer
 
   def api_key_count
     object.api_keys.active.count
+  end
+
+  def external_ids
+    external_ids = {}
+
+    object.user_associated_accounts.map do |user_associated_account|
+      external_ids[user_associated_account.provider_name] = user_associated_account.provider_uid
+    end
+
+    external_ids
+  end
+
+  def similar_users
+    ActiveModel::ArraySerializer.new(
+      @options[:similar_users],
+      each_serializer: SimilarAdminUserSerializer,
+      scope: scope,
+      root: false,
+    ).as_json
+  end
+
+  def include_similar_users?
+    @options[:similar_users].present?
+  end
+
+  def similar_users_count
+    @options[:similar_users_count]
+  end
+
+  def include_similar_users_count?
+    @options[:similar_users].present?
   end
 
   def can_delete_sso_record

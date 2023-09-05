@@ -3,10 +3,13 @@ import I18n from "I18n";
 import discourseComputed from "discourse-common/utils/decorators";
 import { fmt } from "discourse/lib/computed";
 import { isDocumentRTL } from "discourse/lib/text-direction";
+import { action, computed } from "@ember/object";
 import { next } from "@ember/runloop";
 
-export default Component.extend({
-  warning: null,
+export default class AdminThemeEditor extends Component {
+  warning = null;
+
+  @fmt("fieldName", "currentTargetName", "%@|%@") editorId;
 
   @discourseComputed("theme.targets", "onlyOverridden", "showAdvanced")
   visibleTargets(targets, onlyOverridden, showAdvanced) {
@@ -19,7 +22,7 @@ export default Component.extend({
       }
       return target.edited;
     });
-  },
+  }
 
   @discourseComputed("currentTargetName", "onlyOverridden", "theme.fields")
   visibleFields(targetName, onlyOverridden, fields) {
@@ -28,7 +31,7 @@ export default Component.extend({
       fields = fields.filter((field) => field.edited);
     }
     return fields;
-  },
+  }
 
   @discourseComputed("currentTargetName", "fieldName")
   activeSectionMode(targetName, fieldName) {
@@ -41,8 +44,8 @@ export default Component.extend({
     if (["color_definitions"].includes(fieldName)) {
       return "scss";
     }
-    return fieldName && fieldName.indexOf("scss") > -1 ? "scss" : "html";
-  },
+    return fieldName && fieldName.includes("scss") ? "scss" : "html";
+  }
 
   @discourseComputed("currentTargetName", "fieldName")
   placeholder(targetName, fieldName) {
@@ -57,30 +60,27 @@ export default Component.extend({
       });
     }
     return "";
-  },
+  }
 
-  @discourseComputed("fieldName", "currentTargetName", "theme")
-  activeSection: {
-    get(fieldName, target, model) {
-      return model.getField(target, fieldName);
-    },
-    set(value, fieldName, target, model) {
-      model.setField(target, fieldName, value);
-      return value;
-    },
-  },
+  @computed("fieldName", "currentTargetName", "theme")
+  get activeSection() {
+    return this.theme.getField(this.currentTargetName, this.fieldName);
+  }
 
-  editorId: fmt("fieldName", "currentTargetName", "%@|%@"),
+  set activeSection(value) {
+    this.theme.setField(this.currentTargetName, this.fieldName, value);
+    return value;
+  }
 
   @discourseComputed("maximized")
   maximizeIcon(maximized) {
     return maximized ? "discourse-compress" : "discourse-expand";
-  },
+  }
 
   @discourseComputed("currentTargetName", "theme.targets")
   showAddField(currentTargetName, targets) {
     return targets.find((t) => t.name === currentTargetName).customNames;
-  },
+  }
 
   @discourseComputed(
     "currentTargetName",
@@ -89,46 +89,45 @@ export default Component.extend({
   )
   error(target, fieldName) {
     return this.theme.getError(target, fieldName);
-  },
+  }
 
-  actions: {
-    toggleShowAdvanced() {
-      this.toggleProperty("showAdvanced");
-    },
+  @action
+  toggleShowAdvanced(event) {
+    event?.preventDefault();
+    this.toggleProperty("showAdvanced");
+  }
 
-    toggleAddField() {
-      this.toggleProperty("addingField");
-    },
+  @action
+  toggleAddField(event) {
+    event?.preventDefault();
+    this.toggleProperty("addingField");
+  }
 
-    cancelAddField() {
-      this.set("addingField", false);
-    },
+  @action
+  toggleMaximize(event) {
+    event?.preventDefault();
+    this.toggleProperty("maximized");
+    next(() => this.appEvents.trigger("ace:resize"));
+  }
 
-    addField(name) {
-      if (!name) {
-        return;
-      }
-      name = name.replace(/[^a-zA-Z0-9-_/]/g, "");
-      this.theme.setField(this.currentTargetName, name, "");
-      this.setProperties({ newFieldName: "", addingField: false });
-      this.fieldAdded(this.currentTargetName, name);
-    },
+  @action
+  cancelAddField() {
+    this.set("addingField", false);
+  }
 
-    toggleMaximize: function () {
-      this.toggleProperty("maximized");
-      next(() => this.appEvents.trigger("ace:resize"));
-    },
+  @action
+  addField(name) {
+    if (!name) {
+      return;
+    }
+    name = name.replace(/[^a-zA-Z0-9-_/]/g, "");
+    this.theme.setField(this.currentTargetName, name, "");
+    this.setProperties({ newFieldName: "", addingField: false });
+    this.fieldAdded(this.currentTargetName, name);
+  }
 
-    onlyOverriddenChanged(value) {
-      this.onlyOverriddenChanged(value);
-    },
-
-    save() {
-      this.attrs.save();
-    },
-
-    setWarning(message) {
-      this.set("warning", message);
-    },
-  },
-});
+  @action
+  setWarning(message) {
+    this.set("warning", message);
+  }
+}

@@ -61,6 +61,10 @@ function tokenizeBBCode(state, silent, ruler) {
   } else {
     tagInfo.rule = rule;
 
+    if (tagInfo.closing && state.tokens.at(-1)?.meta === "bbcode") {
+      state.push("text", "", 0);
+    }
+
     let token = state.push("text", "", 0);
     token.content = state.src.slice(pos, pos + tagInfo.length);
     token.meta = "bbcode";
@@ -73,7 +77,6 @@ function tokenizeBBCode(state, silent, ruler) {
       token: state.tokens.length - 1,
       level: state.level,
       end: -1,
-      jump: 0,
     });
 
     state.pos = pos + tagInfo.length;
@@ -85,7 +88,6 @@ function processBBCode(state, silent) {
   let i,
     startDelim,
     endDelim,
-    token,
     tagInfo,
     delimiters = state.delimiters,
     max = delimiters.length;
@@ -108,8 +110,10 @@ function processBBCode(state, silent) {
 
     endDelim = delimiters[startDelim.end];
 
-    token = state.tokens[startDelim.token];
     let tag, className;
+
+    const startToken = state.tokens[startDelim.token];
+    const endToken = state.tokens[endDelim.token];
 
     if (typeof tagInfo.rule.wrap === "function") {
       let content = "";
@@ -119,7 +123,7 @@ function processBBCode(state, silent) {
           content += inner.content;
         }
       }
-      tagInfo.rule.wrap(token, state.tokens[endDelim.token], tagInfo, content);
+      tagInfo.rule.wrap(startToken, endToken, tagInfo, content, state);
       continue;
     } else {
       let split = tagInfo.rule.wrap.split(".");
@@ -127,21 +131,20 @@ function processBBCode(state, silent) {
       className = split.slice(1).join(" ");
     }
 
-    token.type = "bbcode_" + tagInfo.tag + "_open";
-    token.tag = tag;
+    startToken.type = "bbcode_" + tagInfo.tag + "_open";
+    startToken.tag = tag;
     if (className) {
-      token.attrs = [["class", className]];
+      startToken.attrs = [["class", className]];
     }
-    token.nesting = 1;
-    token.markup = token.content;
-    token.content = "";
+    startToken.nesting = 1;
+    startToken.markup = startToken.content;
+    startToken.content = "";
 
-    token = state.tokens[endDelim.token];
-    token.type = "bbcode_" + tagInfo.tag + "_close";
-    token.tag = tag;
-    token.nesting = -1;
-    token.markup = token.content;
-    token.content = "";
+    endToken.type = "bbcode_" + tagInfo.tag + "_close";
+    endToken.tag = tag;
+    endToken.nesting = -1;
+    endToken.markup = startToken.content;
+    endToken.content = "";
   }
   return false;
 }
@@ -164,11 +167,11 @@ export function setup(helper) {
     md.inline.ruler.push("bbcode-inline", (state, silent) =>
       tokenizeBBCode(state, silent, ruler)
     );
-    md.inline.ruler2.before("text_collapse", "bbcode-inline", processBBCode);
+    md.inline.ruler2.before("fragments_join", "bbcode-inline", processBBCode);
 
     ruler.push("code", {
       tag: "code",
-      replace: function (state, tagInfo, content) {
+      replace(state, tagInfo, content) {
         let token;
         token = state.push("code_inline", "code", 0);
         token.content = content;
@@ -176,45 +179,99 @@ export function setup(helper) {
       },
     });
 
-    const simpleUrlRegex = /^http[s]?:\/\//;
+    const simpleUrlRegex = /^https?:\/\//;
     ruler.push("url", {
       tag: "url",
-      wrap: function (startToken, endToken, tagInfo, content) {
-        const url = (tagInfo.attrs["_default"] || content).trim();
 
-        if (simpleUrlRegex.test(url)) {
-          startToken.type = "link_open";
-          startToken.tag = "a";
-          startToken.attrs = [
+      replace(state, tagInfo, content) {
+        let token;
+
+        // we need to tokenize the content and reinsert tokens in the stream
+        // this is because we need to support nested bbcode
+        let tokens = [];
+        md.inline.parse(content, state.md, state.env, tokens);
+
+        let url = tagInfo.attrs["_default"];
+
+        if (!url) {
+          // try to find the actual url in the tokens
+          for (let i = 0; i < tokens.length; i++) {
+            token = tokens[i];
+            // nested linkify or link, just pick it
+            if (token.type === "link_open") {
+              for (let j = 0; j < token.attrs.length; j++) {
+                if (token.attrs[j][0] === "href") {
+                  url = token.attrs[j][1];
+                  break;
+                }
+              }
+              if (url) {
+                break;
+              }
+            }
+            if (token.type === "text") {
+              url = token.content;
+              break;
+            }
+          }
+        }
+
+        if (md.linkify) {
+          let match = null;
+
+          // linkify has trouble with strings containing spaces, so just ban
+          // them outright
+          if (url && !url.includes(" ")) {
+            match = md.linkify.matchAtStart(url);
+            if (!match) {
+              match = md.linkify.matchAtStart("https://" + url);
+            }
+          }
+
+          if (match) {
+            url = match.url;
+          } else {
+            url = null;
+          }
+        } else if (!url.match(simpleUrlRegex)) {
+          url = "https://" + url;
+        }
+
+        if (url) {
+          token = state.push("link_open", "a", 0);
+          token.attrs = ["href", url];
+          token.attrs = [
             ["href", url],
             ["data-bbcode", "true"],
           ];
-          startToken.content = "";
-          startToken.nesting = 1;
-
-          endToken.type = "link_close";
-          endToken.tag = "a";
-          endToken.content = "";
-          endToken.nesting = -1;
-        } else {
-          // just strip the bbcode tag
-          endToken.content = "";
-          startToken.content = "";
-
-          // edge case, we don't want this detected as a onebox if auto linked
-          // this ensures it is not stripped
-          startToken.type = "html_inline";
+          token.content = "";
+          token.nesting = 1;
         }
 
-        return false;
+        for (let i = 0; i < tokens.length; i++) {
+          token = tokens[i];
+          if (token.type === "link_open" || token.type === "link_close") {
+            // linkify nested tokens, do nothing
+          } else {
+            state.tokens.push(token);
+          }
+        }
+
+        if (url) {
+          token = state.push("link_close", "a", 0);
+          token.nesting = -1;
+          token.content = "";
+        }
+
+        return true;
       },
     });
 
     ruler.push("email", {
       tag: "email",
-      replace: function (state, tagInfo, content) {
+      replace(state, tagInfo, content) {
         let token;
-        let email = tagInfo.attrs["_default"] || content;
+        const email = tagInfo.attrs["_default"] || content;
 
         token = state.push("link_open", "a", 1);
         token.attrs = [
@@ -232,7 +289,7 @@ export function setup(helper) {
 
     ruler.push("image", {
       tag: "img",
-      replace: function (state, tagInfo, content) {
+      replace(state, tagInfo, content) {
         let token = state.push("image", "img", 0);
         token.attrs = [
           ["src", content],

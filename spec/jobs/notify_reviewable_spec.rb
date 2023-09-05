@@ -1,116 +1,100 @@
 # frozen_string_literal: true
 
-require 'rails_helper'
-
-describe Jobs::NotifyReviewable do
-  describe '.execute' do
+RSpec.describe Jobs::NotifyReviewable do
+  describe "#execute" do
     fab!(:admin) { Fabricate(:admin, moderator: true) }
     fab!(:moderator) { Fabricate(:moderator) }
     fab!(:group_user) { Fabricate(:group_user) }
-    let(:user) { group_user.user }
-    let(:group) { group_user.group }
+    fab!(:group) { group_user.group }
+    fab!(:user) { group_user.user }
 
-    it "will notify users of new reviewable content" do
+    it "will notify users of new reviewable content for the user menu" do
+      SiteSetting.navigation_menu = "sidebar"
       SiteSetting.enable_category_group_moderation = true
 
       GroupUser.create!(group_id: group.id, user_id: moderator.id)
 
       # Content for admins only
-      r1 = Fabricate(:reviewable, reviewable_by_moderator: false)
-      messages = MessageBus.track_publish("/reviewable_counts") do
-        described_class.new.execute(reviewable_id: r1.id)
-      end
-      admin_msg = messages.find { |m| m.user_ids.include?(admin.id) }
-      expect(admin_msg.data[:reviewable_count]).to eq(1)
-      expect(messages.any? { |m| m.user_ids.include?(moderator.id) }).to eq(false)
-      expect(messages.any? { |m| m.user_ids.include?(user.id) }).to eq(false)
+      admin_reviewable = Fabricate(:reviewable, reviewable_by_moderator: false)
+      admin.update!(last_seen_reviewable_id: admin_reviewable.id)
+
+      messages =
+        MessageBus.track_publish { described_class.new.execute(reviewable_id: admin_reviewable.id) }
+
+      expect(messages.size).to eq(1)
+
+      admin_message = messages.first
+
+      expect(admin_message.channel).to eq("/reviewable_counts/#{admin.id}")
+      expect(admin_message.user_ids).to eq([admin.id])
+      expect(admin_message.data[:reviewable_count]).to eq(1)
+      expect(admin_message.data[:unseen_reviewable_count]).to eq(0)
 
       # Content for moderators
-      r2 = Fabricate(:reviewable, reviewable_by_moderator: true)
-      messages = MessageBus.track_publish("/reviewable_counts") do
-        described_class.new.execute(reviewable_id: r2.id)
-      end
-      admin_msg = messages.find { |m| m.user_ids.include?(admin.id) }
-      expect(admin_msg.data[:reviewable_count]).to eq(2)
-      mod_msg = messages.find { |m| m.user_ids.include?(moderator.id) }
-      expect(mod_msg.data[:reviewable_count]).to eq(1)
-      expect(mod_msg.user_ids).to_not include(admin.id)
-      expect(messages.any? { |m| m.user_ids.include?(user.id) }).to eq(false)
+      moderator_reviewable = Fabricate(:reviewable, reviewable_by_moderator: true)
+
+      messages =
+        MessageBus.track_publish do
+          described_class.new.execute(reviewable_id: moderator_reviewable.id)
+        end
+      expect(messages.size).to eq(2)
+
+      admin_message = messages.find { |m| m.user_ids == [admin.id] }
+
+      expect(admin_message.channel).to eq("/reviewable_counts/#{admin.id}")
+      expect(admin_message.data[:reviewable_count]).to eq(2)
+      expect(admin_message.data[:unseen_reviewable_count]).to eq(1)
+
+      moderator_message = messages.find { |m| m.user_ids == [moderator.id] }
+
+      expect(moderator_message.channel).to eq("/reviewable_counts/#{moderator.id}")
+      expect(moderator_message.data[:reviewable_count]).to eq(1)
+      expect(moderator_message.data[:unseen_reviewable_count]).to eq(1)
+
+      moderator.update!(last_seen_reviewable_id: moderator_reviewable.id)
 
       # Content for a group
-      r3 = Fabricate(:reviewable, reviewable_by_moderator: true, reviewable_by_group: group)
-      messages = MessageBus.track_publish("/reviewable_counts") do
-        described_class.new.execute(reviewable_id: r3.id)
-      end
-      admin_msg = messages.find { |m| m.user_ids.include?(admin.id) }
-      expect(admin_msg.data[:reviewable_count]).to eq(3)
-      mod_messages = messages.select { |m| m.user_ids.include?(moderator.id) }
-      expect(mod_messages.size).to eq(1)
-      expect(mod_messages[0].data[:reviewable_count]).to eq(2)
-      group_msg = messages.find { |m| m.user_ids.include?(user.id) }
-      expect(group_msg.data[:reviewable_count]).to eq(1)
+      group_reviewable =
+        Fabricate(:reviewable, reviewable_by_moderator: true, reviewable_by_group: group)
+
+      messages =
+        MessageBus.track_publish { described_class.new.execute(reviewable_id: group_reviewable.id) }
+
+      expect(messages.size).to eq(3)
+
+      admin_message = messages.find { |m| m.user_ids == [admin.id] }
+
+      expect(admin_message.channel).to eq("/reviewable_counts/#{admin.id}")
+      expect(admin_message.data[:reviewable_count]).to eq(3)
+      expect(admin_message.data[:unseen_reviewable_count]).to eq(2)
+
+      moderator_message = messages.find { |m| m.user_ids == [moderator.id] }
+
+      expect(moderator_message.channel).to eq("/reviewable_counts/#{moderator.id}")
+      expect(moderator_message.data[:reviewable_count]).to eq(2)
+      expect(moderator_message.data[:unseen_reviewable_count]).to eq(1)
+
+      group_user_message = messages.find { |m| m.user_ids == [user.id] }
+
+      expect(group_user_message.channel).to eq("/reviewable_counts/#{user.id}")
+      expect(group_user_message.data[:reviewable_count]).to eq(1)
+      expect(group_user_message.data[:unseen_reviewable_count]).to eq(1)
     end
 
     it "won't notify a group when disabled" do
       SiteSetting.enable_category_group_moderation = false
 
       GroupUser.create!(group_id: group.id, user_id: moderator.id)
-      r3 = Fabricate(:reviewable, reviewable_by_moderator: true, reviewable_by_group: group)
-      messages = MessageBus.track_publish("/reviewable_counts") do
-        described_class.new.execute(reviewable_id: r3.id)
-      end
-      group_msg = messages.find { |m| m.user_ids.include?(user.id) }
-      expect(group_msg).to be_blank
+      reviewable = Fabricate(:reviewable, reviewable_by_moderator: true, reviewable_by_group: group)
+
+      messages =
+        MessageBus.track_publish("/reviewable_counts") do
+          described_class.new.execute(reviewable_id: reviewable.id)
+        end
+
+      group_user_message = messages.find { |m| m.user_ids.include?(user.id) }
+
+      expect(group_user_message).to be_blank
     end
-
-    it "respects visibility" do
-      SiteSetting.enable_category_group_moderation = true
-      Reviewable.set_priorities(medium: 2.0)
-      SiteSetting.reviewable_default_visibility = 'medium'
-
-      GroupUser.create!(group_id: group.id, user_id: moderator.id)
-
-      # Content for admins only
-      r1 = Fabricate(:reviewable, reviewable_by_moderator: false)
-      messages = MessageBus.track_publish("/reviewable_counts") do
-        described_class.new.execute(reviewable_id: r1.id)
-      end
-      admin_msg = messages.find { |m| m.user_ids.include?(admin.id) }
-      expect(admin_msg.data[:reviewable_count]).to eq(0)
-
-      # Content for moderators
-      r2 = Fabricate(:reviewable, reviewable_by_moderator: true)
-      messages = MessageBus.track_publish("/reviewable_counts") do
-        described_class.new.execute(reviewable_id: r2.id)
-      end
-      admin_msg = messages.find { |m| m.user_ids.include?(admin.id) }
-      expect(admin_msg.data[:reviewable_count]).to eq(0)
-      mod_msg = messages.find { |m| m.user_ids.include?(moderator.id) }
-      expect(mod_msg.data[:reviewable_count]).to eq(0)
-
-      # Content for a group
-      r3 = Fabricate(:reviewable, reviewable_by_moderator: true, reviewable_by_group: group)
-      messages = MessageBus.track_publish("/reviewable_counts") do
-        described_class.new.execute(reviewable_id: r3.id)
-      end
-      admin_msg = messages.find { |m| m.user_ids.include?(admin.id) }
-      expect(admin_msg.data[:reviewable_count]).to eq(0)
-      mod_messages = messages.select { |m| m.user_ids.include?(moderator.id) }
-      expect(mod_messages.size).to eq(1)
-      expect(mod_messages[0].data[:reviewable_count]).to eq(0)
-      group_msg = messages.find { |m| m.user_ids.include?(user.id) }
-      expect(group_msg.data[:reviewable_count]).to eq(0)
-    end
-  end
-
-  it 'skips sending notifications if user_ids is empty' do
-    reviewable = Fabricate(:reviewable, reviewable_by_moderator: true)
-    regular_user = Fabricate(:user)
-
-    messages = MessageBus.track_publish("/reviewable_counts") do
-      described_class.new.execute(reviewable_id: reviewable.id)
-    end
-
-    expect(messages.size).to eq(0)
   end
 end

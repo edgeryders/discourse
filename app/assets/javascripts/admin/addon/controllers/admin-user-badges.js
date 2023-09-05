@@ -1,24 +1,25 @@
-import Controller, { inject as controller } from "@ember/controller";
+import { action } from "@ember/object";
+import { inject as service } from "@ember/service";
 import { alias, sort } from "@ember/object/computed";
+import Controller, { inject as controller } from "@ember/controller";
 import GrantBadgeController from "discourse/mixins/grant-badge-controller";
 import I18n from "I18n";
-import bootbox from "bootbox";
 import discourseComputed from "discourse-common/utils/decorators";
 import { next } from "@ember/runloop";
 import { popupAjaxError } from "discourse/lib/ajax-error";
 
-export default Controller.extend(GrantBadgeController, {
-  adminUser: controller(),
-  user: alias("adminUser.model"),
-  userBadges: alias("model"),
-  allBadges: alias("badges"),
-  sortedBadges: sort("model", "badgeSortOrder"),
+export default class AdminUserBadgesController extends Controller.extend(
+  GrantBadgeController
+) {
+  @service dialog;
+  @controller adminUser;
 
-  init() {
-    this._super(...arguments);
+  @alias("adminUser.model") user;
+  @alias("model") userBadges;
+  @alias("badges") allBadges;
+  @sort("model", "badgeSortOrder") sortedBadges;
 
-    this.badgeSortOrder = ["granted_at:desc"];
-  },
+  badgeSortOrder = ["granted_at:desc"];
 
   @discourseComputed("model", "model.[]", "model.expandedBadges.[]")
   groupedBadges() {
@@ -49,7 +50,7 @@ export default Controller.extend(GrantBadgeController, {
       let result = {
         badge: badges[0].badge,
         granted_at: lastGranted,
-        badges: badges,
+        badges,
         count: badges.length,
         grouped: true,
       };
@@ -58,50 +59,47 @@ export default Controller.extend(GrantBadgeController, {
     });
 
     return expanded.sortBy("granted_at").reverse();
-  },
+  }
 
-  actions: {
-    expandGroup: function (userBadge) {
-      const model = this.model;
-      model.set("expandedBadges", model.get("expandedBadges") || []);
-      model.get("expandedBadges").pushObject(userBadge.badge.id);
-    },
+  @action
+  expandGroup(userBadge) {
+    const model = this.model;
+    model.set("expandedBadges", model.get("expandedBadges") || []);
+    model.get("expandedBadges").pushObject(userBadge.badge.id);
+  }
 
-    grantBadge() {
-      this.grantBadge(
-        this.selectedBadgeId,
-        this.get("user.username"),
-        this.badgeReason
-      ).then(
-        () => {
-          this.set("badgeReason", "");
-          next(() => {
-            // Update the selected badge ID after the combobox has re-rendered.
-            const newSelectedBadge = this.grantableBadges[0];
-            if (newSelectedBadge) {
-              this.set("selectedBadgeId", newSelectedBadge.get("id"));
-            }
-          });
-        },
-        function (error) {
-          popupAjaxError(error);
-        }
-      );
-    },
-
-    revokeBadge(userBadge) {
-      return bootbox.confirm(
-        I18n.t("admin.badges.revoke_confirm"),
-        I18n.t("no_value"),
-        I18n.t("yes_value"),
-        (result) => {
-          if (result) {
-            userBadge.revoke().then(() => {
-              this.model.removeObject(userBadge);
-            });
+  @action
+  performGrantBadge() {
+    this.grantBadge(
+      this.selectedBadgeId,
+      this.get("user.username"),
+      this.badgeReason
+    ).then(
+      () => {
+        this.set("badgeReason", "");
+        next(() => {
+          // Update the selected badge ID after the combobox has re-rendered.
+          const newSelectedBadge = this.grantableBadges[0];
+          if (newSelectedBadge) {
+            this.set("selectedBadgeId", newSelectedBadge.get("id"));
           }
-        }
-      );
-    },
-  },
-});
+        });
+      },
+      function (error) {
+        popupAjaxError(error);
+      }
+    );
+  }
+
+  @action
+  revokeBadge(userBadge) {
+    return this.dialog.yesNoConfirm({
+      message: I18n.t("admin.badges.revoke_confirm"),
+      didConfirm: () => {
+        return userBadge.revoke().then(() => {
+          this.model.removeObject(userBadge);
+        });
+      },
+    });
+  }
+}

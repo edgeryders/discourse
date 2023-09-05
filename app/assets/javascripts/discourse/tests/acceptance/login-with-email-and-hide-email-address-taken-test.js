@@ -1,4 +1,4 @@
-import { acceptance, queryAll } from "discourse/tests/helpers/qunit-helpers";
+import { acceptance, query } from "discourse/tests/helpers/qunit-helpers";
 import { click, fillIn, visit } from "@ember/test-helpers";
 import I18n from "I18n";
 import { test } from "qunit";
@@ -21,8 +21,8 @@ acceptance("Login with email - hide email address taken", function (needs) {
     await fillIn("#login-account-name", "someuser@example.com");
     await click("#email-login-link");
 
-    assert.equal(
-      queryAll(".alert-success").html().trim(),
+    assert.strictEqual(
+      query(".alert-success").innerHTML.trim(),
       I18n.t("email_login.complete_email_found", {
         email: "someuser@example.com",
       }),

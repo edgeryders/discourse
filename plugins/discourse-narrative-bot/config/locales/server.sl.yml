@@ -45,11 +45,6 @@ sl:
       trigger: "kocke"
       invalid: |-
         Oprostite, matematično ni mogoče vreči to kombinacijo kock. :confounded:
-      not_enough_dice:
-        one: "Imam samo %{count} kocko. [Shameful](https://www.toplessrobot.com/2009/04/the_10_most_shameful_rpg_dice.php), vem!"
-        two: "Imam samo %{count} kocki. [Shameful](https://www.toplessrobot.com/2009/04/the_10_most_shameful_rpg_dice.php), vem!"
-        few: "Imam samo %{count} kocke. [Shameful](https://www.toplessrobot.com/2009/04/the_10_most_shameful_rpg_dice.php), vem!"
-        other: "Imam samo %{count} kock. [Shameful](https://www.toplessrobot.com/2009/04/the_10_most_shameful_rpg_dice.php), vem!"
       out_of_range: |-
         Ali ste vedeli da je [največje število stranic](https://www.wired.com/2016/05/mathematical-challenge-of-designing-the-worlds-most-complex-120-sided-dice) za matematično pravično kocko 120?
       results: |-
@@ -216,7 +211,7 @@ sl:
 
           - ali pritisnite <kbd><b>B</b></kbd> ali <kbd><i>I</i></kbd> gumba v urejevalniku
         reply: |-
-          Super opravljeno! Uporabite lahko tudi HTML ali BBCode za oblikovanje – več lahko izveste [v tem vodniku](http://commonmark.org/help) :nerd:
+          Super opravljeno! Uporabite lahko tudi HTML ali BBCode za oblikovanje – več lahko izveste [v tem vodniku](https://commonmark.org/help) :nerd:
         not_found: |-
           Ah, nisem našel nobenega oblikovanja v vašem odgovoru. :pencil2:
 
@@ -278,12 +273,6 @@ sl:
 
           (In ja, moje ime se črkuje kot _disco_, kot plesna norost iz 1970s. Imam rad [nočno življenje!](https://www.youtube.com/watch?v=B_wGI3_sGf8) :dancer:)
       flag:
-        instructions: |-
-          Ker imamo radi naše razprave prijazne, se moramo vsi truditi [da jih ohranimo prijazne](%{guidelines_url}). Če vidite težavo, prosimo da takšnega avtorja prijavite zasebno ali obvestite [naše prijazno osebje](%{about_url}).
-
-          > :imp: Tukaj sem napisal nekaj neprimernega
-
-          Mislim, da veste kaj morate storiti. Pojdite in **prijavite ta prispevek** <img src="%{base_uri}/plugins/discourse-narrative-bot/images/font-awesome-flag.png" width="16" height="16"> kot neprimeren!
         reply: |-
           [Naše osebje](%{base_uri}/groups/staff) bo zasebno obveščeno o vaši prijavi. Če bo dovolj članov skupnosti prijavilo ta prispevek, se bo samodejno skril zaradi previdnosti. (Ker pa jaz dejansko nisem napisal nič neprimernega :angel:, sem odstranil prijavo za zdaj.)
         not_found: |-

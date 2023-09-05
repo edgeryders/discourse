@@ -3,14 +3,14 @@ import { module, skip, test } from "qunit";
 import ClickTrack from "discourse/lib/click-track";
 import DiscourseURL from "discourse/lib/url";
 import User from "discourse/models/user";
-import { later } from "@ember/runloop";
 import pretender from "discourse/tests/helpers/create-pretender";
 import sinon from "sinon";
+import { setPrefix } from "discourse-common/lib/get-url";
 
 const track = ClickTrack.trackClick;
 
 function generateClickEventOn(selector) {
-  return $.Event("click", { currentTarget: fixture(selector).first() });
+  return $.Event("click", { currentTarget: fixture(selector) });
 }
 
 module("Unit | Utility | click-track", function (hooks) {
@@ -26,8 +26,7 @@ module("Unit | Utility | click-track", function (hooks) {
 
     sessionStorage.clear();
 
-    fixture().html(
-      `<div id="topic" data-topic-id="1337">
+    fixture().innerHTML = `<div id="topic" data-topic-id="1337">
         <article data-post-id="42" data-user-id="3141">
           <a href="http://www.google.com">google.com</a>
           <a class="lightbox back" href="http://www.google.fr">google.fr</a>
@@ -40,16 +39,21 @@ module("Unit | Utility | click-track", function (hooks) {
           <a class="no-track-link" href="http://www.google.com.br">google.com.br</a>
           <a id="same-site" href="http://discuss.domain.com">forum</a>
           <a class="attachment" href="http://discuss.domain.com/uploads/default/1234/1532357280.txt">log.txt</a>
-          <a class="hashtag" href="http://discuss.domain.com">#hashtag</a>
+          <a class="hashtag" href="/c/staff/42">#hashtag</a>
+          <a class="mention" href="/u/joe">@joe</a>
+          <a class="hashtag-cooked" href="/c/staff/42" data-type="category" data-slug="staff"><svg class="fa d-icon d-icon-folder svg-icon svg-node"><use href="#folder"></use></svg><span>staff</span></a>
+          <a class="mention-group" href="/g/support">@support</a>
           <a class="mailto" href="mailto:foo@bar.com">email-me</a>
           <a class="a-without-href">no href</a>
           <aside class="quote">
             <a href="https://discuss.domain.com/t/welcome-to-meta-discourse-org/1/30">foo</a>
             <a href="https://google.com">bar</a>
           </aside>
+          <a class="prefix-url" href="/forum/thing">prefix link</a>
+          <a class="abs-prefix-url" href="${window.location.origin}/forum/thing">prefix link</a>
+          <a class="diff-prefix-url" href="/thing">diff prefix link</a>
         </article>
-      </div>`
-    );
+      </div>`;
   });
 
   skip("tracks internal URLs", async function (assert) {
@@ -85,6 +89,37 @@ module("Unit | Utility | click-track", function (hooks) {
     );
   });
 
+  test("routes to internal urls", async function (assert) {
+    setPrefix("/forum");
+    pretender.post("/clicks/track", () => [200, {}, ""]);
+    await track(generateClickEventOn(".prefix-url"), null, {
+      returnPromise: true,
+    });
+    assert.ok(DiscourseURL.routeTo.calledWith("/forum/thing"));
+  });
+
+  test("routes to absolute internal urls", async function (assert) {
+    setPrefix("/forum");
+    pretender.post("/clicks/track", () => [200, {}, ""]);
+    await track(generateClickEventOn(".abs-prefix-url"), null, {
+      returnPromise: true,
+    });
+    assert.ok(
+      DiscourseURL.routeTo.calledWith(window.location.origin + "/forum/thing")
+    );
+  });
+
+  test("redirects to internal urls with a different prefix", async function (assert) {
+    setPrefix("/forum");
+    sinon.stub(DiscourseURL, "redirectAbsolute");
+
+    pretender.post("/clicks/track", () => [200, {}, ""]);
+    await track(generateClickEventOn(".diff-prefix-url"), null, {
+      returnPromise: true,
+    });
+    assert.ok(DiscourseURL.redirectAbsolute.calledWith("/thing"));
+  });
+
   skip("tracks external URLs", async function (assert) {
     assert.expect(2);
 
@@ -102,7 +137,7 @@ module("Unit | Utility | click-track", function (hooks) {
 
   skip("tracks external URLs when opening in another window", async function (assert) {
     assert.expect(3);
-    User.currentProp("external_links_in_new_tab", true);
+    User.currentProp("user_option.external_links_in_new_tab", true);
 
     const done = assert.async();
     pretender.post("/clicks/track", (request) => {
@@ -136,50 +171,29 @@ module("Unit | Utility | click-track", function (hooks) {
   });
 
   test("does not track clicks links in quotes", async function (assert) {
-    User.currentProp("external_links_in_new_tab", true);
+    User.currentProp("user_option.external_links_in_new_tab", true);
     assert.notOk(track(generateClickEventOn(".quote a:last-child")));
     assert.ok(window.open.calledWith("https://google.com/", "_blank"));
   });
 
-  test("does not track clicks on category badges", async function (assert) {
+  test("does not track clicks on hashtags for categories and tags", async function (assert) {
     assert.notOk(track(generateClickEventOn(".hashtag")));
+    assert.notOk(track(generateClickEventOn(".hashtag-cooked")));
+  });
+
+  test("returns true for tracking mentions and group mentions so the card can appear", async function (assert) {
+    assert.ok(track(generateClickEventOn(".mention")));
+    assert.ok(track(generateClickEventOn(".mention-group")));
   });
 
   test("does not track clicks on mailto", async function (assert) {
     assert.ok(track(generateClickEventOn(".mailto")));
   });
 
-  test("removes the href and put it as a data attribute", async function (assert) {
-    User.currentProp("external_links_in_new_tab", true);
-
-    assert.notOk(track(generateClickEventOn("a")));
-
-    let $link = fixture("a").first();
-    assert.ok($link.hasClass("no-href"));
-    assert.equal($link.data("href"), "http://www.google.com/");
-    assert.blank($link.attr("href"));
-    assert.ok($link.data("auto-route"));
-    assert.ok(window.open.calledWith("http://www.google.com/", "_blank"));
-  });
-
-  test("restores the href after a while", async function (assert) {
-    assert.expect(2);
-
-    assert.notOk(track(generateClickEventOn("a")));
-
-    assert.timeout(75);
-
-    const done = assert.async();
-    later(() => {
-      assert.equal(fixture("a").attr("href"), "http://www.google.com");
-      done();
-    });
-  });
-
   function badgeClickCount(assert, id, expected) {
-    track(generateClickEventOn("#" + id));
-    let $badge = $("span.badge", fixture("#" + id).first());
-    assert.equal(parseInt($badge.html(), 10), expected);
+    track(generateClickEventOn(`#${id}`));
+    const badge = fixture(`#${id}`).querySelector("span.badge");
+    assert.strictEqual(parseInt(badge.innerHTML, 10), expected);
   }
 
   test("does not update badge clicks on my own link", async function (assert) {

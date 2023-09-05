@@ -5,14 +5,15 @@
 #
 <% @robots_info[:agents].each do |agent| %>
 User-agent: <%= agent[:name] %>
-<%- if agent[:delay] -%>
-Crawl-delay: <%= agent[:delay] %>
-<%- end -%>
 <% agent[:disallow].each do |path| %>
 Disallow: <%= path %>
 <% end %>
 
 
+<% end %>
+
+<%- if SiteSetting.enable_sitemap? && !SiteSetting.login_required? %>
+Sitemap: <%= request.protocol %><%= request.host_with_port %>/sitemap.xml
 <% end %>
 
 <%= server_plugin_outlet "robots_txt_index" %>

@@ -1,154 +1,188 @@
-import { computed } from "@ember/object";
-import Component from "@ember/component";
-import I18n from "I18n";
-import afterTransition from "discourse/lib/after-transition";
-import { next } from "@ember/runloop";
-import { on } from "discourse-common/utils/decorators";
+import Component from "@glimmer/component";
+import ClassicComponent from "@ember/component";
+import { action } from "@ember/object";
+import { cached, tracked } from "@glimmer/tracking";
+import { inject as service } from "@ember/service";
 
-export default Component.extend({
-  classNameBindings: [
-    ":modal",
-    ":d-modal",
-    "modalClass",
-    "modalStyle",
-    "hasPanels",
-  ],
-  attributeBindings: [
-    "data-keyboard",
-    "aria-modal",
-    "role",
-    "ariaLabelledby:aria-labelledby",
-  ],
-  dismissable: true,
-  title: null,
-  subtitle: null,
-  role: "dialog",
-  headerClass: null,
+export const CLOSE_INITIATED_BY_BUTTON = "initiatedByCloseButton";
+export const CLOSE_INITIATED_BY_ESC = "initiatedByESC";
+export const CLOSE_INITIATED_BY_CLICK_OUTSIDE = "initiatedByClickOut";
+export const CLOSE_INITIATED_BY_MODAL_SHOW = "initiatedByModalShow";
 
-  init() {
-    this._super(...arguments);
+const FLASH_TYPES = ["success", "error", "warning", "info"];
 
-    // If we need to render a second modal for any reason, we can't
-    // use `elementId`
-    if (this.modalStyle !== "inline-modal") {
-      this.set("elementId", "discourse-modal");
-      this.set("modalStyle", "fixed-modal");
+export default class DModal extends Component {
+  @service modal;
+  @tracked wrapperElement;
+
+  @action
+  setupListeners(element) {
+    document.documentElement.addEventListener(
+      "keydown",
+      this.handleDocumentKeydown
+    );
+    this.wrapperElement = element;
+    this.trapTab();
+  }
+
+  @action
+  cleanupListeners() {
+    document.documentElement.removeEventListener(
+      "keydown",
+      this.handleDocumentKeydown
+    );
+  }
+
+  get dismissable() {
+    if (!this.args.closeModal) {
+      return false;
+    } else if ("dismissable" in this.args) {
+      return this.args.dismissable;
+    } else {
+      return true;
     }
-  },
+  }
 
-  // We handle ESC ourselves
-  "data-keyboard": "false",
-  // Inform screenreaders of the modal
-  "aria-modal": "true",
+  shouldTriggerClickOnEnter(event) {
+    if (this.args.submitOnEnter === false) {
+      return false;
+    }
 
-  ariaLabelledby: computed("title", function () {
-    return this.title ? "discourse-modal-title" : null;
-  }),
-
-  @on("didInsertElement")
-  setUp() {
-    $("html").on("keyup.discourse-modal", (e) => {
-      //only respond to events when the modal is visible
-      if (!this.element.classList.contains("hidden")) {
-        if (e.which === 27 && this.dismissable) {
-          next(() => this.attrs.closeModal("initiatedByESC"));
-        }
-
-        if (e.which === 13 && this.triggerClickOnEnter(e)) {
-          next(() => $(".modal-footer .btn-primary").click());
-        }
-      }
-    });
-
-    this.appEvents.on("modal:body-shown", this, "_modalBodyShown");
-  },
-
-  @on("willDestroyElement")
-  cleanUp() {
-    $("html").off("keyup.discourse-modal");
-    this.appEvents.off("modal:body-shown", this, "_modalBodyShown");
-  },
-
-  triggerClickOnEnter(e) {
     // skip when in a form or a textarea element
     if (
-      e.target.closest("form") ||
-      (document.activeElement && document.activeElement.nodeName === "TEXTAREA")
+      event.target.closest("form") ||
+      document.activeElement?.nodeName === "TEXTAREA"
     ) {
       return false;
     }
 
     return true;
-  },
+  }
 
-  mouseDown(e) {
+  @action
+  handleMouseUp(e) {
+    if (e.button !== 0) {
+      return; // Non-default mouse button
+    }
+
     if (!this.dismissable) {
       return;
     }
-    const $target = $(e.target);
-    if (
-      $target.hasClass("modal-middle-container") ||
-      $target.hasClass("modal-outer-container")
-    ) {
-      // Send modal close (which bubbles to ApplicationRoute) if clicked outside.
-      // We do this because some CSS of ours seems to cover the backdrop and makes
-      // it unclickable.
-      return (
-        this.attrs.closeModal && this.attrs.closeModal("initiatedByClickOut")
-      );
-    }
-  },
 
-  _modalBodyShown(data) {
-    if (this.isDestroying || this.isDestroyed) {
+    if (
+      e.target.classList.contains("modal-middle-container") ||
+      e.target.classList.contains("modal-outer-container")
+    ) {
+      return this.args.closeModal?.({
+        initiatedBy: CLOSE_INITIATED_BY_CLICK_OUTSIDE,
+      });
+    }
+  }
+
+  @action
+  handleDocumentKeydown(event) {
+    if (this.args.hidden) {
       return;
     }
 
-    if (data.fixed) {
-      this.element.classList.remove("hidden");
+    if (event.key === "Escape" && this.dismissable) {
+      this.args.closeModal({ initiatedBy: CLOSE_INITIATED_BY_ESC });
     }
 
-    if (data.title) {
-      this.set("title", I18n.t(data.title));
-    } else if (data.rawTitle) {
-      this.set("title", data.rawTitle);
+    if (event.key === "Enter" && this.shouldTriggerClickOnEnter(event)) {
+      this.wrapperElement.querySelector(".modal-footer .btn-primary")?.click();
+      event.preventDefault();
     }
 
-    if (data.subtitle) {
-      this.set("subtitle", I18n.t(data.subtitle));
-    } else if (data.rawSubtitle) {
-      this.set("subtitle", data.rawSubtitle);
-    } else {
-      // if no subtitle provided, makes sure the previous subtitle
-      // of another modal is not used
-      this.set("subtitle", null);
+    if (event.key === "Tab") {
+      this.trapTab(event);
+    }
+  }
+
+  @action
+  trapTab(event) {
+    if (this.args.hidden) {
+      return true;
     }
 
-    if ("dismissable" in data) {
-      this.set("dismissable", data.dismissable);
-    } else {
-      this.set("dismissable", true);
+    const innerContainer = this.wrapperElement.querySelector(
+      ".modal-inner-container"
+    );
+    if (!innerContainer) {
+      return;
     }
 
-    this.set("headerClass", data.headerClass || null);
+    let focusableElements =
+      '[autofocus], a, input, select, textarea, summary, [tabindex]:not([tabindex="-1"])';
 
-    if (this.element && data.autoFocus) {
-      let focusTarget = this.element.querySelector(
-        ".modal-body input[autofocus]"
-      );
-
-      if (!focusTarget && !this.site.mobileView) {
-        focusTarget = this.element.querySelector(
-          ".modal-body input, .modal-body button, .modal-footer input, .modal-footer button"
-        );
-
-        if (!focusTarget) {
-          focusTarget = this.element.querySelector(".modal-header button");
-        }
+    if (!event) {
+      // on first trap we don't allow to focus modal-close
+      // and apply manual focus only if we don't have any autofocus element
+      const autofocusedElement = innerContainer.querySelector("[autofocus]");
+      if (
+        !autofocusedElement ||
+        document.activeElement !== autofocusedElement
+      ) {
+        // if there's not autofocus, or the activeElement, is not the autofocusable element
+        // attempt to focus the first of the focusable elements or just the modal-body
+        // to make it possible to scroll with arrow down/up
+        (
+          autofocusedElement ||
+          innerContainer.querySelector(
+            focusableElements + ", button:not(.modal-close)"
+          ) ||
+          innerContainer.querySelector(".modal-body")
+        )?.focus();
       }
-      if (focusTarget) {
-        afterTransition(() => focusTarget.focus());
+
+      return;
+    }
+
+    focusableElements += ", button:enabled";
+
+    const firstFocusableElement =
+      innerContainer.querySelector(focusableElements);
+    const focusableContent = innerContainer.querySelectorAll(focusableElements);
+    const lastFocusableElement = focusableContent[focusableContent.length - 1];
+
+    if (event.shiftKey) {
+      if (document.activeElement === firstFocusableElement) {
+        lastFocusableElement?.focus();
+        event.preventDefault();
+      }
+    } else {
+      if (document.activeElement === lastFocusableElement) {
+        (
+          innerContainer.querySelector(".modal-close") || firstFocusableElement
+        )?.focus();
+        event.preventDefault();
       }
     }
-  },
-});
+  }
+
+  @action
+  handleCloseButton() {
+    this.args.closeModal({ initiatedBy: CLOSE_INITIATED_BY_BUTTON });
+  }
+
+  @action
+  validateFlashType(type) {
+    if (type && !FLASH_TYPES.includes(type)) {
+      throw `@flashType must be one of ${FLASH_TYPES.join(", ")}`;
+    }
+  }
+
+  // Could be optimised to remove classic component once RFC389 is implemented
+  // https://rfcs.emberjs.com/id/0389-dynamic-tag-names
+  @cached
+  get dynamicElement() {
+    const tagName = this.args.tagName || "div";
+    if (!["div", "form"].includes(tagName)) {
+      throw `@tagName must be form or div`;
+    }
+
+    return class WrapperComponent extends ClassicComponent {
+      tagName = tagName;
+    };
+  }
+}

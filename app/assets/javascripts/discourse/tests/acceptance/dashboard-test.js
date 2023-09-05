@@ -1,7 +1,8 @@
 import {
   acceptance,
+  count,
   exists,
-  queryAll,
+  query,
 } from "discourse/tests/helpers/qunit-helpers";
 import { click, fillIn, visit } from "@ember/test-helpers";
 import selectKit from "discourse/tests/helpers/select-kit-helper";
@@ -46,6 +47,7 @@ acceptance("Dashboard", function (needs) {
 
   test("general tab", async function (assert) {
     await visit("/admin");
+
     assert.ok(exists(".admin-report.signups"), "signups report");
     assert.ok(exists(".admin-report.posts"), "posts report");
     assert.ok(exists(".admin-report.dau-by-mau"), "dau-by-mau report");
@@ -57,11 +59,10 @@ acceptance("Dashboard", function (needs) {
       exists(".admin-report.new-contributors"),
       "new-contributors report"
     );
-
-    assert.equal(
-      $(".section.dashboard-problems .problem-messages ul li:first-child")
-        .html()
-        .trim(),
+    assert.strictEqual(
+      query(
+        ".section.dashboard-problems .problem-messages ul li:first-child"
+      ).innerHTML.trim(),
       "Houston...",
       "displays problems"
     );
@@ -80,35 +81,31 @@ acceptance("Dashboard", function (needs) {
     await visit("/admin");
     await click(".dashboard .navigation-item.reports .navigation-link");
 
-    assert.equal(
-      queryAll(".dashboard .reports-index.section .reports-list .report")
-        .length,
+    assert.strictEqual(
+      count(".dashboard .reports-index.section .reports-list .report"),
       1
     );
 
     await fillIn(".dashboard .filter-reports-input", "flags");
 
-    assert.equal(
-      queryAll(".dashboard .reports-index.section .reports-list .report")
-        .length,
+    assert.strictEqual(
+      count(".dashboard .reports-index.section .reports-list .report"),
       0
     );
 
     await click(".dashboard .navigation-item.security .navigation-link");
     await click(".dashboard .navigation-item.reports .navigation-link");
 
-    assert.equal(
-      queryAll(".dashboard .reports-index.section .reports-list .report")
-        .length,
+    assert.strictEqual(
+      count(".dashboard .reports-index.section .reports-list .report"),
       1,
       "navigating back and forth resets filter"
     );
 
     await fillIn(".dashboard .filter-reports-input", "activities");
 
-    assert.equal(
-      queryAll(".dashboard .reports-index.section .reports-list .report")
-        .length,
+    assert.strictEqual(
+      count(".dashboard .reports-index.section .reports-list .report"),
       1,
       "filter is case insensitive"
     );
@@ -121,9 +118,9 @@ acceptance("Dashboard", function (needs) {
 
     const groupFilter = selectKit(".group-filter .combo-box");
 
-    assert.equal(
+    assert.strictEqual(
       groupFilter.header().value(),
-      88,
+      "88",
       "its set the value of the filter from the query params"
     );
   });

@@ -1,33 +1,34 @@
 import Controller, { inject as controller } from "@ember/controller";
-import discourseComputed, { observes } from "discourse-common/utils/decorators";
+import discourseComputed, {
+  debounce,
+  observes,
+} from "discourse-common/utils/decorators";
 import { ajax } from "discourse/lib/ajax";
-import discourseDebounce from "discourse-common/lib/debounce";
 import { popupAjaxError } from "discourse/lib/ajax-error";
 
 export default Controller.extend({
   application: controller(),
 
-  queryParams: ["order", "desc", "filter"],
+  queryParams: ["order", "asc", "filter"],
 
   order: "",
-  desc: null,
+  asc: null,
   filter: null,
   filterInput: null,
 
   loading: false,
 
   @observes("filterInput")
-  _setFilter() {
-    discourseDebounce(
-      this,
-      function () {
-        this.set("filter", this.filterInput);
-      },
-      500
-    );
+  filterInputChanged() {
+    this._setFilter();
   },
 
-  @observes("order", "desc", "filter")
+  @debounce(500)
+  _setFilter() {
+    this.set("filter", this.filterInput);
+  },
+
+  @observes("order", "asc", "filter")
   _filtersChanged() {
     this.findRequesters(true);
   },
@@ -57,9 +58,9 @@ export default Controller.extend({
     });
   },
 
-  @discourseComputed("order", "desc", "filter")
-  memberParams(order, desc, filter) {
-    return { order, desc, filter };
+  @discourseComputed("order", "asc", "filter")
+  memberParams(order, asc, filter) {
+    return { order, asc, filter };
   },
 
   @discourseComputed("model.requesters.[]")

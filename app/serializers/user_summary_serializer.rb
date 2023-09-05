@@ -1,7 +1,6 @@
 # frozen_string_literal: true
 
 class UserSummarySerializer < ApplicationSerializer
-
   class TopicSerializer < BasicTopicSerializer
     attributes :category_id, :like_count, :created_at
   end
@@ -29,9 +28,10 @@ class UserSummarySerializer < ApplicationSerializer
                :admin,
                :moderator,
                :trust_level,
-               :primary_group_flair_url,
-               :primary_group_flair_bg_color,
-               :primary_group_flair_color,
+               :flair_name,
+               :flair_url,
+               :flair_bg_color,
+               :flair_color,
                :primary_group_name
 
     def include_name?
@@ -42,16 +42,20 @@ class UserSummarySerializer < ApplicationSerializer
       User.avatar_template(object[:username], object[:uploaded_avatar_id])
     end
 
-    def primary_group_flair_url
-      object.primary_group&.flair_url
+    def flair_name
+      object.flair_group&.name
     end
 
-    def primary_group_flair_bg_color
-      object.primary_group&.flair_bg_color
+    def flair_url
+      object.flair_group&.flair_url
     end
 
-    def primary_group_flair_color
-      object.primary_group&.flair_color
+    def flair_bg_color
+      object.flair_group&.flair_bg_color
+    end
+
+    def flair_color
+      object.flair_group&.flair_color
     end
 
     def primary_group_name
@@ -60,9 +64,15 @@ class UserSummarySerializer < ApplicationSerializer
   end
 
   class CategoryWithCountsSerializer < ApplicationSerializer
-    attributes :topic_count, :post_count,
-      :id, :name, :color, :text_color, :slug,
-      :read_restricted, :parent_category_id
+    attributes :topic_count,
+               :post_count,
+               :id,
+               :name,
+               :color,
+               :text_color,
+               :slug,
+               :read_restricted,
+               :parent_category_id
   end
 
   has_many :topics, serializer: TopicSerializer

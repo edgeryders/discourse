@@ -1,10 +1,14 @@
 import Controller from "@ember/controller";
+import { action } from "@ember/object";
 import ModalFunctionality from "discourse/mixins/modal-functionality";
 import { ajax } from "discourse/lib/ajax";
 import { allowsImages } from "discourse/lib/uploads";
 import discourseComputed from "discourse-common/utils/decorators";
 import { popupAjaxError } from "discourse/lib/ajax-error";
 import { setting } from "discourse/lib/computed";
+import { isTesting } from "discourse-common/config/environment";
+import { dependentKeyCompat } from "@ember/object/compat";
+import { tracked } from "@glimmer/tracking";
 
 export default Controller.extend(ModalFunctionality, {
   gravatarName: setting("gravatar_name"),
@@ -17,32 +21,71 @@ export default Controller.extend(ModalFunctionality, {
   },
 
   @discourseComputed(
-    "siteSettings.selectable_avatars_enabled",
+    "siteSettings.selectable_avatars_mode",
     "siteSettings.selectable_avatars"
   )
-  selectableAvatars(enabled, list) {
-    if (enabled) {
+  selectableAvatars(mode, list) {
+    if (mode !== "disabled") {
       return list ? list.split("|") : [];
     }
   },
 
-  @discourseComputed(
-    "user.use_logo_small_as_avatar",
-    "user.avatar_template",
-    "user.system_avatar_template",
-    "user.gravatar_avatar_template"
-  )
-  selected(
-    useLogo,
-    avatarTemplate,
-    systemAvatarTemplate,
-    gravatarAvatarTemplate
-  ) {
-    if (useLogo) {
+  @discourseComputed("siteSettings.selectable_avatars_mode")
+  showSelectableAvatars(mode) {
+    return mode !== "disabled";
+  },
+
+  @discourseComputed("siteSettings.selectable_avatars_mode")
+  showAvatarUploader(mode) {
+    switch (mode) {
+      case "no_one":
+        return false;
+      case "tl1":
+      case "tl2":
+      case "tl3":
+      case "tl4":
+        const allowedTl = parseInt(mode.replace("tl", ""), 10);
+        return (
+          this.user.admin ||
+          this.user.moderator ||
+          this.user.trust_level >= allowedTl
+        );
+      case "staff":
+        return this.user.admin || this.user.moderator;
+      case "everyone":
+      default:
+        return true;
+    }
+  },
+
+  @tracked _selected: null,
+
+  @dependentKeyCompat
+  get selected() {
+    return this._selected ?? this.defaultSelection;
+  },
+
+  set selected(value) {
+    this._selected = value;
+  },
+
+  @action
+  onSelectedChanged(value) {
+    this._selected = value;
+  },
+
+  get defaultSelection() {
+    if (this.get("user.use_logo_small_as_avatar")) {
       return "logo";
-    } else if (avatarTemplate === systemAvatarTemplate) {
+    } else if (
+      this.get("user.avatar_template") ===
+      this.get("user.system_avatar_template")
+    ) {
       return "system";
-    } else if (avatarTemplate === gravatarAvatarTemplate) {
+    } else if (
+      this.get("user.avatar_template") ===
+      this.get("user.gravatar_avatar_template")
+    ) {
       return "gravatar";
     } else {
       return "custom";
@@ -83,12 +126,34 @@ export default Controller.extend(ModalFunctionality, {
     }
   },
 
-  @discourseComputed()
-  allowAvatarUpload() {
+  siteSettingMatches(value, user) {
+    switch (value) {
+      case "disabled":
+        return false;
+      case "staff":
+        return user.staff;
+      case "admin":
+        return user.admin;
+      default:
+        return user.trust_level >= parseInt(value, 10) || user.staff;
+    }
+  },
+
+  @discourseComputed("siteSettings.allow_uploaded_avatars")
+  allowAvatarUpload(allowUploadedAvatars) {
     return (
-      this.siteSettings.allow_uploaded_avatars &&
+      this.siteSettingMatches(allowUploadedAvatars, this.currentUser) &&
       allowsImages(this.currentUser.staff, this.siteSettings)
     );
+  },
+
+  @action
+  selectAvatar(url, event) {
+    event?.preventDefault();
+    this.user
+      .selectAvatar(url)
+      .then(() => window.location.reload())
+      .catch(popupAjaxError);
   },
 
   actions: {
@@ -118,20 +183,17 @@ export default Controller.extend(ModalFunctionality, {
         .finally(() => this.set("gravatarRefreshDisabled", false));
     },
 
-    selectAvatar(url) {
-      this.user
-        .selectAvatar(url)
-        .then(() => window.location.reload())
-        .catch(popupAjaxError);
-    },
-
     saveAvatarSelection() {
       const selectedUploadId = this.selectedUploadId;
       const type = this.selected;
 
       this.user
         .pickAvatar(selectedUploadId, type)
-        .then(() => window.location.reload())
+        .then(() => {
+          if (!isTesting()) {
+            window.location.reload();
+          }
+        })
         .catch(popupAjaxError);
     },
   },

@@ -1,0 +1,5 @@
+.chat-message-actions-container[data-popper-reference-hidden],
+.chat-message-actions-container[data-popper-escaped] {
+  visibility: hidden;
+  pointer-events: none;
+}

@@ -25,7 +25,7 @@
   }
 
   .nav-pills {
-    margin-bottom: 1em;
+    margin: 0 0 1em;
   }
 
   .reviewable-container {
@@ -76,6 +76,7 @@
 }
 
 .reviewable-user-info {
+  max-width: 100%;
   margin: 0.5em 0;
   .reviewable-user-fields {
     margin-bottom: 2em;
@@ -120,18 +121,6 @@
 
     .category-chooser {
       width: 100%;
-    }
-
-    .d-date-time-input-range {
-      width: inherit;
-      border: none;
-      padding: 0;
-      flex-direction: column;
-
-      .d-date-input {
-        flex: 1 1 auto;
-        border: 1px solid var(--primary-medium);
-      }
     }
   }
 }
@@ -221,11 +210,11 @@
 }
 
 .reviewable-item {
-  padding-top: 2em;
-  border-top: 1px solid var(--primary-low);
+  background: var(--primary-very-low);
+  padding: 1.5rem;
 
   .topic-statuses {
-    font-size: $font-up-2;
+    font-size: var(--font-up-2);
   }
 
   .reviewable-meta-data {
@@ -233,10 +222,25 @@
     display: flex;
     width: 100%;
     margin-bottom: 0.5em;
-    font-size: $font-down-1;
+    font-size: var(--font-down-1);
     align-items: baseline;
     .reviewable-type {
       margin-right: 0.25em;
+      padding: 0.25em 0.5em;
+      text-transform: uppercase;
+      font-size: var(--font-down-2);
+      color: var(--secondary);
+      border-radius: 8px;
+      background-color: var(--secondary-high);
+      &.-flagged-post,
+      &.-flagged-chat-message {
+        background-color: var(--danger);
+      }
+      &.-queued-post,
+      &.-queued-topic,
+      &.-user {
+        background-color: var(--tertiary);
+      }
     }
     .reply-count {
       margin-left: 1em;
@@ -249,23 +253,35 @@
       }
     }
     .score {
-      font-size: $font-down-1;
+      font-size: var(--font-down-1);
     }
   }
 
   .reviewable-contents {
     display: flex;
     flex-wrap: wrap;
-    margin-bottom: 2em;
+    margin: 1.5rem 0 1rem;
+    background: var(--secondary);
+    padding: 1rem;
   }
 
   .reviewable-actions {
     display: flex;
     flex-wrap: wrap;
+    gap: 0.5rem;
     width: 100%;
 
     button {
       white-space: nowrap;
+
+      &.approve-post {
+        background-color: var(--success);
+        color: var(--secondary);
+      }
+      &.reject-post {
+        background-color: var(--danger);
+        color: var(--secondary);
+      }
     }
 
     .reviewable-action,
@@ -274,6 +290,10 @@
     }
   }
   padding-bottom: 1em;
+}
+
+.reviewable-stale {
+  opacity: 0.7;
 }
 
 .blur-images {
@@ -293,8 +313,17 @@
 }
 
 .reviewable-scores {
+  margin-top: 1rem;
   min-width: 50%;
   color: var(--primary-high);
+
+  &__table-wrapper {
+    overflow-x: scroll;
+  }
+
+  th {
+    white-space: nowrap;
+  }
 
   .reviewed-by {
     .date {
@@ -312,13 +341,23 @@
   }
 
   .d-icon {
-    font-size: $font-down-1;
+    font-size: var(--font-down-1);
     color: var(--primary-medium);
   }
 
   .badge-notification {
-    line-height: $line-height-medium;
+    line-height: var(--line-height-medium);
     vertical-align: text-top;
+  }
+
+  .approved,
+  .approved svg {
+    color: var(--success);
+  }
+
+  .rejected,
+  .rejected svg {
+    color: var(--danger);
   }
 
   tbody {
@@ -332,33 +371,25 @@
         @include ellipsis;
       }
     }
-
-    td:last-of-type {
-      width: 100%;
-      white-space: normal;
-    }
     > tr > th {
       text-align: left;
     }
     > tr > th,
     > tr > td {
       &:not(:empty) {
-        padding: 0.5em 1em 0.5em 0;
+        padding: 0.5em;
       }
       @include breakpoint("mobile-large") {
         @include ellipsis;
         padding-right: 0.5em;
       }
     }
-    .reviewable-score-spacer {
-      padding-right: 1em;
-    }
   }
 }
 
 .reviewable-score-reason {
   margin: 0.5em 0;
-  max-width: $topic-body-width;
+  max-width: var(--topic-body-width);
   margin-bottom: 0.5em;
 }
 
@@ -366,7 +397,7 @@
   margin: 0.5em 0;
 
   .reviewable-conversation-post {
-    max-width: $topic-body-width;
+    max-width: var(--topic-body-width);
     margin-bottom: 0.5em;
 
     .username {
@@ -381,9 +412,10 @@
 }
 
 .reviewable-item {
+  margin-block: 3rem;
   .show-raw-email {
     color: var(--primary-medium);
-    font-size: $font-down-2;
+    font-size: var(--font-down-2);
   }
   .post-title {
     background-color: yellow;
@@ -413,9 +445,9 @@
   .reviewable-post-header {
     display: flex;
     justify-content: space-between;
-    max-width: $topic-body-width;
-    width: $topic-body-width;
+    width: var(--topic-body-width);
     align-items: center;
+    max-width: 100%;
 
     .reviewable-reply-to {
       display: flex;
@@ -434,14 +466,61 @@
   }
 
   .post-body {
-    max-width: $topic-body-width;
-    max-height: 300px;
+    position: relative;
+    max-width: var(--topic-body-width);
     margin-top: 0.5em;
-    overflow-y: auto;
 
-    p,
+    &.is-collapsed {
+      max-height: 50vh;
+      overflow: hidden;
+
+      &:after {
+        content: "";
+        position: absolute;
+        left: 0;
+        bottom: 0;
+        height: 25%;
+        width: 100%;
+        background: linear-gradient(to bottom, transparent, var(--secondary));
+      }
+
+      + .post-body__toggle-btn {
+        transform: translateX(-50%) translateY(-50%);
+      }
+    }
+    p {
+      margin-bottom: 0;
+    }
+    &__toggle-btn {
+      background: var(--primary-very-low);
+      color: var(--primary-high);
+      font-size: var(--font-down-2);
+      box-shadow: var(--shadow-dropdown);
+      margin-left: 50%;
+      transform: translateX(-50%);
+      border-radius: 4px;
+
+      .d-icon {
+        color: var(--primary-high);
+      }
+
+      &:hover {
+        background: var(--primary-very-low);
+        color: var(--tertiary);
+
+        .d-icon {
+          color: var(--tertiary);
+        }
+      }
+    }
+
     aside {
       margin: 0 0 1em 0;
+    }
+
+    img {
+      max-width: 100%;
+      height: auto;
     }
 
     pre,
@@ -458,14 +537,13 @@
       font-weight: bold;
       color: var(--primary);
       display: block;
-      font-size: $font-up-2;
+      font-size: var(--font-up-2);
       margin-right: 0.75em;
     }
-    .topic-statuses {
-      &:empty {
-        display: none;
-      }
-    }
+  }
+
+  &__context-question {
+    margin-block: 1rem;
   }
 }
 
@@ -499,29 +577,4 @@
 
 .flag-modal .modal-inner-container .select-kit.reviewable-action-dropdown {
   width: initial;
-}
-
-@media screen and (max-width: 1000px) {
-  table.reviewable-scores {
-    width: 100%;
-    display: block;
-    tbody {
-      width: calc(100% - 5px);
-      display: block;
-      clear: both;
-    }
-  }
-  tr.reviewable-score {
-    display: grid;
-    grid-template-columns: auto auto 1fr;
-  }
-  td.reviewable-score-spacer {
-    display: none;
-  }
-}
-
-@include breakpoint("mobile-large") {
-  tr.reviewable-score {
-    grid-template-columns: auto auto auto;
-  }
 }

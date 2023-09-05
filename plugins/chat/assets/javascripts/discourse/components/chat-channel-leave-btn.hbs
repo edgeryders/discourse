@@ -1,0 +1,8 @@
+{{#if this.shouldRender}}
+  <DButton
+    @icon="times"
+    @action={{@onLeaveChannel}}
+    @class="btn-flat chat-channel-leave-btn"
+    @title={{this.leaveChatTitleKey}}
+  />
+{{/if}}

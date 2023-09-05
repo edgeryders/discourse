@@ -1,22 +1,21 @@
 # frozen_string_literal: true
 
 class CurrentUserSerializer < BasicUserSerializer
+  include UserTagNotificationsMixin
+  include UserSidebarMixin
 
   attributes :name,
              :unread_notifications,
-             :unread_private_messages,
              :unread_high_priority_notifications,
+             :all_unread_notifications_count,
              :read_first_notification?,
              :admin?,
              :notification_channel_position,
              :moderator?,
              :staff?,
+             :whisperer?,
              :title,
              :any_posts,
-             :enable_quoting,
-             :enable_defer,
-             :external_links_in_new_tab,
-             :dynamic_favicon,
              :trust_level,
              :can_send_private_email_messages,
              :can_send_private_messages,
@@ -24,15 +23,13 @@ class CurrentUserSerializer < BasicUserSerializer
              :can_invite_to_forum,
              :no_password,
              :can_delete_account,
-             :should_be_redirected_to_top,
-             :redirected_to_top,
              :custom_fields,
              :muted_category_ids,
+             :indirectly_muted_category_ids,
              :regular_category_ids,
              :tracked_category_ids,
              :watched_first_post_category_ids,
              :watched_category_ids,
-             :muted_tag_ids,
              :watched_tags,
              :watching_first_post_tags,
              :tracked_tags,
@@ -41,36 +38,62 @@ class CurrentUserSerializer < BasicUserSerializer
              :dismissed_banner_key,
              :is_anonymous,
              :reviewable_count,
-             :read_faq,
-             :automatically_unpin_topics,
-             :mailing_list_mode,
+             :unseen_reviewable_count,
+             :new_personal_messages_notifications_count,
+             :read_faq?,
              :previous_visit_at,
              :seen_notification_id,
              :primary_group_id,
+             :flair_group_id,
              :can_create_topic,
              :can_create_group,
              :link_posting_access,
              :external_id,
+             :associated_account_ids,
              :top_category_ids,
-             :hide_profile_and_presence,
              :groups,
              :second_factor_enabled,
              :ignored_users,
-             :title_count_mode,
-             :timezone,
              :featured_topic,
-             :skip_new_user_tips,
              :do_not_disturb_until,
              :has_topic_draft,
              :can_review,
+             :draft_count,
+             :pending_posts_count,
+             :status,
+             :grouped_unread_notifications,
+             :display_sidebar_tags,
+             :sidebar_tags,
+             :sidebar_category_ids,
+             :sidebar_sections,
+             :new_new_view_enabled?,
+             :experimental_search_menu_groups_enabled?
+
+  delegate :user_stat, to: :object, private: true
+  delegate :any_posts, :draft_count, :pending_posts_count, :read_faq?, to: :user_stat
+
+  has_one :user_option, embed: :object, serializer: CurrentUserOptionSerializer
+
+  def sidebar_sections
+    SidebarSection
+      .public_sections
+      .or(SidebarSection.where(user_id: object.id))
+      .includes(:sidebar_urls)
+      .order("(section_type IS NOT NULL) DESC, (public IS TRUE) DESC")
+      .map { |section| SidebarSectionSerializer.new(section, root: false) }
+  end
 
   def groups
     owned_group_ids = GroupUser.where(user_id: id, owner: true).pluck(:group_id).to_set
-    object.visible_groups.pluck(:id, :name).map do |id, name|
-      group = { id: id, name: name }
-      group[:owner] = true if owned_group_ids.include?(id)
-      group
-    end
+
+    object
+      .visible_groups
+      .pluck(:id, :name, :has_messages)
+      .map do |id, name, has_messages|
+        group = { id: id, name: name, has_messages: has_messages }
+        group[:owner] = true if owned_group_ids.include?(id)
+        group
+      end
   end
 
   def link_posting_access
@@ -89,60 +112,12 @@ class CurrentUserSerializer < BasicUserSerializer
     scope.can_create_group?
   end
 
-  def read_faq
-    object.user_stat.read_faq?
-  end
-
-  def any_posts
-    object.user_stat.any_posts
-  end
-
-  def hide_profile_and_presence
-    object.user_option.hide_profile_and_presence
-  end
-
-  def enable_quoting
-    object.user_option.enable_quoting
-  end
-
-  def enable_defer
-    object.user_option.enable_defer
-  end
-
-  def external_links_in_new_tab
-    object.user_option.external_links_in_new_tab
-  end
-
-  def dynamic_favicon
-    object.user_option.dynamic_favicon
-  end
-
-  def title_count_mode
-    object.user_option.title_count_mode
-  end
-
-  def automatically_unpin_topics
-    object.user_option.automatically_unpin_topics
-  end
-
-  def should_be_redirected_to_top
-    object.user_option.should_be_redirected_to_top
-  end
-
-  def redirected_to_top
-    object.user_option.redirected_to_top
-  end
-
-  def timezone
-    object.user_option.timezone
-  end
-
   def can_send_private_email_messages
     scope.can_send_private_messages_to_email?
   end
 
   def can_send_private_messages
-    scope.can_send_private_message?(Discourse.system_user)
+    scope.can_send_private_messages?
   end
 
   def can_edit
@@ -173,14 +148,10 @@ class CurrentUserSerializer < BasicUserSerializer
     true
   end
 
-  def include_redirected_to_top?
-    object.user_option.redirected_to_top.present?
-  end
-
   def custom_fields
     fields = nil
     if SiteSetting.public_user_custom_fields.present?
-      fields = SiteSetting.public_user_custom_fields.split('|')
+      fields = SiteSetting.public_user_custom_fields.split("|")
     end
     DiscoursePluginRegistry.serialized_current_user_fields.each do |f|
       fields ||= []
@@ -196,6 +167,10 @@ class CurrentUserSerializer < BasicUserSerializer
 
   def muted_category_ids
     categories_with_notification_level(:muted)
+  end
+
+  def indirectly_muted_category_ids
+    CategoryUser.indirectly_muted_category_ids(object)
   end
 
   def regular_category_ids
@@ -214,46 +189,26 @@ class CurrentUserSerializer < BasicUserSerializer
     categories_with_notification_level(:watching_first_post)
   end
 
-  # this is a weird outlier that is used for topic tracking state which
-  # needs the actual ids, which is why it is duplicated with muted_tags
-  def muted_tag_ids
-    TagUser.lookup(object, :muted).pluck(:tag_id)
-  end
-
-  def muted_tags
-    tags_with_notification_level(:muted)
-  end
-
-  def tracked_tags
-    tags_with_notification_level(:tracking)
-  end
-
-  def watching_first_post_tags
-    tags_with_notification_level(:watching_first_post)
-  end
-
-  def watched_tags
-    tags_with_notification_level(:watching)
-  end
-
-  def regular_tags
-    tags_with_notification_level(:regular)
-  end
-
   def ignored_users
     IgnoredUser.where(user: object.id).joins(:ignored_user).pluck(:username)
   end
 
   def top_category_ids
-    omitted_notification_levels = [CategoryUser.notification_levels[:muted], CategoryUser.notification_levels[:regular]]
-    CategoryUser.where(user_id: object.id)
+    omitted_notification_levels = [
+      CategoryUser.notification_levels[:muted],
+      CategoryUser.notification_levels[:regular],
+    ]
+    CategoryUser
+      .where(user_id: object.id)
       .where.not(notification_level: omitted_notification_levels)
-      .order("
+      .order(
+        "
         CASE
           WHEN notification_level = 3 THEN 1
           WHEN notification_level = 2 THEN 2
           WHEN notification_level = 4 THEN 3
-        END")
+        END",
+      )
       .pluck(:category_id)
       .slice(0, SiteSetting.header_dropdown_category_count)
   end
@@ -266,20 +221,8 @@ class CurrentUserSerializer < BasicUserSerializer
     object.anonymous?
   end
 
-  def reviewable_count
-    Reviewable.list_for(object).count
-  end
-
   def can_review
     scope.can_see_review_queue?
-  end
-
-  def mailing_list_mode
-    object.user_option.mailing_list_mode
-  end
-
-  def skip_new_user_tips
-    object.user_option.skip_new_user_tips
   end
 
   def include_primary_group_id?
@@ -292,6 +235,20 @@ class CurrentUserSerializer < BasicUserSerializer
 
   def include_external_id?
     SiteSetting.enable_discourse_connect
+  end
+
+  def associated_account_ids
+    values = {}
+
+    object.user_associated_accounts.map do |user_associated_account|
+      values[user_associated_account.provider_name] = user_associated_account.provider_uid
+    end
+
+    values
+  end
+
+  def include_associated_account_ids?
+    SiteSetting.include_associated_account_ids
   end
 
   def second_factor_enabled
@@ -308,5 +265,17 @@ class CurrentUserSerializer < BasicUserSerializer
 
   def include_has_topic_draft?
     Draft.has_topic_draft(object)
+  end
+
+  def include_status?
+    SiteSetting.enable_user_status && object.has_status?
+  end
+
+  def status
+    UserStatusSerializer.new(object.user_status, root: false)
+  end
+
+  def unseen_reviewable_count
+    Reviewable.unseen_reviewable_count(object)
   end
 end

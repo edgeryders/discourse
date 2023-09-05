@@ -24,30 +24,33 @@ de:
         closed:
           title: "Ergebnisse werden angezeigt, sobald die Abstimmung <strong>beendet</strong> ist."
         staff:
-          title: "Ergebnisse werden nur <strong>Teammitgliedern</strong> angezeigt."
+          title: "Ergebnisse werden nur <strong>Team-Mitgliedern</strong> angezeigt."
       multiple:
         help:
           at_least_min_options:
-            one: "Wähle mindestens <strong>%{count}</strong> Option."
-            other: "Wähle mindestens <strong>%{count}</strong> Optionen."
+            one: "Wähle mindestens <strong>%{count} Option</strong> aus."
+            other: "Wähle mindestens <strong>%{count} Optionen</strong> aus."
           up_to_max_options:
-            one: "Wähle bis zu <strong>%{count}</strong> Option."
-            other: "Wähle bis zu <strong>%{count}</strong> Optionen."
+            one: "Wähle bis zu <strong>%{count} Option</strong> aus."
+            other: "Wähle bis zu <strong>%{count} Optionen</strong> aus."
           x_options:
-            one: "Wähle <strong>%{count}</strong> Option."
-            other: "Wähle <strong>%{count}</strong> Optionen."
-          between_min_and_max_options: "Wähle zwischen <strong>%{min}</strong> und <strong>%{max}</strong> Optionen."
+            one: "Wähle <strong>%{count} Option</strong> aus."
+            other: "Wähle <strong>%{count} Optionen</strong> aus."
+          between_min_and_max_options: "Wähle zwischen <strong>%{min} und %{max} Optionen</strong> aus."
       cast-votes:
         title: "Gib deine Stimmen ab"
         label: "Jetzt abstimmen!"
       show-results:
         title: "Das Ergebnis der Umfrage anzeigen"
-        label: "Ergebnisse anzeigen"
+        label: "Ergebnisse"
+      remove-vote:
+        title: "Entferne deine Stimme"
+        label: "Abstimmung zurücknehmen"
       hide-results:
         title: "Zurück zur Umfrage"
-        label: "Umfrage anzeigen"
+        label: "Abstimmen"
       group-results:
-        title: "Stimmen anhand von Benutzerdaten gruppieren"
+        title: "Stimmen anhand von Benutzerfeld gruppieren"
         label: "Aufschlüsselung anzeigen"
       export-results:
         title: "Ergebnisse der Umfrage exportieren"
@@ -69,16 +72,18 @@ de:
         breakdown: "Aufschlüsselung"
         percentage: "Prozentsatz"
         count: "Anzahl"
+      options:
+        label: "Optionen"
       error_while_toggling_status: "Leider ist beim Umschalten des Status dieser Umfrage ein Fehler aufgetreten."
-      error_while_casting_votes: "Leider ist beim Abgeben deiner Stimme ein Fehler aufgetreten."
+      error_while_casting_votes: "Leider ist beim Abgeben deiner Stimmen ein Fehler aufgetreten."
       error_while_fetching_voters: "Leider ist beim Anzeigen der Teilnehmer ein Fehler aufgetreten."
       error_while_exporting_results: "Leider ist beim Exportieren der Umfrageergebnisse ein Fehler aufgetreten."
       ui_builder:
         title: Umfrage erstellen
         insert: Umfrage einfügen
         help:
-          options_min_count: Geben Sie mindestens 1 Option ein.
-          options_max_count: Geben Sie höchstens %{count} Optionen ein.
+          options_min_count: Gib mindestens eine Option ein.
+          options_max_count: Gib maximal %{count} Optionen ein.
           invalid_min_value: Der Mindestwert muss mindestens 1 betragen.
           invalid_max_value: Der Maximalwert muss mindestens 1 betragen, aber kleiner oder gleich der Anzahl der Optionen sein.
           invalid_values: Der Mindestwert muss kleiner als der Höchstwert sein.
@@ -89,11 +94,11 @@ de:
           multiple: Mehrfachauswahl
           number: Bewertung
         poll_result:
-          label: Ergebnisse anzeigen...
+          label: Ergebnisse anzeigen …
           always: Immer sichtbar
           vote: Nur nach Stimmabgabe
           closed: Wenn die Umfrage geschlossen ist
-          staff: Nur Teammitglieder
+          staff: Nur Team-Mitglieder
         poll_groups:
           label: Abstimmung auf diese Gruppen beschränken
         poll_chart_type:

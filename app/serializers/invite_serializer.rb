@@ -5,7 +5,9 @@ class InviteSerializer < ApplicationSerializer
              :invite_key,
              :link,
              :email,
+             :domain,
              :emailed,
+             :can_delete_invite,
              :max_redemptions_allowed,
              :redemption_count,
              :custom_message,
@@ -27,6 +29,10 @@ class InviteSerializer < ApplicationSerializer
 
   def emailed
     object.emailed_status != Invite.emailed_status_types[:not_required]
+  end
+
+  def can_delete_invite
+    scope.is_admin? || object.invited_by_id == scope.current_user.id
   end
 
   def include_custom_message?

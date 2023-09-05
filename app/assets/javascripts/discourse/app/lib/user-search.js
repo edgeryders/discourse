@@ -1,16 +1,30 @@
-import { cancel, later } from "@ember/runloop";
+import { cancel } from "@ember/runloop";
+import discourseLater from "discourse-common/lib/later";
 import { CANCELLED_STATUS } from "discourse/lib/autocomplete";
 import { Promise } from "rsvp";
 import discourseDebounce from "discourse-common/lib/debounce";
 import { emailValid } from "discourse/lib/utilities";
 import { isTesting } from "discourse-common/config/environment";
 import { userPath } from "discourse/lib/url";
+import { ajax } from "discourse/lib/ajax";
 
 let cache = {},
   cacheKey,
   cacheTime,
   currentTerm,
   oldSearch;
+
+export function resetUserSearchCache() {
+  cache = {};
+  cacheKey = null;
+  cacheTime = null;
+  currentTerm = null;
+  oldSearch = null;
+}
+
+export function camelCaseToSnakeCase(text) {
+  return text.replace(/([a-zA-Z])(?=[A-Z])/g, "$1_").toLowerCase();
+}
 
 function performSearch(
   term,
@@ -19,8 +33,12 @@ function performSearch(
   includeGroups,
   includeMentionableGroups,
   includeMessageableGroups,
+  customUserSearchOptions,
   allowedUsers,
   groupMembersOf,
+  includeStagedUsers,
+  lastSeenUsers,
+  limit,
   resultsFn
 ) {
   let cached = cache[term];
@@ -31,25 +49,36 @@ function performSearch(
 
   const eagerComplete = eagerCompleteSearch(term, topicId || categoryId);
 
-  if (term === "" && !eagerComplete) {
+  if (term === "" && !eagerComplete && !lastSeenUsers) {
     // The server returns no results in this case, so no point checking
     // do not return empty list, because autocomplete will get terminated
     resultsFn(CANCELLED_STATUS);
     return;
   }
 
+  let data = {
+    term,
+    topic_id: topicId,
+    category_id: categoryId,
+    include_groups: includeGroups,
+    include_mentionable_groups: includeMentionableGroups,
+    include_messageable_groups: includeMessageableGroups,
+    groups: groupMembersOf,
+    topic_allowed_users: allowedUsers,
+    include_staged_users: includeStagedUsers,
+    last_seen_users: lastSeenUsers,
+    limit,
+  };
+
+  if (customUserSearchOptions) {
+    Object.keys(customUserSearchOptions).forEach((key) => {
+      data[camelCaseToSnakeCase(key)] = customUserSearchOptions[key];
+    });
+  }
+
   // need to be able to cancel this
-  oldSearch = $.ajax(userPath("search/users"), {
-    data: {
-      term: term,
-      topic_id: topicId,
-      category_id: categoryId,
-      include_groups: includeGroups,
-      include_mentionable_groups: includeMentionableGroups,
-      include_messageable_groups: includeMessageableGroups,
-      groups: groupMembersOf,
-      topic_allowed_users: allowedUsers,
-    },
+  oldSearch = ajax(userPath("search/users"), {
+    data,
   });
 
   let returnVal = CANCELLED_STATUS;
@@ -75,7 +104,7 @@ function performSearch(
         returnVal = r;
       }
     })
-    .always(function () {
+    .finally(function () {
       oldSearch = null;
       resultsFn(returnVal);
     });
@@ -88,8 +117,12 @@ let debouncedSearch = function (
   includeGroups,
   includeMentionableGroups,
   includeMessageableGroups,
+  customUserSearchOptions,
   allowedUsers,
   groupMembersOf,
+  includeStagedUsers,
+  lastSeenUsers,
+  limit,
   resultsFn
 ) {
   discourseDebounce(
@@ -101,55 +134,75 @@ let debouncedSearch = function (
     includeGroups,
     includeMentionableGroups,
     includeMessageableGroups,
+    customUserSearchOptions,
     allowedUsers,
     groupMembersOf,
+    includeStagedUsers,
+    lastSeenUsers,
+    limit,
     resultsFn,
     300
   );
 };
+
+function lowerCaseIncludes(string, term) {
+  return string && term && string.toLowerCase().includes(term.toLowerCase());
+}
 
 function organizeResults(r, options) {
   if (r === CANCELLED_STATUS) {
     return r;
   }
 
-  let exclude = options.exclude || [],
-    limit = options.limit || 5,
-    users = [],
+  const exclude = options.exclude || [];
+
+  // Sometimes the term passed contains spaces, but the search is limited
+  // to the first word only.
+  const term = options.term?.trim()?.split(/\s/, 1)?.[0];
+
+  const users = [],
     emails = [],
-    groups = [],
-    results = [];
+    groups = [];
+  let resultsLength = 0;
 
   if (r.users) {
-    r.users.every(function (u) {
-      if (exclude.indexOf(u.username) === -1) {
-        users.push(u);
-        results.push(u);
+    r.users.forEach((user) => {
+      if (resultsLength < options.limit && !exclude.includes(user.username)) {
+        user.isUser = true;
+        user.isMetadataMatch =
+          !lowerCaseIncludes(user.username, term) &&
+          !lowerCaseIncludes(user.name, term);
+        users.push(user);
+        resultsLength += 1;
       }
-      return results.length <= limit;
     });
   }
 
   if (options.allowEmails && emailValid(options.term)) {
-    let e = { username: options.term };
-    emails = [e];
-    results.push(e);
+    emails.push({ username: options.term, isEmail: true });
+    resultsLength += 1;
   }
 
   if (r.groups) {
-    r.groups.every(function (g) {
+    r.groups.forEach((group) => {
       if (
-        options.term.toLowerCase() === g.name.toLowerCase() ||
-        results.length < limit
+        (options.term.toLowerCase() === group.name.toLowerCase() ||
+          resultsLength < options.limit) &&
+        !exclude.includes(group.name)
       ) {
-        if (exclude.indexOf(g.name) === -1) {
-          groups.push(g);
-          results.push(g);
-        }
+        group.isGroup = true;
+        groups.push(group);
+        resultsLength += 1;
       }
-      return true;
     });
   }
+
+  const results = [
+    ...users.filter((u) => !u.isMetadataMatch),
+    ...emails,
+    ...groups,
+    ...users.filter((u) => u.isMetadataMatch),
+  ];
 
   results.users = users;
   results.emails = emails;
@@ -157,16 +210,20 @@ function organizeResults(r, options) {
   return results;
 }
 
-// all punctuations except for -, _ and . which are allowed in usernames
+// all punctuation except for -, _ and . which are allowed in usernames
 // note: these are valid in names, but will end up tripping search anyway so just skip
 // this means searching for `sam saffron` is OK but if my name is `sam$ saffron` autocomplete
 // will not find me, which is a reasonable compromise
 //
 // we also ignore if we notice a double space or a string that is only a space
-const ignoreRegex = /([\u2000-\u206F\u2E00-\u2E7F\\'!"#$%&()*,\/:;<=>?\[\]^`{|}~])|\s\s|^\s$|^[^+]*\+[^@]*$/;
+const ignoreRegex =
+  /([\u2000-\u206F\u2E00-\u2E7F\\'!"#$%&()*,\/:;<=>?\[\]^`{|}~])|\s\s|^\s$|^[^+]*\+[^@]*$/;
 
-export function skipSearch(term, allowEmails) {
-  if (term.indexOf("@") > -1 && !allowEmails) {
+export function skipSearch(term, allowEmails, lastSeenUsers = false) {
+  if (lastSeenUsers) {
+    return false;
+  }
+  if (term.includes("@") && !allowEmails) {
     return true;
   }
 
@@ -186,10 +243,14 @@ export default function userSearch(options) {
     includeGroups = options.includeGroups,
     includeMentionableGroups = options.includeMentionableGroups,
     includeMessageableGroups = options.includeMessageableGroups,
+    customUserSearchOptions = options.customUserSearchOptions,
     allowedUsers = options.allowedUsers,
     topicId = options.topicId,
     categoryId = options.categoryId,
-    groupMembersOf = options.groupMembersOf;
+    groupMembersOf = options.groupMembersOf,
+    includeStagedUsers = options.includeStagedUsers,
+    lastSeenUsers = options.lastSeenUsers,
+    limit = options.limit || 6;
 
   if (oldSearch) {
     oldSearch.abort();
@@ -209,10 +270,10 @@ export default function userSearch(options) {
 
     let clearPromise;
     if (!isTesting()) {
-      clearPromise = later(() => resolve(CANCELLED_STATUS), 5000);
+      clearPromise = discourseLater(() => resolve(CANCELLED_STATUS), 5000);
     }
 
-    if (skipSearch(term, options.allowEmails)) {
+    if (skipSearch(term, options.allowEmails, options.lastSeenUsers)) {
       resolve([]);
       return;
     }
@@ -224,11 +285,15 @@ export default function userSearch(options) {
       includeGroups,
       includeMentionableGroups,
       includeMessageableGroups,
+      customUserSearchOptions,
       allowedUsers,
       groupMembersOf,
+      includeStagedUsers,
+      lastSeenUsers,
+      limit,
       function (r) {
         cancel(clearPromise);
-        resolve(organizeResults(r, options));
+        resolve(organizeResults(r, { ...options, limit }));
       }
     );
   });

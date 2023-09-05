@@ -85,3 +85,13 @@ uk:
           title: "Значки заголовків"
         spinners:
           title: "Спінери"
+        empty_state:
+          title: "Порожній стан"
+        rich_tooltip:
+          title: "Підказка, що виринає"
+          description: "Опис"
+          header: "Header"
+          hover_to_see: "Наведіть курсор, щоб побачити підказку"
+        char_counter:
+          title: "Лічильник символів"
+          placeholder: "Введіть свій текст тут..."

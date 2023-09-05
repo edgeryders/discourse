@@ -1,6 +1,7 @@
 import Pretender from "pretender";
 import User from "discourse/models/user";
 import getURL from "discourse-common/lib/get-url";
+import { cloneJSON } from "discourse-common/lib/object";
 
 export function parsePostData(query) {
   const result = {};
@@ -9,12 +10,16 @@ export function parsePostData(query) {
       const item = part.split("=");
       const firstSeg = decodeURIComponent(item[0]);
       const m = /^([^\[]+)\[(.+)\]/.exec(firstSeg);
-
       const val = decodeURIComponent(item[1]).replace(/\+/g, " ");
+      const isArray = firstSeg.endsWith("[]");
+
       if (m) {
         let key = m[1];
         result[key] = result[key] || {};
         result[key][m[2].replace("][", ".")] = val;
+      } else if (isArray) {
+        result[firstSeg] ||= [];
+        result[firstSeg].push(val);
       } else {
         result[firstSeg] = val;
       }
@@ -33,6 +38,10 @@ export function response(code, obj) {
 
 export function success() {
   return response({ success: true });
+}
+
+export function OK(resp = {}, headers = {}) {
+  return [200, headers, resp];
 }
 
 const loggedIn = () => !!User.current();
@@ -73,17 +82,18 @@ export function applyDefaultHandlers(pretender) {
   );
 
   pretender.get("/latest.json", () => {
-    const json = fixturesByUrl["/latest.json"];
+    const json = cloneJSON(fixturesByUrl["/latest.json"]);
 
     if (loggedIn()) {
       // Stuff to let us post
       json.topic_list.can_create_topic = true;
     }
+
     return response(json);
   });
 
   pretender.get("/c/bug/1/l/latest.json", () => {
-    const json = fixturesByUrl["/c/bug/1/l/latest.json"];
+    const json = cloneJSON(fixturesByUrl["/c/bug/1/l/latest.json"]);
 
     if (loggedIn()) {
       // Stuff to let us post
@@ -96,8 +106,20 @@ export function applyDefaultHandlers(pretender) {
     return response({
       tags: [
         { id: "eviltrout", count: 1 },
-        { id: "planned", text: "planned", count: 7, pm_count: 0 },
-        { id: "private", text: "private", count: 0, pm_count: 7 },
+        {
+          id: "planned",
+          name: "planned",
+          text: "planned",
+          count: 7,
+          pm_only: false,
+        },
+        {
+          id: "private",
+          name: "private",
+          text: "private",
+          count: 0,
+          pm_only: true,
+        },
       ],
       extras: {
         tag_groups: [
@@ -105,24 +127,60 @@ export function applyDefaultHandlers(pretender) {
             id: 2,
             name: "Ford Cars",
             tags: [
-              { id: "Escort", text: "Escort", count: 1, pm_count: 0 },
-              { id: "focus", text: "focus", count: 3, pm_count: 0 },
+              {
+                id: "Escort",
+                name: "Escort",
+                text: "Escort",
+                count: 1,
+                pm_only: false,
+              },
+              {
+                id: "focus",
+                name: "focus",
+                text: "focus",
+                count: 3,
+                pm_only: false,
+              },
             ],
           },
           {
             id: 1,
             name: "Honda Cars",
             tags: [
-              { id: "civic", text: "civic", count: 4, pm_count: 0 },
-              { id: "accord", text: "accord", count: 2, pm_count: 0 },
+              {
+                id: "civic",
+                name: "civic",
+                text: "civic",
+                count: 4,
+                pm_only: false,
+              },
+              {
+                id: "accord",
+                name: "accord",
+                text: "accord",
+                count: 2,
+                pm_only: false,
+              },
             ],
           },
           {
             id: 1,
             name: "Makes",
             tags: [
-              { id: "ford", text: "ford", count: 5, pm_count: 0 },
-              { id: "honda", text: "honda", count: 6, pm_count: 0 },
+              {
+                id: "ford",
+                name: "ford",
+                text: "ford",
+                count: 5,
+                pm_only: false,
+              },
+              {
+                id: "honda",
+                name: "honda",
+                text: "honda",
+                count: 6,
+                pm_only: false,
+              },
             ],
           },
         ],
@@ -132,8 +190,28 @@ export function applyDefaultHandlers(pretender) {
 
   pretender.delete("/bookmarks/:id", () => response({}));
 
-  pretender.get("/tags/filter/search", () => {
-    return response({ results: [{ text: "monkey", count: 1 }] });
+  pretender.get("/tags/filter/search", (request) => {
+    const responseBody = {
+      results: [
+        { id: "monkey", name: "monkey", count: 1 },
+        { id: "gazelle", name: "gazelle", count: 2 },
+        { id: "dog", name: "dog", count: 3 },
+        { id: "cat", name: "cat", count: 4 },
+      ],
+    };
+
+    if (
+      request.queryParams.categoryId === "1" &&
+      request.queryParams.q === "" &&
+      !request.queryParams.selected_tags.includes("monkey")
+    ) {
+      responseBody["required_tag_group"] = {
+        name: "monkey group",
+        min_count: 1,
+      };
+    }
+
+    return response(responseBody);
   });
 
   pretender.get(`/u/:username/emails.json`, (request) => {
@@ -149,17 +227,18 @@ export function applyDefaultHandlers(pretender) {
     return response({ email: "eviltrout@example.com" });
   });
 
-  pretender.get("/u/is_local_username", () =>
+  pretender.get("/composer/mentions", () =>
     response({
-      valid: [],
-      valid_groups: [],
-      mentionable_groups: [],
-      cannot_see: [],
+      users: [],
+      user_reasons: {},
+      groups: {},
+      group_reasons: {},
+      max_users_notified_per_group_mention: 100,
     })
   );
 
   pretender.get("/u/eviltrout.json", () => {
-    const json = fixturesByUrl["/u/eviltrout.json"];
+    const json = cloneJSON(fixturesByUrl["/u/eviltrout.json"]);
     json.user.can_edit = loggedIn();
     return response(json);
   });
@@ -195,7 +274,40 @@ export function applyDefaultHandlers(pretender) {
 
   pretender.get("/u/eviltrout/invited.json", () => {
     return response({
-      invites: [],
+      invites: [
+        {
+          id: 8,
+          invite_key: "hMFT8G1oKP",
+          link: "http://localhost:3000/invites/hMFT8G1oKP",
+          email: "steak@cat.com",
+          domain: null,
+          emailed: false,
+          can_delete_invite: true,
+          custom_message: null,
+          created_at: "2023-06-01T04:47:13.195Z",
+          updated_at: "2023-06-01T04:47:13.195Z",
+          expires_at: "2023-08-30T04:47:00.000Z",
+          expired: false,
+          topics: [],
+          groups: [],
+        },
+        {
+          id: 9,
+          invite_key: "hMFT8G1WHA",
+          link: "http://localhost:3000/invites/hMFT8G1WHA",
+          email: "tomtom@cat.com",
+          domain: null,
+          emailed: false,
+          can_delete_invite: false,
+          custom_message: null,
+          created_at: "2023-06-01T04:47:13.195Z",
+          updated_at: "2023-06-01T04:47:13.195Z",
+          expires_at: "2023-08-30T04:47:00.000Z",
+          expired: false,
+          topics: [],
+          groups: [],
+        },
+      ],
       can_see_invite_details: true,
       counts: {
         pending: 0,
@@ -206,8 +318,18 @@ export function applyDefaultHandlers(pretender) {
     });
   });
 
-  pretender.get("/topics/private-messages/eviltrout.json", () => {
-    return response(fixturesByUrl["/topics/private-messages/eviltrout.json"]);
+  [
+    "/topics/private-messages-all/:username.json",
+    "/topics/private-messages/:username.json",
+    "/topics/private-messages-warnings/eviltrout.json",
+  ].forEach((url) => {
+    pretender.get(url, () => {
+      return response(fixturesByUrl["/topics/private-messages/eviltrout.json"]);
+    });
+  });
+
+  pretender.get("/u/:username/private-message-topic-tracking-state", () => {
+    return response([]);
   });
 
   pretender.get("/topics/feature_stats.json", () => {
@@ -238,10 +360,17 @@ export function applyDefaultHandlers(pretender) {
   pretender.get("/search", (request) => {
     if (request.queryParams.q === "discourse") {
       return response(fixturesByUrl["/search.json"]);
-    } else if (request.queryParams.q === "discourse in:personal") {
-      const fixtures = fixturesByUrl["/search.json"];
-      fixtures.topics.firstObject.archetype = "private_message";
-      return response(fixtures);
+    } else if (request.queryParams.q === "discourse visited") {
+      const obj = JSON.parse(JSON.stringify(fixturesByUrl["/search.json"]));
+      obj.topics.firstObject.last_read_post_number = 1;
+      return response(obj);
+    } else if (
+      request.queryParams.q === "discourse in:personal" ||
+      request.queryParams.q === "discourse in:messages"
+    ) {
+      const obj = JSON.parse(JSON.stringify(fixturesByUrl["/search.json"]));
+      obj.topics.firstObject.archetype = "private_message";
+      return response(obj);
     } else {
       return response({});
     }
@@ -265,10 +394,13 @@ export function applyDefaultHandlers(pretender) {
   pretender.get("/t/2480.json", () =>
     response(fixturesByUrl["/t/2480/1.json"])
   );
+  pretender.get("/t/2481.json", () =>
+    response(fixturesByUrl["/t/2481/1.json"])
+  );
 
   pretender.get("/t/id_for/:slug", () => {
     return response({
-      id: 280,
+      topic_id: 280,
       slug: "internationalization-localization",
       url: "/t/internationalization-localization/280",
     });
@@ -280,8 +412,8 @@ export function applyDefaultHandlers(pretender) {
 
   pretender.get("/permalink-check.json", () => response({ found: false }));
 
-  pretender.delete("/draft.json", success);
-  pretender.post("/draft.json", success);
+  pretender.delete("/drafts/:draft_key.json", success);
+  pretender.post("/drafts.json", success);
 
   pretender.get("/u/:username/staff-info.json", () => response({}));
 
@@ -298,18 +430,8 @@ export function applyDefaultHandlers(pretender) {
     });
   });
 
-  // TODO: Remove this old path when no longer using old ember
-  pretender.get("/post_replies", () => {
-    return response({ post_replies: [{ id: 1234, cooked: "wat" }] });
-  });
-
   pretender.get("/posts/:id/replies", () => {
-    return response([{ id: 1234, cooked: "wat" }]);
-  });
-
-  // TODO: Remove this old path when no longer using old ember
-  pretender.get("/post_reply_histories", () => {
-    return response({ post_reply_histories: [{ id: 1234, cooked: "wat" }] });
+    return response([{ id: 1234, cooked: "wat", username: "somebody" }]);
   });
 
   pretender.get("/posts/:id/reply-history", () => {
@@ -328,8 +450,12 @@ export function applyDefaultHandlers(pretender) {
     response(fixturesByUrl["/c/1/show.json"])
   );
 
+  pretender.get("/c/restricted-group/find_by_slug.json", () =>
+    response(fixturesByUrl["/c/2481/show.json"])
+  );
+
   pretender.put("/categories/:category_id", (request) => {
-    const category = parsePostData(request.requestBody);
+    const category = JSON.parse(request.requestBody);
     category.id = parseInt(request.params.category_id, 10);
 
     if (category.email_in === "duplicate@example.com") {
@@ -347,19 +473,11 @@ export function applyDefaultHandlers(pretender) {
     response(fixturesByUrl["/c/11/show.json"])
   );
 
-  pretender.get("/draft.json", (request) => {
-    if (request.queryParams.draft_key === "new_topic") {
-      return response(fixturesByUrl["/draft.json"]);
-    } else if (request.queryParams.draft_key.startsWith("topic_")) {
-      return response(
-        fixturesByUrl[request.url] || {
-          draft: null,
-          draft_sequence: 0,
-        }
-      );
-    }
-    return response({});
-  });
+  pretender.get("/drafts.json", () => response(fixturesByUrl["/drafts.json"]));
+
+  pretender.get("/drafts/:draft_key.json", (request) =>
+    response(fixturesByUrl[request.url] || { draft: null, draft_sequence: 0 })
+  );
 
   pretender.get("/drafts.json", () => response(fixturesByUrl["/drafts.json"]));
 
@@ -475,11 +593,13 @@ export function applyDefaultHandlers(pretender) {
   pretender.put("/posts/:post_id/recover", success);
   pretender.get("/posts/:post_id/expand-embed", success);
 
-  pretender.put("/posts/:post_id", (request) => {
+  pretender.put("/posts/:post_id", async (request) => {
     const data = parsePostData(request.requestBody);
+
     if (data.post.raw === "this will 409") {
       return response(409, { errors: ["edit conflict"] });
     }
+
     data.post.id = request.params.post_id;
     data.post.version = 2;
     return response(200, data.post);
@@ -490,9 +610,8 @@ export function applyDefaultHandlers(pretender) {
   pretender.get("/t/500.json", () => response(502, {}));
 
   pretender.put("/t/:slug/:id", (request) => {
-    const isJSON = request.requestHeaders["Content-Type"].includes(
-      "application/json"
-    );
+    const isJSON =
+      request.requestHeaders["Content-Type"].includes("application/json");
 
     const data = isJSON
       ? JSON.parse(request.requestBody)
@@ -576,6 +695,9 @@ export function applyDefaultHandlers(pretender) {
     response(200, fixturesByUrl["/user_badges"])
   );
   pretender.delete("/user_badges/:badge_id", success);
+  pretender.put("/user_badges/:id/toggle_favorite", () =>
+    response(200, { user_badge: { is_favorite: true } })
+  );
 
   pretender.post("/posts", function (request) {
     const data = parsePostData(request.requestBody);
@@ -595,7 +717,7 @@ export function applyDefaultHandlers(pretender) {
       });
     }
 
-    if (data.raw === "custom message") {
+    if (data.raw === "custom message that is a good length") {
       return response(200, {
         success: true,
         action: "custom",
@@ -637,6 +759,12 @@ export function applyDefaultHandlers(pretender) {
         email: "<small>discobot_email</small>",
       },
     ];
+
+    if (request.queryParams.filter) {
+      store = store.filter((user) =>
+        user.username.includes(request.queryParams.filter)
+      );
+    }
 
     const showEmails = request.queryParams.show_emails;
 
@@ -731,6 +859,7 @@ export function applyDefaultHandlers(pretender) {
       username: "eviltrout",
       email: "eviltrout@example.com",
       admin: true,
+      post_edits_count: 6,
     });
   });
 
@@ -786,6 +915,7 @@ export function applyDefaultHandlers(pretender) {
   pretender.post("/admin/customize/watched_words.json", (request) => {
     const result = parsePostData(request.requestBody);
     result.id = new Date().getTime();
+    result.case_sensitive = result.case_sensitive === "true";
     return response(200, result);
   });
 
@@ -865,7 +995,7 @@ export function applyDefaultHandlers(pretender) {
       ];
     }
 
-    if (request.queryParams.url.indexOf("/internal-page.html") > -1) {
+    if (request.queryParams.url.includes("/internal-page.html")) {
       return [
         200,
         { "Content-Type": "application/html" },
@@ -924,4 +1054,197 @@ export function applyDefaultHandlers(pretender) {
 
     return [404, { "Content-Type": "application/html" }, ""];
   });
+
+  pretender.get("edit-directory-columns.json", () => {
+    return response(200, {
+      directory_columns: [
+        {
+          id: 1,
+          name: "likes_received",
+          type: "automatic",
+          enabled: true,
+          automatic_position: 1,
+          position: 1,
+          icon: "heart",
+          user_field: null,
+        },
+        {
+          id: 2,
+          name: "likes_given",
+          type: "automatic",
+          enabled: true,
+          automatic_position: 2,
+          position: 2,
+          icon: "heart",
+          user_field: null,
+        },
+        {
+          id: 3,
+          name: "topic_count",
+          type: "automatic",
+          enabled: true,
+          automatic_position: 3,
+          position: 3,
+          icon: null,
+          user_field: null,
+        },
+        {
+          id: 4,
+          name: "post_count",
+          type: "automatic",
+          enabled: true,
+          automatic_position: 4,
+          position: 4,
+          icon: null,
+          user_field: null,
+        },
+        {
+          id: 5,
+          name: "topics_entered",
+          type: "automatic",
+          enabled: true,
+          automatic_position: 5,
+          position: 5,
+          icon: null,
+          user_field: null,
+        },
+        {
+          id: 6,
+          name: "posts_read",
+          type: "automatic",
+          enabled: true,
+          automatic_position: 6,
+          position: 6,
+          icon: null,
+          user_field: null,
+        },
+        {
+          id: 7,
+          name: "days_visited",
+          type: "automatic",
+          enabled: true,
+          automatic_position: 7,
+          position: 7,
+          icon: null,
+          user_field: null,
+        },
+        {
+          id: 9,
+          name: "an_extra_field",
+          type: "plugin",
+          enabled: false,
+          automatic_position: null,
+          position: 8,
+          icon: null,
+          user_field: null,
+        },
+        {
+          id: 10,
+          name: null,
+          type: "user_field",
+          enabled: false,
+          automatic_position: null,
+          position: 9,
+          icon: null,
+          user_field: {
+            id: 3,
+            name: "Favorite Color",
+            description: "User's favorite color",
+            field_type: "text",
+            editable: false,
+            required: false,
+            show_on_profile: false,
+            show_on_user_card: true,
+            searchable: true,
+            position: 2,
+          },
+        },
+      ],
+    });
+  });
+
+  pretender.get("/directory-columns.json", () => {
+    return response(200, {
+      directory_columns: [
+        {
+          id: 1,
+          name: "likes_received",
+          type: "automatic",
+          position: 1,
+          icon: "heart",
+          user_field: null,
+        },
+        {
+          id: 2,
+          name: "likes_given",
+          type: "automatic",
+          position: 2,
+          icon: "heart",
+          user_field: null,
+        },
+        {
+          id: 3,
+          name: "topic_count",
+          type: "automatic",
+          position: 3,
+          icon: null,
+          user_field: null,
+        },
+        {
+          id: 4,
+          name: "post_count",
+          type: "automatic",
+          position: 4,
+          icon: null,
+          user_field: null,
+        },
+        {
+          id: 5,
+          name: "topics_entered",
+          type: "automatic",
+          position: 5,
+          icon: null,
+          user_field: null,
+        },
+        {
+          id: 6,
+          name: "posts_read",
+          type: "automatic",
+          position: 6,
+          icon: null,
+          user_field: null,
+        },
+        {
+          id: 7,
+          name: "days_visited",
+          type: "automatic",
+          position: 7,
+          icon: null,
+          user_field: null,
+        },
+        {
+          id: 9,
+          name: "Favorite Color",
+          type: "user_field",
+          position: 8,
+          icon: null,
+          user_field_id: 3,
+        },
+      ],
+    });
+  });
+
+  pretender.get("/tag_groups/filter/search", () =>
+    response(fixturesByUrl["/tag_groups/filter/search"])
+  );
+
+  pretender.get("/c/:id/visible_groups.json", () => response({ groups: [] }));
+}
+
+export function resetPretender() {
+  instance.handlers = [];
+  instance.handledRequests = [];
+  instance.unhandledRequests = [];
+  instance.passthroughRequests = [];
+  instance.hosts.registries = {};
 }

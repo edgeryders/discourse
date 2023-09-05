@@ -1,19 +1,20 @@
 # frozen_string_literal: true
 
-require_dependency 'distributed_cache'
-require_dependency 'stylesheet/compiler'
+require "distributed_cache"
+require "stylesheet/compiler"
 
-module Stylesheet; end
+module Stylesheet
+end
 
 class Stylesheet::Manager
+  BASE_COMPILER_VERSION = 1
 
-  CACHE_PATH ||= 'tmp/stylesheet-cache'
+  CACHE_PATH ||= "tmp/stylesheet-cache"
   MANIFEST_DIR ||= "#{Rails.root}/tmp/cache/assets/#{Rails.env}"
-  MANIFEST_FULL_PATH ||= "#{MANIFEST_DIR}/stylesheet-manifest"
-  THEME_REGEX ||= /_theme$/
+  THEME_REGEX ||= /_theme\z/
   COLOR_SCHEME_STYLESHEET ||= "color_definitions"
 
-  @lock = Mutex.new
+  @@lock = Mutex.new
 
   def self.cache
     @cache ||= DistributedCache.new("discourse_stylesheet")
@@ -28,421 +29,364 @@ class Stylesheet::Manager
   end
 
   def self.clear_core_cache!(targets)
-    cache.hash.keys.select { |k| k =~ /#{targets.join('|')}/ }.each { |k| cache.delete(k) }
+    cache.hash.keys.select { |k| k =~ /#{targets.join("|")}/ }.each { |k| cache.delete(k) }
   end
 
   def self.clear_plugin_cache!(plugin)
     cache.hash.keys.select { |k| k =~ /#{plugin}/ }.each { |k| cache.delete(k) }
   end
 
-  def self.stylesheet_data(target = :desktop, theme_ids = :missing)
-    stylesheet_details(target, "all", theme_ids)
-  end
-
-  def self.stylesheet_link_tag(target = :desktop, media = 'all', theme_ids = :missing)
-    stylesheets = stylesheet_details(target, media, theme_ids)
-    stylesheets.map do |stylesheet|
-      href = stylesheet[:new_href]
-      theme_id = stylesheet[:theme_id]
-      data_theme_id = theme_id ? "data-theme-id=\"#{theme_id}\"" : ""
-      %[<link href="#{href}" media="#{media}" rel="stylesheet" data-target="#{target}" #{data_theme_id}/>]
-    end.join("\n").html_safe
-  end
-
-  def self.stylesheet_details(target = :desktop, media = 'all', theme_ids = :missing)
-    if theme_ids == :missing
-      theme_ids = [SiteSetting.default_theme_id]
-    end
-
-    target = target.to_sym
-
-    theme_ids = [theme_ids] unless Array === theme_ids
-    theme_ids = [theme_ids.first] unless target =~ THEME_REGEX
-    include_components = !!(target =~ THEME_REGEX)
-
-    theme_ids = Theme.transform_ids(theme_ids, extend: include_components)
-
-    current_hostname = Discourse.current_hostname
-
-    array_cache_key = "array_themes_#{theme_ids.join(",")}_#{target}_#{current_hostname}"
-    stylesheets = cache[array_cache_key]
-    return stylesheets if stylesheets.present?
-
-    @lock.synchronize do
-      stylesheets = []
-      theme_ids.each do |theme_id|
-        data = { target: target }
-        cache_key = "path_#{target}_#{theme_id}_#{current_hostname}"
-        href = cache[cache_key]
-
-        unless href
-          builder = self.new(target, theme_id)
-          is_theme = builder.is_theme?
-          has_theme = builder.theme.present?
-
-          if is_theme && !has_theme
-            next
-          else
-            next if builder.theme&.component && !builder.theme&.has_scss(target)
-            data[:theme_id] = builder.theme.id if has_theme && is_theme
-            builder.compile unless File.exists?(builder.stylesheet_fullpath)
-            href = builder.stylesheet_path(current_hostname)
-          end
-          cache[cache_key] = href
-        end
-
-        data[:theme_id] = theme_id if theme_id.present? && data[:theme_id].blank?
-        data[:new_href] = href
-        stylesheets << data
-      end
-      cache[array_cache_key] = stylesheets.freeze
-      stylesheets
-    end
-  end
-
-  def self.color_scheme_stylesheet_details(color_scheme_id = nil, media, theme_id)
-    theme_id = theme_id || SiteSetting.default_theme_id
-
-    color_scheme = begin
-      ColorScheme.find(color_scheme_id)
-    rescue
-      # don't load fallback when requesting dark color scheme
-      return false if media != "all"
-
-      Theme.find_by_id(theme_id)&.color_scheme || ColorScheme.base
-    end
-
-    return false if !color_scheme
-
-    target = COLOR_SCHEME_STYLESHEET.to_sym
-    current_hostname = Discourse.current_hostname
-    cache_key = color_scheme_cache_key(color_scheme, theme_id)
-    stylesheets = cache[cache_key]
-    return stylesheets if stylesheets.present?
-
-    stylesheet = { color_scheme_id: color_scheme&.id }
-
-    builder = self.new(target, theme_id, color_scheme)
-
-    builder.compile unless File.exists?(builder.stylesheet_fullpath)
-
-    href = builder.stylesheet_path(current_hostname)
-    stylesheet[:new_href] = href
-    cache[cache_key] = stylesheet.freeze
-    stylesheet
-  end
-
-  def self.color_scheme_stylesheet_link_tag(color_scheme_id = nil, media = 'all', theme_ids = nil)
-    theme_id = theme_ids&.first
-    stylesheet = color_scheme_stylesheet_details(color_scheme_id, media, theme_id)
-    return '' if !stylesheet
-
-    href = stylesheet[:new_href]
-
-    css_class = media == 'all' ? "light-scheme" : "dark-scheme"
-
-    %[<link href="#{href}" media="#{media}" rel="stylesheet" class="#{css_class}"/>].html_safe
-  end
-
   def self.color_scheme_cache_key(color_scheme, theme_id = nil)
     color_scheme_name = Slug.for(color_scheme.name) + color_scheme&.id.to_s
     theme_string = theme_id ? "_theme#{theme_id}" : ""
-    "#{COLOR_SCHEME_STYLESHEET}_#{color_scheme_name}#{theme_string}_#{Discourse.current_hostname}"
+    "#{COLOR_SCHEME_STYLESHEET}_#{color_scheme_name}_#{theme_string}_#{Discourse.current_hostname}"
   end
 
   def self.precompile_css
-    themes = Theme.where('user_selectable OR id = ?', SiteSetting.default_theme_id).pluck(:id, :name, :color_scheme_id)
-    themes << nil
+    targets = %i[desktop mobile admin wizard desktop_rtl mobile_rtl admin_rtl wizard_rtl]
+
+    targets +=
+      Discourse.find_plugin_css_assets(
+        include_disabled: true,
+        mobile_view: true,
+        desktop_view: true,
+      )
+    targets +=
+      Discourse.find_plugin_css_assets(
+        include_disabled: true,
+        mobile_view: true,
+        desktop_view: true,
+        rtl: true,
+      )
+
+    targets.each do |target|
+      $stderr.puts "precompile target: #{target}"
+
+      Stylesheet::Manager::Builder.new(target: target, manager: nil).compile(force: true)
+    end
+  end
+
+  def self.precompile_theme_css
+    themes =
+      Theme.where("user_selectable OR id = ?", SiteSetting.default_theme_id).pluck(
+        :id,
+        :color_scheme_id,
+      )
 
     color_schemes = ColorScheme.where(user_selectable: true).to_a
     color_schemes << ColorScheme.find_by(id: SiteSetting.default_dark_mode_color_scheme_id)
+    color_schemes << ColorScheme.base
     color_schemes = color_schemes.compact.uniq
 
-    targets = [:desktop, :mobile, :desktop_rtl, :mobile_rtl, :desktop_theme, :mobile_theme, :admin, :wizard]
-    targets += Discourse.find_plugin_css_assets(include_disabled: true, mobile_view: true, desktop_view: true)
+    targets = %i[desktop_theme mobile_theme]
+    compiled = Set.new
 
-    themes.each do |id, name, color_scheme_id|
+    themes.each do |theme_id, color_scheme_id|
+      manager = self.new(theme_id: theme_id)
+
       targets.each do |target|
-        theme_id = id || SiteSetting.default_theme_id
-        next if target =~ THEME_REGEX && theme_id == -1
-        cache_key = "#{target}_#{theme_id}"
+        next if theme_id == -1
 
-        STDERR.puts "precompile target: #{target} #{name}"
-        builder = self.new(target, theme_id)
-        builder.compile(force: true)
-        cache[cache_key] = nil
+        scss_checker = ScssChecker.new(target, manager.theme_ids)
+
+        manager
+          .load_themes(manager.theme_ids)
+          .each do |theme|
+            next if compiled.include?("#{target}_#{theme.id}")
+
+            builder =
+              Stylesheet::Manager::Builder.new(target: target, theme: theme, manager: manager)
+
+            next if theme.component && !scss_checker.has_scss(theme.id)
+            $stderr.puts "precompile target: #{target} #{theme.name}"
+            builder.compile(force: true)
+            compiled << "#{target}_#{theme.id}"
+          end
       end
 
-      theme_color_scheme = ColorScheme.find_by_id(color_scheme_id) || ColorScheme.base
+      theme_color_scheme = ColorScheme.find_by_id(color_scheme_id)
+      theme = manager.get_theme(theme_id)
 
-      [theme_color_scheme, *color_schemes].uniq.each do |scheme|
-        STDERR.puts "precompile target: #{COLOR_SCHEME_STYLESHEET} #{name} (#{scheme.name})"
+      [theme_color_scheme, *color_schemes].compact.uniq.each do |scheme|
+        $stderr.puts "precompile target: #{COLOR_SCHEME_STYLESHEET} #{theme.name} (#{scheme.name})"
 
-        builder = self.new(COLOR_SCHEME_STYLESHEET, id, scheme)
-        builder.compile(force: true)
+        Stylesheet::Manager::Builder.new(
+          target: COLOR_SCHEME_STYLESHEET,
+          theme: theme,
+          color_scheme: scheme,
+          manager: manager,
+        ).compile(force: true)
       end
+
       clear_color_scheme_cache!
     end
 
     nil
   end
 
-  def self.last_file_updated
-    if Rails.env.production?
-      @last_file_updated ||= if File.exists?(MANIFEST_FULL_PATH)
-        File.readlines(MANIFEST_FULL_PATH, 'r')[0]
-      else
-        mtime = max_file_mtime
-        FileUtils.mkdir_p(MANIFEST_DIR)
-        File.open(MANIFEST_FULL_PATH, "w") { |f| f.print(mtime) }
-        mtime
-      end
+  def self.fs_asset_cachebuster
+    if use_file_hash_for_cachebuster?
+      @cachebuster ||=
+        if File.exist?(manifest_full_path)
+          File.readlines(manifest_full_path, "r")[0]
+        else
+          cachebuster = "#{BASE_COMPILER_VERSION}:#{fs_assets_hash}"
+          FileUtils.mkdir_p(MANIFEST_DIR)
+          File.open(manifest_full_path, "w") { |f| f.print(cachebuster) }
+          cachebuster
+        end
     else
-      max_file_mtime
+      "#{BASE_COMPILER_VERSION}:#{max_file_mtime}"
     end
   end
 
-  def self.max_file_mtime
-    globs = ["#{Rails.root}/app/assets/stylesheets/**/*.*css",
-             "#{Rails.root}/app/assets/images/**/*.*"]
+  def self.recalculate_fs_asset_cachebuster!
+    File.delete(manifest_full_path) if File.exist?(manifest_full_path)
+    @cachebuster = nil
+    fs_asset_cachebuster
+  end
 
-    Discourse.plugins.map { |plugin| File.dirname(plugin.path) }.each do |path|
+  def self.manifest_full_path
+    path = "#{MANIFEST_DIR}/stylesheet-manifest"
+    return path if !Rails.env.test?
+    "#{path}-test_#{ENV["TEST_ENV_NUMBER"].presence || "0"}"
+  end
+  private_class_method :manifest_full_path
+
+  def self.use_file_hash_for_cachebuster?
+    Rails.env.production?
+  end
+  private_class_method :use_file_hash_for_cachebuster?
+
+  def self.list_files
+    globs = [
+      "#{Rails.root}/app/assets/stylesheets/**/*.*css",
+      "#{Rails.root}/app/assets/images/**/*.*",
+    ]
+
+    Discourse.plugins.each do |plugin|
+      path = File.dirname(plugin.path)
       globs << "#{path}/plugin.rb"
       globs << "#{path}/assets/stylesheets/**/*.*css"
     end
 
-    globs.map do |pattern|
-      Dir.glob(pattern).map { |x| File.mtime(x) }.max
-    end.compact.max.to_i
+    globs.flat_map { |g| Dir.glob(g) }.compact
   end
+  private_class_method :list_files
+
+  def self.max_file_mtime
+    list_files.map { |x| File.mtime(x) }.compact.max.to_i
+  end
+  private_class_method :max_file_mtime
+
+  def self.fs_assets_hash
+    hashes = list_files.sort.map { |x| Digest::SHA1.hexdigest("#{x}: #{File.read(x)}") }
+    Digest::SHA1.hexdigest(hashes.join("|"))
+  end
+  private_class_method :fs_assets_hash
 
   def self.cache_fullpath
-    "#{Rails.root}/#{CACHE_PATH}"
+    path = "#{Rails.root}/#{CACHE_PATH}"
+    return path if !Rails.env.test?
+    File.join(path, "test_#{ENV["TEST_ENV_NUMBER"].presence || "0"}")
   end
 
-  def initialize(target = :desktop, theme_id = nil, color_scheme = nil)
-    @target = target
+  attr_reader :theme_ids
+
+  def initialize(theme_id: nil)
     @theme_id = theme_id
-    @color_scheme = color_scheme
+    @theme_ids = Theme.transform_ids(@theme_id)
+    @themes_cache = {}
   end
 
-  def compile(opts = {})
-    unless opts[:force]
-      if File.exists?(stylesheet_fullpath)
-        unless StylesheetCache.where(target: qualified_target, digest: digest).exists?
-          begin
-            source_map = begin
-              File.read(source_map_fullpath)
-            rescue Errno::ENOENT
-            end
+  def cache
+    self.class.cache
+  end
 
-            StylesheetCache.add(qualified_target, digest, File.read(stylesheet_fullpath), source_map)
-          rescue => e
-            Rails.logger.warn "Completely unexpected error adding contents of '#{stylesheet_fullpath}' to cache #{e}"
-          end
+  def get_theme(theme_id)
+    if theme = @themes_cache[theme_id]
+      theme
+    else
+      load_themes([theme_id]).first
+    end
+  end
+
+  def load_themes(theme_ids)
+    themes = []
+    to_load_theme_ids = []
+
+    theme_ids.each do |theme_id|
+      if @themes_cache[theme_id]
+        themes << @themes_cache[theme_id]
+      else
+        to_load_theme_ids << theme_id
+      end
+    end
+
+    Theme
+      .where(id: to_load_theme_ids)
+      .includes(:yaml_theme_fields, :theme_settings, :upload_fields, :builder_theme_fields)
+      .each do |theme|
+        @themes_cache[theme.id] = theme
+        themes << theme
+      end
+
+    themes
+  end
+
+  def stylesheet_data(target = :desktop)
+    stylesheet_details(target, "all")
+  end
+
+  def stylesheet_preload_tag(target = :desktop, media = "all")
+    stylesheets = stylesheet_details(target, media)
+    stylesheets
+      .map do |stylesheet|
+        href = stylesheet[:new_href]
+        %[<link href="#{href}" rel="preload" as="style"/>]
+      end
+      .join("\n")
+      .html_safe
+  end
+
+  def stylesheet_link_tag(target = :desktop, media = "all", preload_callback = nil)
+    stylesheets = stylesheet_details(target, media)
+    stylesheets
+      .map do |stylesheet|
+        href = stylesheet[:new_href]
+        preload_callback.call(href, "style") if preload_callback
+        theme_id = stylesheet[:theme_id]
+        data_theme_id = theme_id ? "data-theme-id=\"#{theme_id}\"" : ""
+        theme_name = stylesheet[:theme_name]
+        data_theme_name = theme_name ? "data-theme-name=\"#{CGI.escapeHTML(theme_name)}\"" : ""
+        %[<link href="#{href}" media="#{media}" rel="stylesheet" data-target="#{target}" #{data_theme_id} #{data_theme_name}/>]
+      end
+      .join("\n")
+      .html_safe
+  end
+
+  def stylesheet_details(target = :desktop, media = "all")
+    target = target.to_sym
+    current_hostname = Discourse.current_hostname
+    is_theme_target = !!(target.to_s =~ THEME_REGEX)
+
+    array_cache_key =
+      (
+        if is_theme_target
+          "array_themes_#{@theme_ids.join(",")}_#{target}_#{current_hostname}"
+        else
+          "array_#{target}_#{current_hostname}"
         end
-        return true
-      end
-    end
-
-    rtl = @target.to_s =~ /_rtl$/
-    css, source_map = with_load_paths do |load_paths|
-      Stylesheet::Compiler.compile_asset(
-        @target,
-         rtl: rtl,
-         theme_id: theme&.id,
-         theme_variables: theme&.scss_variables.to_s,
-         source_map_file: source_map_filename,
-         color_scheme_id: @color_scheme&.id,
-         load_paths: load_paths
       )
-    rescue SassC::SyntaxError => e
-      if Stylesheet::Importer::THEME_TARGETS.include?(@target.to_s)
-        # no special errors for theme, handled in theme editor
-        ["", nil]
-      elsif @target.to_s == COLOR_SCHEME_STYLESHEET
-        # log error but do not crash for errors in color definitions SCSS
-        Rails.logger.error "SCSS compilation error: #{e.message}"
-        ["", nil]
+
+    stylesheets = cache[array_cache_key]
+    return stylesheets if stylesheets.present?
+
+    @@lock.synchronize do
+      stylesheets = []
+
+      if is_theme_target
+        scss_checker = ScssChecker.new(target, @theme_ids)
+        themes = load_themes(@theme_ids)
+        themes.each do |theme|
+          theme_id = theme&.id
+          data = {
+            target: target,
+            theme_id: theme_id,
+            theme_name: theme&.name.downcase,
+            remote: theme.remote_theme_id?,
+          }
+          builder = Builder.new(target: target, theme: theme, manager: self)
+
+          next if builder.theme&.component && !scss_checker.has_scss(theme_id)
+          builder.compile unless File.exist?(builder.stylesheet_fullpath)
+          href = builder.stylesheet_absolute_url
+
+          data[:new_href] = href
+          stylesheets << data
+        end
+
+        if stylesheets.size > 1
+          stylesheets =
+            stylesheets.sort_by do |s|
+              [s[:remote] ? 0 : 1, s[:theme_id] == @theme_id ? 1 : 0, s[:theme_name]]
+            end
+        end
       else
-        raise Discourse::ScssError, e.message
-      end
-    end
+        builder = Builder.new(target: target, manager: self)
+        builder.compile unless File.exist?(builder.stylesheet_fullpath)
+        href = builder.stylesheet_absolute_url
 
-    FileUtils.mkdir_p(cache_fullpath)
-
-    File.open(stylesheet_fullpath, "w") do |f|
-      f.puts css
-    end
-
-    if source_map.present?
-      File.open(source_map_fullpath, "w") do |f|
-        f.puts source_map
-      end
-    end
-
-    begin
-      StylesheetCache.add(qualified_target, digest, css, source_map)
-    rescue => e
-      Rails.logger.warn "Completely unexpected error adding item to cache #{e}"
-    end
-    css
-  end
-
-  def cache_fullpath
-    self.class.cache_fullpath
-  end
-
-  def stylesheet_fullpath
-    "#{cache_fullpath}/#{stylesheet_filename}"
-  end
-
-  def source_map_fullpath
-    "#{cache_fullpath}/#{source_map_filename}"
-  end
-
-  def source_map_filename
-    "#{stylesheet_filename}.map"
-  end
-
-  def stylesheet_fullpath_no_digest
-    "#{cache_fullpath}/#{stylesheet_filename_no_digest}"
-  end
-
-  def stylesheet_cdnpath(hostname)
-    "#{GlobalSetting.cdn_url}#{stylesheet_relpath}?__ws=#{hostname}"
-  end
-
-  def stylesheet_path(hostname)
-    stylesheet_cdnpath(hostname)
-  end
-
-  def root_path
-    "#{GlobalSetting.relative_url_root}/"
-  end
-
-  def stylesheet_relpath
-    "#{root_path}stylesheets/#{stylesheet_filename}"
-  end
-
-  def stylesheet_relpath_no_digest
-    "#{root_path}stylesheets/#{stylesheet_filename_no_digest}"
-  end
-
-  def qualified_target
-    if is_theme?
-      "#{@target}_#{theme.id}"
-    elsif @color_scheme
-      "#{@target}_#{scheme_slug}_#{@color_scheme&.id.to_s}"
-    else
-      scheme_string = theme && theme.color_scheme ? "_#{theme.color_scheme.id}" : ""
-      "#{@target}#{scheme_string}"
-    end
-  end
-
-  def stylesheet_filename(with_digest = true)
-    digest_string = "_#{self.digest}" if with_digest
-    "#{qualified_target}#{digest_string}.css"
-  end
-
-  def stylesheet_filename_no_digest
-    stylesheet_filename(_with_digest = false)
-  end
-
-  def is_theme?
-    !!(@target.to_s =~ THEME_REGEX)
-  end
-
-  def scheme_slug
-    Slug.for(ActiveSupport::Inflector.transliterate(@color_scheme.name), 'scheme')
-  end
-
-  # digest encodes the things that trigger a recompile
-  def digest
-    @digest ||= begin
-      if is_theme?
-        theme_digest
-      else
-        color_scheme_digest
-      end
-    end
-  end
-
-  def theme
-    @theme ||= Theme.find_by(id: @theme_id) || :nil
-    @theme == :nil ? nil : @theme
-  end
-
-  def with_load_paths
-    if theme
-      theme.with_scss_load_paths { |p| yield p }
-    else
-      yield nil
-    end
-  end
-
-  def theme_digest
-    if [:mobile_theme, :desktop_theme].include?(@target)
-      scss_digest = theme.resolve_baked_field(:common, :scss)
-      scss_digest += theme.resolve_baked_field(@target.to_s.sub("_theme", ""), :scss)
-    elsif @target == :embedded_theme
-      scss_digest = theme.resolve_baked_field(:common, :embedded_scss)
-    else
-      raise "attempting to look up theme digest for invalid field"
-    end
-
-    Digest::SHA1.hexdigest(scss_digest.to_s + color_scheme_digest.to_s + settings_digest + plugins_digest + uploads_digest)
-  end
-
-  # this protects us from situations where new versions of a plugin removed a file
-  # old instances may still be serving CSS and not aware of the change
-  # so we could end up poisoning the cache with a bad file that can not be removed
-  def plugins_digest
-    assets = []
-    DiscoursePluginRegistry.stylesheets.each { |_, paths| assets += paths.to_a }
-    DiscoursePluginRegistry.mobile_stylesheets.each { |_, paths| assets += paths.to_a }
-    DiscoursePluginRegistry.desktop_stylesheets.each { |_, paths| assets += paths.to_a }
-    Digest::SHA1.hexdigest(assets.sort.join)
-  end
-
-  def settings_digest
-    theme_ids = Theme.components_for(@theme_id).dup
-    theme_ids << @theme_id
-
-    fields = ThemeField.where(
-      name: "yaml",
-      type_id: ThemeField.types[:yaml],
-      theme_id: theme_ids
-    ).pluck(:updated_at)
-
-    settings = ThemeSetting.where(theme_id: theme_ids).pluck(:updated_at)
-    timestamps = fields.concat(settings).map!(&:to_f).sort!.join(",")
-
-    Digest::SHA1.hexdigest(timestamps)
-  end
-
-  def uploads_digest
-    Digest::SHA1.hexdigest(ThemeField.joins(:upload).where(id: theme&.all_theme_variables).pluck(:sha1).join(","))
-  end
-
-  def color_scheme_digest
-
-    cs = @color_scheme || theme&.color_scheme
-
-    category_updated = Category.where("uploaded_background_id IS NOT NULL").pluck(:updated_at).map(&:to_i).sum
-    fonts = "#{SiteSetting.base_font}-#{SiteSetting.heading_font}"
-
-    if cs || category_updated > 0
-      theme_color_defs = theme&.resolve_baked_field(:common, :color_definitions)
-      Digest::SHA1.hexdigest "#{RailsMultisite::ConnectionManagement.current_db}-#{cs&.id}-#{cs&.version}-#{theme_color_defs}-#{Stylesheet::Manager.last_file_updated}-#{category_updated}-#{fonts}"
-    else
-      digest_string = "defaults-#{Stylesheet::Manager.last_file_updated}-#{fonts}"
-
-      if cdn_url = GlobalSetting.cdn_url
-        digest_string = "#{digest_string}-#{cdn_url}"
+        data = { target: target, new_href: href }
+        stylesheets << data
       end
 
-      Digest::SHA1.hexdigest digest_string
+      cache.defer_set(array_cache_key, stylesheets.freeze)
+      stylesheets
     end
+  end
+
+  def color_scheme_stylesheet_details(color_scheme_id = nil, media)
+    theme_id = @theme_id || SiteSetting.default_theme_id
+
+    color_scheme =
+      begin
+        ColorScheme.find(color_scheme_id)
+      rescue StandardError
+        # don't load fallback when requesting dark color scheme
+        return false if media != "all"
+
+        get_theme(theme_id)&.color_scheme || ColorScheme.base
+      end
+
+    return false if !color_scheme
+
+    target = COLOR_SCHEME_STYLESHEET.to_sym
+    current_hostname = Discourse.current_hostname
+    cache_key = self.class.color_scheme_cache_key(color_scheme, theme_id)
+    stylesheets = cache[cache_key]
+    return stylesheets if stylesheets.present?
+
+    stylesheet = { color_scheme_id: color_scheme.id }
+
+    theme = get_theme(theme_id)
+
+    builder =
+      Builder.new(
+        target: target,
+        theme: get_theme(theme_id),
+        color_scheme: color_scheme,
+        manager: self,
+      )
+
+    builder.compile unless File.exist?(builder.stylesheet_fullpath)
+
+    href = builder.stylesheet_absolute_url
+    stylesheet[:new_href] = href
+    cache.defer_set(cache_key, stylesheet.freeze)
+    stylesheet
+  end
+
+  def color_scheme_stylesheet_preload_tag(color_scheme_id = nil, media = "all")
+    stylesheet = color_scheme_stylesheet_details(color_scheme_id, media)
+
+    return "" if !stylesheet
+
+    href = stylesheet[:new_href]
+
+    %[<link href="#{href}" rel="preload" as="style"/>].html_safe
+  end
+
+  def color_scheme_stylesheet_link_tag(color_scheme_id = nil, media = "all", preload_callback = nil)
+    stylesheet = color_scheme_stylesheet_details(color_scheme_id, media)
+
+    return "" if !stylesheet
+
+    href = stylesheet[:new_href]
+    preload_callback.call(href, "style") if preload_callback
+
+    css_class = media == "all" ? "light-scheme" : "dark-scheme"
+
+    %[<link href="#{href}" media="#{media}" rel="stylesheet" class="#{css_class}"/>].html_safe
   end
 end

@@ -4,7 +4,10 @@ import userSearch, {
 } from "discourse/lib/user-search";
 import MultiSelectComponent from "select-kit/components/multi-select";
 import { computed } from "@ember/object";
+import { isPresent } from "@ember/utils";
 import { makeArray } from "discourse-common/lib/helpers";
+
+export const CUSTOM_USER_SEARCH_OPTIONS = [];
 
 export default MultiSelectComponent.extend({
   pluginApiIdentifiers: ["user-chooser"],
@@ -25,6 +28,8 @@ export default MultiSelectComponent.extend({
     allowEmails: false,
     groupMembersOf: undefined,
     excludeCurrentUser: false,
+    customSearchOptions: undefined,
+    excludedUsernames: undefined,
   },
 
   content: computed("value.[]", function () {
@@ -53,6 +58,9 @@ export default MultiSelectComponent.extend({
     filter = filter || "";
     filter = filter.replace(/^@/, "");
     const options = this.selectKit.options;
+    if (filter === "" && options?.customSearchOptions?.defaultSearchResults) {
+      return Promise.resolve(options.customSearchOptions.defaultSearchResults);
+    }
 
     // prevents doing ajax request for nothing
     const skippedSearch = skipSearch(filter, options.allowEmails);
@@ -62,6 +70,19 @@ export default MultiSelectComponent.extend({
     );
     if (skippedSearch || (filter === "" && !eagerComplete)) {
       return;
+    }
+
+    let customUserSearchOptions = {};
+    if (options.customSearchOptions && isPresent(CUSTOM_USER_SEARCH_OPTIONS)) {
+      customUserSearchOptions = CUSTOM_USER_SEARCH_OPTIONS.reduce(
+        (obj, option) => {
+          return {
+            ...obj,
+            [option]: options.customSearchOptions[option],
+          };
+        },
+        {}
+      );
     }
 
     return userSearch({
@@ -75,6 +96,8 @@ export default MultiSelectComponent.extend({
       includeMessageableGroups: options.includeMessageableGroups,
       groupMembersOf: options.groupMembersOf,
       allowEmails: options.allowEmails,
+      includeStagedUsers: this.includeStagedUsers,
+      customUserSearchOptions,
     }).then((result) => {
       if (typeof result === "string") {
         // do nothing promise probably got cancelled

@@ -1,11 +1,11 @@
+import { classNameBindings, classNames } from "@ember-decorators/component";
 import Component from "@ember/component";
 import highlightHTML from "discourse/lib/highlight-html";
-import { on } from "discourse-common/utils/decorators";
+import { on } from "@ember-decorators/object";
 
-export default Component.extend({
-  classNames: ["site-text"],
-  classNameBindings: ["siteText.overridden"],
-
+@classNames("site-text")
+@classNameBindings("siteText.overridden")
+export default class SiteTextSummary extends Component {
   @on("didInsertElement")
   highlightTerm() {
     const term = this._searchTerm();
@@ -19,12 +19,11 @@ export default Component.extend({
         }
       );
     }
-    $(this.element.querySelector(".site-text-value")).ellipsis();
-  },
+  }
 
   click() {
     this.editAction(this.siteText);
-  },
+  }
 
   _searchTerm() {
     const regex = this.searchRegex;
@@ -38,5 +37,5 @@ export default Component.extend({
     }
 
     return this.term;
-  },
-});
+  }
+}

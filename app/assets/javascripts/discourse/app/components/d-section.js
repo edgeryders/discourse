@@ -1,40 +1,47 @@
 import Component from "@ember/component";
-import { scrollTop } from "discourse/mixins/scroll-top";
+import { scheduleOnce } from "@ember/runloop";
 
-// Can add a body class from within a component, also will scroll to the top automatically.
-export default Component.extend({
-  tagName: "section",
+// Can add a body class from within a component
+export default class extends Component {
+  tagName = null;
+  pageClass = null;
+  bodyClass = null;
+  currentClasses = new Set();
 
-  didInsertElement() {
+  didReceiveAttrs() {
     this._super(...arguments);
-
-    const pageClass = this.pageClass;
-    if (pageClass) {
-      $("body").addClass(`${pageClass}-page`);
-    }
-
-    const bodyClass = this.bodyClass;
-    if (bodyClass) {
-      $("body").addClass(bodyClass);
-    }
-
-    if (this.scrollTop === "false") {
-      return;
-    }
-
-    scrollTop();
-  },
+    scheduleOnce("afterRender", this, this._updateClasses);
+  }
 
   willDestroyElement() {
     this._super(...arguments);
-    const pageClass = this.pageClass;
-    if (pageClass) {
-      $("body").removeClass(`${pageClass}-page`);
+    scheduleOnce("afterRender", this, this._removeClasses);
+  }
+
+  _updateClasses() {
+    if (this.isDestroying || this.isDestroyed) {
+      return;
     }
 
-    const bodyClass = this.bodyClass;
-    if (bodyClass) {
-      $("body").removeClass(bodyClass);
+    const desiredClasses = new Set();
+    if (this.pageClass) {
+      desiredClasses.add(`${this.pageClass}-page`);
     }
-  },
-});
+    if (this.bodyClass) {
+      for (const bodyClass of this.bodyClass.split(" ")) {
+        desiredClasses.add(bodyClass);
+      }
+    }
+
+    document.body.classList.add(...desiredClasses);
+    const removeClasses = [...this.currentClasses].filter(
+      (c) => !desiredClasses.has(c)
+    );
+    document.body.classList.remove(...removeClasses);
+    this.currentClasses = desiredClasses;
+  }
+
+  _removeClasses() {
+    document.body.classList.remove(...this.currentClasses);
+  }
+}

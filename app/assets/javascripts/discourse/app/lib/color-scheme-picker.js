@@ -1,6 +1,8 @@
 import cookie, { removeCookie } from "discourse/lib/cookie";
 import I18n from "I18n";
+import Session from "discourse/models/session";
 import { ajax } from "discourse/lib/ajax";
+import discourseLater from "discourse-common/lib/later";
 
 export function listColorSchemes(site, options = {}) {
   let schemes = site.get("user_color_schemes");
@@ -49,20 +51,20 @@ export function listColorSchemes(site, options = {}) {
 export function loadColorSchemeStylesheet(
   colorSchemeId,
   theme_id,
-  dark = false
+  darkMode = false
 ) {
   const themeId = theme_id ? `/${theme_id}` : "";
-  ajax(`/color-scheme-stylesheet/${colorSchemeId}${themeId}.json`).then(
+  return ajax(`/color-scheme-stylesheet/${colorSchemeId}${themeId}.json`).then(
     (result) => {
       if (result && result.new_href) {
-        const elementId = dark ? "cs-preview-dark" : "cs-preview-light";
+        const elementId = darkMode ? "cs-preview-dark" : "cs-preview-light";
         const existingElement = document.querySelector(`link#${elementId}`);
         if (existingElement) {
           existingElement.href = result.new_href;
         } else {
           let link = document.createElement("link");
           link.href = result.new_href;
-          link.media = dark
+          link.media = darkMode
             ? "(prefers-color-scheme: dark)"
             : "(prefers-color-scheme: light)";
           link.rel = "stylesheet";
@@ -70,19 +72,52 @@ export function loadColorSchemeStylesheet(
 
           document.body.appendChild(link);
         }
+        if (!darkMode) {
+          discourseLater(() => {
+            const schemeType = getComputedStyle(document.body).getPropertyValue(
+              "--scheme-type"
+            );
+
+            Session.currentProp(
+              "defaultColorSchemeIsDark",
+              schemeType.trim() === "dark"
+            );
+          }, 500);
+        }
       }
     }
   );
 }
 
+const COLOR_SCHEME_COOKIE_NAME = "color_scheme_id";
+const DARK_SCHEME_COOKIE_NAME = "dark_scheme_id";
+const COOKIE_EXPIRY_DAYS = 365;
+
 export function updateColorSchemeCookie(id, options = {}) {
-  const cookieName = options.dark ? "dark_scheme_id" : "color_scheme_id";
+  const cookieName = options.dark
+    ? DARK_SCHEME_COOKIE_NAME
+    : COLOR_SCHEME_COOKIE_NAME;
   if (id) {
     cookie(cookieName, id, {
       path: "/",
-      expires: 9999,
+      expires: COOKIE_EXPIRY_DAYS,
     });
   } else {
-    removeCookie(cookieName, { path: "/", expires: 1 });
+    removeCookie(cookieName, { path: "/" });
+  }
+}
+
+export function extendColorSchemeCookies() {
+  for (const cookieName of [
+    COLOR_SCHEME_COOKIE_NAME,
+    DARK_SCHEME_COOKIE_NAME,
+  ]) {
+    const currentValue = cookie(cookieName);
+    if (currentValue) {
+      cookie(cookieName, currentValue, {
+        path: "/",
+        expires: COOKIE_EXPIRY_DAYS,
+      });
+    }
   }
 }

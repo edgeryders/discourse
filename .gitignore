@@ -4,6 +4,7 @@
 /log
 /tmp
 
+/.bundle
 /.env
 /.procfile
 /dump.rdb
@@ -47,7 +48,8 @@ config/secrets.yml
 !/plugins/discourse-migratepassword
 !/plugins/discourse-internet-explorer
 !/plugins/discourse-unsupported-browser
-!/plugins/lazy-yt/
+!/plugins/discourse-lazy-videos/
+!/plugins/chat/
 !/plugins/poll/
 !/plugins/styleguide
 /plugins/*/auto_generated/
@@ -56,11 +58,23 @@ config/secrets.yml
 
 /vendor/bundle/*
 /vendor/data/GeoLite2-City.mmdb
+/vendor/data/GeoLite2-ASN.mmdb
+
+# We provide a .sample but people can use newer versions if they want to
+.ruby-version
+.ruby-gemset
+
+# Likewise, there is a .vscode-sample for VSCode config
+.vscode
 
 # Front-end
 dist
 node_modules
 yarn-error.log
+
+# Linting artifacts
+.eslintcache
+/lint-progress/
 
 # Auto-generated plugin JS assets
 /app/assets/javascripts/plugins/*
@@ -90,3 +104,6 @@ copyright
 # Ignore RubyMine settings which are individual for every developer.
 .idea/**/*
 
+
+# Cached License Data Files
+/.licenses

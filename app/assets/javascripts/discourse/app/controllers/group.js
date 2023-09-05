@@ -1,9 +1,10 @@
 import Controller, { inject as controller } from "@ember/controller";
 import EmberObject, { action } from "@ember/object";
 import I18n from "I18n";
-import bootbox from "bootbox";
-import deprecated from "discourse-common/lib/deprecated";
 import discourseComputed from "discourse-common/utils/decorators";
+import { capitalize } from "@ember/string";
+import { inject as service } from "@ember/service";
+import GroupDeleteDialog from "discourse/components/dialog-messages/group-delete";
 
 const Tab = EmberObject.extend({
   init() {
@@ -18,6 +19,10 @@ const Tab = EmberObject.extend({
 
 export default Controller.extend({
   application: controller(),
+  dialog: service(),
+  currentUser: service(),
+  router: service(),
+
   counts: null,
   showing: "members",
   destroying: null,
@@ -87,9 +92,17 @@ export default Controller.extend({
     return defaultTabs;
   },
 
-  @discourseComputed("model.is_group_user")
-  showMessages(isGroupUser) {
-    if (!this.siteSettings.enable_personal_messages) {
+  @discourseComputed(
+    "model.has_messages",
+    "model.is_group_user",
+    "currentUser.can_send_private_messages"
+  )
+  showMessages(hasMessages, isGroupUser) {
+    if (!this.currentUser?.can_send_private_messages) {
+      return false;
+    }
+
+    if (!hasMessages) {
       return false;
     }
 
@@ -98,22 +111,7 @@ export default Controller.extend({
 
   @discourseComputed("model.displayName", "model.full_name")
   groupName(displayName, fullName) {
-    return (fullName || displayName).capitalize();
-  },
-
-  @discourseComputed(
-    "model.name",
-    "model.flair_url",
-    "model.flair_bg_color",
-    "model.flair_color"
-  )
-  avatarFlairAttributes(groupName, flairURL, flairBgColor, flairColor) {
-    return {
-      primary_group_flair_url: flairURL,
-      primary_group_flair_bg_color: flairBgColor,
-      primary_group_flair_color: flairColor,
-      primary_group_name: groupName,
-    };
+    return capitalize(fullName || displayName);
   },
 
   @discourseComputed("model.messageable")
@@ -143,49 +141,28 @@ export default Controller.extend({
     this.set("destroying", true);
 
     const model = this.model;
-    let message = I18n.t("admin.groups.delete_confirm");
 
-    if (model.has_messages && model.message_count > 0) {
-      message = I18n.t("admin.groups.delete_with_messages_confirm", {
-        count: model.message_count,
-      });
-    }
-
-    bootbox.confirm(
-      message,
-      I18n.t("no_value"),
-      I18n.t("yes_value"),
-      (confirmed) => {
-        if (confirmed) {
-          model
-            .destroy()
-            .then(() => this.transitionToRoute("groups.index"))
-            .catch((error) => {
-              // eslint-disable-next-line no-console
-              console.error(error);
-              bootbox.alert(I18n.t("admin.groups.delete_failed"));
-            })
-            .finally(() => this.set("destroying", false));
-        } else {
-          this.set("destroying", false);
-        }
-      }
-    );
+    this.dialog.deleteConfirm({
+      title: I18n.t("admin.groups.delete_confirm", { group: model.name }),
+      bodyComponent: GroupDeleteDialog,
+      bodyComponentModel: model,
+      didConfirm: () => {
+        model
+          .destroy()
+          .then(() => this.router.transitionTo("groups.index"))
+          .catch((error) => {
+            // eslint-disable-next-line no-console
+            console.error(error);
+            this.dialog.alert(I18n.t("admin.groups.delete_failed"));
+          })
+          .finally(() => this.set("destroying", false));
+      },
+      didCancel: () => this.set("destroying", false),
+    });
   },
 
   @action
   toggleDeleteTooltip() {
     this.toggleProperty("showTooltip");
-  },
-
-  actions: {
-    destroy() {
-      deprecated("Use `destroyGroup` action instead of `destroy`.", {
-        since: "2.5.0",
-        dropFrom: "2.6.0",
-      });
-
-      this.destroyGroup();
-    },
   },
 });

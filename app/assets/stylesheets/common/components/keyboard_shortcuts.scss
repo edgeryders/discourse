@@ -15,6 +15,10 @@
   box-shadow: -3px 0 0 var(--danger);
 }
 
+.tabLoc:focus {
+  outline: none;
+}
+
 .latest .featured-topic {
   padding-left: 4px;
 }
@@ -23,25 +27,49 @@
   background-color: inherit;
 }
 
-.keyboard-shortcuts-modal .modal-body {
-  max-height: 560px;
+.keyboard-shortcuts-modal {
+  .modal-inner-container {
+    width: 100%;
+    --modal-max-width: 80vw;
+  }
 }
 
-.keyboard-shortcuts-modal .modal-inner-container {
-  max-width: 880px;
+.modal-body:has(#keyboard-shortcuts-help) {
+  overflow-y: hidden;
 }
 
 #keyboard-shortcuts-help {
-  display: flex;
+  box-sizing: border-box;
+  overflow-x: hidden;
+  overflow-y: auto;
+  max-height: 80vh !important; // overrides a default modal !important for extra space
 
-  .column {
-    width: 33.3%;
+  .keyboard-shortcuts-help__container {
+    columns: auto 20em;
+    section {
+      display: inline-block;
+      margin-bottom: 1.5em;
+      width: 100%;
+    }
+  }
+
+  &:focus {
+    outline: none;
+  }
+
+  kbd:first-child {
+    margin-left: 0;
+  }
+
+  @for $i from 1 through 25 {
+    .span-#{$i} {
+      grid-row-end: span $i;
+    }
   }
 
   ul {
     list-style: none;
-    margin-bottom: 2rem;
-    margin-left: 0;
+    margin: 0;
 
     li {
       align-items: center;
@@ -51,7 +79,6 @@
     }
 
     span {
-      background: var(--primary-very-low);
       border-radius: 3px;
       display: inline-flex;
       margin: 0 6px;
@@ -63,7 +90,7 @@
     }
 
     kbd {
-      font-family: $base-font-family;
+      font-family: var(--font-family);
       font-weight: bold;
     }
   }

@@ -1,12 +1,12 @@
 # frozen_string_literal: true
 
-require "read_only_header"
+require "read_only_mixin"
 
 class ForumsController < ActionController::Base
-  include ReadOnlyHeader
+  include ReadOnlyMixin
 
   before_action :check_readonly_mode
-  after_action  :add_readonly_header
+  after_action :add_readonly_header
 
   def status
     if params[:cluster]
@@ -17,11 +17,6 @@ class ForumsController < ActionController::Base
       end
     end
 
-    if $shutdown # rubocop:disable Style/GlobalVars
-      render plain: "shutting down", status: (params[:shutdown_ok] ? 200 : 500)
-    else
-      render plain: "ok"
-    end
+    render plain: "ok"
   end
-
 end

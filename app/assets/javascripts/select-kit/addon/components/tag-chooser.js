@@ -15,7 +15,11 @@ export default MultiSelectComponent.extend(TagsMixin, {
     maximum: "maximumTagCount",
   },
 
-  modifyComponentForRow() {
+  modifyComponentForRow(collection, item) {
+    if (this.getValue(item) === this.selectKit.filter && !item.count) {
+      return "select-kit/select-kit-row";
+    }
+
     return "tag-chooser-row";
   },
 
@@ -36,7 +40,7 @@ export default MultiSelectComponent.extend(TagsMixin, {
         return parseInt(
           this.options.limit ||
             this.options.maximum ||
-            this.get("siteSettings.max_tags_per_topic"),
+            this.siteSettings.max_tags_per_topic,
           10
         );
       }
@@ -80,7 +84,7 @@ export default MultiSelectComponent.extend(TagsMixin, {
 
     const data = {
       q: query,
-      limit: this.get("siteSettings.max_tag_search_results"),
+      limit: this.siteSettings.max_tag_search_results,
       categoryId: this.categoryId,
     };
 
@@ -105,6 +109,10 @@ export default MultiSelectComponent.extend(TagsMixin, {
   },
 
   _transformJson(context, json) {
+    if (context.isDestroyed || context.isDestroying) {
+      return [];
+    }
+
     let results = json.results;
 
     context.setProperties({
@@ -118,12 +126,10 @@ export default MultiSelectComponent.extend(TagsMixin, {
       });
     }
 
-    if (context.get("siteSettings.tags_sort_alphabetically")) {
+    if (context.siteSettings.tags_sort_alphabetically) {
       results = results.sort((a, b) => a.id > b.id);
     }
 
-    return results.uniqBy("text").map((result) => {
-      return { id: result.text, name: result.text, count: result.count };
-    });
+    return results.uniqBy("id");
   },
 });

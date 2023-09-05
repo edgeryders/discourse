@@ -1,12 +1,13 @@
 import { alias, not } from "@ember/object/computed";
-import discourseComputed, { observes } from "discourse-common/utils/decorators";
+import discourseComputed, {
+  bind,
+  observes,
+} from "discourse-common/utils/decorators";
 import Component from "@ember/component";
 
 export default Component.extend({
   loadingMore: alias("topicList.loadingMore"),
   loading: not("loaded"),
-
-  hideMobileAvatar: true,
 
   @discourseComputed("topicList.loaded")
   loaded() {
@@ -19,7 +20,7 @@ export default Component.extend({
   },
 
   @observes("topicList.[]")
-  _topicListChanged: function () {
+  _topicListChanged() {
     this._initFromTopicList(this.topicList);
   },
 
@@ -42,22 +43,11 @@ export default Component.extend({
     this._super(...arguments);
 
     this.topics.forEach((topic) => {
-      const includeUnreadIndicator =
-        typeof topic.unread_by_group_member !== "undefined";
-
-      if (includeUnreadIndicator) {
-        const unreadIndicatorChannel = `/private-messages/unread-indicator/${topic.id}`;
-        this.messageBus.subscribe(unreadIndicatorChannel, (data) => {
-          const nodeClassList = document.querySelector(
-            `.indicator-topic-${data.topic_id}`
-          ).classList;
-
-          if (data.show_indicator) {
-            nodeClassList.remove("read");
-          } else {
-            nodeClassList.add("read");
-          }
-        });
+      if (typeof topic.unread_by_group_member !== "undefined") {
+        this.messageBus.subscribe(
+          `/private-messages/unread-indicator/${topic.id}`,
+          this.onMessage
+        );
       }
     });
   },
@@ -65,15 +55,19 @@ export default Component.extend({
   willDestroyElement() {
     this._super(...arguments);
 
-    this.topics.forEach((topic) => {
-      const includeUnreadIndicator =
-        typeof topic.unread_by_group_member !== "undefined";
+    this.messageBus.unsubscribe(
+      "/private-messages/unread-indicator/*",
+      this.onMessage
+    );
+  },
 
-      if (includeUnreadIndicator) {
-        const unreadIndicatorChannel = `/private-messages/unread-indicator/${topic.id}`;
-        this.messageBus.unsubscribe(unreadIndicatorChannel);
-      }
-    });
+  @bind
+  onMessage(data) {
+    const nodeClassList = document.querySelector(
+      `.indicator-topic-${data.topic_id}`
+    ).classList;
+
+    nodeClassList.toggle("read", !data.show_indicator);
   },
 
   @discourseComputed("topics")

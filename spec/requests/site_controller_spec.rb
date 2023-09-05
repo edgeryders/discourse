@@ -1,10 +1,8 @@
 # frozen_string_literal: true
 
-require 'rails_helper'
-
-describe SiteController do
-  describe '#basic_info' do
-    it 'is visible always even for sites requiring login' do
+RSpec.describe SiteController do
+  describe "#basic_info" do
+    it "is visible always even for sites requiring login" do
       upload = Fabricate(:upload)
 
       SiteSetting.login_required = true
@@ -29,11 +27,12 @@ describe SiteController do
       expect(json["mobile_logo_url"]).to eq(expected_url)
       expect(json["header_primary_color"]).to eq("333333")
       expect(json["header_background_color"]).to eq("ffffff")
+      expect(json["login_required"]).to eq(true)
     end
   end
 
-  describe '#statistics' do
-    it 'is visible for sites requiring login' do
+  describe "#statistics" do
+    it "is visible for sites requiring login" do
       SiteSetting.login_required = true
       SiteSetting.share_anonymized_statistics = true
 
@@ -57,11 +56,11 @@ describe SiteController do
       expect(json["likes_30_days"]).to be_present
     end
 
-    it 'is not visible if site setting share_anonymized_statistics is disabled' do
+    it "is not visible if site setting share_anonymized_statistics is disabled" do
       SiteSetting.share_anonymized_statistics = false
 
       get "/site/statistics.json"
-      expect(response).to redirect_to '/'
+      expect(response).to redirect_to "/"
     end
   end
 end

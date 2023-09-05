@@ -1,15 +1,22 @@
 # frozen_string_literal: true
 
 module FileStore
+  class DownloadError < StandardError
+  end
 
   class BaseStore
+    UPLOAD_PATH_REGEX ||= %r{/(original/\d+X/.*)}
+    OPTIMIZED_IMAGE_PATH_REGEX ||= %r{/(optimized/\d+X/.*)}
+    TEMPORARY_UPLOAD_PREFIX ||= "temp/"
 
     def store_upload(file, upload, content_type = nil)
+      upload.url = nil
       path = get_path_for_upload(upload)
       store_file(file, path)
     end
 
     def store_optimized_image(file, optimized_image, content_type = nil, secure: false)
+      optimized_image.url = nil
       path = get_path_for_optimized_image(optimized_image)
       store_file(file, path)
     end
@@ -33,7 +40,15 @@ module FileStore
     def upload_path
       path = File.join("uploads", RailsMultisite::ConnectionManagement.current_db)
       return path if !Rails.env.test?
-      File.join(path, "test_#{ENV['TEST_ENV_NUMBER'].presence || '0'}")
+      File.join(path, "test_#{ENV["TEST_ENV_NUMBER"].presence || "0"}")
+    end
+
+    def self.temporary_upload_path(file_name, folder_prefix: "")
+      # We don't want to use the original file name as it can contain special
+      # characters, which can interfere with external providers operations and
+      # introduce other unexpected behaviour.
+      file_name_random = "#{SecureRandom.hex}#{File.extname(file_name)}"
+      File.join(TEMPORARY_UPLOAD_PREFIX, folder_prefix, SecureRandom.hex, file_name_random)
     end
 
     def has_been_uploaded?(url)
@@ -76,27 +91,60 @@ module FileStore
       not_implemented
     end
 
-    def download(object, max_file_size_kb: nil)
+    # TODO: Remove when #download becomes the canonical safe version.
+    def download_safe(*, **)
+      download(*, **, print_deprecation: false)
+    rescue StandardError
+      nil
+    end
+
+    def download!(*, **)
+      download(*, **, print_deprecation: false)
+    rescue StandardError
+      raise DownloadError
+    end
+
+    def download(object, max_file_size_kb: nil, print_deprecation: true)
+      Discourse.deprecate(<<~MESSAGE) if print_deprecation
+          In a future version `FileStore#download` will no longer raise an error when the
+          download fails, and will instead return `nil`. If you need a method that raises
+          an error, use `FileStore#download!`, which raises a `FileStore::DownloadError`.
+        MESSAGE
+
       DistributedMutex.synchronize("download_#{object.sha1}", validity: 3.minutes) do
-        extension = File.extname(object.respond_to?(:original_filename) ? object.original_filename : object.url)
+        extension =
+          File.extname(
+            object.respond_to?(:original_filename) ? object.original_filename : object.url,
+          )
         filename = "#{object.sha1}#{extension}"
         file = get_from_cache(filename)
 
         if !file
-          max_file_size_kb ||= [SiteSetting.max_image_size_kb, SiteSetting.max_attachment_size_kb].max.kilobytes
+          max_file_size_kb ||= [
+            SiteSetting.max_image_size_kb,
+            SiteSetting.max_attachment_size_kb,
+          ].max.kilobytes
 
           secure = object.respond_to?(:secure) ? object.secure? : object.upload.secure?
-          url = secure ?
-            Discourse.store.signed_url_for_path(object.url) :
-            Discourse.store.cdn_url(object.url)
+          url =
+            (
+              if secure
+                Discourse.store.signed_url_for_path(object.url)
+              else
+                Discourse.store.cdn_url(object.url)
+              end
+            )
 
-          url = SiteSetting.scheme + ":" + url if url =~ /^\/\//
-          file = FileHelper.download(
-            url,
-            max_file_size: max_file_size_kb,
-            tmp_file_name: "discourse-download",
-            follow_redirect: true
-          )
+          url = SiteSetting.scheme + ":" + url if url =~ %r{\A//}
+          file =
+            FileHelper.download(
+              url,
+              max_file_size: max_file_size_kb,
+              tmp_file_name: "discourse-download",
+              follow_redirect: true,
+            )
+
+          return nil if file.nil?
 
           cache_file(file, filename)
           file = get_from_cache(filename)
@@ -116,6 +164,12 @@ module FileStore
     end
 
     def get_path_for_upload(upload)
+      # try to extract the path from the URL instead of calculating it,
+      # because the calculated path might differ from the actual path
+      if upload.url.present? && (path = upload.url[UPLOAD_PATH_REGEX, 1])
+        return prefix_path(path)
+      end
+
       extension =
         if upload.extension
           ".#{upload.extension}"
@@ -128,9 +182,16 @@ module FileStore
     end
 
     def get_path_for_optimized_image(optimized_image)
+      # try to extract the path from the URL instead of calculating it,
+      # because the calculated path might differ from the actual path
+      if optimized_image.url.present? && (path = optimized_image.url[OPTIMIZED_IMAGE_PATH_REGEX, 1])
+        return prefix_path(path)
+      end
+
       upload = optimized_image.upload
       version = optimized_image.version || 1
-      extension = "_#{version}_#{optimized_image.width}x#{optimized_image.height}#{optimized_image.extension}"
+      extension =
+        "_#{version}_#{optimized_image.width}x#{optimized_image.height}#{optimized_image.extension}"
       get_path_for("optimized", upload.id, upload.sha1, extension)
     end
 
@@ -143,7 +204,7 @@ module FileStore
 
     def get_from_cache(filename)
       path = get_cache_path_for(filename)
-      File.open(path) if File.exists?(path)
+      File.open(path) if File.exist?(path)
     end
 
     def cache_file(file, filename)
@@ -178,6 +239,8 @@ module FileStore
       depths.max
     end
 
+    def prefix_path(path)
+      path
+    end
   end
-
 end

@@ -1,25 +1,23 @@
-import { action, computed, get } from "@ember/object";
+import { guidFor } from "@ember/object/internals";
+import { computed, get } from "@ember/object";
 import Component from "@ember/component";
 import UtilsMixin from "select-kit/mixins/utils";
-import layout from "select-kit/templates/components/selected-name";
 import { makeArray } from "discourse-common/lib/helpers";
 import { reads } from "@ember/object/computed";
 
 export default Component.extend(UtilsMixin, {
   tagName: "",
-  layout,
   name: null,
   value: null,
   headerTitle: null,
   headerLang: null,
   headerLabel: null,
+  id: null,
 
-  @action
-  onSelectedNameClick() {
-    if (this.selectKit.options.clearOnClick) {
-      this.selectKit.deselect(this.item);
-      return false;
-    }
+  init() {
+    this._super(...arguments);
+
+    this.set("id", guidFor(this));
   },
 
   didReceiveAttrs() {

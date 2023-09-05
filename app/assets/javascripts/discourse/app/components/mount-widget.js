@@ -6,6 +6,7 @@ import DirtyKeys from "discourse/lib/dirty-keys";
 import { WidgetClickHook } from "discourse/widgets/hooks";
 import { camelize } from "@ember/string";
 import { getRegister } from "discourse-common/lib/get-owner";
+import ArrayProxy from "@ember/array/proxy";
 
 let _cleanCallbacks = {};
 export function addWidgetCleanCallback(widgetName, fn) {
@@ -36,6 +37,10 @@ export default Component.extend({
     this._widgetClass =
       queryRegistry(name) || this.register.lookupFactory(`widget:${name}`);
 
+    if (this._widgetClass?.class) {
+      this._widgetClass = this._widgetClass.class;
+    }
+
     if (!this._widgetClass) {
       // eslint-disable-next-line no-console
       console.error(`Error: Could not find widget: ${name}`);
@@ -43,6 +48,7 @@ export default Component.extend({
 
     this._childEvents = [];
     this._connected = [];
+    this._childComponents = ArrayProxy.create({ content: [] });
     this._dispatched = [];
     this.dirtyKeys = new DirtyKeys(name);
   },
@@ -63,6 +69,10 @@ export default Component.extend({
 
     this._connected.forEach((v) => v.destroy());
     this._connected.length = 0;
+
+    traverseCustomWidgets(this._tree, (w) => w.destroy());
+    this._rootNode = patch(this._rootNode, diff(this._tree, null));
+    this._tree = null;
   },
 
   willDestroyElement() {
@@ -80,6 +90,7 @@ export default Component.extend({
   afterPatch() {},
 
   eventDispatched(eventName, key, refreshArg) {
+    key = typeof key === "function" ? key(refreshArg) : key;
     const onRefresh = camelize(eventName.replace(/:/, "-"));
     this.dirtyKeys.keyDirty(key, { onRefresh, refreshArg });
     this.queueRerender();
@@ -124,9 +135,7 @@ export default Component.extend({
       newTree._emberView = this;
       const patches = diff(this._tree || this._rootNode, newTree);
 
-      if (this._tree) {
-        traverseCustomWidgets(this._tree, (w) => w.willRerenderWidget());
-      }
+      traverseCustomWidgets(this._tree, (w) => w.willRerenderWidget());
 
       this.beforePatch();
       this._rootNode = patch(this._rootNode, patches);
@@ -148,5 +157,17 @@ export default Component.extend({
         console.log(Date.now() - t0);
       }
     }
+  },
+
+  mountChildComponent(info) {
+    this._childComponents.pushObject(info);
+  },
+
+  unmountChildComponent(info) {
+    this._childComponents.removeObject(info);
+  },
+
+  didUpdateAttrs() {
+    this.queueRerender();
   },
 });

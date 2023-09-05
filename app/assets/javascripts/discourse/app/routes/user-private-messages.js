@@ -1,23 +1,24 @@
 import Composer from "discourse/models/composer";
 import DiscourseRoute from "discourse/routes/discourse";
 import Draft from "discourse/models/draft";
+import { action } from "@ember/object";
+import { inject as service } from "@ember/service";
 
 export default DiscourseRoute.extend({
-  renderTemplate() {
-    this.render("user/messages");
+  templateName: "user/messages",
+  composer: service(),
+
+  afterModel() {
+    this.pmTopicTrackingState.startTracking();
   },
 
-  model() {
-    return this.modelFor("user");
-  },
+  setupController() {
+    this._super(...arguments);
 
-  setupController(controller, user) {
-    const composerController = this.controllerFor("composer");
-    controller.set("model", user);
     if (this.currentUser) {
       Draft.get("new_private_message").then((data) => {
         if (data.draft) {
-          composerController.open({
+          this.composer.open({
             draft: data.draft,
             draftKey: Composer.NEW_PRIVATE_MESSAGE_KEY,
             ignoreIfChanged: true,
@@ -28,15 +29,14 @@ export default DiscourseRoute.extend({
     }
   },
 
-  actions: {
-    refresh() {
-      this.refresh();
-    },
+  @action
+  triggerRefresh() {
+    this.refresh();
+  },
 
-    willTransition: function () {
-      this._super(...arguments);
-      this.controllerFor("user").set("pmView", null);
-      return true;
-    },
+  @action
+  willTransition() {
+    this._super(...arguments);
+    return true;
   },
 });

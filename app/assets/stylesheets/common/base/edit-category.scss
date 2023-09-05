@@ -9,7 +9,7 @@ div.edit-category {
   grid-column-gap: 1.5em;
   grid-template-areas: "header header" "sidebar content" "sidebar warning" "sidebar footer";
 
-  .edit-category-title {
+  .edit-category-title-bar {
     grid-area: header;
     grid-column: 1 / span 2;
     display: flex;
@@ -17,6 +17,11 @@ div.edit-category {
     align-self: start;
     background-color: var(--primary-very-low);
     padding: 20px;
+
+    .category-back {
+      height: 2em;
+      align-self: flex-end;
+    }
   }
 
   .edit-category-nav {
@@ -97,7 +102,8 @@ div.edit-category {
     }
   }
 
-  .edit-category-tab-settings {
+  .edit-category-tab-settings,
+  .edit-category-tab-tags {
     > section {
       margin-bottom: 1.5em;
     }
@@ -129,10 +135,6 @@ div.edit-category {
         .filter-input {
           min-width: 250px;
         }
-
-        .select-kit-body {
-          max-width: 100%;
-        }
       }
     }
 
@@ -153,8 +155,33 @@ div.edit-category {
     padding: 0 1.5em 2em 0;
   }
 
-  .category-topic-auto-close-hours {
+  .category-topic-auto-close-hours,
+  .category-default-slow-mode-seconds {
     width: 200px;
+  }
+
+  .required-tag-groups {
+    .required-tag-group-row {
+      display: flex;
+      gap: 0.5em;
+
+      > * {
+        margin: 0;
+      }
+
+      input[type="number"] {
+        width: 4em;
+      }
+
+      margin-bottom: 1em;
+    }
+  }
+
+  .edit-category-tab-topic-template {
+    .select-category-template__info {
+      margin-block: 0.25rem;
+      font-size: var(--font-down-1);
+    }
   }
 }
 

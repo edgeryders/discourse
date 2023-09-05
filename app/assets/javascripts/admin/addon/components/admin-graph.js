@@ -1,9 +1,10 @@
+import { tagName } from "@ember-decorators/component";
 import Component from "@ember/component";
 import loadScript from "discourse/lib/load-script";
 
-export default Component.extend({
-  tagName: "canvas",
-  type: "line",
+@tagName("canvas")
+export default class AdminGraph extends Component {
+  type = "line";
 
   refreshChart() {
     const ctx = this.element.getContext("2d");
@@ -24,17 +25,19 @@ export default Component.extend({
 
     const config = {
       type: this.type,
-      data: data,
+      data,
       options: {
         responsive: true,
-        tooltips: {
-          callbacks: {
-            title: (context) =>
-              moment(context[0].xLabel, "YYYY-MM-DD").format("LL"),
+        plugins: {
+          tooltip: {
+            callbacks: {
+              title: (context) =>
+                moment(context[0].label, "YYYY-MM-DD").format("LL"),
+            },
           },
         },
         scales: {
-          yAxes: [
+          y: [
             {
               display: true,
               ticks: {
@@ -47,11 +50,11 @@ export default Component.extend({
     };
 
     this._chart = new window.Chart(ctx, config);
-  },
+  }
 
   didInsertElement() {
     loadScript("/javascripts/Chart.min.js").then(() =>
       this.refreshChart.apply(this)
     );
-  },
-});
+  }
+}

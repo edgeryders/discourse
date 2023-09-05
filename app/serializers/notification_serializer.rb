@@ -1,12 +1,12 @@
 # frozen_string_literal: true
 
 class NotificationSerializer < ApplicationSerializer
-
   attributes :id,
              :user_id,
              :external_id,
              :notification_type,
              :read,
+             :high_priority,
              :created_at,
              :post_number,
              :topic_id,
@@ -46,5 +46,4 @@ class NotificationSerializer < ApplicationSerializer
   def include_external_id?
     SiteSetting.enable_discourse_connect
   end
-
 end

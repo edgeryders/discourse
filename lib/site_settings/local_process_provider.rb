@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
-module SiteSettings; end
+module SiteSettings
+end
 
 class SiteSettings::LocalProcessProvider
   class Setting
@@ -45,7 +46,6 @@ class SiteSettings::LocalProcessProvider
       settings[name] = setting
     end
     setting.value = value.to_s
-    DiscourseEvent.trigger(:site_setting_saved, setting)
     setting
   end
 

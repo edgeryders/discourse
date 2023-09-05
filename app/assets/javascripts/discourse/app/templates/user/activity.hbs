@@ -1,42 +1,95 @@
-{{#d-section pageClass="user-activity" class="user-secondary-navigation" scrollTop="false"}}
-  <nav role="navigation">
-    {{#mobile-nav class="activity-nav" desktopClass="action-list activity-list nav-stacked"}}
-      {{#d-navigation-item route="userActivity.index"}}{{i18n "user.filters.all"}}{{/d-navigation-item}}
-      {{#d-navigation-item route="userActivity.topics"}}{{i18n "user_action_groups.4"}}{{/d-navigation-item}}
-      {{#d-navigation-item route="userActivity.replies"}}{{i18n "user_action_groups.5"}}{{/d-navigation-item}}
+<DSection @pageClass="user-activity" />
 
-      {{#if user.showRead}}
-        {{#d-navigation-item route="userActivity.read" title=(i18n "user.read_help")}}
-          {{i18n "user.read"}}
-        {{/d-navigation-item}}
-      {{/if}}
+<div class="user-navigation user-navigation-secondary">
+  <HorizontalOverflowNav @ariaLabel="User secondary - activity">
+    <DNavigationItem
+      @route="userActivity.index"
+      @ariaCurrentContext="subNav"
+      class="user-nav__activity-all"
+    >
+      {{d-icon "stream"}}
+      <span>{{i18n "user.filters.all"}}</span>
+    </DNavigationItem>
 
-      {{#if user.showDrafts}}
-        {{#d-navigation-item route="userActivity.drafts"}}
-          {{i18n "user_action_groups.15"}}
-        {{/d-navigation-item}}
-      {{/if}}
+    <DNavigationItem
+      @route="userActivity.topics"
+      @ariaCurrentContext="subNav"
+      class="user-nav__activity-topics"
+    >
+      {{d-icon "list-ul"}}
+      <span>{{i18n "user_action_groups.4"}}</span>
+    </DNavigationItem>
+    <DNavigationItem
+      @route="userActivity.replies"
+      @ariaCurrentContext="subNav"
+      class="user-nav__activity-replies"
+    >
+      {{d-icon "reply"}}
+      <span>{{i18n "user_action_groups.5"}}</span>
+    </DNavigationItem>
 
-      {{#d-navigation-item route="userActivity.likesGiven"}}{{i18n "user_action_groups.1"}}{{/d-navigation-item}}
+    {{#if this.user.showRead}}
+      <DNavigationItem
+        @route="userActivity.read"
+        @ariaCurrentContext="subNav"
+        class="user-nav__activity-read"
+        title={{i18n "user.read_help"}}
+      >
+        {{d-icon "history"}}
+        <span>{{i18n "user.read"}}</span>
+      </DNavigationItem>
+    {{/if}}
 
-      {{#if user.showBookmarks}}
-        {{#d-navigation-item route="userActivity.bookmarks"}}{{i18n "user_action_groups.3"}}{{/d-navigation-item}}
-      {{/if}}
+    {{#if this.user.showDrafts}}
+      <DNavigationItem
+        @route="userActivity.drafts"
+        @ariaCurrentContext="subNav"
+        class="user-nav__activity-drafts"
+      >
+        {{d-icon "pencil-alt"}}
+        <span>{{this.draftLabel}}</span>
+      </DNavigationItem>
+    {{/if}}
 
-      {{plugin-outlet
-        name="user-activity-bottom"
-        connectorTagName="li"
-        args=(hash model=model)
-      }}
-    {{/mobile-nav}}
-  </nav>
-{{/d-section}}
-{{#if canDownloadPosts}}
-  <section class="user-additional-controls">
-    {{d-button action=(action "exportUserArchive") class="btn-default" label="user.download_archive.button_text" icon="download"}}
-  </section>
-{{/if}}
+    {{#if (gt this.model.pending_posts_count 0)}}
+      <DNavigationItem
+        @route="userActivity.pending"
+        @ariaCurrentContext="subNav"
+        class="user-nav__activity-pending"
+      >
+        {{d-icon "clock"}}
+        <span>{{this.pendingLabel}}</span>
+      </DNavigationItem>
+    {{/if}}
 
-<section class="user-content">
+    <DNavigationItem
+      @route="userActivity.likesGiven"
+      @ariaCurrentContext="subNav"
+      class="user-nav__activity-likes"
+    >
+      {{d-icon "heart"}}
+      <span>{{i18n "user_action_groups.1"}}</span>
+    </DNavigationItem>
+
+    {{#if this.user.showBookmarks}}
+      <DNavigationItem
+        @route="userActivity.bookmarks"
+        @ariaCurrentContext="subNav"
+        class="user-nav__activity-bookmarks"
+      >
+        {{d-icon "bookmark"}}
+        <span>{{i18n "user_action_groups.3"}}</span>
+      </DNavigationItem>
+    {{/if}}
+
+    <PluginOutlet
+      @name="user-activity-bottom"
+      @connectorTagName="li"
+      @outletArgs={{hash model=this.model}}
+    />
+  </HorizontalOverflowNav>
+</div>
+
+<section class="user-content" id="user-content">
   {{outlet}}
 </section>

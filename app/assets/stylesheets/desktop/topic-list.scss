@@ -24,8 +24,7 @@
   @extend .topic-list-icons;
 
   margin: 0 0 10px;
-  th,
-  td {
+  .topic-list-data {
     padding: 12px 5px;
     &:first-of-type {
       padding-left: 10px;
@@ -34,19 +33,20 @@
       padding-right: 10px;
     }
   }
-  th {
-    button .d-icon {
-      color: var(--primary-med-or-secondary-med);
-    }
-  }
 
   button.bulk-select {
     padding: 0;
+    line-height: var(--line-height-large);
   }
 
-  td.bulk-select {
-    padding: 10px;
+  .topic-list-data.bulk-select {
+    padding: 0;
     width: 30px;
+    label {
+      margin: 0px;
+      padding: 12px 10px 16px 10px;
+      cursor: pointer;
+    }
     + .main-link {
       padding-left: 0;
     }
@@ -55,9 +55,10 @@
   .badge-notification {
     position: relative;
     top: -2px;
+
     &.new-topic {
       top: -1px;
-      padding-left: 5px;
+      padding-left: 2px;
     }
   }
 
@@ -79,18 +80,17 @@
         cursor: default;
         color: var(--primary-med-or-secondary-med);
         line-height: $td-posters-more-lh;
-        font-size: $font-down-1;
+        font-size: var(--font-down-1);
       }
     }
   }
-  td.posters {
+  .topic-list-data.posters {
     height: $td-posters-height;
   }
   .posters a:first-child .avatar.latest:not(.single) {
     box-shadow: 0 0 3px 1px rgba(var(--tertiary-rgb), 0.35);
-    border: 2px solid rgba(var(--tertiary-rgb), 0.5);
+    border: 1px solid rgba(var(--tertiary-rgb), 0.5);
     position: relative;
-    top: -2px;
     left: -2px;
   }
 
@@ -109,7 +109,7 @@
     width: auto;
     color: var(--primary-med-or-secondary-med);
     text-align: left;
-    font-size: $font-down-1;
+    font-size: var(--font-down-1);
     margin-top: 5px;
     .fa {
       margin-right: 2px;
@@ -117,16 +117,13 @@
     a {
       color: var(--primary-med-or-secondary-med);
       margin-right: 3px;
-      line-height: $line-height-large;
+      line-height: var(--line-height-large);
     }
   }
   .activity {
     width: 60px;
     &:lang(zh_CN) {
       width: 80px;
-    }
-    span {
-      cursor: pointer;
     }
   }
   .age {
@@ -139,6 +136,12 @@
 
 .topic-list-bottom {
   margin: 20px 0;
+  .footer-message {
+    padding-top: 4px;
+  }
+  .dismiss-container-bottom {
+    float: right;
+  }
 }
 
 // Misc. stuff
@@ -159,54 +162,26 @@
   h2 {
     margin: 20px 0 10px;
   }
-  .show-more.has-topics {
-    top: 0;
-    .alert {
-      padding: 12px 35px 12px 14px;
-    }
+}
+
+.bulk-select-topics {
+  display: inline-flex;
+  margin-left: -5px;
+  .btn {
+    margin-right: 0.5em;
   }
 }
 
-.bulk-select-container {
-  @supports (position: sticky) {
-    @media screen and (min-width: 1250px) {
-      position: sticky;
-      position: -webkit-sticky;
-    }
-  }
-}
-
-#bulk-select {
-  position: fixed;
-  right: 20px;
-  background-color: var(--secondary);
-  z-index: z("dropdown");
-  @supports (position: sticky) {
-    @media screen and (min-width: 1250px) {
-      body:not(.search-page):not(.user-messages-page) & {
-        position: absolute;
-        right: -60px;
-        top: 0;
-      }
-    }
-  }
-}
-
-button.dismiss-read {
-  float: right;
-  margin-bottom: 5px;
-  margin-left: 10px;
+.dismiss-container-top {
+  display: flex;
+  justify-content: flex-end;
 }
 
 .category-breadcrumb {
   // only target the top-level li, not dropdowns
-  > li {
-    height: 100%;
-  }
-  .select-kit-header {
+  .select-kit {
     align-self: stretch;
     height: 100%;
-    margin-bottom: var(--nav-space);
   }
 }
 
@@ -217,43 +192,28 @@ button.dismiss-read {
 
 /* Tablet (portrait) ----------- */
 
-@include breakpoint(medium) {
-  // slightly smaller font, tighten spacing on nav pills
-  .nav-pills {
-    > li > a {
-      font-size: $font-0;
-      padding: 7px 10px;
-    }
-  }
+// These styles kick in a little earlier when the sidebar appears
 
+@include breakpoint(medium, $sidebar: true) {
   .topic-list {
-    // tighter table header spacing
-    th:first-of-type {
-      padding: 12px 5px;
-    }
-    // smaller table cell spacing
-    th,
-    td {
-      padding: 10px;
-      font-size: $font-0;
-    }
     // suppress views column
-    th.views {
-      display: none;
-    }
-    td.views {
+    .views {
       display: none;
     }
     // reduce width for more title space
     .posts {
-      width: 50px;
+      width: 3em;
     }
     .posters {
-      width: 30px;
+      width: 2em;
       text-align: center;
     }
     // show only the first poster
-    td.posters {
+    .topic-list-data.posters {
+      a:first-child .avatar.latest:not(.single) {
+        top: 0px;
+        left: 0px;
+      }
       a:not(.latest) {
         display: none;
       }
@@ -265,4 +225,27 @@ button.dismiss-read {
       }
     }
   }
+}
+
+@include breakpoint(medium) {
+  .nav-pills {
+    > li > a {
+      font-size: var(--font-0);
+      padding: 0.45em 0.67em;
+    }
+  }
+
+  .topic-list {
+    .topic-list-data {
+      font-size: var(--font-0);
+    }
+  }
+
+  .topic-list-header {
+    font-size: var(--font-down-1);
+  }
+}
+
+.container.list-container {
+  position: relative;
 }

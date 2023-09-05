@@ -23,14 +23,15 @@ es:
           timezones_title: Zonas horarias que se muestran
           timezones_description: Las zonas horarias se usarán para mostrar las fechas en vista previa y retrospectiva.
           recurring_title: Recurrencia
-          recurring_description: "Definir la recurrencia de un evento. También puedes editar manualmente la opción recurrente generada por el formulario y usar una de las siguientes claves: años, trimestre, meses, semanas, días, horas, minutos, segundos, milisegundos."
+          recurring_description: "Definir la recurrencia de un evento. También puedes editar manualmente la opción recurrente generada por el formulario y usar una de las siguientes claves: years, quarters, months, weeks, days, hours, minutes, seconds, milliseconds"
           recurring_none: Sin recurrencia
-          invalid_date: Fecha inválida, asegúrate de que la fecha y hora sean correctas
+          invalid_date: Fecha no válida, asegúrate de que la fecha y hora sean correctas
           date_title: Fecha
           time_title: Hora
           format_title: Formato de fecha
           timezone: Zona horaria
           until: Hasta...
+          current_timezone: "Zona horaria actual:"
           recurring:
             every_day: "Cada día"
             every_week: "Cada semana"
@@ -40,3 +41,4 @@ es:
             every_three_months: "Cada tres meses"
             every_six_months: "Cada seis meses"
             every_year: "Cada año"
+      default_title: "Evento de %{site_name}"

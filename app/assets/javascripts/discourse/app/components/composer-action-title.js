@@ -11,6 +11,8 @@ import I18n from "I18n";
 import { alias } from "@ember/object/computed";
 import discourseComputed from "discourse-common/utils/decorators";
 import { iconHTML } from "discourse-common/lib/icon-library";
+import { htmlSafe } from "@ember/template";
+import { escape } from "pretty-text/sanitizer";
 
 const TITLES = {
   [PRIVATE_MESSAGE]: "topic.private_message",
@@ -24,8 +26,15 @@ export default Component.extend({
   options: alias("model.replyOptions"),
   action: alias("model.action"),
 
-  @discourseComputed("options", "action")
+  // Note we update when some other attributes like tag/category change to allow
+  // text customizations to use those.
+  @discourseComputed("options", "action", "model.tags", "model.category")
   actionTitle(opts, action) {
+    let result = this.model.customizationFor("actionTitle");
+    if (result) {
+      return result;
+    }
+
     if (TITLES[action]) {
       return I18n.t(TITLES[action]);
     }
@@ -64,17 +73,21 @@ export default Component.extend({
       `;
     }
 
-    return editTitle.htmlSafe();
+    return htmlSafe(editTitle);
   },
 
   _formatReplyToTopic(link) {
-    return `<a class="topic-link" href="${link.href}" data-topic-id="${this.get(
-      "model.topic.id"
-    )}">${link.anchor}</a>`.htmlSafe();
+    return htmlSafe(
+      `<a class="topic-link" href="${link.href}" data-topic-id="${this.get(
+        "model.topic.id"
+      )}">${link.anchor}</a>`
+    );
   },
 
   _formatReplyToUserPost(avatar, link) {
-    const htmlLink = `<a class="user-link" href="${link.href}">${link.anchor}</a>`;
-    return `${avatar}${htmlLink}`.htmlSafe();
+    const htmlLink = `<a class="user-link" href="${link.href}">${escape(
+      link.anchor
+    )}</a>`;
+    return htmlSafe(`${avatar}${htmlLink}`);
   },
 });

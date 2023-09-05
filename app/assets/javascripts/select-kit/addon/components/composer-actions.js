@@ -9,10 +9,10 @@ import discourseComputed from "discourse-common/utils/decorators";
 import Draft from "discourse/models/draft";
 import DropdownSelectBoxComponent from "select-kit/components/dropdown-select-box";
 import I18n from "I18n";
-import bootbox from "bootbox";
 import { camelize } from "@ember/string";
 import { equal, gt } from "@ember/object/computed";
 import { isEmpty } from "@ember/utils";
+import { inject as service } from "@ember/service";
 
 // Component can get destroyed and lose state
 let _topicSnapshot = null;
@@ -26,6 +26,7 @@ export function _clearSnapshots() {
 }
 
 export default DropdownSelectBoxComponent.extend({
+  dialog: service(),
   seq: 0,
   pluginApiIdentifiers: ["composer-actions"],
   classNames: ["composer-actions"],
@@ -37,6 +38,7 @@ export default DropdownSelectBoxComponent.extend({
     filterable: false,
     showFullTitle: false,
     preventHeaderFocus: true,
+    customStyle: true,
   },
 
   @discourseComputed("isEditing", "action", "whisper", "noBump", "isInSlowMode")
@@ -129,7 +131,9 @@ export default DropdownSelectBoxComponent.extend({
     if (
       this.action !== CREATE_TOPIC &&
       this.action !== CREATE_SHARED_DRAFT &&
-      !(this.action === REPLY && this.topic && this.topic.isPrivateMessage) &&
+      this.action === REPLY &&
+      this.topic &&
+      !this.topic.isPrivateMessage &&
       !this.isEditing &&
       _topicSnapshot
     ) {
@@ -160,23 +164,6 @@ export default DropdownSelectBoxComponent.extend({
     }
 
     if (
-      this.siteSettings.enable_personal_messages &&
-      this.action !== PRIVATE_MESSAGE &&
-      !this.isEditing
-    ) {
-      items.push({
-        name: I18n.t(
-          "composer.composer_actions.reply_as_private_message.label"
-        ),
-        description: I18n.t(
-          "composer.composer_actions.reply_as_private_message.desc"
-        ),
-        icon: "envelope",
-        id: "reply_as_private_message",
-      });
-    }
-
-    if (
       !this.isEditing &&
       ((this.action !== REPLY && _topicSnapshot) ||
         (this.action === REPLY &&
@@ -196,7 +183,8 @@ export default DropdownSelectBoxComponent.extend({
     // if answered post is a whisper, we can only answer with a whisper so no need for toggle
     if (
       this.canWhisper &&
-      (!_postSnapshot ||
+      (!this.replyOptions.postLink ||
+        !_postSnapshot ||
         _postSnapshot.post_type !== this.site.post_types.whisper)
     ) {
       items.push({
@@ -205,11 +193,6 @@ export default DropdownSelectBoxComponent.extend({
         icon: "far-eye-slash",
         id: "toggle_whisper",
       });
-    }
-
-    let showCreateTopic = false;
-    if (this.action === CREATE_SHARED_DRAFT) {
-      showCreateTopic = true;
     }
 
     if (this.action === CREATE_TOPIC) {
@@ -222,24 +205,6 @@ export default DropdownSelectBoxComponent.extend({
           id: "shared_draft",
         });
       }
-
-      // Edge case: If personal messages are disabled, it is possible to have
-      // no items which stil renders a button that pops up nothing. In this
-      // case, add an option for what you're currently doing.
-      if (items.length === 0) {
-        showCreateTopic = true;
-      }
-    }
-
-    if (showCreateTopic) {
-      items.push({
-        name: I18n.t("composer.composer_actions.create_topic.label"),
-        description: I18n.t(
-          "composer.composer_actions.reply_as_new_topic.desc"
-        ),
-        icon: "share",
-        id: "create_topic",
-      });
     }
 
     const showToggleTopicBump =
@@ -252,6 +217,17 @@ export default DropdownSelectBoxComponent.extend({
         description: I18n.t("composer.composer_actions.toggle_topic_bump.desc"),
         icon: "anchor",
         id: "toggle_topic_bump",
+      });
+    }
+
+    if (items.length === 0) {
+      items.push({
+        name: I18n.t("composer.composer_actions.create_topic.label"),
+        description: I18n.t(
+          "composer.composer_actions.reply_as_new_topic.desc"
+        ),
+        icon: "share",
+        id: "create_topic",
       });
     }
 
@@ -308,14 +284,13 @@ export default DropdownSelectBoxComponent.extend({
   replyAsNewTopicSelected(options) {
     Draft.get("new_topic").then((response) => {
       if (response.draft) {
-        bootbox.confirm(
-          I18n.t("composer.composer_actions.reply_as_new_topic.confirm"),
-          (result) => {
-            if (result) {
-              this._replyAsNewTopicSelect(options);
-            }
-          }
-        );
+        this.dialog.confirm({
+          message: I18n.t(
+            "composer.composer_actions.reply_as_new_topic.confirm"
+          ),
+          confirmButtonLabel: "composer.ok_proceed",
+          didConfirm: () => this._replyAsNewTopicSelect(options),
+        });
       } else {
         this._replyAsNewTopicSelect(options);
       }

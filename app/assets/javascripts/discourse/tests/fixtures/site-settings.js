@@ -9,18 +9,7 @@ export default {
         category: "required",
         preview: null,
         secret: false,
-        type: "string"
-      },
-      {
-        setting: "contact_email",
-        description:
-          "Email address of key contact responsible for this site. Used for critical notifications and displayed on the /about page for urgent matters.",
-        default: "",
-        value: "",
-        category: "required",
-        preview: null,
-        secret: false,
-        type: "email"
+        type: "string",
       },
       {
         setting: "site_contact_username",
@@ -31,7 +20,7 @@ export default {
         category: "required",
         preview: null,
         secret: false,
-        type: "username"
+        type: "username",
       },
       {
         setting: "logo",
@@ -41,7 +30,7 @@ export default {
         category: "required",
         preview: null,
         secret: false,
-        type: "upload"
+        type: "upload",
       },
       {
         setting: "top_menu",
@@ -61,9 +50,9 @@ export default {
           "categories",
           "read",
           "posted",
-          "bookmarks"
+          "bookmarks",
         ],
-        list_type: "compact"
+        list_type: "compact",
       },
       {
         setting: "plugin_logo",
@@ -74,11 +63,20 @@ export default {
         preview: null,
         secret: false,
         type: "upload",
-        plugin: "discourse-logo"
-      }
+        plugin: "discourse-logo",
+      },
+      {
+        category: "onebox",
+        default: "",
+        description:
+          "A list of domains that will never be oneboxed e.g. wikipedia.org\n(Wildcard symbols * ? not supported)",
+        placeholder: null,
+        preview: null,
+        secret: false,
+        setting: "blocked_onebox_domains",
+        type: "host_list",
+        value: "",
+      },
     ],
-    diags: {
-      last_message_processed: null
-    }
-  }
+  },
 };

@@ -25,6 +25,7 @@ en:
           format_title: Date format
           timezone: Timezone
           until: Until...
+          current_timezone: "Current timezone:"
           recurring:
             every_day: "Every day"
             every_week: "Every week"
@@ -34,3 +35,4 @@ en:
             every_three_months: "Every three months"
             every_six_months: "Every six months"
             every_year: "Every year"
+      default_title: "%{site_name} Event"

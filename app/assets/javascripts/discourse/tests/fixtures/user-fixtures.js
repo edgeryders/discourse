@@ -1,4 +1,3 @@
-/*jshint maxlen:10000000 */
 export default {
   "/u/eviltrout.json": {
     user_badges: [
@@ -108,6 +107,18 @@ export default {
     user: {
       user_option: {
         text_size_seq: 1,
+        email_digests: true,
+        email_messages_level: 0,
+        email_level: 1,
+        digest_after_minutes: 10080,
+        mailing_list_mode: false,
+        auto_track_topics_after_msecs: 60000,
+        new_topic_duration_minutes: 1440,
+        external_links_in_new_tab: false,
+        dynamic_favicon: true,
+        skip_new_user_tips: false,
+        enable_quoting: true,
+        timezone: "Australia/Brisbane",
       },
       id: 19,
       username: "eviltrout",
@@ -167,19 +178,8 @@ export default {
       can_be_deleted: false,
       can_delete_all_posts: false,
       locale: "",
-      email_digests: true,
-      email_messages_level: 0,
-      email_level: 1,
-      digest_after_minutes: 10080,
-      mailing_list_mode: false,
-      auto_track_topics_after_msecs: 60000,
-      new_topic_duration_minutes: 1440,
-      external_links_in_new_tab: false,
-      dynamic_favicon: true,
-      skip_new_user_tips: false,
-      enable_quoting: true,
       muted_category_ids: [],
-      regular_category_ids: [],
+      regular_category_ids: [4],
       tracked_category_ids: [],
       watched_category_ids: [3],
       watched_first_post_category_ids: [],
@@ -190,6 +190,7 @@ export default {
       card_image_badge_id: 120,
       muted_usernames: [],
       can_change_location: true,
+      can_change_tracking_preferences: true,
       ignored_usernames: [],
       invited_by: {
         id: 1,
@@ -294,6 +295,7 @@ export default {
         day_6_start_time: 480,
         day_6_end_time: 1020,
       },
+      has_topic_draft: true,
     },
   },
   "/u/eviltrout/card.json": {
@@ -419,16 +421,23 @@ export default {
     user_bookmark_list: {
       bookmarks: [
         {
-          excerpt: "Here this is my new topic where I yell.",
-          tags: [],
           id: 576,
           created_at: "2020-04-07T05:30:40.446Z",
-          topic_id: 119,
-          linked_post_number: 1,
-          post_id: 281,
+          updated_at: "2020-04-07T05:30:40.446Z",
           name: "test",
           reminder_at: null,
+          reminder_at_ics_start: null,
+          reminder_at_ics_end: null,
+          pinned: false,
           title: "Yelling topic title :/",
+          fancy_title: "Yelling topic title :/",
+          excerpt: "Here this is my new topic where I yell.",
+          bookmarkable_id: 281,
+          bookmarkable_type: "Post",
+          bookmarkable_url: "http://localhost:4200/t/yelling-topic-title/119",
+          tags: [],
+          topic_id: 119,
+          linked_post_number: 1,
           deleted: false,
           hidden: false,
           category_id: 1,
@@ -436,12 +445,38 @@ export default {
           archived: false,
           archetype: "regular",
           highest_post_number: 5,
+          last_read_post_number: 3,
           bumped_at: "2020-04-06T05:20:00.172Z",
           slug: "yelling-topic-title",
-          post_user_username: "someguy",
-          post_user_name: "Some Guy",
-          post_user_avatar_template:
-            "/letter_avatar/someguy/{size}/3_f9720745f5ce6dfc2b5641fca999d934.png",
+          user: {
+            id: 1,
+            username: "someguy",
+            name: "Some Guy",
+            avatar_template: "/user_avatar/127.0.0.1/someguy/{size}/918_2.png",
+          },
+        },
+        {
+          id: 4857,
+          created_at: "2022-05-07T05:30:40.446Z",
+          updated_at: "2022-05-27T05:30:40.446Z",
+          name: "test",
+          reminder_at: "2022-05-29T22:00:00.000Z",
+          reminder_at_ics_start: "20220529T220000Z",
+          reminder_at_ics_end: "20220529T230000Z",
+          pinned: false,
+          title: "Channel Name",
+          fancy_title: "Channel Name",
+          excerpt: "some excerpt",
+          bookmarkable_id: 2437,
+          bookmarkable_type: "ChatMessage",
+          bookmarkable_url: "http://localhost:4200/chat/message/2437",
+          user: {
+            id: 4343,
+            username: "otherperson",
+            name: "Other Person",
+            avatar_template:
+              "/user_avatar/127.0.0.1/otherperson/{size}/918_2.png",
+          },
         },
       ],
     },
@@ -485,8 +520,7 @@ export default {
           "//www.gravatar.com/avatar/c6e17f2ae2a215e87ff9e878a4e63cd9.png?s={size}&r=pg&d=identicon",
         acting_avatar_template:
           "//www.gravatar.com/avatar/51d623f33f8b83095db84ff35e15dbe8.png?s={size}&r=pg&d=identicon",
-        slug:
-          "users-activate-account-pulling-blank-logo-instead-of-defaulting-to-h2",
+        slug: "users-activate-account-pulling-blank-logo-instead-of-defaulting-to-h2",
         topic_id: 10911,
         target_user_id: 19,
         target_name: "Robin Ward",
@@ -515,8 +549,7 @@ export default {
           "//www.gravatar.com/avatar/c6e17f2ae2a215e87ff9e878a4e63cd9.png?s={size}&r=pg&d=identicon",
         acting_avatar_template:
           "//www.gravatar.com/avatar/c6e17f2ae2a215e87ff9e878a4e63cd9.png?s={size}&r=pg&d=identicon",
-        slug:
-          "users-activate-account-pulling-blank-logo-instead-of-defaulting-to-h2",
+        slug: "users-activate-account-pulling-blank-logo-instead-of-defaulting-to-h2",
         topic_id: 10911,
         target_user_id: 19,
         target_name: "Robin Ward",
@@ -543,8 +576,7 @@ export default {
           "OK - i see what you mean. From the piwik code I should add: \n\n_paq.push([&quot;setDocumentTitle&quot;, document.domain + &quot;/&quot; + document.title]);\n\n? \n\nUnfortunately I have had to give up on Piwik for now because I have switched the forum to SSL on a free cert and have used up the free subdomain for the forum. &hellip;",
         avatar_template: "/images/avatar.png",
         acting_avatar_template: "/images/avatar.png",
-        slug:
-          "support-for-piwik-analytics-as-an-alternative-to-google-analytics",
+        slug: "support-for-piwik-analytics-as-an-alternative-to-google-analytics",
         topic_id: 7512,
         target_user_id: 19,
         target_name: "Robin Ward",
@@ -568,7 +600,7 @@ export default {
         action_type: 7,
         created_at: "2014-01-15T11:16:36Z",
         excerpt:
-          "<a class='mention' href='/users/eviltrout'>@eviltrout</a> recently added support for multiple API keys [wink] \n\n<a href='//meta.discourse.org/uploads/default/2905/4c8decfac1518ff6.png' target='_blank'>[]</a>",
+          "<a class='mention' href='/u/eviltrout'>@eviltrout</a> recently added support for multiple API keys [wink] \n\n<a href='//meta.discourse.org/uploads/default/2905/4c8decfac1518ff6.png' target='_blank'>[]</a>",
         avatar_template:
           "//www.gravatar.com/avatar/b7797beb47cfb7aa0fe60d09604aaa09.png?s={size}&r=pg&d=identicon",
         acting_avatar_template:
@@ -596,7 +628,7 @@ export default {
         action_type: 7,
         created_at: "2014-01-15T10:58:46Z",
         excerpt:
-          "<a class='mention' href='/users/eviltrout'>@eviltrout</a> added a tooltip when you click on the user&#39;s avatar which allows you to show the posts made by that user \n\n[image]",
+          "<a class='mention' href='/u/eviltrout'>@eviltrout</a> added a tooltip when you click on the user&#39;s avatar which allows you to show the posts made by that user \n\n[image]",
         avatar_template:
           "//www.gravatar.com/avatar/b7797beb47cfb7aa0fe60d09604aaa09.png?s={size}&r=pg&d=identicon",
         acting_avatar_template:
@@ -624,7 +656,7 @@ export default {
         action_type: 7,
         created_at: "2014-01-15T10:36:15Z",
         excerpt:
-          "<a class='mention' href='/users/eviltrout'>@eviltrout</a>  implemented per-user API key a while ago [wink] \n\n  <a href='//meta-discourse.r.worldssl.net/uploads/default/2905/4c8decfac1518ff6.png' class='lightbox' title='Topics_-_Discourse_Meta-5.png'>[image]\nTopics_-_Discourse_Meta-5.png884x339 29.6 KB\n</a>",
+          "<a class='mention' href='/u/eviltrout'>@eviltrout</a>  implemented per-user API key a while ago [wink] \n\n  <a href='//meta-discourse.r.worldssl.net/uploads/default/2905/4c8decfac1518ff6.png' class='lightbox' title='Topics_-_Discourse_Meta-5.png'>[image]\nTopics_-_Discourse_Meta-5.png884x339 29.6 KB\n</a>",
         avatar_template:
           "//www.gravatar.com/avatar/b7797beb47cfb7aa0fe60d09604aaa09.png?s={size}&r=pg&d=identicon",
         acting_avatar_template:
@@ -652,7 +684,7 @@ export default {
         action_type: 7,
         created_at: "2014-01-15T09:55:17Z",
         excerpt:
-          "<a class='mention' href='/users/eviltrout'>@eviltrout</a> has recently introduced this feature and has even blogged about it: \n\n \n    \n      \n        <a href='http://eviltrout.com/2014/01/04/hiding-offscreen-ember.html' class='track-link' target='_blank'>\n          eviltrout.com\n        </a>\n      \n    \n  \n    \n    <a href='http://eviltrout.com/2014/01/04/hiding-offscreen-ember.html' target='_blank'>Hiding Offscreen Content in Ember.js - Evil Trout&#39;s Blog</a>",
+          "<a class='mention' href='/u/eviltrout'>@eviltrout</a> has recently introduced this feature and has even blogged about it: \n\n \n    \n      \n        <a href='http://eviltrout.com/2014/01/04/hiding-offscreen-ember.html' class='track-link' target='_blank'>\n          eviltrout.com\n        </a>\n      \n    \n  \n    \n    <a href='http://eviltrout.com/2014/01/04/hiding-offscreen-ember.html' target='_blank'>Hiding Offscreen Content in Ember.js - Evil Trout&#39;s Blog</a>",
         avatar_template:
           "//www.gravatar.com/avatar/b7797beb47cfb7aa0fe60d09604aaa09.png?s={size}&r=pg&d=identicon",
         acting_avatar_template:
@@ -736,7 +768,7 @@ export default {
         action_type: 2,
         created_at: "2014-01-14T21:46:50Z",
         excerpt:
-          "Okay I&#39;ve fixed the https [point_right] http links on the server side and in the Javascript click tracking as <a class='mention' href='/users/bhaelochon'>@BhaelOchon</a> pointed out. \n\nLet me know if you find anything else broken.",
+          "Okay I&#39;ve fixed the https [point_right] http links on the server side and in the Javascript click tracking as <a class='mention' href='/u/bhaelochon'>@BhaelOchon</a> pointed out. \n\nLet me know if you find anything else broken.",
         avatar_template:
           "//www.gravatar.com/avatar/c6e17f2ae2a215e87ff9e878a4e63cd9.png?s={size}&r=pg&d=identicon",
         acting_avatar_template:
@@ -764,7 +796,7 @@ export default {
         action_type: 6,
         created_at: "2014-01-14T21:43:28Z",
         excerpt:
-          "Thanks for your help <a class='mention' href='/users/eviltrout'>@eviltrout</a>! I will consider making that change and sending a pull request. I may not get to it for a while. \n\nI am embedding Discourse on another site and it is mostly going well. I have indeed been using your blog for inspiration.",
+          "Thanks for your help <a class='mention' href='/u/eviltrout'>@eviltrout</a>! I will consider making that change and sending a pull request. I may not get to it for a while. \n\nI am embedding Discourse on another site and it is mostly going well. I have indeed been using your blog for inspiration.",
         avatar_template:
           "//www.gravatar.com/avatar/9cfd2536afac32d209335b092094c12c.png?s={size}&r=pg&d=identicon",
         acting_avatar_template:
@@ -792,7 +824,7 @@ export default {
         action_type: 2,
         created_at: "2014-01-14T21:21:52Z",
         excerpt:
-          "Okay I&#39;ve fixed the https [point_right] http links on the server side and in the Javascript click tracking as <a class='mention' href='/users/bhaelochon'>@BhaelOchon</a> pointed out. \n\nLet me know if you find anything else broken.",
+          "Okay I&#39;ve fixed the https [point_right] http links on the server side and in the Javascript click tracking as <a class='mention' href='/u/bhaelochon'>@BhaelOchon</a> pointed out. \n\nLet me know if you find anything else broken.",
         avatar_template:
           "//www.gravatar.com/avatar/c6e17f2ae2a215e87ff9e878a4e63cd9.png?s={size}&r=pg&d=identicon",
         acting_avatar_template:
@@ -820,7 +852,7 @@ export default {
         action_type: 5,
         created_at: "2014-01-14T21:03:07Z",
         excerpt:
-          "Okay I&#39;ve fixed the https [point_right] http links on the server side and in the Javascript click tracking as <a class='mention' href='/users/bhaelochon'>@BhaelOchon</a> pointed out. \n\nLet me know if you find anything else broken.",
+          "Okay I&#39;ve fixed the https [point_right] http links on the server side and in the Javascript click tracking as <a class='mention' href='/u/bhaelochon'>@BhaelOchon</a> pointed out. \n\nLet me know if you find anything else broken.",
         avatar_template:
           "//www.gravatar.com/avatar/c6e17f2ae2a215e87ff9e878a4e63cd9.png?s={size}&r=pg&d=identicon",
         acting_avatar_template:
@@ -909,8 +941,7 @@ export default {
           "//www.gravatar.com/avatar/c6e17f2ae2a215e87ff9e878a4e63cd9.png?s={size}&r=pg&d=identicon",
         acting_avatar_template:
           "//www.gravatar.com/avatar/c6e17f2ae2a215e87ff9e878a4e63cd9.png?s={size}&r=pg&d=identicon",
-        slug:
-          "support-for-piwik-analytics-as-an-alternative-to-google-analytics",
+        slug: "support-for-piwik-analytics-as-an-alternative-to-google-analytics",
         topic_id: 7512,
         target_user_id: 19,
         target_name: "Robin Ward",
@@ -989,11 +1020,10 @@ export default {
         action_type: 6,
         created_at: "2014-01-14T16:04:28Z",
         excerpt:
-          "Thanks <a class='mention' href='/users/eviltrout'>@eviltrout</a> , the code in the &#39;bottom of pages&#39; now reads: \n\n&lt;script type=&quot;text/javascript&quot;&gt;\nDiscourse.PageTracker.current().on(&#39;change&#39;, function() {\n  console.log(&#39;tracked!&#39;)\n  _paq.push([&#39;trackPageView&#39;]);\n});\n&lt;/script&gt;\n\nThe console is logging &#39;tracked!&#39; and piwik is logging for each page c&hellip;",
+          "Thanks <a class='mention' href='/u/eviltrout'>@eviltrout</a> , the code in the &#39;bottom of pages&#39; now reads: \n\n&lt;script type=&quot;text/javascript&quot;&gt;\nDiscourse.PageTracker.current().on(&#39;change&#39;, function() {\n  console.log(&#39;tracked!&#39;)\n  _paq.push([&#39;trackPageView&#39;]);\n});\n&lt;/script&gt;\n\nThe console is logging &#39;tracked!&#39; and piwik is logging for each page c&hellip;",
         avatar_template: "/images/avatar.png",
         acting_avatar_template: "/images/avatar.png",
-        slug:
-          "support-for-piwik-analytics-as-an-alternative-to-google-analytics",
+        slug: "support-for-piwik-analytics-as-an-alternative-to-google-analytics",
         topic_id: 7512,
         target_user_id: 19,
         target_name: "Robin Ward",
@@ -1078,8 +1108,7 @@ export default {
           "//www.gravatar.com/avatar/c6e17f2ae2a215e87ff9e878a4e63cd9.png?s={size}&r=pg&d=identicon",
         acting_avatar_template:
           "//www.gravatar.com/avatar/3dcae8378d46c244172a115c28ca49ce.png?s={size}&r=pg&d=identicon",
-        slug:
-          "discourse-plugin-for-static-site-generators-like-jekyll-or-octopress",
+        slug: "discourse-plugin-for-static-site-generators-like-jekyll-or-octopress",
         topic_id: 7965,
         target_user_id: 19,
         target_name: "Robin Ward",
@@ -1103,7 +1132,7 @@ export default {
         action_type: 7,
         created_at: "2014-01-14T00:21:26Z",
         excerpt:
-          "In <a href='https://github.com/discourse/discourse/pull/1821' rel='nofollow'>pull request 1821</a>, <a class='mention' href='/users/eviltrout'>@eviltrout</a> asked: \n\n &quot;About rails s: I wouldn&#39;t be against adding it but at what point do we stop holding their hand and expect them to know how rails works? I&#39;m sure rails documentation could do a better job than us. Actually maybe we should just link to that? \n\nWhat point to &hellip;",
+          "In <a href='https://github.com/discourse/discourse/pull/1821' rel='nofollow'>pull request 1821</a>, <a class='mention' href='/u/eviltrout'>@eviltrout</a> asked: \n\n &quot;About rails s: I wouldn&#39;t be against adding it but at what point do we stop holding their hand and expect them to know how rails works? I&#39;m sure rails documentation could do a better job than us. Actually maybe we should just link to that? \n\nWhat point to &hellip;",
         avatar_template:
           "//www.gravatar.com/avatar/035d12bad251759d8fbc9fb10574d1f6.png?s={size}&r=pg&d=identicon",
         acting_avatar_template:
@@ -1131,13 +1160,12 @@ export default {
         action_type: 6,
         created_at: "2014-01-13T21:58:28Z",
         excerpt:
-          "It looks uneeded, but you need to review a fair amount of code to confirm it is not needed.  \n\nI am going to keep it for now cause its safer under some weird edge conditions.",
+          "It looks unneeded, but you need to review a fair amount of code to confirm it is not needed.  \n\nI am going to keep it for now cause its safer under some weird edge conditions.",
         avatar_template:
           "//www.gravatar.com/avatar/3dcae8378d46c244172a115c28ca49ce.png?s={size}&r=pg&d=identicon",
         acting_avatar_template:
           "//www.gravatar.com/avatar/3dcae8378d46c244172a115c28ca49ce.png?s={size}&r=pg&d=identicon",
-        slug:
-          "ruby-question-about-use-of-klass-self-in-the-site-customization-rb",
+        slug: "ruby-question-about-use-of-klass-self-in-the-site-customization-rb",
         topic_id: 11889,
         target_user_id: 19,
         target_name: "Robin Ward",
@@ -1166,8 +1194,7 @@ export default {
           "//www.gravatar.com/avatar/c6e17f2ae2a215e87ff9e878a4e63cd9.png?s={size}&r=pg&d=identicon",
         acting_avatar_template:
           "//www.gravatar.com/avatar/3dcae8378d46c244172a115c28ca49ce.png?s={size}&r=pg&d=identicon",
-        slug:
-          "support-for-piwik-analytics-as-an-alternative-to-google-analytics",
+        slug: "support-for-piwik-analytics-as-an-alternative-to-google-analytics",
         topic_id: 7512,
         target_user_id: 19,
         target_name: "Robin Ward",
@@ -1223,8 +1250,7 @@ export default {
         avatar_template:
           "//www.gravatar.com/avatar/c6e17f2ae2a215e87ff9e878a4e63cd9.png?s={size}&r=pg&d=identicon",
         acting_avatar_template: "/images/avatar.png",
-        slug:
-          "discourse-plugin-for-static-site-generators-like-jekyll-or-octopress",
+        slug: "discourse-plugin-for-static-site-generators-like-jekyll-or-octopress",
         topic_id: 7965,
         target_user_id: 19,
         target_name: "Robin Ward",
@@ -1253,8 +1279,7 @@ export default {
           "//www.gravatar.com/avatar/c6e17f2ae2a215e87ff9e878a4e63cd9.png?s={size}&r=pg&d=identicon",
         acting_avatar_template:
           "//www.gravatar.com/avatar/b7797beb47cfb7aa0fe60d09604aaa09.png?s={size}&r=pg&d=identicon",
-        slug:
-          "support-for-piwik-analytics-as-an-alternative-to-google-analytics",
+        slug: "support-for-piwik-analytics-as-an-alternative-to-google-analytics",
         topic_id: 7512,
         target_user_id: 19,
         target_name: "Robin Ward",
@@ -1283,8 +1308,7 @@ export default {
           "//www.gravatar.com/avatar/c6e17f2ae2a215e87ff9e878a4e63cd9.png?s={size}&r=pg&d=identicon",
         acting_avatar_template:
           "//www.gravatar.com/avatar/c6e17f2ae2a215e87ff9e878a4e63cd9.png?s={size}&r=pg&d=identicon",
-        slug:
-          "support-for-piwik-analytics-as-an-alternative-to-google-analytics",
+        slug: "support-for-piwik-analytics-as-an-alternative-to-google-analytics",
         topic_id: 7512,
         target_user_id: 19,
         target_name: "Robin Ward",
@@ -1308,7 +1332,7 @@ export default {
         action_type: 2,
         created_at: "2014-01-13T19:52:04Z",
         excerpt:
-          "<a class='mention' href='/users/sam'>@Sam</a> do you have any idea why only some people are getting this issue? I dont&#39; mind the proposed fix but I&#39;d prefer to know why it happens in the first place.",
+          "<a class='mention' href='/u/sam'>@Sam</a> do you have any idea why only some people are getting this issue? I dont&#39; mind the proposed fix but I&#39;d prefer to know why it happens in the first place.",
         avatar_template:
           "//www.gravatar.com/avatar/c6e17f2ae2a215e87ff9e878a4e63cd9.png?s={size}&r=pg&d=identicon",
         acting_avatar_template:
@@ -1341,8 +1365,7 @@ export default {
           "//www.gravatar.com/avatar/c6e17f2ae2a215e87ff9e878a4e63cd9.png?s={size}&r=pg&d=identicon",
         acting_avatar_template:
           "//www.gravatar.com/avatar/51d623f33f8b83095db84ff35e15dbe8.png?s={size}&r=pg&d=identicon",
-        slug:
-          "discourse-plugin-for-static-site-generators-like-jekyll-or-octopress",
+        slug: "discourse-plugin-for-static-site-generators-like-jekyll-or-octopress",
         topic_id: 7965,
         target_user_id: 19,
         target_name: "Robin Ward",
@@ -1371,8 +1394,7 @@ export default {
           "//www.gravatar.com/avatar/c6e17f2ae2a215e87ff9e878a4e63cd9.png?s={size}&r=pg&d=identicon",
         acting_avatar_template:
           "//www.gravatar.com/avatar/b7797beb47cfb7aa0fe60d09604aaa09.png?s={size}&r=pg&d=identicon",
-        slug:
-          "discourse-plugin-for-static-site-generators-like-jekyll-or-octopress",
+        slug: "discourse-plugin-for-static-site-generators-like-jekyll-or-octopress",
         topic_id: 7965,
         target_user_id: 19,
         target_name: "Robin Ward",
@@ -1396,13 +1418,12 @@ export default {
         action_type: 5,
         created_at: "2014-01-13T18:47:33Z",
         excerpt:
-          "I am pretty sure that the denizens of SO are correct and the variable is unneeded. <a class='mention' href='/users/sam'>@sam</a> can confirm but it seems like it was once needed for something that has since been removed and the variable declaration was left intact.",
+          "I am pretty sure that the denizens of SO are correct and the variable is unneeded. <a class='mention' href='/u/sam'>@sam</a> can confirm but it seems like it was once needed for something that has since been removed and the variable declaration was left intact.",
         avatar_template:
           "//www.gravatar.com/avatar/c6e17f2ae2a215e87ff9e878a4e63cd9.png?s={size}&r=pg&d=identicon",
         acting_avatar_template:
           "//www.gravatar.com/avatar/c6e17f2ae2a215e87ff9e878a4e63cd9.png?s={size}&r=pg&d=identicon",
-        slug:
-          "ruby-question-about-use-of-klass-self-in-the-site-customization-rb",
+        slug: "ruby-question-about-use-of-klass-self-in-the-site-customization-rb",
         topic_id: 11889,
         target_user_id: 19,
         target_name: "Robin Ward",
@@ -1431,8 +1452,7 @@ export default {
           "//www.gravatar.com/avatar/c6e17f2ae2a215e87ff9e878a4e63cd9.png?s={size}&r=pg&d=identicon",
         acting_avatar_template:
           "//www.gravatar.com/avatar/c6e17f2ae2a215e87ff9e878a4e63cd9.png?s={size}&r=pg&d=identicon",
-        slug:
-          "discourse-plugin-for-static-site-generators-like-jekyll-or-octopress",
+        slug: "discourse-plugin-for-static-site-generators-like-jekyll-or-octopress",
         topic_id: 7965,
         target_user_id: 19,
         target_name: "Robin Ward",
@@ -1456,7 +1476,7 @@ export default {
         action_type: 2,
         created_at: "2014-01-13T17:19:08Z",
         excerpt:
-          "<a class='mention' href='/users/sam'>@Sam</a> do you have any idea why only some people are getting this issue? I dont&#39; mind the proposed fix but I&#39;d prefer to know why it happens in the first place.",
+          "<a class='mention' href='/u/sam'>@Sam</a> do you have any idea why only some people are getting this issue? I dont&#39; mind the proposed fix but I&#39;d prefer to know why it happens in the first place.",
         avatar_template:
           "//www.gravatar.com/avatar/c6e17f2ae2a215e87ff9e878a4e63cd9.png?s={size}&r=pg&d=identicon",
         acting_avatar_template:
@@ -1484,11 +1504,10 @@ export default {
         action_type: 7,
         created_at: "2014-01-13T16:41:31Z",
         excerpt:
-          "I&#39;d love to see API support. <a class='mention' href='/users/sam'>@sam</a> and <a class='mention' href='/users/eviltrout'>@eviltrout</a>, I can facilitate an intro to the piwik guys if you want—I&#39;ve written about them before and they&#39;re typically super-responsive. Because I know you guys are totally hunting for new stuff to do [wink]",
+          "I&#39;d love to see API support. <a class='mention' href='/u/sam'>@sam</a> and <a class='mention' href='/u/eviltrout'>@eviltrout</a>, I can facilitate an intro to the piwik guys if you want—I&#39;ve written about them before and they&#39;re typically super-responsive. Because I know you guys are totally hunting for new stuff to do [wink]",
         avatar_template: "/images/avatar.png",
         acting_avatar_template: "/images/avatar.png",
-        slug:
-          "support-for-piwik-analytics-as-an-alternative-to-google-analytics",
+        slug: "support-for-piwik-analytics-as-an-alternative-to-google-analytics",
         topic_id: 7512,
         target_user_id: 19,
         target_name: "Robin Ward",
@@ -1517,8 +1536,7 @@ export default {
           "//www.gravatar.com/avatar/c6e17f2ae2a215e87ff9e878a4e63cd9.png?s={size}&r=pg&d=identicon",
         acting_avatar_template:
           "//www.gravatar.com/avatar/51d623f33f8b83095db84ff35e15dbe8.png?s={size}&r=pg&d=identicon",
-        slug:
-          "support-for-piwik-analytics-as-an-alternative-to-google-analytics",
+        slug: "support-for-piwik-analytics-as-an-alternative-to-google-analytics",
         topic_id: 7512,
         target_user_id: 19,
         target_name: "Robin Ward",
@@ -1547,8 +1565,7 @@ export default {
           "//www.gravatar.com/avatar/c6e17f2ae2a215e87ff9e878a4e63cd9.png?s={size}&r=pg&d=identicon",
         acting_avatar_template:
           "//www.gravatar.com/avatar/c6e17f2ae2a215e87ff9e878a4e63cd9.png?s={size}&r=pg&d=identicon",
-        slug:
-          "focus-events-track-which-window-is-the-last-active-instance-of-a-forum-edit",
+        slug: "focus-events-track-which-window-is-the-last-active-instance-of-a-forum-edit",
         topic_id: 11872,
         target_user_id: 19,
         target_name: "Robin Ward",
@@ -1577,8 +1594,7 @@ export default {
           "//www.gravatar.com/avatar/c6e17f2ae2a215e87ff9e878a4e63cd9.png?s={size}&r=pg&d=identicon",
         acting_avatar_template:
           "//www.gravatar.com/avatar/c6e17f2ae2a215e87ff9e878a4e63cd9.png?s={size}&r=pg&d=identicon",
-        slug:
-          "support-for-piwik-analytics-as-an-alternative-to-google-analytics",
+        slug: "support-for-piwik-analytics-as-an-alternative-to-google-analytics",
         topic_id: 7512,
         target_user_id: 19,
         target_name: "Robin Ward",
@@ -1602,7 +1618,7 @@ export default {
         action_type: 5,
         created_at: "2014-01-13T14:53:13Z",
         excerpt:
-          "<a class='mention' href='/users/sam'>@Sam</a> do you have any idea why only some people are getting this issue? I dont&#39; mind the proposed fix but I&#39;d prefer to know why it happens in the first place.",
+          "<a class='mention' href='/u/sam'>@Sam</a> do you have any idea why only some people are getting this issue? I dont&#39; mind the proposed fix but I&#39;d prefer to know why it happens in the first place.",
         avatar_template:
           "//www.gravatar.com/avatar/c6e17f2ae2a215e87ff9e878a4e63cd9.png?s={size}&r=pg&d=identicon",
         acting_avatar_template:
@@ -1630,7 +1646,7 @@ export default {
         action_type: 7,
         created_at: "2014-01-13T06:27:26Z",
         excerpt:
-          "Can this be archived <a class='mention' href='/users/eviltrout'>@eviltrout</a>?",
+          "Can this be archived <a class='mention' href='/u/eviltrout'>@eviltrout</a>?",
         avatar_template:
           "//www.gravatar.com/avatar/51d623f33f8b83095db84ff35e15dbe8.png?s={size}&r=pg&d=identicon",
         acting_avatar_template:
@@ -1658,7 +1674,7 @@ export default {
         action_type: 7,
         created_at: "2014-01-13T05:32:46Z",
         excerpt:
-          "When you navigate to another topic using the &quot;suggested topics&quot; area we are not registering a page view with Google.  \n\n<a class='mention' href='/users/eviltrout'>@eviltrout</a> perhaps we should do this from discourse location instead of  application controller?",
+          "When you navigate to another topic using the &quot;suggested topics&quot; area we are not registering a page view with Google.  \n\n<a class='mention' href='/u/eviltrout'>@eviltrout</a> perhaps we should do this from discourse location instead of  application controller?",
         avatar_template:
           "//www.gravatar.com/avatar/3dcae8378d46c244172a115c28ca49ce.png?s={size}&r=pg&d=identicon",
         acting_avatar_template:
@@ -1686,13 +1702,12 @@ export default {
         action_type: 7,
         created_at: "2014-01-13T02:50:25Z",
         excerpt:
-          "<a class='mention' href='/users/eviltrout'>@eviltrout</a> any ideas here, the code seems correct",
+          "<a class='mention' href='/u/eviltrout'>@eviltrout</a> any ideas here, the code seems correct",
         avatar_template:
           "//www.gravatar.com/avatar/3dcae8378d46c244172a115c28ca49ce.png?s={size}&r=pg&d=identicon",
         acting_avatar_template:
           "//www.gravatar.com/avatar/3dcae8378d46c244172a115c28ca49ce.png?s={size}&r=pg&d=identicon",
-        slug:
-          "support-for-piwik-analytics-as-an-alternative-to-google-analytics",
+        slug: "support-for-piwik-analytics-as-an-alternative-to-google-analytics",
         topic_id: 7512,
         target_user_id: 19,
         target_name: "Robin Ward",
@@ -1716,13 +1731,12 @@ export default {
         action_type: 7,
         created_at: "2014-01-12T22:31:35Z",
         excerpt:
-          "This is an interesting approach an an interesting feature. <a class='mention' href='/users/eviltrout'>@eviltrout</a> your thoughts. Essentially allows us to have notifications cross tabs.",
+          "This is an interesting approach an an interesting feature. <a class='mention' href='/u/eviltrout'>@eviltrout</a> your thoughts. Essentially allows us to have notifications cross tabs.",
         avatar_template:
           "//www.gravatar.com/avatar/3dcae8378d46c244172a115c28ca49ce.png?s={size}&r=pg&d=identicon",
         acting_avatar_template:
           "//www.gravatar.com/avatar/3dcae8378d46c244172a115c28ca49ce.png?s={size}&r=pg&d=identicon",
-        slug:
-          "focus-events-track-which-window-is-the-last-active-instance-of-a-forum-edit",
+        slug: "focus-events-track-which-window-is-the-last-active-instance-of-a-forum-edit",
         topic_id: 11872,
         target_user_id: 19,
         target_name: "Robin Ward",
@@ -1746,7 +1760,7 @@ export default {
         action_type: 7,
         created_at: "2014-01-12T18:01:04Z",
         excerpt:
-          "This was the link  \n\n<a href='https://github.com/metricfu/metric_fu/blob/b1bf8feb921916fc265f041efa3157a6a6530a9b/lib/metric_fu/logging/mf_debugger.rb#L24' rel='nofollow'>metric_fu</a> \n\n[metric_fu](https://github.com/metricfu/metric_fu/blob/b1bf8feb921916fc265f041efa3157a6a6530a9b/lib/metric_fu/logging/mf_debugger.rb#L24)\n\nSeems to work fine now that <a class='mention' href='/users/eviltrout'>@eviltrout</a> worked so hard to get us MDTest 1.1 compliant.",
+          "This was the link  \n\n<a href='https://github.com/metricfu/metric_fu/blob/b1bf8feb921916fc265f041efa3157a6a6530a9b/lib/metric_fu/logging/mf_debugger.rb#L24' rel='nofollow'>metric_fu</a> \n\n[metric_fu](https://github.com/metricfu/metric_fu/blob/b1bf8feb921916fc265f041efa3157a6a6530a9b/lib/metric_fu/logging/mf_debugger.rb#L24)\n\nSeems to work fine now that <a class='mention' href='/u/eviltrout'>@eviltrout</a> worked so hard to get us MDTest 1.1 compliant.",
         avatar_template:
           "//www.gravatar.com/avatar/51d623f33f8b83095db84ff35e15dbe8.png?s={size}&r=pg&d=identicon",
         acting_avatar_template:
@@ -1800,7 +1814,7 @@ export default {
         action_type: 7,
         created_at: "2014-01-11T23:36:11Z",
         excerpt:
-          "A few things,  \n\n<a class='mention' href='/users/eviltrout'>@eviltrout</a> myself and many others have discourse_docker hosted on DigitalOcean, my user cpu is usually around 2% I have plenty of capacity.  \n\nI know that stonehearth and other larger scale discourse work on DigitalOcean fine. Officially we strongly recommend a 2GB instance, thoug&hellip;",
+          "A few things,  \n\n<a class='mention' href='/u/eviltrout'>@eviltrout</a> myself and many others have discourse_docker hosted on DigitalOcean, my user cpu is usually around 2% I have plenty of capacity.  \n\nI know that stonehearth and other larger scale discourse work on DigitalOcean fine. Officially we strongly recommend a 2GB instance, thoug&hellip;",
         avatar_template:
           "//www.gravatar.com/avatar/3dcae8378d46c244172a115c28ca49ce.png?s={size}&r=pg&d=identicon",
         acting_avatar_template:
@@ -1828,7 +1842,7 @@ export default {
         action_type: 7,
         created_at: "2014-01-11T00:58:23Z",
         excerpt:
-          "Confirmed on try.discourse.org, this is still an issue. \n\n<a class='mention' href='/users/eviltrout'>@eviltrout</a> can you add that to your list -- unless you are a staff member you should not be able to delete (your own) posts from an archived topic.",
+          "Confirmed on try.discourse.org, this is still an issue. \n\n<a class='mention' href='/u/eviltrout'>@eviltrout</a> can you add that to your list -- unless you are a staff member you should not be able to delete (your own) posts from an archived topic.",
         avatar_template:
           "//www.gravatar.com/avatar/51d623f33f8b83095db84ff35e15dbe8.png?s={size}&r=pg&d=identicon",
         acting_avatar_template:
@@ -1856,7 +1870,7 @@ export default {
         action_type: 7,
         created_at: "2014-01-11T00:35:38Z",
         excerpt:
-          "Agree, <a class='mention' href='/users/eviltrout'>@eviltrout</a> can you make sure the usercard is using the same logic as the user page in displaying profile info?",
+          "Agree, <a class='mention' href='/u/eviltrout'>@eviltrout</a> can you make sure the usercard is using the same logic as the user page in displaying profile info?",
         avatar_template:
           "//www.gravatar.com/avatar/51d623f33f8b83095db84ff35e15dbe8.png?s={size}&r=pg&d=identicon",
         acting_avatar_template:
@@ -1884,13 +1898,12 @@ export default {
         action_type: 7,
         created_at: "2014-01-11T00:34:06Z",
         excerpt:
-          "<a class='mention' href='/users/eviltrout'>@eviltrout</a> can you make sure the &quot;import post&quot; button is suppressed on the user page when editing &quot;about me&quot;?  \n\n(I agree it is like a &quot;lose all my work&quot; button on that page if you happen to press it..) \n\nThen I can archive this.",
+          "<a class='mention' href='/u/eviltrout'>@eviltrout</a> can you make sure the &quot;import post&quot; button is suppressed on the user page when editing &quot;about me&quot;?  \n\n(I agree it is like a &quot;lose all my work&quot; button on that page if you happen to press it..) \n\nThen I can archive this.",
         avatar_template:
           "//www.gravatar.com/avatar/51d623f33f8b83095db84ff35e15dbe8.png?s={size}&r=pg&d=identicon",
         acting_avatar_template:
           "//www.gravatar.com/avatar/51d623f33f8b83095db84ff35e15dbe8.png?s={size}&r=pg&d=identicon",
-        slug:
-          "quote-post-button-should-be-disabled-or-raise-an-error-when-creating-a-new-topic",
+        slug: "quote-post-button-should-be-disabled-or-raise-an-error-when-creating-a-new-topic",
         topic_id: 834,
         target_user_id: 19,
         target_name: "Robin Ward",
@@ -1914,7 +1927,7 @@ export default {
         action_type: 7,
         created_at: "2014-01-10T21:00:11Z",
         excerpt:
-          "&gt;\n\nLooks good now. Thanks for these fixes <a class='mention' href='/users/eviltrout'>@eviltrout</a>, we (and markdown-js) are now MDTest 1.1 compliant!",
+          "&gt;\n\nLooks good now. Thanks for these fixes <a class='mention' href='/u/eviltrout'>@eviltrout</a>, we (and markdown-js) are now MDTest 1.1 compliant!",
         avatar_template:
           "//www.gravatar.com/avatar/51d623f33f8b83095db84ff35e15dbe8.png?s={size}&r=pg&d=identicon",
         acting_avatar_template:
@@ -2486,6 +2499,7 @@ export default {
       last_posted_at: null,
       last_seen_at: null,
       created_at: "2019-03-06T19:06:20.340Z",
+      can_delete_account: true,
       can_edit: true,
       can_edit_username: true,
       can_edit_email: true,
@@ -2507,9 +2521,10 @@ export default {
       time_read: 0,
       recent_time_read: 0,
       primary_group_name: null,
-      primary_group_flair_url: null,
-      primary_group_flair_bg_color: null,
-      primary_group_flair_color: null,
+      flair_name: null,
+      flair_url: null,
+      flair_bg_color: null,
+      flair_color: null,
       staged: false,
       second_factor_enabled: false,
       post_count: 0,
@@ -2532,6 +2547,7 @@ export default {
       ignored_usernames: [],
       mailing_list_posts_per_day: 0,
       can_change_bio: true,
+      can_change_tracking_preferences: true,
       user_api_keys: null,
       user_auth_tokens: [],
       invited_by: null,
@@ -2644,6 +2660,33 @@ export default {
           default_notification_level: 3,
           membership_request_template: null,
         },
+        {
+          id: 14,
+          automatic: false,
+          name: "awesome_group",
+          display_name: "awesome_group",
+          user_count: 3,
+          mentionable_level: 0,
+          messageable_level: 0,
+          visibility_level: 0,
+          automatic_membership_email_domains: null,
+          primary_group: false,
+          title: null,
+          grant_trust_level: null,
+          incoming_email: null,
+          has_messages: true,
+          flair_url: null,
+          flair_bg_color: null,
+          flair_color: null,
+          bio_raw: null,
+          bio_cooked: null,
+          public_admission: false,
+          public_exit: false,
+          allow_membership_requests: false,
+          full_name: null,
+          default_notification_level: 3,
+          membership_request_template: null,
+        },
       ],
       group_users: [
         { group_id: 10, user_id: 5, notification_level: 3 },
@@ -2679,6 +2722,7 @@ export default {
         hide_profile_and_presence: false,
         text_size: "normal",
         text_size_seq: 0,
+        timezone: "America/Los_Angeles",
       },
     },
   },
@@ -2753,9 +2797,89 @@ export default {
       time_read: 0,
       recent_time_read: 0,
       primary_group_name: null,
-      primary_group_flair_url: null,
-      primary_group_flair_bg_color: null,
-      primary_group_flair_color: null,
+      flair_name: null,
+      flair_url: null,
+      flair_bg_color: null,
+      flair_color: null,
+      staged: false,
+      featured_user_badge_ids: [17],
+    },
+  },
+  "/u/shade/card.json": {
+    user_badges: [
+      {
+        id: 17,
+        granted_at: "2019-03-06T19:08:28.230Z",
+        count: 1,
+        badge_id: 3,
+        user_id: 5,
+        granted_by_id: -1,
+      },
+    ],
+    badges: [
+      {
+        id: 3,
+        name: "Regular",
+        description:
+          '<a href="https://blog.discourse.org/2018/06/understanding-discourse-trust-levels/">Granted</a> recategorize, rename, followed links, wiki, more likes',
+        grant_count: 3,
+        allow_title: true,
+        multiple_grant: false,
+        icon: "fa-user",
+        image: null,
+        listable: true,
+        enabled: true,
+        badge_grouping_id: 4,
+        system: true,
+        slug: "regular",
+        manually_grantable: false,
+        badge_type_id: 2,
+      },
+    ],
+    badge_types: [{ id: 2, name: "Silver", sort_order: 8 }],
+    users: [
+      {
+        id: 10,
+        username: "shade",
+        name: null,
+        avatar_template: "/letter_avatar_proxy/v3/letter/s/d6d6ee/{size}.png",
+        moderator: false,
+        admin: false,
+      },
+      {
+        id: -1,
+        username: "system",
+        name: "system",
+        avatar_template: "/user_avatar/localhost/system/{size}/2_2.png",
+        moderator: true,
+        admin: true,
+      },
+    ],
+    user: {
+      id: 10,
+      username: "shade",
+      name: null,
+      avatar_template: "/letter_avatar_proxy/v3/letter/s/d6d6ee/{size}.png",
+      last_posted_at: null,
+      last_seen_at: null,
+      created_at: "2019-03-06T19:06:20.340Z",
+      ignored: false,
+      can_ignore_user: false,
+      can_send_private_messages: true,
+      can_send_private_message_to_user: true,
+      trust_level: 3,
+      moderator: false,
+      admin: false,
+      title: null,
+      badge_count: 3,
+      custom_fields: {},
+      time_read: 0,
+      recent_time_read: 0,
+      primary_group_name: null,
+      flair_name: null,
+      flair_url: null,
+      flair_bg_color: null,
+      flair_color: null,
       staged: false,
       featured_user_badge_ids: [17],
     },
@@ -2868,9 +2992,10 @@ export default {
       time_read: 0,
       recent_time_read: 0,
       primary_group_name: null,
-      primary_group_flair_url: null,
-      primary_group_flair_bg_color: null,
-      primary_group_flair_color: null,
+      flair_name: null,
+      flair_url: null,
+      flair_bg_color: null,
+      flair_color: null,
       second_factor_enabled: false,
       second_factor_backup_enabled: false,
       associated_accounts: [],
@@ -2993,6 +3118,7 @@ export default {
         text_size: "normal",
         text_size_seq: 0,
         title_count_mode: "notifications",
+        timezone: "Asia/Tokyo",
       },
     },
   },
@@ -3018,5 +3144,429 @@ export default {
       badges: [],
       top_categories: [],
     },
+  },
+  "/u/e.il.rout.json": {
+    user_badges: [
+      {
+        id: 5870,
+        granted_at: "2014-05-16T02:39:38.388Z",
+        badge_id: 4,
+        user_id: 19,
+        granted_by_id: -1,
+      },
+      {
+        id: 40673,
+        granted_at: "2014-03-31T14:23:18.060Z",
+        post_id: 7241,
+        post_number: 19,
+        badge_id: 23,
+        user_id: 19,
+        granted_by_id: -1,
+        topic_id: 3153,
+      },
+      {
+        id: 5868,
+        granted_at: "2014-05-16T02:39:38.380Z",
+        badge_id: 3,
+        user_id: 19,
+        granted_by_id: -1,
+      },
+    ],
+    badges: [
+      {
+        id: 4,
+        name: "Leader",
+        description: null,
+        grant_count: 7,
+        allow_title: true,
+        multiple_grant: false,
+        icon: "fa-user",
+        image: null,
+        listable: true,
+        enabled: true,
+        badge_grouping_id: 4,
+        system: true,
+        badge_type_id: 1,
+      },
+      {
+        id: 23,
+        name: "Great Share",
+        description: null,
+        grant_count: 14,
+        allow_title: false,
+        multiple_grant: true,
+        icon: "fa-certificate",
+        image: null,
+        listable: true,
+        enabled: true,
+        badge_grouping_id: 2,
+        system: true,
+        badge_type_id: 1,
+      },
+      {
+        id: 3,
+        name: "Regular",
+        description: null,
+        grant_count: 30,
+        allow_title: true,
+        multiple_grant: false,
+        icon: "fa-user",
+        image: null,
+        listable: true,
+        enabled: true,
+        badge_grouping_id: 4,
+        system: true,
+        badge_type_id: 2,
+      },
+    ],
+    badge_types: [
+      { id: 1, name: "Gold", sort_order: 9 },
+      { id: 2, name: "Silver", sort_order: 8 },
+      { id: 3, name: "Bronze", sort_order: 7 },
+    ],
+    users: [
+      {
+        id: 19,
+        username: "eviltrout",
+        uploaded_avatar_id: null,
+        avatar_template:
+          "/letter_avatar/eviltrout/{size}/3_f9720745f5ce6dfc2b5641fca999d934.png",
+      },
+      {
+        id: -1,
+        username: "system",
+        uploaded_avatar_id: null,
+        avatar_template:
+          "/letter_avatar/system/{size}/3_f9720745f5ce6dfc2b5641fca999d934.png",
+      },
+    ],
+    topics: [
+      {
+        id: 3153,
+        title: "Is it better for Discourse to use JavaScript or CoffeeScript?",
+        fancy_title:
+          "Is it better for Discourse to use JavaScript or CoffeeScript?",
+        slug: "is-it-better-for-discourse-to-use-javascript-or-coffeescript",
+        posts_count: 56,
+      },
+    ],
+    user: {
+      user_option: {
+        text_size_seq: 1,
+        email_digests: true,
+        email_messages_level: 0,
+        email_level: 1,
+        digest_after_minutes: 10080,
+        mailing_list_mode: false,
+        auto_track_topics_after_msecs: 60000,
+        new_topic_duration_minutes: 1440,
+        external_links_in_new_tab: false,
+        dynamic_favicon: true,
+        skip_new_user_tips: false,
+        enable_quoting: true,
+        timezone: "Australia/Brisbane",
+      },
+      id: 4432,
+      username: "e.il.rout",
+      uploaded_avatar_id: null,
+      avatar_template:
+        "/letter_avatar/e.il.rout/{size}/3_f9720745f5ce6dfc2b5641fca999d934.png",
+      name: "Robin Ward",
+      email: "robin.ward@example.com",
+      associated_accounts: [
+        {
+          name: "facebook",
+          description: "robin.ward@example.com",
+          can_revoke: true,
+        },
+      ],
+      last_posted_at: "2015-05-07T15:23:35.074Z",
+      last_seen_at: "2015-05-13T14:34:23.188Z",
+      bio_raw:
+        'Co-founder of Discourse. Previously, I created <a href="http://forumwarz.com">Forumwarz</a>. <a href="https://twitter.com/eviltrout">Follow me on Twitter</a>. I am @eviltrout.',
+      bio_cooked:
+        '<p>Co-founder of Discourse. Previously, I created <a href="http://forumwarz.com">Forumwarz</a>. <a href="https://twitter.com/eviltrout">Follow me on Twitter</a>. I am <a class="mention" href="/u/eviltrout">@eviltrout</a>.</p>',
+      created_at: "2013-02-03T15:19:22.704Z",
+      website: "http://eviltrout.com",
+      location: "Toronto",
+      can_edit: false,
+      can_edit_username: true,
+      can_edit_email: true,
+      can_edit_name: true,
+      stats: [
+        { action_type: 13, count: 342, id: null },
+        { action_type: 12, count: 109, id: null },
+        { action_type: 4, count: 27, id: null },
+        { action_type: 5, count: 1607, id: null },
+        { action_type: 6, count: 771, id: null },
+        { action_type: 1, count: 333, id: null },
+        { action_type: 2, count: 2671, id: null },
+        { action_type: 7, count: 949, id: null },
+        { action_type: 9, count: 42, id: null },
+        { action_type: 3, count: 8, id: null },
+        { action_type: 11, count: 20, id: null },
+      ],
+      can_send_private_messages: true,
+      can_send_private_message_to_user: false,
+      bio_excerpt:
+        '<p>Co-founder of Discourse. Previously, I created <a href="http://forumwarz.com">Forumwarz</a>. <a href="https://twitter.com/eviltrout">Follow me on Twitter</a>. I am <a class="mention" href="/u/eviltrout">@eviltrout</a>.</p>',
+      trust_level: 4,
+      moderator: true,
+      admin: true,
+      title: "co-founder",
+      badge_count: 23,
+      notification_count: 3244,
+      has_title_badges: true,
+      custom_fields: {},
+      user_fields: { 1: "33" },
+      pending_count: 0,
+      post_count: 1987,
+      can_be_deleted: false,
+      can_delete_all_posts: false,
+      locale: "",
+      muted_category_ids: [],
+      regular_category_ids: [],
+      tracked_category_ids: [],
+      watched_category_ids: [3],
+      watched_first_post_category_ids: [],
+      private_messages_stats: { all: 101, mine: 13, unread: 3 },
+      gravatar_avatar_upload_id: 5275,
+      custom_avatar_upload_id: 1573,
+      card_image_badge: "/images/avatar.png",
+      card_image_badge_id: 120,
+      muted_usernames: [],
+      can_change_location: true,
+      ignored_usernames: [],
+      invited_by: {
+        id: 1,
+        username: "sam",
+        uploaded_avatar_id: null,
+        avatar_template:
+          "/letter_avatar/sam/{size}/3_f9720745f5ce6dfc2b5641fca999d934.png",
+      },
+      custom_groups: [
+        {
+          id: 44,
+          automatic: false,
+          name: "ubuntu",
+          user_count: 11,
+          alias_level: 0,
+          visible: true,
+          automatic_membership_email_domains: null,
+          primary_group: false,
+          title: null,
+        },
+        {
+          id: 47,
+          automatic: false,
+          name: "discourse",
+          user_count: 7,
+          alias_level: 0,
+          visible: true,
+          automatic_membership_email_domains: null,
+          primary_group: false,
+          title: null,
+        },
+      ],
+      featured_user_badge_ids: [5870, 40673, 5868],
+      card_badge: {
+        id: 120,
+        name: "Garbage Man",
+        description:
+          'This Discourse developer successfully called something "garbage!"',
+        grant_count: 3,
+        allow_title: false,
+        multiple_grant: false,
+        icon: "/images/avatar.png",
+        image: "/images/avatar.png",
+        listable: false,
+        enabled: false,
+        badge_grouping_id: 8,
+        system: false,
+        badge_type_id: 3,
+      },
+      user_auth_tokens: [
+        {
+          id: 2,
+          client_ip: "188.192.99.49",
+          location: "Augsburg, Bavaria, Germany",
+          browser: "Google Chrome",
+          device: "Linux Computer",
+          os: "Linux",
+          icon: "fab-linux",
+          created_at: "2018-09-08T21:22:56.225Z",
+          seen_at: "2018-09-08T21:22:56.512Z",
+          is_active: false,
+        },
+        {
+          id: 3,
+          client_ip: "188.120.223.89",
+          location: "České Budějovice, České Budějovice District, Czechia",
+          browser: "Google Chrome",
+          device: "Linux Computer",
+          os: "Linux",
+          icon: "fab-linux",
+          created_at: "2018-09-08T21:33:41.616Z",
+          seen_at: "2018-09-08T21:33:42.209Z",
+          is_active: true,
+        },
+        {
+          id: 6,
+          client_ip: "188.233.223.89",
+          location: "Tula, Tul'skaya Oblast, Russia",
+          browser: "Internet Explorer",
+          device: "Windows Computer",
+          os: "Windows",
+          icon: "fab-windows",
+          created_at: "2018-09-07T21:44:41.616Z",
+          seen_at: "2018-09-08T21:44:42.209Z",
+          is_active: false,
+        },
+      ],
+      user_notification_schedule: {
+        enabled: false,
+        day_0_start_time: 480,
+        day_0_end_time: 1020,
+        day_1_start_time: 480,
+        day_1_end_time: 1020,
+        day_2_start_time: 480,
+        day_2_end_time: 1020,
+        day_3_start_time: 480,
+        day_3_end_time: 1020,
+        day_4_start_time: 480,
+        day_4_end_time: 1020,
+        day_5_start_time: 480,
+        day_5_end_time: 1020,
+        day_6_start_time: 480,
+        day_6_end_time: 1020,
+      },
+    },
+  },
+  "/u/staged.json": {
+    user_badges: [],
+    badges: [],
+    badge_types: [
+      { id: 1, name: "Gold", sort_order: 9 },
+      { id: 2, name: "Silver", sort_order: 8 },
+      { id: 3, name: "Bronze", sort_order: 7 },
+    ],
+    users: [
+      {
+        id: 20,
+        username: "staged",
+        uploaded_avatar_id: null,
+        avatar_template:
+          "/letter_avatar/staged/{size}/3_f9720745f5ce6dfc2b5641fca999d934.png",
+      },
+      {
+        id: -1,
+        username: "system",
+        uploaded_avatar_id: null,
+        avatar_template:
+          "/letter_avatar/system/{size}/3_f9720745f5ce6dfc2b5641fca999d934.png",
+      },
+    ],
+    topics: [],
+    user: {
+      user_option: {
+        text_size_seq: 1,
+        email_digests: false,
+        email_messages_level: 0,
+        email_level: 1,
+        digest_after_minutes: 10080,
+        mailing_list_mode: false,
+        auto_track_topics_after_msecs: 60000,
+        new_topic_duration_minutes: 1440,
+        external_links_in_new_tab: false,
+        dynamic_favicon: true,
+        skip_new_user_tips: false,
+        enable_quoting: true,
+        timezone: "Australia/Brisbane",
+      },
+      id: 20,
+      username: "staged",
+      staged: true,
+      uploaded_avatar_id: null,
+      avatar_template:
+        "/letter_avatar/staged/{size}/3_f9720745f5ce6dfc2b5641fca999d934.png",
+      name: "Staged",
+      email: "staged.user@example.com",
+      associated_accounts: [],
+      last_posted_at: "2015-05-07T15:23:35.074Z",
+      last_seen_at: "2015-05-13T14:34:23.188Z",
+      bio_raw: "",
+      bio_cooked: "",
+      created_at: "2013-02-03T15:19:22.704Z",
+      website: "",
+      location: "",
+      can_edit: true,
+      can_edit_username: true,
+      can_edit_email: true,
+      can_edit_name: true,
+      stats: [],
+      can_send_private_messages: true,
+      can_send_private_message_to_user: true,
+      bio_excerpt: "",
+      trust_level: 0,
+      moderator: false,
+      admin: false,
+      title: null,
+      badge_count: 0,
+      notification_count: 0,
+      has_title_badges: false,
+      custom_fields: {},
+      user_fields: {},
+      pending_count: 0,
+      post_count: 0,
+      can_be_deleted: true,
+      can_delete_all_posts: true,
+      locale: "",
+      muted_category_ids: [],
+      regular_category_ids: [],
+      tracked_category_ids: [],
+      watched_category_ids: [],
+      watched_first_post_category_ids: [],
+      private_messages_stats: {},
+      gravatar_avatar_upload_id: 5275,
+      custom_avatar_upload_id: 1573,
+      card_image_badge: "/images/avatar.png",
+      card_image_badge_id: 120,
+      muted_usernames: [],
+      can_change_location: true,
+      can_change_tracking_preferences: false,
+      ignored_usernames: [],
+      invited_by: {
+        id: 1,
+        username: "sam",
+        uploaded_avatar_id: null,
+        avatar_template:
+          "/letter_avatar/sam/{size}/3_f9720745f5ce6dfc2b5641fca999d934.png",
+      },
+      custom_groups: [],
+      featured_user_badge_ids: [],
+      card_badge: null,
+      user_auth_tokens: [],
+      user_notification_schedule: {
+        enabled: false,
+        day_0_start_time: 480,
+        day_0_end_time: 1020,
+        day_1_start_time: 480,
+        day_1_end_time: 1020,
+        day_2_start_time: 480,
+        day_2_end_time: 1020,
+        day_3_start_time: 480,
+        day_3_end_time: 1020,
+        day_4_start_time: 480,
+        day_4_end_time: 1020,
+        day_5_start_time: 480,
+        day_5_end_time: 1020,
+        day_6_start_time: 480,
+        day_6_end_time: 1020,
+      },
+    },
+  },
+  "/u/recent-searches": {
+    success: "OK",
+    recent_searches: ["yellow", "blue"],
   },
 };

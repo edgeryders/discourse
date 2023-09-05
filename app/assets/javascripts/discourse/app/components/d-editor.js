@@ -1,76 +1,56 @@
 import { ajax } from "discourse/lib/ajax";
+import { PLATFORM_KEY_MODIFIER } from "discourse/lib/keyboard-shortcuts";
 import {
   caretPosition,
-  clipboardHelpers,
-  determinePostReplaceSelection,
   inCodeBlock,
-  safariHacksDisabled,
+  translateModKey,
 } from "discourse/lib/utilities";
 import discourseComputed, {
+  bind,
   observes,
   on,
 } from "discourse-common/utils/decorators";
 import { emojiSearch, isSkinTonableEmoji } from "pretty-text/emoji";
 import { emojiUrlFor, generateCookFunction } from "discourse/lib/text";
-import { later, next, schedule, scheduleOnce } from "@ember/runloop";
+import { schedule, scheduleOnce } from "@ember/runloop";
 import Component from "@ember/component";
 import I18n from "I18n";
-import Mousetrap from "mousetrap";
+import ItsATrap from "@discourse/itsatrap";
 import { Promise } from "rsvp";
 import { SKIP } from "discourse/lib/autocomplete";
-import { categoryHashtagTriggerRule } from "discourse/lib/category-hashtags";
+import { setupHashtagAutocomplete } from "discourse/lib/hashtag-autocomplete";
 import deprecated from "discourse-common/lib/deprecated";
 import discourseDebounce from "discourse-common/lib/debounce";
 import { findRawTemplate } from "discourse-common/lib/raw-templates";
 import { getRegister } from "discourse-common/lib/get-owner";
-import { isEmpty } from "@ember/utils";
 import { isTesting } from "discourse-common/config/environment";
 import { linkSeenHashtags } from "discourse/lib/link-hashtags";
 import { linkSeenMentions } from "discourse/lib/link-mentions";
 import { loadOneboxes } from "discourse/lib/load-oneboxes";
 import loadScript from "discourse/lib/load-script";
 import { resolveCachedShortUrls } from "pretty-text/upload-short-url";
-import { search as searchCategoryTag } from "discourse/lib/category-tag-search";
 import { inject as service } from "@ember/service";
 import showModal from "discourse/lib/show-modal";
 import { siteDir } from "discourse/lib/text-direction";
-import toMarkdown from "discourse/lib/to-markdown";
 import { translations } from "pretty-text/emoji/data";
 import { wantsNewWindow } from "discourse/lib/intercept-click";
-
-// Our head can be a static string or a function that returns a string
-// based on input (like for numbered lists).
-function getHead(head, prev) {
-  if (typeof head === "string") {
-    return [head, head.length];
-  } else {
-    return getHead(head(prev));
-  }
-}
+import { action, computed } from "@ember/object";
+import TextareaTextManipulation, {
+  getHead,
+} from "discourse/mixins/textarea-text-manipulation";
 
 function getButtonLabel(labelKey, defaultLabel) {
   // use the Font Awesome icon if the label matches the default
   return I18n.t(labelKey) === defaultLabel ? null : labelKey;
 }
 
-const OP = {
-  NONE: 0,
-  REMOVED: 1,
-  ADDED: 2,
-};
-
 const FOUR_SPACES_INDENT = "4-spaces-indent";
 
 let _createCallbacks = [];
 
-const isInside = (text, regex) => {
-  const matches = text.match(regex);
-  return matches && matches.length % 2;
-};
-
 class Toolbar {
   constructor(opts) {
-    const { siteSettings } = opts;
+    const { siteSettings, capabilities } = opts;
     this.shortcuts = {};
     this.context = null;
 
@@ -126,38 +106,40 @@ class Toolbar {
         }),
     });
 
-    this.addButton({
-      id: "code",
-      group: "insertions",
-      shortcut: "Shift+C",
-      preventFocus: true,
-      trimLeading: true,
-      action: (...args) => this.context.send("formatCode", args),
-    });
+    if (!capabilities.touch) {
+      this.addButton({
+        id: "code",
+        group: "insertions",
+        shortcut: "E",
+        preventFocus: true,
+        trimLeading: true,
+        action: (...args) => this.context.send("formatCode", args),
+      });
 
-    this.addButton({
-      id: "bullet",
-      group: "extras",
-      icon: "list-ul",
-      shortcut: "Shift+8",
-      title: "composer.ulist_title",
-      preventFocus: true,
-      perform: (e) => e.applyList("* ", "list_item"),
-    });
+      this.addButton({
+        id: "bullet",
+        group: "extras",
+        icon: "list-ul",
+        shortcut: "Shift+8",
+        title: "composer.ulist_title",
+        preventFocus: true,
+        perform: (e) => e.applyList("* ", "list_item"),
+      });
 
-    this.addButton({
-      id: "list",
-      group: "extras",
-      icon: "list-ol",
-      shortcut: "Shift+7",
-      title: "composer.olist_title",
-      preventFocus: true,
-      perform: (e) =>
-        e.applyList(
-          (i) => (!i ? "1. " : `${parseInt(i, 10) + 1}. `),
-          "list_item"
-        ),
-    });
+      this.addButton({
+        id: "list",
+        group: "extras",
+        icon: "list-ol",
+        shortcut: "Shift+7",
+        title: "composer.olist_title",
+        preventFocus: true,
+        perform: (e) =>
+          e.applyList(
+            (i) => (!i ? "1. " : `${parseInt(i, 10) + 1}. `),
+            "list_item"
+          ),
+      });
+    }
 
     if (siteSettings.support_mixed_text_direction) {
       this.addButton({
@@ -182,6 +164,7 @@ class Toolbar {
 
     const createdButton = {
       id: button.id,
+      tabindex: button.tabindex || "-1",
       className: button.className || button.id,
       label: button.label,
       icon: button.label ? null : button.icon || button.id,
@@ -198,27 +181,14 @@ class Toolbar {
 
     const title = I18n.t(button.title || `composer.${button.id}_title`);
     if (button.shortcut) {
-      const mac = /Mac|iPod|iPhone|iPad/.test(navigator.platform);
-      const mod = mac ? "Meta" : "Ctrl";
-      let shortcutTitle = `${mod}+${button.shortcut}`;
-
-      // Mac users are used to glyphs for shortcut keys
-      if (mac) {
-        shortcutTitle = shortcutTitle
-          .replace("Shift", "\u21E7")
-          .replace("Meta", "\u2318")
-          .replace("Alt", "\u2325")
-          .replace(/\+/g, "");
-      } else {
-        shortcutTitle = shortcutTitle
-          .replace("Shift", I18n.t("shortcut_modifier_key.shift"))
-          .replace("Ctrl", I18n.t("shortcut_modifier_key.ctrl"))
-          .replace("Alt", I18n.t("shortcut_modifier_key.alt"));
-      }
+      const shortcutTitle = `${translateModKey(
+        PLATFORM_KEY_MODIFIER + "+"
+      )}${translateModKey(button.shortcut)}`;
 
       createdButton.title = `${title} (${shortcutTitle})`;
-
-      this.shortcuts[`${mod}+${button.shortcut}`.toLowerCase()] = createdButton;
+      this.shortcuts[
+        `${PLATFORM_KEY_MODIFIER}+${button.shortcut}`.toLowerCase()
+      ] = createdButton;
     } else {
       createdButton.title = title;
     }
@@ -239,19 +209,53 @@ export function clearToolbarCallbacks() {
 }
 
 export function onToolbarCreate(func) {
-  deprecated("`onToolbarCreate` is deprecated, use the plugin api instead.");
+  deprecated("`onToolbarCreate` is deprecated, use the plugin api instead.", {
+    id: "discourse.d-editor.on-toolbar-create",
+  });
   addToolbarCallback(func);
 }
 
-export default Component.extend({
+export default Component.extend(TextareaTextManipulation, {
   classNames: ["d-editor"],
   ready: false,
   lastSel: null,
-  _mouseTrap: null,
+  _itsatrap: null,
   showLink: true,
   emojiPickerIsActive: false,
+  emojiFilter: "",
   emojiStore: service("emoji-store"),
   isEditorFocused: false,
+  processPreview: true,
+  composerFocusSelector: "#reply-control .d-editor-input",
+
+  selectedFormTemplateId: computed("formTemplateIds", {
+    get() {
+      if (this._selectedFormTemplateId) {
+        return this._selectedFormTemplateId;
+      }
+
+      return this.formTemplateIds?.[0];
+    },
+
+    set(key, value) {
+      return (this._selectedFormTemplateId = value);
+    },
+  }),
+
+  @action
+  updateSelectedFormTemplateId(formTemplateId) {
+    this.selectedFormTemplateId = formTemplateId;
+  },
+
+  @discourseComputed("formTemplateIds", "replyingToTopic", "editingPost")
+  showFormTemplateForm(formTemplateIds, replyingToTopic, editingPost) {
+    // TODO(@keegan): Remove !editingPost once we add edit/draft support for form templates
+    if (formTemplateIds?.length > 0 && !replyingToTopic && !editingPost) {
+      return true;
+    }
+
+    return false;
+  },
 
   @discourseComputed("placeholder")
   placeholderTranslated(placeholder) {
@@ -265,7 +269,7 @@ export default Component.extend({
     this.set("ready", true);
 
     if (this.autofocus) {
-      this.element.querySelector("textarea").focus();
+      this._textarea.focus();
     }
   },
 
@@ -278,91 +282,110 @@ export default Component.extend({
   didInsertElement() {
     this._super(...arguments);
 
-    const $editorInput = $(this.element.querySelector(".d-editor-input"));
-    this._applyEmojiAutocomplete($editorInput);
-    this._applyCategoryHashtagAutocomplete($editorInput);
+    this._previewMutationObserver = this._disablePreviewTabIndex();
+
+    this._textarea = this.element.querySelector("textarea.d-editor-input");
+    this._$textarea = $(this._textarea);
+    this._applyEmojiAutocomplete(this._$textarea);
+    this._applyHashtagAutocomplete(this._$textarea);
 
     scheduleOnce("afterRender", this, this._readyNow);
 
-    this._mouseTrap = new Mousetrap(
-      this.element.querySelector(".d-editor-input")
-    );
+    this._itsatrap = new ItsATrap(this._textarea);
     const shortcuts = this.get("toolbar.shortcuts");
 
     Object.keys(shortcuts).forEach((sc) => {
       const button = shortcuts[sc];
-      this._mouseTrap.bind(sc, () => {
+      this._itsatrap.bind(sc, () => {
         button.action(button);
         return false;
       });
     });
 
-    // disable clicking on links in the preview
-    $(this.element.querySelector(".d-editor-preview")).on(
-      "click.preview",
-      (e) => {
-        if (wantsNewWindow(e)) {
-          return;
-        }
-        const $target = $(e.target);
-        if ($target.is("a.mention")) {
-          this.appEvents.trigger(
-            "click.discourse-preview-user-card-mention",
-            $target
-          );
-        }
-        if ($target.is("a.mention-group")) {
-          this.appEvents.trigger(
-            "click.discourse-preview-group-card-mention-group",
-            $target
-          );
-        }
-        if ($target.is("a")) {
-          e.preventDefault();
-          return false;
-        }
-      }
+    this._itsatrap.bind("tab", () => this.indentSelection("right"));
+    this._itsatrap.bind("shift+tab", () => this.indentSelection("left"));
+    this._itsatrap.bind(`${PLATFORM_KEY_MODIFIER}+shift+.`, () =>
+      this.send("insertCurrentTime")
     );
 
+    // disable clicking on links in the preview
+    this.element
+      .querySelector(".d-editor-preview")
+      .addEventListener("click", this._handlePreviewLinkClick);
+
     if (this.composerEvents) {
-      this.appEvents.on("composer:insert-block", this, "_insertBlock");
-      this.appEvents.on("composer:insert-text", this, "_insertText");
-      this.appEvents.on("composer:replace-text", this, "_replaceText");
-    }
-
-    if (isTesting()) {
-      this.element.addEventListener("paste", this.paste.bind(this));
+      this.appEvents.on("composer:insert-block", this, "insertBlock");
+      this.appEvents.on("composer:insert-text", this, "insertText");
+      this.appEvents.on("composer:replace-text", this, "replaceText");
+      this.appEvents.on("composer:apply-surround", this, "_applySurround");
+      this.appEvents.on(
+        "composer:indent-selected-text",
+        this,
+        "indentSelection"
+      );
     }
   },
 
-  _insertBlock(text) {
-    this._addBlock(this._getSelected(), text);
-  },
+  @bind
+  _handlePreviewLinkClick(event) {
+    if (wantsNewWindow(event)) {
+      return;
+    }
 
-  _insertText(text, options) {
-    this._addText(this._getSelected(), text, options);
+    if (event.target.tagName === "A") {
+      if (event.target.classList.contains("mention")) {
+        this.appEvents.trigger(
+          "click.discourse-preview-user-card-mention",
+          $(event.target)
+        );
+      }
+
+      if (event.target.classList.contains("mention-group")) {
+        this.appEvents.trigger(
+          "click.discourse-preview-group-card-mention-group",
+          $(event.target)
+        );
+      }
+
+      event.preventDefault();
+      return false;
+    }
   },
 
   @on("willDestroyElement")
   _shutDown() {
     if (this.composerEvents) {
-      this.appEvents.off("composer:insert-block", this, "_insertBlock");
-      this.appEvents.off("composer:insert-text", this, "_insertText");
-      this.appEvents.off("composer:replace-text", this, "_replaceText");
+      this.appEvents.off("composer:insert-block", this, "insertBlock");
+      this.appEvents.off("composer:insert-text", this, "insertText");
+      this.appEvents.off("composer:replace-text", this, "replaceText");
+      this.appEvents.off("composer:apply-surround", this, "_applySurround");
+      this.appEvents.off(
+        "composer:indent-selected-text",
+        this,
+        "indentSelection"
+      );
     }
 
-    this._mouseTrap.reset();
-    $(this.element.querySelector(".d-editor-preview")).off("click.preview");
+    this._itsatrap?.destroy();
+    this._itsatrap = null;
+
+    this.element
+      .querySelector(".d-editor-preview")
+      ?.removeEventListener("click", this._handlePreviewLinkClick);
+
+    this._previewMutationObserver?.disconnect();
 
     if (isTesting()) {
       this.element.removeEventListener("paste", this.paste);
     }
+
+    this._cachedCookFunction = null;
   },
 
   @discourseComputed()
   toolbar() {
     const toolbar = new Toolbar(
-      this.getProperties("site", "siteSettings", "showLink")
+      this.getProperties("site", "siteSettings", "showLink", "capabilities")
     );
     toolbar.context = this;
 
@@ -371,6 +394,12 @@ export default Component.extend({
     if (this.extraButtons) {
       this.extraButtons(toolbar);
     }
+
+    const firstButton = toolbar.groups.mapBy("buttons").flat().firstObject;
+    if (firstButton) {
+      firstButton.tabindex = 0;
+    }
+
     return toolbar;
   },
 
@@ -387,7 +416,7 @@ export default Component.extend({
   },
 
   _updatePreview() {
-    if (this._state !== "inDOM") {
+    if (this._state !== "inDOM" || !this.processPreview) {
       return;
     }
 
@@ -404,12 +433,14 @@ export default Component.extend({
 
       this.set("preview", cooked);
 
+      let previewPromise = Promise.resolve();
+
       if (this.siteSettings.enable_diffhtml_preview) {
         const cookedElement = document.createElement("div");
         cookedElement.innerHTML = cooked;
 
-        linkSeenHashtags($(cookedElement));
-        linkSeenMentions($(cookedElement), this.siteSettings);
+        linkSeenHashtags(cookedElement);
+        linkSeenMentions(cookedElement, this.siteSettings);
         resolveCachedShortUrls(this.siteSettings, cookedElement);
         loadOneboxes(
           cookedElement,
@@ -421,39 +452,36 @@ export default Component.extend({
           true
         );
 
-        loadScript("/javascripts/diffhtml.min.js").then(() => {
-          // changing the contents of the preview element between two uses of
-          // diff.innerHTML did not apply the diff correctly
-          window.diff.release(this.element.querySelector(".d-editor-preview"));
-          window.diff.innerHTML(
-            this.element.querySelector(".d-editor-preview"),
-            cookedElement.innerHTML,
-            {
-              parser: {
-                rawElements: ["script", "noscript", "style", "template"],
-              },
-            }
-          );
+        previewPromise = loadScript("/javascripts/diffhtml.min.js").then(() => {
+          const previewElement =
+            this.element.querySelector(".d-editor-preview");
+          // This is a workaround for a known bug in diffHTML
+          // https://github.com/tbranyen/diffhtml/issues/217#issuecomment-1479956332
+          window.diff.release(previewElement);
+          window.diff.innerHTML(previewElement, cookedElement.innerHTML);
         });
       }
 
-      schedule("afterRender", () => {
-        if (this._state !== "inDOM" || !this.element) {
-          return;
-        }
-        const $preview = $(this.element.querySelector(".d-editor-preview"));
-        if ($preview.length === 0) {
-          return;
-        }
+      previewPromise.then(() => {
+        schedule("afterRender", () => {
+          if (this._state !== "inDOM" || !this.element) {
+            return;
+          }
 
-        if (this.previewUpdated) {
-          this.previewUpdated($preview);
-        }
+          const preview = this.element.querySelector(".d-editor-preview");
+          if (!preview) {
+            return;
+          }
+
+          if (this.previewUpdated) {
+            this.previewUpdated(preview);
+          }
+        });
       });
     });
   },
 
-  @observes("ready", "value")
+  @observes("ready", "value", "processPreview")
   _watchForChanges() {
     if (!this.ready) {
       return;
@@ -467,42 +495,31 @@ export default Component.extend({
     }
   },
 
-  _applyCategoryHashtagAutocomplete() {
-    const siteSettings = this.siteSettings;
-
-    $(this.element.querySelector(".d-editor-input")).autocomplete({
-      template: findRawTemplate("category-tag-autocomplete"),
-      key: "#",
-      afterComplete: (value) => {
-        this.set("value", value);
-        return this._focusTextArea();
-      },
-      transformComplete: (obj) => {
-        return obj.text;
-      },
-      dataSource: (term) => {
-        if (term.match(/\s/)) {
-          return null;
-        }
-        return searchCategoryTag(term, siteSettings);
-      },
-      triggerRule: (textarea, opts) => {
-        return categoryHashtagTriggerRule(textarea, opts);
-      },
-    });
+  _applyHashtagAutocomplete() {
+    setupHashtagAutocomplete(
+      this.site.hashtag_configurations["topic-composer"],
+      this._$textarea,
+      this.siteSettings,
+      {
+        afterComplete: (value) => {
+          this.set("value", value);
+          schedule("afterRender", this, this.focusTextArea);
+        },
+      }
+    );
   },
 
-  _applyEmojiAutocomplete($editorInput) {
+  _applyEmojiAutocomplete($textarea) {
     if (!this.siteSettings.enable_emoji) {
       return;
     }
 
-    $editorInput.autocomplete({
+    $textarea.autocomplete({
       template: findRawTemplate("emoji-selector-autocomplete"),
       key: ":",
       afterComplete: (text) => {
         this.set("value", text);
-        this._focusTextArea();
+        schedule("afterRender", this, this.focusTextArea);
       },
 
       onKeyUp: (text, cp) => {
@@ -510,9 +527,10 @@ export default Component.extend({
           return false;
         }
 
-        const matches = /(?:^|[\s.\?,@\/#!%&*;:\[\]{}=\-_()])(:(?!:).?[\w-]*:?(?!:)(?:t\d?)?:?) ?$/gi.exec(
-          text.substring(0, cp)
-        );
+        const matches =
+          /(?:^|[\s.\?,@\/#!%&*;:\[\]{}=\-_()])(:(?!:).?[\w-]*:?(?!:)(?:t\d?)?:?) ?$/gi.exec(
+            text.substring(0, cp)
+          );
 
         if (matches && matches[1]) {
           return [matches[1]];
@@ -524,19 +542,9 @@ export default Component.extend({
           this.emojiStore.track(v.code);
           return `${v.code}:`;
         } else {
-          $editorInput.autocomplete({ cancel: true });
+          $textarea.autocomplete({ cancel: true });
           this.set("emojiPickerIsActive", true);
-
-          schedule("afterRender", () => {
-            const filterInput = document.querySelector(
-              ".emoji-picker input[name='filter']"
-            );
-            if (filterInput) {
-              filterInput.value = v.term;
-
-              later(() => filterInput.dispatchEvent(new Event("input")), 50);
-            }
-          });
+          this.set("emojiFilter", v.term);
 
           return "";
         }
@@ -553,7 +561,11 @@ export default Component.extend({
 
           if (term === "") {
             if (this.emojiStore.favorites.length) {
-              return resolve(this.emojiStore.favorites.slice(0, 5));
+              return resolve(
+                this.emojiStore.favorites
+                  .filter((f) => !this.site.denied_emojis?.includes(f))
+                  .slice(0, 5)
+              );
             } else {
               return resolve([
                 "slight_smile",
@@ -567,21 +579,24 @@ export default Component.extend({
 
           // note this will only work for emojis starting with :
           // eg: :-)
+          const emojiTranslation =
+            this.get("site.custom_emoji_translation") || {};
           const allTranslations = Object.assign(
             {},
             translations,
-            this.getWithDefault("site.custom_emoji_translation", {})
+            emojiTranslation
           );
           if (allTranslations[full]) {
             return resolve([allTranslations[full]]);
           }
 
+          const emojiDenied = this.get("site.denied_emojis") || [];
           const match = term.match(/^:?(.*?):t([2-6])?$/);
           if (match) {
             const name = match[1];
             const scale = match[2];
 
-            if (isSkinTonableEmoji(name)) {
+            if (isSkinTonableEmoji(name) && !emojiDenied.includes(name)) {
               if (scale) {
                 return resolve([`${name}:t${scale}`]);
               } else {
@@ -593,15 +608,20 @@ export default Component.extend({
           const options = emojiSearch(term, {
             maxResults: 5,
             diversity: this.emojiStore.diversity,
+            exclude: emojiDenied,
           });
 
           return resolve(options);
         })
-          .then((list) =>
-            list.map((code) => {
+          .then((list) => {
+            if (list === SKIP) {
+              return [];
+            }
+
+            return list.map((code) => {
               return { code, src: emojiUrlFor(code) };
-            })
-          )
+            });
+          })
           .then((list) => {
             if (list.length) {
               list.push({ label: I18n.t("composer.more_emoji"), term });
@@ -615,174 +635,9 @@ export default Component.extend({
     });
   },
 
-  _getSelected(trimLeading, opts) {
-    if (!this.ready || !this.element) {
-      return;
-    }
-
-    const textarea = this.element.querySelector("textarea.d-editor-input");
-    const value = textarea.value;
-    let start = textarea.selectionStart;
-    let end = textarea.selectionEnd;
-
-    // trim trailing spaces cause **test ** would be invalid
-    while (end > start && /\s/.test(value.charAt(end - 1))) {
-      end--;
-    }
-
-    if (trimLeading) {
-      // trim leading spaces cause ** test** would be invalid
-      while (end > start && /\s/.test(value.charAt(start))) {
-        start++;
-      }
-    }
-
-    const selVal = value.substring(start, end);
-    const pre = value.slice(0, start);
-    const post = value.slice(end);
-
-    if (opts && opts.lineVal) {
-      const lineVal = value.split("\n")[
-        value.substr(0, textarea.selectionStart).split("\n").length - 1
-      ];
-      return { start, end, value: selVal, pre, post, lineVal };
-    } else {
-      return { start, end, value: selVal, pre, post };
-    }
-  },
-
-  _selectText(from, length, opts = { scroll: true }) {
-    next(() => {
-      if (!this.element) {
-        return;
-      }
-
-      const textarea = this.element.querySelector("textarea.d-editor-input");
-      const $textarea = $(textarea);
-      textarea.selectionStart = from;
-      textarea.selectionEnd = from + length;
-      $textarea.trigger("change");
-      if (opts.scroll) {
-        const oldScrollPos = $textarea.scrollTop();
-        if (!this.capabilities.isIOS || safariHacksDisabled()) {
-          $textarea.focus();
-        }
-        $textarea.scrollTop(oldScrollPos);
-      }
-    });
-  },
-
-  // perform the same operation over many lines of text
-  _getMultilineContents(lines, head, hval, hlen, tail, tlen, opts) {
-    let operation = OP.NONE;
-
-    const applyEmptyLines = opts && opts.applyEmptyLines;
-
-    return lines
-      .map((l) => {
-        if (!applyEmptyLines && l.length === 0) {
-          return l;
-        }
-
-        if (
-          operation !== OP.ADDED &&
-          ((l.slice(0, hlen) === hval && tlen === 0) ||
-            (tail.length && l.slice(-tlen) === tail))
-        ) {
-          operation = OP.REMOVED;
-          if (tlen === 0) {
-            const result = l.slice(hlen);
-            [hval, hlen] = getHead(head, hval);
-            return result;
-          } else if (l.slice(-tlen) === tail) {
-            const result = l.slice(hlen, -tlen);
-            [hval, hlen] = getHead(head, hval);
-            return result;
-          }
-        } else if (operation === OP.NONE) {
-          operation = OP.ADDED;
-        } else if (operation === OP.REMOVED) {
-          return l;
-        }
-
-        const result = `${hval}${l}${tail}`;
-        [hval, hlen] = getHead(head, hval);
-        return result;
-      })
-      .join("\n");
-  },
-
-  _applySurround(sel, head, tail, exampleKey, opts) {
-    const pre = sel.pre;
-    const post = sel.post;
-
-    const tlen = tail.length;
-    if (sel.start === sel.end) {
-      if (tlen === 0) {
-        return;
-      }
-
-      const [hval, hlen] = getHead(head);
-      const example = I18n.t(`composer.${exampleKey}`);
-      this.set("value", `${pre}${hval}${example}${tail}${post}`);
-      this._selectText(pre.length + hlen, example.length);
-    } else if (opts && !opts.multiline) {
-      let [hval, hlen] = getHead(head);
-
-      if (opts.useBlockMode && sel.value.split("\n").length > 1) {
-        hval += "\n";
-        hlen += 1;
-        tail = `\n${tail}`;
-      }
-
-      if (pre.slice(-hlen) === hval && post.slice(0, tail.length) === tail) {
-        this.set(
-          "value",
-          `${pre.slice(0, -hlen)}${sel.value}${post.slice(tail.length)}`
-        );
-        this._selectText(sel.start - hlen, sel.value.length);
-      } else {
-        this.set("value", `${pre}${hval}${sel.value}${tail}${post}`);
-        this._selectText(sel.start + hlen, sel.value.length);
-      }
-    } else {
-      const lines = sel.value.split("\n");
-
-      let [hval, hlen] = getHead(head);
-      if (
-        lines.length === 1 &&
-        pre.slice(-tlen) === tail &&
-        post.slice(0, hlen) === hval
-      ) {
-        this.set(
-          "value",
-          `${pre.slice(0, -hlen)}${sel.value}${post.slice(tlen)}`
-        );
-        this._selectText(sel.start - hlen, sel.value.length);
-      } else {
-        const contents = this._getMultilineContents(
-          lines,
-          head,
-          hval,
-          hlen,
-          tail,
-          tlen,
-          opts
-        );
-
-        this.set("value", `${pre}${contents}${post}`);
-        if (lines.length === 1 && tlen > 0) {
-          this._selectText(sel.start + hlen, sel.value.length);
-        } else {
-          this._selectText(sel.start, contents.length);
-        }
-      }
-    }
-  },
-
   _applyList(sel, head, exampleKey, opts) {
-    if (sel.value.indexOf("\n") !== -1) {
-      this._applySurround(sel, head, "", exampleKey, opts);
+    if (sel.value.includes("\n")) {
+      this.applySurround(sel, head, "", exampleKey, opts);
     } else {
       const [hval, hlen] = getHead(head);
       if (sel.start === sel.end) {
@@ -790,240 +645,77 @@ export default Component.extend({
       }
 
       const trimmedPre = sel.pre.trim();
-      const number =
-        sel.value.indexOf(hval) === 0
-          ? sel.value.slice(hlen)
-          : `${hval}${sel.value}`;
+      const number = sel.value.startsWith(hval)
+        ? sel.value.slice(hlen)
+        : `${hval}${sel.value}`;
       const preLines = trimmedPre.length ? `${trimmedPre}\n\n` : "";
 
       const trimmedPost = sel.post.trim();
       const post = trimmedPost.length ? `\n\n${trimmedPost}` : trimmedPost;
 
       this.set("value", `${preLines}${number}${post}`);
-      this._selectText(preLines.length, number.length);
+      this.selectText(preLines.length, number.length);
     }
   },
 
-  _replaceText(oldVal, newVal, opts = {}) {
-    const val = this.value;
-    const needleStart = val.indexOf(oldVal);
-
-    if (needleStart === -1) {
-      // Nothing to replace.
-      return;
-    }
-
-    const textarea = this.element.querySelector("textarea.d-editor-input");
-
-    // Determine post-replace selection.
-    const newSelection = determinePostReplaceSelection({
-      selection: { start: textarea.selectionStart, end: textarea.selectionEnd },
-      needle: { start: needleStart, end: needleStart + oldVal.length },
-      replacement: { start: needleStart, end: needleStart + newVal.length },
-    });
-
-    if (opts.index && opts.regex) {
-      let i = -1;
-      const newValue = val.replace(opts.regex, (match) => {
-        i++;
-        return i === opts.index ? newVal : match;
-      });
-      this.set("value", newValue);
-    } else {
-      // Replace value (side effect: cursor at the end).
-      this.set("value", val.replace(oldVal, newVal));
-    }
-
-    if (opts.forceFocus || $("textarea.d-editor-input").is(":focus")) {
-      // Restore cursor.
-      this._selectText(
-        newSelection.start,
-        newSelection.end - newSelection.start
-      );
-    }
-  },
-
-  _addBlock(sel, text) {
-    text = (text || "").trim();
-    if (text.length === 0) {
-      return;
-    }
-
-    let pre = sel.pre;
-    let post = sel.value + sel.post;
-
-    if (pre.length > 0) {
-      pre = pre.replace(/\n*$/, "\n\n");
-    }
-
-    if (post.length > 0) {
-      post = post.replace(/^\n*/, "\n\n");
-    } else {
-      post = "\n";
-    }
-
-    const value = pre + text + post;
-    const $textarea = $(this.element.querySelector("textarea.d-editor-input"));
-
-    this.set("value", value);
-
-    $textarea.val(value);
-    $textarea.prop("selectionStart", (pre + text).length + 2);
-    $textarea.prop("selectionEnd", (pre + text).length + 2);
-
-    this._focusTextArea();
-  },
-
-  _addText(sel, text, options) {
-    const $textarea = $(this.element.querySelector("textarea.d-editor-input"));
-
-    if (options && options.ensureSpace) {
-      if ((sel.pre + "").length > 0) {
-        if (!sel.pre.match(/\s$/)) {
-          text = " " + text;
-        }
-      }
-      if ((sel.post + "").length > 0) {
-        if (!sel.post.match(/^\s/)) {
-          text = text + " ";
-        }
-      }
-    }
-
-    const insert = `${sel.pre}${text}`;
-    const value = `${insert}${sel.post}`;
-    this.set("value", value);
-    $textarea.val(value);
-    $textarea.prop("selectionStart", insert.length);
-    $textarea.prop("selectionEnd", insert.length);
-    next(() => $textarea.trigger("change"));
-    this._focusTextArea();
-  },
-
-  _extractTable(text) {
-    if (text.endsWith("\n")) {
-      text = text.substring(0, text.length - 1);
-    }
-
-    text = text.split("");
-    let cell = false;
-    text.forEach((char, index) => {
-      if (char === "\n" && cell) {
-        text[index] = "\r";
-      }
-      if (char === '"') {
-        text[index] = "";
-        cell = !cell;
-      }
-    });
-
-    let rows = text.join("").replace(/\r/g, "<br>").split("\n");
-
-    if (rows.length > 1) {
-      const columns = rows.map((r) => r.split("\t").length);
-      const isTable =
-        columns.reduce((a, b) => a && columns[0] === b && b > 1) &&
-        !(columns[0] === 2 && rows[0].split("\t")[0].match(/^•$|^\d+.$/)); // to skip tab delimited lists
-
-      if (isTable) {
-        const splitterRow = [...Array(columns[0])].map(() => "---").join("\t");
-        rows.splice(1, 0, splitterRow);
-
-        return (
-          "|" + rows.map((r) => r.split("\t").join("|")).join("|\n|") + "|\n"
-        );
-      }
-    }
-    return null;
+  _applySurround(head, tail, exampleKey, opts) {
+    const selected = this.getSelected();
+    this.applySurround(selected, head, tail, exampleKey, opts);
   },
 
   _toggleDirection() {
-    const $textArea = $(".d-editor-input");
-    let currentDir = $textArea.attr("dir") ? $textArea.attr("dir") : siteDir(),
+    let currentDir = this._$textarea.attr("dir")
+        ? this._$textarea.attr("dir")
+        : siteDir(),
       newDir = currentDir === "ltr" ? "rtl" : "ltr";
 
-    $textArea.attr("dir", newDir).focus();
+    this._$textarea.attr("dir", newDir).focus();
   },
 
-  paste(e) {
-    if (!$(".d-editor-input").is(":focus") && !isTesting()) {
-      return;
+  @action
+  rovingButtonBar(event) {
+    let target = event.target;
+    let siblingFinder;
+    if (event.code === "ArrowRight") {
+      siblingFinder = "nextElementSibling";
+    } else if (event.code === "ArrowLeft") {
+      siblingFinder = "previousElementSibling";
+    } else {
+      return true;
     }
 
-    const isComposer = $("#reply-control .d-editor-input").is(":focus");
-    let { clipboard, canPasteHtml, canUpload } = clipboardHelpers(e, {
-      siteSettings: this.siteSettings,
-      canUpload: isComposer,
-    });
-
-    let plainText = clipboard.getData("text/plain");
-    let html = clipboard.getData("text/html");
-    let handled = false;
-
-    const { pre, lineVal } = this._getSelected(null, { lineVal: true });
-    const isInlinePasting = pre.match(/[^\n]$/);
-    const isCodeBlock = isInside(pre, /(^|\n)```/g);
-
-    if (
-      plainText &&
-      this.siteSettings.enable_rich_text_paste &&
-      !isInlinePasting &&
-      !isCodeBlock
+    while (
+      target.parentNode &&
+      !target.parentNode.classList.contains("d-editor-button-bar")
     ) {
-      plainText = plainText.replace(/\r/g, "");
-      const table = this._extractTable(plainText);
-      if (table) {
-        this.appEvents.trigger("composer:insert-text", table);
-        handled = true;
+      target = target.parentNode;
+    }
+
+    let focusable = target[siblingFinder];
+    if (focusable) {
+      while (
+        (focusable.tagName !== "BUTTON" &&
+          !focusable.classList.contains("select-kit")) ||
+        focusable.classList.contains("hidden")
+      ) {
+        focusable = focusable[siblingFinder];
       }
-    }
 
-    if (canPasteHtml && plainText) {
-      if (isInlinePasting) {
-        canPasteHtml = !(
-          lineVal.match(/^```/) ||
-          isInside(pre, /`/g) ||
-          lineVal.match(/^    /)
-        );
-      } else {
-        canPasteHtml = !isCodeBlock;
+      if (focusable?.tagName === "DETAILS") {
+        focusable = focusable.querySelector("summary");
       }
+
+      focusable?.focus();
     }
 
-    if (canPasteHtml && !handled) {
-      let markdown = toMarkdown(html);
-
-      if (!plainText || plainText.length < markdown.length) {
-        if (isInlinePasting) {
-          markdown = markdown.replace(/^#+/, "").trim();
-          markdown = pre.match(/\S$/) ? ` ${markdown}` : markdown;
-        }
-
-        this.appEvents.trigger("composer:insert-text", markdown);
-        handled = true;
-      }
-    }
-
-    if (handled || (canUpload && !plainText)) {
-      e.preventDefault();
-    }
+    return true;
   },
 
-  // ensures textarea scroll position is correct
-  _focusTextArea() {
-    schedule("afterRender", () => {
-      if (!this.element || this.isDestroying || this.isDestroyed) {
-        return;
-      }
-
-      const textarea = this.element.querySelector("textarea.d-editor-input");
-      if (!textarea) {
-        return;
-      }
-
-      textarea.blur();
-      textarea.focus();
-    });
+  @action
+  onEmojiPickerClose() {
+    if (!(this.isDestroyed || this.isDestroying)) {
+      this.set("emojiPickerIsActive", false);
+    }
   },
 
   actions: {
@@ -1035,44 +727,22 @@ export default Component.extend({
       this.set("emojiPickerIsActive", !this.emojiPickerIsActive);
     },
 
-    emojiSelected(code) {
-      let selected = this._getSelected();
-      const captures = selected.pre.match(/\B:(\w*)$/);
-
-      if (isEmpty(captures)) {
-        if (selected.pre.match(/\S$/)) {
-          this._addText(selected, ` :${code}:`);
-        } else {
-          this._addText(selected, `:${code}:`);
-        }
-      } else {
-        let numOfRemovedChars = selected.pre.length - captures[1].length;
-        selected.pre = selected.pre.slice(
-          0,
-          selected.pre.length - captures[1].length
-        );
-        selected.start -= numOfRemovedChars;
-        selected.end -= numOfRemovedChars;
-        this._addText(selected, `${code}:`);
-      }
-    },
-
     toolbarButton(button) {
       if (this.disabled) {
         return;
       }
 
-      const selected = this._getSelected(button.trimLeading);
+      const selected = this.getSelected(button.trimLeading);
       const toolbarEvent = {
         selected,
         selectText: (from, length) =>
-          this._selectText(from, length, { scroll: false }),
+          this.selectText(from, length, { scroll: false }),
         applySurround: (head, tail, exampleKey, opts) =>
-          this._applySurround(selected, head, tail, exampleKey, opts),
+          this.applySurround(selected, head, tail, exampleKey, opts),
         applyList: (head, exampleKey, opts) =>
           this._applyList(selected, head, exampleKey, opts),
-        addText: (text) => this._addText(selected, text),
-        replaceText: (text) => this._addText({ pre: "", post: "" }, text),
+        formatCode: (...args) => this.send("formatCode", args),
+        addText: (text) => this.addText(selected, text),
         getText: () => this.value,
         toggleDirection: () => this._toggleDirection(),
       };
@@ -1107,9 +777,9 @@ export default Component.extend({
         return;
       }
 
-      const sel = this._getSelected("", { lineVal: true });
+      const sel = this.getSelected("", { lineVal: true });
       const selValue = sel.value;
-      const hasNewLine = selValue.indexOf("\n") !== -1;
+      const hasNewLine = selValue.includes("\n");
       const isBlankLine = sel.lineVal.trim().length === 0;
       const isFourSpacesIndent =
         this.siteSettings.code_formatting_style === FOUR_SPACES_INDENT;
@@ -1119,30 +789,34 @@ export default Component.extend({
           if (isFourSpacesIndent) {
             const example = I18n.t(`composer.code_text`);
             this.set("value", `${sel.pre}    ${example}${sel.post}`);
-            return this._selectText(sel.pre.length + 4, example.length);
+            return this.selectText(sel.pre.length + 4, example.length);
           } else {
-            return this._applySurround(
-              sel,
-              "```\n",
-              "\n```",
-              "paste_code_text"
-            );
+            return this.applySurround(sel, "```\n", "\n```", "paste_code_text");
           }
         } else {
-          return this._applySurround(sel, "`", "`", "code_title");
+          return this.applySurround(sel, "`", "`", "code_title");
         }
       } else {
         if (isFourSpacesIndent) {
-          return this._applySurround(sel, "    ", "", "code_text");
+          return this.applySurround(sel, "    ", "", "code_text");
         } else {
           const preNewline = sel.pre[-1] !== "\n" && sel.pre !== "" ? "\n" : "";
           const postNewline = sel.post[0] !== "\n" ? "\n" : "";
-          return this._addText(
+          return this.addText(
             sel,
             `${preNewline}\`\`\`\n${sel.value}\n\`\`\`${postNewline}`
           );
         }
       }
+    },
+
+    insertCurrentTime() {
+      const sel = this.getSelected("", { lineVal: true });
+      const timezone = this.currentUser.user_option.timezone;
+      const time = moment().format("HH:mm:ss");
+      const date = moment().format("YYYY-MM-DD");
+
+      this.addText(sel, `[date=${date} time=${time} timezone="${timezone}"]`);
     },
 
     focusIn() {
@@ -1152,5 +826,22 @@ export default Component.extend({
     focusOut() {
       this.set("isEditorFocused", false);
     },
+  },
+
+  _disablePreviewTabIndex() {
+    const observer = new MutationObserver(function () {
+      document.querySelectorAll(".d-editor-preview a").forEach((anchor) => {
+        anchor.setAttribute("tabindex", "-1");
+      });
+    });
+
+    observer.observe(document.querySelector(".d-editor-preview"), {
+      childList: true,
+      subtree: true,
+      attributes: false,
+      characterData: true,
+    });
+
+    return observer;
   },
 });

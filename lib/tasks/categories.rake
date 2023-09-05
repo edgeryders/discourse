@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-task "categories:move_topics", [:from_category, :to_category] => [:environment] do |_, args|
+task "categories:move_topics", %i[from_category to_category] => [:environment] do |_, args|
   from_category_id = args[:from_category]
   to_category_id = args[:to_category]
 
@@ -14,11 +14,17 @@ task "categories:move_topics", [:from_category, :to_category] => [:environment] 
 
   if from_category.present? && to_category.present?
     puts "Moving topics from #{from_category.slug} to #{to_category.slug}..."
-    Topic.where(category_id: from_category.id).update_all(category_id: to_category.id)
+
+    Topic
+      .where(category_id: from_category.id)
+      .where.not(id: from_category.topic_id)
+      .update_all(category_id: to_category.id)
+
     from_category.update_attribute(:topic_count, 0)
 
     puts "Updating category stats..."
     Category.update_stats
+    CategoryTagStat.update_topic_counts
   end
 
   puts "", "Done!", ""
@@ -44,8 +50,10 @@ task "categories:list" => :environment do
   puts "-- -----------------"
   categories.each do |c|
     puts "#{c[0]} #{c[1]}"
-    Category.where(parent_category_id: c[0]).order(:slug).pluck(:id, :slug).each do |s|
-      puts "     #{s[0]} #{s[1]}"
-    end
+    Category
+      .where(parent_category_id: c[0])
+      .order(:slug)
+      .pluck(:id, :slug)
+      .each { |s| puts "     #{s[0]} #{s[1]}" }
   end
 end

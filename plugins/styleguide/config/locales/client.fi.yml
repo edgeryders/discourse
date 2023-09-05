@@ -26,15 +26,15 @@ fi:
           title: "Värit"
         icons:
           title: "Kuvakkeet"
-          full_list: "Katso koko lista Font Awesome -kuvakkeista"
+          full_list: "Katso täydellinen luettelo Font Awesome -kuvakkeista"
         input_fields:
           title: "Tekstikentät"
         buttons:
           title: "Painikkeet"
         dropdowns:
-          title: "Alasvetovalikot"
+          title: "Pudotusvalikot"
         categories:
-          title: "Keskustelualueet"
+          title: "Luokat"
         bread_crumbs:
           title: "Navigointipolku"
         navigation:
@@ -44,7 +44,7 @@ fi:
         navigation_stacked:
           title: "Pystynavigointi"
         categories_list:
-          title: "Aluelistaus"
+          title: "Alueluettelo"
         topic_link:
           title: "Ketjun linkki"
         topic_list_item:
@@ -85,3 +85,13 @@ fi:
           title: "Yläpalkin kuvakkeet"
         spinners:
           title: "Latausnäkymät"
+        empty_state:
+          title: "Tyhjä tila"
+        rich_tooltip:
+          title: "Monipuolinen työkaluvihje"
+          description: "Kuvaus"
+          header: "Yläpalkki"
+          hover_to_see: "Katso työkaluvihje osoittamalla"
+        char_counter:
+          title: "Merkkilaskuri"
+          placeholder: "Kirjoita tekstisi tähän..."

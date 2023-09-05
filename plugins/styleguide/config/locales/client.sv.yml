@@ -85,3 +85,13 @@ sv:
           title: "Rubrikikoner"
         spinners:
           title: "Spinnare"
+        empty_state:
+          title: "Tomt tillstånd"
+        rich_tooltip:
+          title: "Innehållsrik knappbeskrivning"
+          description: "Beskrivning"
+          header: "Sidhuvud"
+          hover_to_see: "Håll muspekaren kvar för att se en knappbeskrivning"
+        char_counter:
+          title: "Teckenräknare"
+          placeholder: "Skriv din text här..."

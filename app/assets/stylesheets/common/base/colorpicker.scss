@@ -13,12 +13,7 @@
 
   .colorpicker-wrapper {
     display: flex;
-    align-items: center;
-    input,
-    .add-on {
-      align-self: flex-start;
-      margin-bottom: 0.125em;
-    }
+    align-items: flex-start;
   }
 
   .colors-container {

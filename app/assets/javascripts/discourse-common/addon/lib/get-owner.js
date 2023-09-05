@@ -33,13 +33,16 @@ export function getRegister(obj) {
       Object.defineProperty(target, "container", {
         get() {
           deprecated(
-            "Use `this.register` or `getOwner` instead of `this.container`"
+            "Use `this.register` or `getOwner` instead of `this.container`",
+            { id: "discourse.this-container" }
           );
           return register;
         },
       });
     },
   };
+
+  setOwner(register, owner);
 
   return register;
 }

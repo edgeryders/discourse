@@ -1,21 +1,16 @@
-import {
-  authorizesOneOrMoreImageExtensions,
-  displayErrorForUpload,
-  getUploadMarkdown,
-  validateUploadedFiles,
-} from "discourse/lib/uploads";
-import {
-  cacheShortUploadUrl,
-  resolveAllShortUrls,
-} from "pretty-text/upload-short-url";
+import { authorizesOneOrMoreImageExtensions } from "discourse/lib/uploads";
+import { alias } from "@ember/object/computed";
+import { BasePlugin } from "@uppy/core";
+import { resolveAllShortUrls } from "pretty-text/upload-short-url";
 import {
   caretPosition,
-  clipboardHelpers,
   formatUsername,
   inCodeBlock,
-  tinyAvatar,
 } from "discourse/lib/utilities";
+import { tinyAvatar } from "discourse-common/lib/avatar-utils";
 import discourseComputed, {
+  bind,
+  debounce,
   observes,
   on,
 } from "discourse-common/utils/decorators";
@@ -24,26 +19,48 @@ import {
   linkSeenHashtags,
 } from "discourse/lib/link-hashtags";
 import {
+  fetchUnseenHashtagsInContext,
+  linkSeenHashtagsInContext,
+} from "discourse/lib/hashtag-autocomplete";
+import {
   fetchUnseenMentions,
   linkSeenMentions,
 } from "discourse/lib/link-mentions";
-import { later, next, run, schedule, throttle } from "@ember/runloop";
+import { next, schedule, throttle } from "@ember/runloop";
+import discourseLater from "discourse-common/lib/later";
 import Component from "@ember/component";
 import Composer from "discourse/models/composer";
+import ComposerUploadUppy from "discourse/mixins/composer-upload-uppy";
+import ComposerVideoThumbnailUppy from "discourse/mixins/composer-video-thumbnail-uppy";
 import EmberObject from "@ember/object";
 import I18n from "I18n";
 import { ajax } from "discourse/lib/ajax";
-import bootbox from "bootbox";
 import discourseDebounce from "discourse-common/lib/debounce";
 import { findRawTemplate } from "discourse-common/lib/raw-templates";
-import getURL from "discourse-common/lib/get-url";
 import { iconHTML } from "discourse-common/lib/icon-library";
 import { isTesting } from "discourse-common/config/environment";
 import { loadOneboxes } from "discourse/lib/load-oneboxes";
 import putCursorAtEnd from "discourse/lib/put-cursor-at-end";
 import userSearch from "discourse/lib/user-search";
+import {
+  destroyTippyInstances,
+  initUserStatusHtml,
+  renderUserStatusHtml,
+} from "discourse/lib/user-status-on-autocomplete";
 
-const REBUILD_SCROLL_MAP_EVENTS = ["composer:resized", "composer:typed-reply"];
+// original string `![image|foo=bar|690x220, 50%|bar=baz](upload://1TjaobgKObzpU7xRMw2HuUc87vO.png "image title")`
+// group 1 `image|foo=bar`
+// group 2 `690x220`
+// group 3 `, 50%`
+// group 4 '|bar=baz'
+// group 5 'upload://1TjaobgKObzpU7xRMw2HuUc87vO.png "image title"'
+
+// Notes:
+// Group 3 is optional. group 4 can match images with or without a markdown title.
+// All matches are whitespace tolerant as long it's still valid markdown.
+// If the image is inside a code block, we'll ignore it `(?!(.*`))`.
+const IMAGE_MARKDOWN_REGEX =
+  /!\[(.*?)\|(\d{1,4}x\d{1,4})(,\s*\d{1,3}%)?(.*?)\]\((upload:\/\/.*?)\)(?!(.*`))/g;
 
 let uploadHandlers = [];
 export function addComposerUploadHandler(extensions, method) {
@@ -53,18 +70,31 @@ export function addComposerUploadHandler(extensions, method) {
   });
 }
 export function cleanUpComposerUploadHandler() {
-  uploadHandlers = [];
+  // we cannot set this to uploadHandlers = [] because that messes with
+  // the references to the original array that the component has. this only
+  // really affects tests, but without doing this you could addComposerUploadHandler
+  // in a beforeEach function in a test but then it's not adding to the
+  // existing reference that the component has, because an earlier test ran
+  // cleanUpComposerUploadHandler and lost it. setting the length to 0 empties
+  // the array but keeps the reference
+  uploadHandlers.length = 0;
 }
 
-let uploadProcessorQueue = [];
-let uploadProcessorActions = {};
-export function addComposerUploadProcessor(queueItem, actionItem) {
-  uploadProcessorQueue.push(queueItem);
-  Object.assign(uploadProcessorActions, actionItem);
+let uploadPreProcessors = [];
+export function addComposerUploadPreProcessor(pluginClass, optionsResolverFn) {
+  if (!(pluginClass.prototype instanceof BasePlugin)) {
+    throw new Error(
+      "Composer upload preprocessors must inherit from the Uppy BasePlugin class."
+    );
+  }
+
+  uploadPreProcessors.push({
+    pluginClass,
+    optionsResolverFn,
+  });
 }
-export function cleanUpComposerUploadProcessor() {
-  uploadProcessorQueue = [];
-  uploadProcessorActions = {};
+export function cleanUpComposerUploadPreProcessor() {
+  uploadPreProcessors = [];
 }
 
 let uploadMarkdownResolvers = [];
@@ -74,428 +104,364 @@ export function addComposerUploadMarkdownResolver(resolver) {
 export function cleanUpComposerUploadMarkdownResolver() {
   uploadMarkdownResolvers = [];
 }
+export default Component.extend(
+  ComposerUploadUppy,
+  ComposerVideoThumbnailUppy,
+  {
+    classNameBindings: ["showToolbar:toolbar-visible", ":wmd-controls"],
 
-export default Component.extend({
-  classNameBindings: ["showToolbar:toolbar-visible", ":wmd-controls"],
+    editorClass: ".d-editor",
+    fileUploadElementId: "file-uploader",
+    mobileFileUploaderId: "mobile-file-upload",
 
-  uploadProgress: 0,
-  _xhr: null,
-  shouldBuildScrollMap: true,
-  scrollMap: null,
-  uploadFilenamePlaceholder: null,
+    composerEventPrefix: "composer",
+    uploadType: "composer",
+    uppyId: "composer-editor-uppy",
+    composerModel: alias("composer"),
+    composerModelContentKey: "reply",
+    editorInputClass: ".d-editor-input",
+    shouldBuildScrollMap: true,
+    scrollMap: null,
+    processPreview: true,
 
-  @discourseComputed("uploadFilenamePlaceholder")
-  uploadPlaceholder(uploadFilenamePlaceholder) {
-    const clipboard = I18n.t("clipboard");
-    const filename = uploadFilenamePlaceholder
-      ? uploadFilenamePlaceholder
-      : clipboard;
+    uploadMarkdownResolvers,
+    uploadPreProcessors,
+    uploadHandlers,
 
-    let placeholder = `[${I18n.t("uploading_filename", { filename })}]()\n`;
-    if (!this._cursorIsOnEmptyLine()) {
-      placeholder = `\n${placeholder}`;
-    }
+    init() {
+      this._super(...arguments);
+      this.warnedCannotSeeMentions = [];
+      this.warnedGroupMentions = [];
+    },
 
-    return placeholder;
-  },
-
-  @discourseComputed("composer.requiredCategoryMissing")
-  replyPlaceholder(requiredCategoryMissing) {
-    if (requiredCategoryMissing) {
-      return "composer.reply_placeholder_choose_category";
-    } else {
-      const key = authorizesOneOrMoreImageExtensions(
-        this.currentUser.staff,
-        this.siteSettings
-      )
-        ? "reply_placeholder"
-        : "reply_placeholder_no_images";
-      return `composer.${key}`;
-    }
-  },
-
-  @discourseComputed
-  showLink() {
-    return (
-      this.currentUser && this.currentUser.get("link_posting_access") !== "none"
-    );
-  },
-
-  @discourseComputed("composer.requiredCategoryMissing", "composer.replyLength")
-  disableTextarea(requiredCategoryMissing, replyLength) {
-    return requiredCategoryMissing && replyLength === 0;
-  },
-
-  @observes("composer.uploadCancelled")
-  _cancelUpload() {
-    if (!this.get("composer.uploadCancelled")) {
-      return;
-    }
-    this.set("composer.uploadCancelled", false);
-
-    if (this._xhr) {
-      this._xhr._userCancelled = true;
-      this._xhr.abort();
-    }
-    this._resetUpload(true);
-  },
-
-  @observes("focusTarget")
-  setFocus() {
-    if (this.focusTarget === "editor") {
-      putCursorAtEnd(this.element.querySelector("textarea"));
-    }
-  },
-
-  @discourseComputed
-  markdownOptions() {
-    return {
-      previewing: true,
-
-      formatUsername,
-
-      lookupAvatarByPostNumber: (postNumber, topicId) => {
-        const topic = this.topic;
-        if (!topic) {
-          return;
-        }
-
-        const posts = topic.get("postStream.posts");
-        if (posts && topicId === topic.get("id")) {
-          const quotedPost = posts.findBy("post_number", postNumber);
-          if (quotedPost) {
-            return tinyAvatar(quotedPost.get("avatar_template"));
-          }
-        }
-      },
-
-      lookupPrimaryUserGroupByPostNumber: (postNumber, topicId) => {
-        const topic = this.topic;
-        if (!topic) {
-          return;
-        }
-
-        const posts = topic.get("postStream.posts");
-        if (posts && topicId === topic.get("id")) {
-          const quotedPost = posts.findBy("post_number", postNumber);
-          if (quotedPost) {
-            return quotedPost.primary_group_name;
-          }
-        }
-      },
-    };
-  },
-
-  userSearchTerm(term) {
-    const topicId = this.get("topic.id");
-    // maybe this is a brand new topic, so grab category from composer
-    const categoryId =
-      this.get("topic.category_id") || this.get("composer.categoryId");
-
-    return userSearch({
-      term,
-      topicId,
-      categoryId,
-      includeGroups: true,
-    });
-  },
-
-  @on("didInsertElement")
-  _composerEditorInit() {
-    const $input = $(this.element.querySelector(".d-editor-input"));
-    const $preview = $(this.element.querySelector(".d-editor-preview-wrapper"));
-
-    if (this.siteSettings.enable_mentions) {
-      $input.autocomplete({
-        template: findRawTemplate("user-selector-autocomplete"),
-        dataSource: (term) => this.userSearchTerm.call(this, term),
-        key: "@",
-        transformComplete: (v) => v.username || v.name,
-        afterComplete: (value) => {
-          this.composer.set("reply", value);
-
-          // ensures textarea scroll position is correct
-          schedule("afterRender", () => $input.blur().focus());
-        },
-        triggerRule: (textarea) =>
-          !inCodeBlock(textarea.value, caretPosition(textarea)),
-      });
-    }
-
-    if (this._enableAdvancedEditorPreviewSync()) {
-      this._initInputPreviewSync($input, $preview);
-    } else {
-      $input.on("scroll", () =>
-        throttle(this, this._syncEditorAndPreviewScroll, $input, $preview, 20)
-      );
-    }
-
-    // Focus on the body unless we have a title
-    if (!this.get("composer.canEditTitle")) {
-      putCursorAtEnd(this.element.querySelector(".d-editor-input"));
-    }
-
-    this._bindUploadTarget();
-    this.appEvents.trigger("composer:will-open");
-  },
-
-  @discourseComputed(
-    "composer.reply",
-    "composer.replyLength",
-    "composer.missingReplyCharacters",
-    "composer.minimumPostLength",
-    "lastValidatedAt"
-  )
-  validation(
-    reply,
-    replyLength,
-    missingReplyCharacters,
-    minimumPostLength,
-    lastValidatedAt
-  ) {
-    const postType = this.get("composer.post.post_type");
-    if (postType === this.site.get("post_types.small_action")) {
-      return;
-    }
-
-    let reason;
-    if (replyLength < 1) {
-      reason = I18n.t("composer.error.post_missing");
-    } else if (missingReplyCharacters > 0) {
-      reason = I18n.t("composer.error.post_length", {
-        count: minimumPostLength,
-      });
-      const tl = this.get("currentUser.trust_level");
-      if (tl === 0 || tl === 1) {
-        reason +=
-          "<br/>" +
-          I18n.t("composer.error.try_like", { heart: iconHTML("heart") });
-      }
-    }
-
-    if (reason) {
-      return EmberObject.create({
-        failed: true,
-        reason,
-        lastShownAt: lastValidatedAt,
-      });
-    }
-  },
-
-  _setUploadPlaceholderSend(data) {
-    const filename = this._filenamePlaceholder(data);
-    this.set("uploadFilenamePlaceholder", filename);
-
-    // when adding two separate files with the same filename search for matching
-    // placeholder already existing in the editor ie [Uploading: test.png...]
-    // and add order nr to the next one: [Uplodading: test.png(1)...]
-    const escapedFilename = filename.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-    const regexString = `\\[${I18n.t("uploading_filename", {
-      filename: escapedFilename + "(?:\\()?([0-9])?(?:\\))?",
-    })}\\]\\(\\)`;
-    const globalRegex = new RegExp(regexString, "g");
-    const matchingPlaceholder = this.get("composer.reply").match(globalRegex);
-    if (matchingPlaceholder) {
-      // get last matching placeholder and its consecutive nr in regex
-      // capturing group and apply +1 to the placeholder
-      const lastMatch = matchingPlaceholder[matchingPlaceholder.length - 1];
-      const regex = new RegExp(regexString);
-      const orderNr = regex.exec(lastMatch)[1]
-        ? parseInt(regex.exec(lastMatch)[1], 10) + 1
-        : 1;
-      data.orderNr = orderNr;
-      const filenameWithOrderNr = `${filename}(${orderNr})`;
-      this.set("uploadFilenamePlaceholder", filenameWithOrderNr);
-    }
-  },
-
-  _setUploadPlaceholderDone(data) {
-    const filename = this._filenamePlaceholder(data);
-    const filenameWithSize = `${filename} (${data.total})`;
-    this.set("uploadFilenamePlaceholder", filenameWithSize);
-
-    if (data.orderNr) {
-      const filenameWithOrderNr = `${filename}(${data.orderNr})`;
-      this.set("uploadFilenamePlaceholder", filenameWithOrderNr);
-    } else {
-      this.set("uploadFilenamePlaceholder", filename);
-    }
-  },
-
-  _filenamePlaceholder(data) {
-    return data.files[0].name.replace(/\u200B-\u200D\uFEFF]/g, "");
-  },
-
-  _resetUploadFilenamePlaceholder() {
-    this.set("uploadFilenamePlaceholder", null);
-  },
-
-  _enableAdvancedEditorPreviewSync() {
-    return this.siteSettings.enable_advanced_editor_preview_sync;
-  },
-
-  _resetShouldBuildScrollMap() {
-    this.set("shouldBuildScrollMap", true);
-  },
-
-  _initInputPreviewSync($input, $preview) {
-    REBUILD_SCROLL_MAP_EVENTS.forEach((event) => {
-      this.appEvents.on(event, this, this._resetShouldBuildScrollMap);
-    });
-
-    schedule("afterRender", () => {
-      $input.on("touchstart mouseenter", () => {
-        if (!$preview.is(":visible")) {
-          return;
-        }
-        $preview.off("scroll");
-
-        $input.on("scroll", () => {
-          this._syncScroll(this._syncEditorAndPreviewScroll, $input, $preview);
-        });
-      });
-
-      $preview.on("touchstart mouseenter", () => {
-        $input.off("scroll");
-
-        $preview.on("scroll", () => {
-          this._syncScroll(this._syncPreviewAndEditorScroll, $input, $preview);
-        });
-      });
-    });
-  },
-
-  _syncScroll($callback, $input, $preview) {
-    if (!this.scrollMap || this.shouldBuildScrollMap) {
-      this.set("scrollMap", this._buildScrollMap($input, $preview));
-      this.set("shouldBuildScrollMap", false);
-    }
-
-    throttle(this, $callback, $input, $preview, this.scrollMap, 20);
-  },
-
-  _teardownInputPreviewSync() {
-    [
-      $(this.element.querySelector(".d-editor-input")),
-      $(this.element.querySelector(".d-editor-preview-wrapper")),
-    ].forEach(($element) => {
-      $element.off("mouseenter touchstart");
-      $element.off("scroll");
-    });
-
-    REBUILD_SCROLL_MAP_EVENTS.forEach((event) => {
-      this.appEvents.off(event, this, this._resetShouldBuildScrollMap);
-    });
-  },
-
-  // Adapted from https://github.com/markdown-it/markdown-it.github.io
-  _buildScrollMap($input, $preview) {
-    let sourceLikeDiv = $("<div />")
-      .css({
-        position: "absolute",
-        height: "auto",
-        visibility: "hidden",
-        width: $input[0].clientWidth,
-        "font-size": $input.css("font-size"),
-        "font-family": $input.css("font-family"),
-        "line-height": $input.css("line-height"),
-        "white-space": $input.css("white-space"),
-      })
-      .appendTo("body");
-
-    const linesMap = [];
-    let numberOfLines = 0;
-
-    $input
-      .val()
-      .split("\n")
-      .forEach((text) => {
-        linesMap.push(numberOfLines);
-
-        if (text.length === 0) {
-          numberOfLines++;
-        } else {
-          sourceLikeDiv.text(text);
-
-          let height;
-          let lineHeight;
-          height = parseFloat(sourceLikeDiv.css("height"));
-          lineHeight = parseFloat(sourceLikeDiv.css("line-height"));
-          numberOfLines += Math.round(height / lineHeight);
-        }
-      });
-
-    linesMap.push(numberOfLines);
-    sourceLikeDiv.remove();
-
-    const previewOffsetTop = $preview.offset().top;
-    const offset =
-      $preview.scrollTop() -
-      previewOffsetTop -
-      ($input.offset().top - previewOffsetTop);
-    const nonEmptyList = [];
-    const scrollMap = [];
-    for (let i = 0; i < numberOfLines; i++) {
-      scrollMap.push(-1);
-    }
-
-    nonEmptyList.push(0);
-    scrollMap[0] = 0;
-
-    $preview.find(".preview-sync-line").each((_, element) => {
-      let $element = $(element);
-      let lineNumber = $element.data("line-number");
-      let linesToTop = linesMap[lineNumber];
-      if (linesToTop !== 0) {
-        nonEmptyList.push(linesToTop);
-      }
-      scrollMap[linesToTop] = Math.round($element.offset().top + offset);
-    });
-
-    nonEmptyList.push(numberOfLines);
-    scrollMap[numberOfLines] = $preview[0].scrollHeight;
-
-    let position = 0;
-
-    for (let i = 1; i < numberOfLines; i++) {
-      if (scrollMap[i] !== -1) {
-        position++;
-        continue;
-      }
-
-      let top = nonEmptyList[position];
-      let bottom = nonEmptyList[position + 1];
-
-      scrollMap[i] = (
-        (scrollMap[bottom] * (i - top) + scrollMap[top] * (bottom - i)) /
-        (bottom - top)
-      ).toFixed(2);
-    }
-
-    return scrollMap;
-  },
-
-  _syncEditorAndPreviewScroll($input, $preview, scrollMap) {
-    if (this._enableAdvancedEditorPreviewSync()) {
-      let scrollTop;
-      const inputHeight = $input.height();
-      const inputScrollHeight = $input[0].scrollHeight;
-      const inputClientHeight = $input[0].clientHeight;
-      const scrollable = inputScrollHeight > inputClientHeight;
-
-      if (
-        scrollable &&
-        inputHeight + $input.scrollTop() + 100 > inputScrollHeight
-      ) {
-        scrollTop = $preview[0].scrollHeight;
+    @discourseComputed("composer.requiredCategoryMissing")
+    replyPlaceholder(requiredCategoryMissing) {
+      if (requiredCategoryMissing) {
+        return "composer.reply_placeholder_choose_category";
       } else {
-        const lineHeight = parseFloat($input.css("line-height"));
-        const lineNumber = Math.floor($input.scrollTop() / lineHeight);
-        scrollTop = scrollMap[lineNumber];
+        const key = authorizesOneOrMoreImageExtensions(
+          this.currentUser.staff,
+          this.siteSettings
+        )
+          ? "reply_placeholder"
+          : "reply_placeholder_no_images";
+        return `composer.${key}`;
+      }
+    },
+
+    @discourseComputed
+    showLink() {
+      return (
+        this.currentUser && this.currentUser.link_posting_access !== "none"
+      );
+    },
+
+    @observes("focusTarget")
+    setFocus() {
+      if (this.focusTarget === "editor") {
+        putCursorAtEnd(this.element.querySelector("textarea"));
+      }
+    },
+
+    @discourseComputed
+    markdownOptions() {
+      return {
+        previewing: true,
+
+        formatUsername,
+
+        lookupAvatarByPostNumber: (postNumber, topicId) => {
+          const topic = this.topic;
+          if (!topic) {
+            return;
+          }
+
+          const posts = topic.get("postStream.posts");
+          if (posts && topicId === topic.get("id")) {
+            const quotedPost = posts.findBy("post_number", postNumber);
+            if (quotedPost) {
+              return tinyAvatar(quotedPost.get("avatar_template"));
+            }
+          }
+        },
+
+        lookupPrimaryUserGroupByPostNumber: (postNumber, topicId) => {
+          const topic = this.topic;
+          if (!topic) {
+            return;
+          }
+
+          const posts = topic.get("postStream.posts");
+          if (posts && topicId === topic.get("id")) {
+            const quotedPost = posts.findBy("post_number", postNumber);
+            if (quotedPost) {
+              return quotedPost.primary_group_name;
+            }
+          }
+        },
+
+        hashtagTypesInPriorityOrder:
+          this.site.hashtag_configurations["topic-composer"],
+        hashtagIcons: this.site.hashtag_icons,
+      };
+    },
+
+    @bind
+    _afterMentionComplete(value) {
+      this.composer.set("reply", value);
+
+      // ensures textarea scroll position is correct
+      schedule("afterRender", () => {
+        const input = this.element.querySelector(".d-editor-input");
+        input?.blur();
+        input?.focus();
+      });
+    },
+
+    @on("didInsertElement")
+    _composerEditorInit() {
+      const $input = $(this.element.querySelector(".d-editor-input"));
+
+      if (this.siteSettings.enable_mentions) {
+        $input.autocomplete({
+          template: findRawTemplate("user-selector-autocomplete"),
+          dataSource: (term) => {
+            destroyTippyInstances();
+            return userSearch({
+              term,
+              topicId: this.topic?.id,
+              categoryId: this.topic?.category_id || this.composer?.categoryId,
+              includeGroups: true,
+            }).then((result) => {
+              initUserStatusHtml(result.users);
+              return result;
+            });
+          },
+          onRender: (options) => {
+            renderUserStatusHtml(options);
+          },
+          key: "@",
+          transformComplete: (v) => v.username || v.name,
+          afterComplete: this._afterMentionComplete,
+          triggerRule: (textarea) =>
+            !inCodeBlock(textarea.value, caretPosition(textarea)),
+          onClose: destroyTippyInstances,
+        });
       }
 
-      $preview.stop(true).animate({ scrollTop }, 100, "linear");
-    } else {
+      this.element
+        .querySelector(".d-editor-input")
+        ?.addEventListener("scroll", this._throttledSyncEditorAndPreviewScroll);
+
+      // Focus on the body unless we have a title
+      if (!this.get("composer.canEditTitle")) {
+        putCursorAtEnd(this.element.querySelector(".d-editor-input"));
+      }
+
+      if (this.allowUpload) {
+        this._bindUploadTarget();
+        this._bindMobileUploadButton();
+      }
+
+      this.appEvents.trigger(`${this.composerEventPrefix}:will-open`);
+    },
+
+    @discourseComputed(
+      "composer.reply",
+      "composer.replyLength",
+      "composer.missingReplyCharacters",
+      "composer.minimumPostLength",
+      "lastValidatedAt"
+    )
+    validation(
+      reply,
+      replyLength,
+      missingReplyCharacters,
+      minimumPostLength,
+      lastValidatedAt
+    ) {
+      const postType = this.get("composer.post.post_type");
+      if (postType === this.site.get("post_types.small_action")) {
+        return;
+      }
+
+      let reason;
+      if (replyLength < 1) {
+        reason = I18n.t("composer.error.post_missing");
+      } else if (missingReplyCharacters > 0) {
+        reason = I18n.t("composer.error.post_length", {
+          count: minimumPostLength,
+        });
+        const tl = this.get("currentUser.trust_level");
+        if (tl === 0 || tl === 1) {
+          reason +=
+            "<br/>" +
+            I18n.t("composer.error.try_like", {
+              heart: iconHTML("heart", {
+                label: I18n.t("likes_lowercase", { count: 1 }),
+              }),
+            });
+        }
+      }
+
+      if (reason) {
+        return EmberObject.create({
+          failed: true,
+          reason,
+          lastShownAt: lastValidatedAt,
+        });
+      }
+    },
+
+    _resetShouldBuildScrollMap() {
+      this.set("shouldBuildScrollMap", true);
+    },
+
+    @bind
+    _handleInputInteraction(event) {
+      const preview = this.element.querySelector(".d-editor-preview-wrapper");
+
+      if (!$(preview).is(":visible")) {
+        return;
+      }
+
+      preview.removeEventListener("scroll", this._handleInputOrPreviewScroll);
+      event.target.addEventListener("scroll", this._handleInputOrPreviewScroll);
+    },
+
+    @bind
+    _handleInputOrPreviewScroll(event) {
+      this._syncScroll(
+        this._syncEditorAndPreviewScroll,
+        $(event.target),
+        $(this.element.querySelector(".d-editor-preview-wrapper"))
+      );
+    },
+
+    @bind
+    _handlePreviewInteraction(event) {
+      this.element
+        .querySelector(".d-editor-input")
+        ?.removeEventListener("scroll", this._handleInputOrPreviewScroll);
+
+      event.target?.addEventListener(
+        "scroll",
+        this._handleInputOrPreviewScroll
+      );
+    },
+
+    _syncScroll($callback, $input, $preview) {
+      if (!this.scrollMap || this.shouldBuildScrollMap) {
+        this.set("scrollMap", this._buildScrollMap($input, $preview));
+        this.set("shouldBuildScrollMap", false);
+      }
+
+      throttle(this, $callback, $input, $preview, this.scrollMap, 20);
+    },
+
+    // Adapted from https://github.com/markdown-it/markdown-it.github.io
+    _buildScrollMap($input, $preview) {
+      let sourceLikeDiv = $("<div />")
+        .css({
+          position: "absolute",
+          height: "auto",
+          visibility: "hidden",
+          width: $input[0].clientWidth,
+          "font-size": $input.css("font-size"),
+          "font-family": $input.css("font-family"),
+          "line-height": $input.css("line-height"),
+          "white-space": $input.css("white-space"),
+        })
+        .appendTo("body");
+
+      const linesMap = [];
+      let numberOfLines = 0;
+
+      $input
+        .val()
+        .split("\n")
+        .forEach((text) => {
+          linesMap.push(numberOfLines);
+
+          if (text.length === 0) {
+            numberOfLines++;
+          } else {
+            sourceLikeDiv.text(text);
+
+            let height;
+            let lineHeight;
+            height = parseFloat(sourceLikeDiv.css("height"));
+            lineHeight = parseFloat(sourceLikeDiv.css("line-height"));
+            numberOfLines += Math.round(height / lineHeight);
+          }
+        });
+
+      linesMap.push(numberOfLines);
+      sourceLikeDiv.remove();
+
+      const previewOffsetTop = $preview.offset().top;
+      const offset =
+        $preview.scrollTop() -
+        previewOffsetTop -
+        ($input.offset().top - previewOffsetTop);
+      const nonEmptyList = [];
+      const scrollMap = [];
+      for (let i = 0; i < numberOfLines; i++) {
+        scrollMap.push(-1);
+      }
+
+      nonEmptyList.push(0);
+      scrollMap[0] = 0;
+
+      $preview.find(".preview-sync-line").each((_, element) => {
+        let $element = $(element);
+        let lineNumber = $element.data("line-number");
+        let linesToTop = linesMap[lineNumber];
+        if (linesToTop !== 0) {
+          nonEmptyList.push(linesToTop);
+        }
+        scrollMap[linesToTop] = Math.round($element.offset().top + offset);
+      });
+
+      nonEmptyList.push(numberOfLines);
+      scrollMap[numberOfLines] = $preview[0].scrollHeight;
+
+      let position = 0;
+
+      for (let i = 1; i < numberOfLines; i++) {
+        if (scrollMap[i] !== -1) {
+          position++;
+          continue;
+        }
+
+        let top = nonEmptyList[position];
+        let bottom = nonEmptyList[position + 1];
+
+        scrollMap[i] = (
+          (scrollMap[bottom] * (i - top) + scrollMap[top] * (bottom - i)) /
+          (bottom - top)
+        ).toFixed(2);
+      }
+
+      return scrollMap;
+    },
+
+    @bind
+    _throttledSyncEditorAndPreviewScroll(event) {
+      const $preview = $(
+        this.element.querySelector(".d-editor-preview-wrapper")
+      );
+
+      throttle(
+        this,
+        this._syncEditorAndPreviewScroll,
+        $(event.target),
+        $preview,
+        20
+      );
+    },
+
+    _syncEditorAndPreviewScroll($input, $preview) {
       if (!$input) {
         return;
       }
@@ -518,539 +484,515 @@ export default Component.extend({
       const factor = previewHeight / inputHeight;
       const desired = scrollPosition * factor;
       $preview.scrollTop(desired + 50);
-    }
-  },
+    },
 
-  _syncPreviewAndEditorScroll($input, $preview, scrollMap) {
-    if (scrollMap.length < 1) {
-      return;
-    }
-
-    let scrollTop;
-    const previewScrollTop = $preview.scrollTop();
-
-    if ($preview.height() + previewScrollTop + 100 > $preview[0].scrollHeight) {
-      scrollTop = $input[0].scrollHeight;
-    } else {
-      const lineHeight = parseFloat($input.css("line-height"));
-      scrollTop =
-        lineHeight * scrollMap.findIndex((offset) => offset > previewScrollTop);
-    }
-
-    $input.stop(true).animate({ scrollTop }, 100, "linear");
-  },
-
-  _renderUnseenMentions($preview, unseen) {
-    // 'Create a New Topic' scenario is not supported (per conversation with codinghorror)
-    // https://meta.discourse.org/t/taking-another-1-7-release-task/51986/7
-    fetchUnseenMentions(unseen, this.get("composer.topic.id")).then(() => {
-      linkSeenMentions($preview, this.siteSettings);
-      this._warnMentionedGroups($preview);
-      this._warnCannotSeeMention($preview);
-    });
-  },
-
-  _renderUnseenHashtags($preview) {
-    const unseen = linkSeenHashtags($preview);
-    if (unseen.length > 0) {
-      fetchUnseenHashtags(unseen).then(() => {
-        linkSeenHashtags($preview);
+    _renderUnseenMentions(preview, unseen) {
+      fetchUnseenMentions({
+        names: unseen,
+        topicId: this.get("composer.topic.id"),
+        allowedNames: this.get("composer.targetRecipients")?.split(","),
+      }).then((response) => {
+        linkSeenMentions(preview, this.siteSettings);
+        this._warnMentionedGroups(preview);
+        this._warnCannotSeeMention(preview);
+        this._warnHereMention(response.here_count);
       });
-    }
-  },
+    },
 
-  _warnMentionedGroups($preview) {
-    schedule("afterRender", () => {
-      let found = this.warnedGroupMentions || [];
-      $preview.find(".mention-group.notify").each((idx, e) => {
-        if (this._isInQuote(e)) {
-          return;
-        }
-
-        const $e = $(e);
-        let name = $e.data("name");
-        if (found.indexOf(name) === -1) {
-          this.groupsMentioned([
-            {
-              name: name,
-              user_count: $e.data("mentionable-user-count"),
-              max_mentions: $e.data("max-mentions"),
-            },
-          ]);
-          found.push(name);
-        }
-      });
-
-      this.set("warnedGroupMentions", found);
-    });
-  },
-
-  _warnCannotSeeMention($preview) {
-    const composerDraftKey = this.get("composer.draftKey");
-
-    if (composerDraftKey === Composer.NEW_PRIVATE_MESSAGE_KEY) {
-      return;
-    }
-
-    schedule("afterRender", () => {
-      let found = this.warnedCannotSeeMentions || [];
-
-      $preview.find(".mention.cannot-see").each((idx, e) => {
-        const $e = $(e);
-        let name = $e.data("name");
-
-        if (found.indexOf(name) === -1) {
-          // add a delay to allow for typing, so you don't open the warning right away
-          // previously we would warn after @bob even if you were about to mention @bob2
-          later(
-            this,
-            () => {
-              if (
-                $preview.find('.mention.cannot-see[data-name="' + name + '"]')
-                  .length > 0
-              ) {
-                this.cannotSeeMention([{ name }]);
-                found.push(name);
-              }
-            },
-            2000
-          );
-        }
-      });
-
-      this.set("warnedCannotSeeMentions", found);
-    });
-  },
-
-  _resetUpload(removePlaceholder) {
-    next(() => {
-      if (this._validUploads > 0) {
-        this._validUploads--;
+    _renderUnseenHashtags(preview) {
+      let unseen;
+      const hashtagContext = this.site.hashtag_configurations["topic-composer"];
+      if (this.siteSettings.enable_experimental_hashtag_autocomplete) {
+        unseen = linkSeenHashtagsInContext(hashtagContext, preview);
+      } else {
+        unseen = linkSeenHashtags(preview);
       }
-      if (this._validUploads === 0) {
-        this.setProperties({
-          uploadProgress: 0,
-          isUploading: false,
-          isCancellable: false,
-        });
+
+      if (unseen.length > 0) {
+        if (this.siteSettings.enable_experimental_hashtag_autocomplete) {
+          fetchUnseenHashtagsInContext(hashtagContext, unseen).then(() => {
+            linkSeenHashtagsInContext(hashtagContext, preview);
+          });
+        } else {
+          fetchUnseenHashtags(unseen).then(() => {
+            linkSeenHashtags(preview);
+          });
+        }
       }
-      if (removePlaceholder) {
-        this.appEvents.trigger(
-          "composer:replace-text",
-          this.uploadPlaceholder,
-          ""
-        );
-      }
-      this._resetUploadFilenamePlaceholder();
-    });
-  },
+    },
 
-  _bindUploadTarget() {
-    this._unbindUploadTarget(); // in case it's still bound, let's clean it up first
-    this._pasted = false;
+    @debounce(2000)
+    _warnMentionedGroups(preview) {
+      schedule("afterRender", () => {
+        preview
+          .querySelectorAll(".mention-group[data-mentionable-user-count]")
+          .forEach((mention) => {
+            const { name } = mention.dataset;
+            if (
+              this.warnedGroupMentions.includes(name) ||
+              this._isInQuote(mention)
+            ) {
+              return;
+            }
 
-    const $element = $(this.element);
-
-    $.blueimp.fileupload.prototype.processActions = uploadProcessorActions;
-
-    $element.fileupload({
-      url: getURL(`/uploads.json?client_id=${this.messageBus.clientId}`),
-      dataType: "json",
-      pasteZone: $element,
-      processQueue: uploadProcessorQueue,
-    });
-
-    $element
-      .on("fileuploadprocess", (e, data) => {
-        this.appEvents.trigger(
-          "composer:insert-text",
-          `[${I18n.t("processing_filename", {
-            filename: data.files[data.index].name,
-          })}]()\n`
-        );
-      })
-      .on("fileuploadprocessalways", (e, data) => {
-        this.appEvents.trigger(
-          "composer:replace-text",
-          `[${I18n.t("processing_filename", {
-            filename: data.files[data.index].name,
-          })}]()\n`,
-          ""
-        );
+            this.warnedGroupMentions.push(name);
+            this.groupsMentioned({
+              name,
+              userCount: mention.dataset.mentionableUserCount,
+              maxMentions: mention.dataset.maxMentions,
+            });
+          });
       });
+    },
 
-    $element.on("fileuploadpaste", (e) => {
-      this._pasted = true;
-
-      if (!$(".d-editor-input").is(":focus")) {
+    // add a delay to allow for typing, so you don't open the warning right away
+    // previously we would warn after @bob even if you were about to mention @bob2
+    @debounce(2000)
+    _warnCannotSeeMention(preview) {
+      if (this.composer.draftKey === Composer.NEW_PRIVATE_MESSAGE_KEY) {
         return;
       }
 
-      const { canUpload, canPasteHtml, types } = clipboardHelpers(e, {
-        siteSettings: this.siteSettings,
-        canUpload: true,
-      });
-
-      if (!canUpload || canPasteHtml || types.includes("text/plain")) {
-        e.preventDefault();
-      }
-    });
-
-    $element.on("fileuploadsubmit", (e, data) => {
-      const max = this.siteSettings.simultaneous_uploads;
-
-      // Limit the number of simultaneous uploads
-      if (max > 0 && data.files.length > max) {
-        bootbox.alert(
-          I18n.t("post.errors.too_many_dragged_and_dropped_files", {
-            count: max,
-          })
-        );
-        return false;
-      }
-
-      // Look for a matching file upload handler contributed from a plugin
-      const matcher = (handler) => {
-        const ext = handler.extensions.join("|");
-        const regex = new RegExp(`\\.(${ext})$`, "i");
-        return regex.test(data.files[0].name);
-      };
-
-      const matchingHandler = uploadHandlers.find(matcher);
-      if (data.files.length === 1 && matchingHandler) {
-        if (!matchingHandler.method(data.files[0], this)) {
-          return false;
+      preview.querySelectorAll(".mention[data-reason]").forEach((mention) => {
+        const { name } = mention.dataset;
+        if (this.warnedCannotSeeMentions.includes(name)) {
+          return;
         }
+
+        this.warnedCannotSeeMentions.push(name);
+        this.cannotSeeMention({
+          name,
+          reason: mention.dataset.reason,
+        });
+      });
+
+      preview
+        .querySelectorAll(".mention-group[data-reason]")
+        .forEach((mention) => {
+          const { name } = mention.dataset;
+          if (this.warnedCannotSeeMentions.includes(name)) {
+            return;
+          }
+
+          this.warnedCannotSeeMentions.push(name);
+          this.cannotSeeMention({
+            name,
+            reason: mention.dataset.reason,
+            notifiedCount: mention.dataset.notifiedUserCount,
+            isGroup: true,
+          });
+        });
+    },
+
+    _warnHereMention(hereCount) {
+      if (!hereCount || hereCount === 0) {
+        return;
       }
 
-      // If no plugin, continue as normal
-      const isPrivateMessage = this.get("composer.privateMessage");
+      this.hereMention(hereCount);
+    },
 
-      data.formData = { type: "composer" };
-      if (isPrivateMessage) {
-        data.formData.for_private_message = true;
-      }
-      if (this._pasted) {
-        data.formData.pasted = true;
+    @bind
+    _handleImageScaleButtonClick(event) {
+      if (!event.target.classList.contains("scale-btn")) {
+        return;
       }
 
-      const opts = {
-        user: this.currentUser,
-        siteSettings: this.siteSettings,
-        isPrivateMessage,
-        allowStaffToUploadAnyFileInPm: this.siteSettings
-          .allow_staff_to_upload_any_file_in_pm,
-      };
-
-      const isUploading = validateUploadedFiles(data.files, opts);
-
-      run(() => {
-        this.setProperties({ uploadProgress: 0, isUploading });
-      });
-
-      return isUploading;
-    });
-
-    $element.on("fileuploadprogressall", (e, data) => {
-      run(() => {
-        this.set(
-          "uploadProgress",
-          parseInt((data.loaded / data.total) * 100, 10)
-        );
-      });
-    });
-
-    $element.on("fileuploadsend", (e, data) => {
-      run(() => {
-        this._pasted = false;
-        this._validUploads++;
-
-        this._setUploadPlaceholderSend(data);
-
-        this.appEvents.trigger("composer:insert-text", this.uploadPlaceholder);
-
-        if (data.xhr && data.originalFiles.length === 1) {
-          this.set("isCancellable", true);
-          this._xhr = data.xhr();
-        }
-      });
-    });
-
-    $element.on("fileuploaddone", (e, data) => {
-      run(() => {
-        let upload = data.result;
-        this._setUploadPlaceholderDone(data);
-        if (!this._xhr || !this._xhr._userCancelled) {
-          const markdown = uploadMarkdownResolvers.reduce(
-            (md, resolver) => resolver(upload) || md,
-            getUploadMarkdown(upload)
-          );
-
-          cacheShortUploadUrl(upload.short_url, upload);
-          this.appEvents.trigger(
-            "composer:replace-text",
-            this.uploadPlaceholder.trim(),
-            markdown
-          );
-          this._resetUpload(false);
-        } else {
-          this._resetUpload(true);
-        }
-      });
-    });
-
-    $element.on("fileuploadfail", (e, data) => {
-      run(() => {
-        this._setUploadPlaceholderDone(data);
-        this._resetUpload(true);
-
-        const userCancelled = this._xhr && this._xhr._userCancelled;
-        this._xhr = null;
-
-        if (!userCancelled) {
-          displayErrorForUpload(data, this.siteSettings);
-        }
-      });
-    });
-
-    if (this.site.mobileView) {
-      $("#reply-control .mobile-file-upload").on("click.uploader", function () {
-        // redirect the click on the hidden file input
-        $("#mobile-uploader").click();
-      });
-    }
-  },
-
-  _registerImageScaleButtonClick($preview) {
-    // original string `![image|foo=bar|690x220, 50%|bar=baz](upload://1TjaobgKObzpU7xRMw2HuUc87vO.png "image title")`
-    // group 1 `image|foo=bar`
-    // group 2 `690x220`
-    // group 3 `, 50%`
-    // group 4 '|bar=baz'
-    // group 5 'upload://1TjaobgKObzpU7xRMw2HuUc87vO.png "image title"'
-
-    // Notes:
-    // Group 3 is optional. group 4 can match images with or without a markdown title.
-    // All matches are whitespace tolerant as long it's still valid markdown.
-    // If the image is inside a code block, we'll ignore it `(?!(.*`))`.
-    const imageScaleRegex = /!\[(.*?)\|(\d{1,4}x\d{1,4})(,\s*\d{1,3}%)?(.*?)\]\((upload:\/\/.*?)\)(?!(.*`))/g;
-    $preview.off("click", ".scale-btn").on("click", ".scale-btn", (e) => {
-      const index = parseInt($(e.target).parent().attr("data-image-index"), 10);
-
-      const scale = e.target.attributes["data-scale"].value;
-      const matchingPlaceholder = this.get("composer.reply").match(
-        imageScaleRegex
+      const index = parseInt(
+        event.target.closest(".button-wrapper").dataset.imageIndex,
+        10
       );
+
+      const scale = event.target.dataset.scale;
+      const matchingPlaceholder =
+        this.get("composer.reply").match(IMAGE_MARKDOWN_REGEX);
 
       if (matchingPlaceholder) {
         const match = matchingPlaceholder[index];
 
         if (match) {
           const replacement = match.replace(
-            imageScaleRegex,
+            IMAGE_MARKDOWN_REGEX,
             `![$1|$2, ${scale}%$4]($5)`
           );
 
           this.appEvents.trigger(
-            "composer:replace-text",
+            `${this.composerEventPrefix}:replace-text`,
             matchingPlaceholder[index],
             replacement,
-            { regex: imageScaleRegex, index }
+            { regex: IMAGE_MARKDOWN_REGEX, index }
           );
         }
       }
 
-      e.preventDefault();
+      event.preventDefault();
       return;
-    });
-  },
+    },
 
-  @on("willDestroyElement")
-  _unbindUploadTarget() {
-    this._validUploads = 0;
-    $("#reply-control .mobile-file-upload").off("click.uploader");
-    this.messageBus.unsubscribe("/uploads/composer");
-    const $uploadTarget = $(this.element);
-    try {
-      $uploadTarget.fileupload("destroy");
-    } catch (e) {
-      /* wasn't initialized yet */
-    }
-    $uploadTarget.off();
-  },
+    resetImageControls(buttonWrapper) {
+      const imageResize = buttonWrapper.querySelector(".scale-btn-container");
+      const imageDelete = buttonWrapper.querySelector(".delete-image-button");
 
-  @on("willDestroyElement")
-  _composerClosed() {
-    this.appEvents.trigger("composer:will-close");
-    next(() => {
-      // need to wait a bit for the "slide down" transition of the composer
-      later(
-        () => this.appEvents.trigger("composer:closed"),
-        isTesting() ? 0 : 400
+      const readonlyContainer = buttonWrapper.querySelector(
+        ".alt-text-readonly-container"
       );
-    });
+      const editContainer = buttonWrapper.querySelector(
+        ".alt-text-edit-container"
+      );
 
-    if (this._enableAdvancedEditorPreviewSync()) {
-      this._teardownInputPreviewSync();
-    }
-  },
+      imageResize.removeAttribute("hidden");
+      imageDelete.removeAttribute("hidden");
 
-  showUploadSelector(toolbarEvent) {
-    this.send("showUploadSelector", toolbarEvent);
-  },
+      readonlyContainer.removeAttribute("hidden");
+      buttonWrapper.removeAttribute("editing");
+      editContainer.setAttribute("hidden", "true");
+    },
 
-  onExpandPopupMenuOptions(toolbarEvent) {
-    const selected = toolbarEvent.selected;
-    toolbarEvent.selectText(selected.start, selected.end - selected.start);
-    this.storeToolbarState(toolbarEvent);
-  },
+    commitAltText(buttonWrapper) {
+      const index = parseInt(
+        buttonWrapper.getAttribute("data-image-index"),
+        10
+      );
+      const matchingPlaceholder =
+        this.get("composer.reply").match(IMAGE_MARKDOWN_REGEX);
+      const match = matchingPlaceholder[index];
+      const input = buttonWrapper.querySelector("input.alt-text-input");
+      const replacement = match.replace(
+        IMAGE_MARKDOWN_REGEX,
+        `![${input.value}|$2$3$4]($5)`
+      );
 
-  showPreview() {
-    this.send("togglePreview");
-  },
+      this.appEvents.trigger(
+        `${this.composerEventPrefix}:replace-text`,
+        match,
+        replacement
+      );
 
-  _isInQuote(element) {
-    let parent = element.parentElement;
-    while (parent && !this._isPreviewRoot(parent)) {
-      if (this._isQuote(parent)) {
-        return true;
+      this.resetImageControls(buttonWrapper);
+    },
+
+    @bind
+    _handleAltTextInputKeypress(event) {
+      if (!event.target.classList.contains("alt-text-input")) {
+        return;
       }
 
-      parent = parent.parentElement;
-    }
+      if (event.key === "[" || event.key === "]") {
+        event.preventDefault();
+      }
 
-    return false;
-  },
+      if (event.key === "Enter") {
+        const buttonWrapper = event.target.closest(".button-wrapper");
+        this.commitAltText(buttonWrapper);
+      }
+    },
 
-  _isPreviewRoot(element) {
-    return (
-      element.tagName === "DIV" &&
-      element.classList.contains("d-editor-preview")
-    );
-  },
+    @bind
+    _handleAltTextEditButtonClick(event) {
+      if (!event.target.classList.contains("alt-text-edit-btn")) {
+        return;
+      }
 
-  _isQuote(element) {
-    return element.tagName === "ASIDE" && element.classList.contains("quote");
-  },
+      const buttonWrapper = event.target.closest(".button-wrapper");
+      const imageResize = buttonWrapper.querySelector(".scale-btn-container");
+      const imageDelete = buttonWrapper.querySelector(".delete-image-button");
 
-  _cursorIsOnEmptyLine() {
-    const textArea = this.element.querySelector(".d-editor-input");
-    const selectionStart = textArea.selectionStart;
-    if (selectionStart === 0) {
-      return true;
-    } else if (textArea.value.charAt(selectionStart - 1) === "\n") {
-      return true;
-    } else {
-      return false;
-    }
-  },
+      const readonlyContainer = buttonWrapper.querySelector(
+        ".alt-text-readonly-container"
+      );
+      const altText = readonlyContainer.querySelector(".alt-text");
 
-  actions: {
-    importQuote(toolbarEvent) {
-      this.importQuote(toolbarEvent);
+      const editContainer = buttonWrapper.querySelector(
+        ".alt-text-edit-container"
+      );
+      const editContainerInput = editContainer.querySelector(".alt-text-input");
+
+      buttonWrapper.setAttribute("editing", "true");
+      imageResize.setAttribute("hidden", "true");
+      imageDelete.setAttribute("hidden", "true");
+      readonlyContainer.setAttribute("hidden", "true");
+      editContainerInput.value = altText.textContent;
+      editContainer.removeAttribute("hidden");
+      editContainerInput.focus();
+      event.preventDefault();
+    },
+
+    @bind
+    _handleAltTextOkButtonClick(event) {
+      if (!event.target.classList.contains("alt-text-edit-ok")) {
+        return;
+      }
+
+      const buttonWrapper = event.target.closest(".button-wrapper");
+      this.commitAltText(buttonWrapper);
+    },
+
+    @bind
+    _handleAltTextCancelButtonClick(event) {
+      if (!event.target.classList.contains("alt-text-edit-cancel")) {
+        return;
+      }
+
+      const buttonWrapper = event.target.closest(".button-wrapper");
+      this.resetImageControls(buttonWrapper);
+    },
+
+    @bind
+    _handleImageDeleteButtonClick(event) {
+      if (!event.target.classList.contains("delete-image-button")) {
+        return;
+      }
+      const index = parseInt(
+        event.target.closest(".button-wrapper").dataset.imageIndex,
+        10
+      );
+      const matchingPlaceholder =
+        this.get("composer.reply").match(IMAGE_MARKDOWN_REGEX);
+      this.appEvents.trigger(
+        `${this.composerEventPrefix}:replace-text`,
+        matchingPlaceholder[index],
+        "",
+        { regex: IMAGE_MARKDOWN_REGEX, index }
+      );
+    },
+
+    @bind
+    _handleImageGridButtonClick(event) {
+      if (!event.target.classList.contains("wrap-image-grid-button")) {
+        return;
+      }
+
+      const index = parseInt(
+        event.target.closest(".button-wrapper").dataset.imageIndex,
+        10
+      );
+      const reply = this.get("composer.reply");
+      const matches = reply.match(IMAGE_MARKDOWN_REGEX);
+      const closingIndex =
+        index + parseInt(event.target.dataset.imageCount, 10) - 1;
+
+      const textArea = this.element.querySelector(".d-editor-input");
+      textArea.selectionStart = reply.indexOf(matches[index]);
+      textArea.selectionEnd =
+        reply.indexOf(matches[closingIndex]) + matches[closingIndex].length;
+
+      this.appEvents.trigger(
+        `${this.composerEventPrefix}:apply-surround`,
+        "[grid]",
+        "[/grid]",
+        "grid_surround",
+        { useBlockMode: true }
+      );
+    },
+
+    _registerImageAltTextButtonClick(preview) {
+      preview.addEventListener("click", this._handleAltTextEditButtonClick);
+      preview.addEventListener("click", this._handleAltTextOkButtonClick);
+      preview.addEventListener("click", this._handleAltTextCancelButtonClick);
+      preview.addEventListener("click", this._handleImageDeleteButtonClick);
+      preview.addEventListener("keypress", this._handleAltTextInputKeypress);
+      preview.addEventListener("click", this._handleImageGridButtonClick);
+    },
+
+    @on("willDestroyElement")
+    _composerClosed() {
+      this._unbindMobileUploadButton();
+      this.appEvents.trigger(`${this.composerEventPrefix}:will-close`);
+      next(() => {
+        // need to wait a bit for the "slide down" transition of the composer
+        discourseLater(
+          () => this.appEvents.trigger(`${this.composerEventPrefix}:closed`),
+          isTesting() ? 0 : 400
+        );
+      });
+
+      this.element
+        .querySelector(".d-editor-input")
+        ?.removeEventListener(
+          "scroll",
+          this._throttledSyncEditorAndPreviewScroll
+        );
+
+      const preview = this.element.querySelector(".d-editor-preview-wrapper");
+      preview?.removeEventListener("click", this._handleImageScaleButtonClick);
+      preview?.removeEventListener("click", this._handleAltTextEditButtonClick);
+      preview?.removeEventListener("click", this._handleAltTextOkButtonClick);
+      preview?.removeEventListener("click", this._handleImageDeleteButtonClick);
+      preview?.removeEventListener("click", this._handleImageGridButtonClick);
+      preview?.removeEventListener(
+        "click",
+        this._handleAltTextCancelButtonClick
+      );
+      preview?.removeEventListener(
+        "keypress",
+        this._handleAltTextInputKeypress
+      );
     },
 
     onExpandPopupMenuOptions(toolbarEvent) {
-      this.onExpandPopupMenuOptions(toolbarEvent);
+      const selected = toolbarEvent.selected;
+      toolbarEvent.selectText(selected.start, selected.end - selected.start);
+      this.storeToolbarState(toolbarEvent);
     },
 
-    togglePreview() {
-      this.togglePreview();
+    showPreview() {
+      this.send("togglePreview");
     },
 
-    extraButtons(toolbar) {
-      toolbar.addButton({
-        id: "quote",
-        group: "fontStyles",
-        icon: "far-comment",
-        sendAction: this.importQuote,
-        title: "composer.quote_post_title",
-        unshift: true,
+    _isInQuote(element) {
+      let parent = element.parentElement;
+      while (parent && !this._isPreviewRoot(parent)) {
+        if (this._isQuote(parent)) {
+          return true;
+        }
+
+        parent = parent.parentElement;
+      }
+
+      return false;
+    },
+
+    _isPreviewRoot(element) {
+      return (
+        element.tagName === "DIV" &&
+        element.classList.contains("d-editor-preview")
+      );
+    },
+
+    _isQuote(element) {
+      return element.tagName === "ASIDE" && element.classList.contains("quote");
+    },
+
+    _cursorIsOnEmptyLine() {
+      const textArea = this.element.querySelector(".d-editor-input");
+      const selectionStart = textArea.selectionStart;
+      if (selectionStart === 0) {
+        return true;
+      } else if (textArea.value.charAt(selectionStart - 1) === "\n") {
+        return true;
+      } else {
+        return false;
+      }
+    },
+
+    _findMatchingUploadHandler(fileName) {
+      return this.uploadHandlers.find((handler) => {
+        const ext = handler.extensions.join("|");
+        const regex = new RegExp(`\\.(${ext})$`, "i");
+        return regex.test(fileName);
       });
+    },
 
-      if (this.allowUpload && this.uploadIcon && !this.site.mobileView) {
+    actions: {
+      importQuote(toolbarEvent) {
+        this.importQuote(toolbarEvent);
+      },
+
+      onExpandPopupMenuOptions(toolbarEvent) {
+        this.onExpandPopupMenuOptions(toolbarEvent);
+      },
+
+      togglePreview() {
+        this.togglePreview();
+      },
+
+      extraButtons(toolbar) {
         toolbar.addButton({
-          id: "upload",
-          group: "insertions",
-          icon: this.uploadIcon,
-          title: "upload",
-          sendAction: this.showUploadModal,
+          id: "quote",
+          group: "fontStyles",
+          icon: "far-comment",
+          sendAction: this.importQuote,
+          title: "composer.quote_post_title",
+          unshift: true,
         });
-      }
 
-      toolbar.addButton({
-        id: "options",
-        group: "extras",
-        icon: "cog",
-        title: "composer.options",
-        sendAction: this.onExpandPopupMenuOptions.bind(this),
-        popupMenu: true,
-      });
-    },
-
-    previewUpdated($preview) {
-      // Paint mentions
-      const unseenMentions = linkSeenMentions($preview, this.siteSettings);
-      if (unseenMentions.length) {
-        discourseDebounce(
-          this,
-          this._renderUnseenMentions,
-          $preview,
-          unseenMentions,
-          450
-        );
-      }
-
-      this._warnMentionedGroups($preview);
-      this._warnCannotSeeMention($preview);
-
-      // Paint category and tag hashtags
-      const unseenHashtags = linkSeenHashtags($preview);
-      if (unseenHashtags.length > 0) {
-        discourseDebounce(this, this._renderUnseenHashtags, $preview, 450);
-      }
-
-      // Paint oneboxes
-      const paintFunc = () => {
-        const post = this.get("composer.post");
-        let refresh = false;
-
-        //If we are editing a post, we'll refresh its contents once.
-        if (post && !post.get("refreshedPost")) {
-          refresh = true;
+        if (this.allowUpload && this.uploadIcon && !this.site.mobileView) {
+          toolbar.addButton({
+            id: "upload",
+            group: "insertions",
+            icon: this.uploadIcon,
+            title: "upload",
+            sendAction: this.showUploadModal,
+          });
         }
 
-        const paintedCount = loadOneboxes(
-          $preview[0],
-          ajax,
-          this.get("composer.topic.id"),
-          this.get("composer.category.id"),
-          this.siteSettings.max_oneboxes_per_post,
-          refresh
-        );
+        toolbar.addButton({
+          id: "options",
+          group: "extras",
+          icon: "cog",
+          title: "composer.options",
+          sendAction: this.onExpandPopupMenuOptions.bind(this),
+          popupMenu: true,
+        });
+      },
 
-        if (refresh && paintedCount > 0) {
-          post.set("refreshedPost", true);
+      previewUpdated(preview) {
+        // cache jquery objects for functions still using jquery
+        const $preview = $(preview);
+
+        // Paint mentions
+        const unseenMentions = linkSeenMentions(preview, this.siteSettings);
+        if (unseenMentions.length) {
+          discourseDebounce(
+            this,
+            this._renderUnseenMentions,
+            preview,
+            unseenMentions,
+            450
+          );
         }
-      };
 
-      discourseDebounce(this, paintFunc, 450);
+        this._warnMentionedGroups(preview);
+        this._warnCannotSeeMention(preview);
 
-      // Short upload urls need resolution
-      resolveAllShortUrls(ajax, this.siteSettings, $preview[0]);
+        // Paint category, tag, and other data source hashtags
+        let unseenHashtags;
+        const hashtagContext =
+          this.site.hashtag_configurations["topic-composer"];
+        if (this.siteSettings.enable_experimental_hashtag_autocomplete) {
+          unseenHashtags = linkSeenHashtagsInContext(hashtagContext, preview);
+        } else {
+          unseenHashtags = linkSeenHashtags(preview);
+        }
+        if (unseenHashtags.length > 0) {
+          discourseDebounce(this, this._renderUnseenHashtags, preview, 450);
+        }
 
-      if (this._enableAdvancedEditorPreviewSync()) {
-        this._syncScroll(
-          this._syncEditorAndPreviewScroll,
-          $(this.element.querySelector(".d-editor-input")),
-          $preview
-        );
-      }
+        // Paint oneboxes
+        const paintFunc = () => {
+          const post = this.get("composer.post");
+          let refresh = false;
 
-      this._registerImageScaleButtonClick($preview);
+          //If we are editing a post, we'll refresh its contents once.
+          if (post && !post.get("refreshedPost")) {
+            refresh = true;
+          }
 
-      this.trigger("previewRefreshed", $preview[0]);
-      this.afterRefresh($preview);
+          const paintedCount = loadOneboxes(
+            preview,
+            ajax,
+            this.get("composer.topic.id"),
+            this.get("composer.category.id"),
+            this.siteSettings.max_oneboxes_per_post,
+            refresh
+          );
+
+          if (refresh && paintedCount > 0) {
+            post.set("refreshedPost", true);
+          }
+        };
+
+        discourseDebounce(this, paintFunc, 450);
+
+        // Short upload urls need resolution
+        resolveAllShortUrls(ajax, this.siteSettings, preview);
+
+        preview.addEventListener("click", this._handleImageScaleButtonClick);
+        this._registerImageAltTextButtonClick(preview);
+
+        this.trigger("previewRefreshed", preview);
+        this.afterRefresh($preview);
+      },
     },
-  },
-});
+  }
+);

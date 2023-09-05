@@ -1,9 +1,12 @@
 import { module, test } from "qunit";
-import Report from "admin/models/report";
 import { setPrefix } from "discourse-common/lib/get-url";
+import { setupTest } from "ember-qunit";
+import { getOwner } from "discourse-common/lib/get-owner";
 
 function reportWithData(data) {
-  return Report.create({
+  const store = getOwner(this).lookup("service:store");
+
+  return store.createRecord("report", {
     type: "topics",
     data: data.map((val, index) => {
       return {
@@ -14,25 +17,30 @@ function reportWithData(data) {
   });
 }
 
-module("Unit | Model | report", function () {
-  test("counts", function (assert) {
-    const report = reportWithData([5, 4, 3, 2, 1, 100, 99, 98, 1000]);
+module("Unit | Model | report", function (hooks) {
+  setupTest(hooks);
 
-    assert.equal(report.get("todayCount"), 5);
-    assert.equal(report.get("yesterdayCount"), 4);
-    assert.equal(
+  test("counts", function (assert) {
+    const report = reportWithData.call(
+      this,
+      [5, 4, 3, 2, 1, 100, 99, 98, 1000]
+    );
+
+    assert.strictEqual(report.todayCount, 5);
+    assert.strictEqual(report.yesterdayCount, 4);
+    assert.strictEqual(
       report.valueFor(2, 4),
       6,
       "adds the values for the given range of days, inclusive"
     );
-    assert.equal(
-      report.get("lastSevenDaysCount"),
+    assert.strictEqual(
+      report.lastSevenDaysCount,
       307,
       "sums 7 days excluding today"
     );
 
     report.set("type", "time_to_first_response");
-    assert.equal(
+    assert.strictEqual(
       report.valueFor(2, 4),
       2,
       "averages the values for the given range of days"
@@ -40,16 +48,32 @@ module("Unit | Model | report", function () {
   });
 
   test("percentChangeString", function (assert) {
-    const report = reportWithData([]);
+    const report = reportWithData.call(this, []);
 
-    assert.equal(report.percentChangeString(5, 8), "+60%", "value increased");
-    assert.equal(report.percentChangeString(8, 2), "-75%", "value decreased");
-    assert.equal(report.percentChangeString(8, 8), "0%", "value unchanged");
+    assert.strictEqual(
+      report.percentChangeString(5, 8),
+      "+60%",
+      "value increased"
+    );
+    assert.strictEqual(
+      report.percentChangeString(8, 2),
+      "-75%",
+      "value decreased"
+    );
+    assert.strictEqual(
+      report.percentChangeString(8, 8),
+      "0%",
+      "value unchanged"
+    );
     assert.blank(
       report.percentChangeString(0, 8),
       "returns blank when previous value was 0"
     );
-    assert.equal(report.percentChangeString(8, 0), "-100%", "yesterday was 0");
+    assert.strictEqual(
+      report.percentChangeString(8, 0),
+      "-100%",
+      "yesterday was 0"
+    );
     assert.blank(
       report.percentChangeString(0, 0),
       "returns blank when both were 0"
@@ -57,338 +81,225 @@ module("Unit | Model | report", function () {
   });
 
   test("yesterdayCountTitle with valid values", function (assert) {
-    const title = reportWithData([6, 8, 5, 2, 1]).get("yesterdayCountTitle");
-    assert.ok(title.indexOf("+60%") !== -1);
+    const title = reportWithData.call(
+      this,
+      [6, 8, 5, 2, 1]
+    ).yesterdayCountTitle;
+    assert.ok(title.includes("+60%"));
     assert.ok(title.match(/Was 5/));
   });
 
   test("yesterdayCountTitle when two days ago was 0", function (assert) {
-    const title = reportWithData([6, 8, 0, 2, 1]).get("yesterdayCountTitle");
-    assert.equal(title.indexOf("%"), -1);
+    const title = reportWithData.call(
+      this,
+      [6, 8, 0, 2, 1]
+    ).yesterdayCountTitle;
+    assert.ok(!title.includes("%"));
     assert.ok(title.match(/Was 0/));
   });
 
   test("sevenDaysCountTitle", function (assert) {
-    const title = reportWithData([
-      100,
-      1,
-      1,
-      1,
-      1,
-      1,
-      1,
-      1,
-      2,
-      2,
-      2,
-      2,
-      2,
-      2,
-      2,
-      100,
-      100,
-    ]).get("sevenDaysCountTitle");
+    const title = reportWithData.call(
+      this,
+      [100, 1, 1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 2, 2, 100, 100]
+    ).sevenDaysCountTitle;
     assert.ok(title.match(/-50%/));
     assert.ok(title.match(/Was 14/));
   });
 
   test("thirtyDaysCountTitle", function (assert) {
-    const report = reportWithData([5, 5, 5, 5]);
+    const report = reportWithData.call(this, [5, 5, 5, 5]);
     report.set("prev30Days", 10);
-    const title = report.get("thirtyDaysCountTitle");
 
-    assert.ok(title.indexOf("+50%") !== -1);
-    assert.ok(title.match(/Was 10/));
+    assert.ok(report.thirtyDaysCountTitle.includes("+50%"));
+    assert.ok(report.thirtyDaysCountTitle.match(/Was 10/));
+
+    const report2 = reportWithData.call(this, [5, 5, 5, 5]);
+    report2.set("prev_period", 20);
+
+    assert.ok(report2.thirtyDaysCountTitle.includes("-25%"));
+    assert.ok(report2.thirtyDaysCountTitle.match(/Was 20/));
   });
 
   test("sevenDaysTrend", function (assert) {
     let report;
     let trend;
 
-    report = reportWithData([0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]);
-    trend = report.get("sevenDaysTrend");
-    assert.ok(trend === "no-change");
+    report = reportWithData.call(
+      this,
+      [0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
+    );
+    trend = report.sevenDaysTrend;
+    assert.strictEqual(trend, "no-change");
 
-    report = reportWithData([0, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0]);
-    trend = report.get("sevenDaysTrend");
-    assert.ok(trend === "high-trending-up");
+    report = reportWithData.call(
+      this,
+      [0, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0]
+    );
+    trend = report.sevenDaysTrend;
+    assert.strictEqual(trend, "high-trending-up");
 
-    report = reportWithData([0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0]);
-    trend = report.get("sevenDaysTrend");
-    assert.ok(trend === "trending-up");
+    report = reportWithData.call(
+      this,
+      [0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0]
+    );
+    trend = report.sevenDaysTrend;
+    assert.strictEqual(trend, "trending-up");
 
-    report = reportWithData([0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1]);
-    trend = report.get("sevenDaysTrend");
-    assert.ok(trend === "high-trending-down");
+    report = reportWithData.call(
+      this,
+      [0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1]
+    );
+    trend = report.sevenDaysTrend;
+    assert.strictEqual(trend, "high-trending-down");
 
-    report = reportWithData([0, 1, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1]);
-    trend = report.get("sevenDaysTrend");
-    assert.ok(trend === "trending-down");
+    report = reportWithData.call(
+      this,
+      [0, 1, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1]
+    );
+    trend = report.sevenDaysTrend;
+    assert.strictEqual(trend, "trending-down");
   });
 
   test("yesterdayTrend", function (assert) {
     let report;
     let trend;
 
-    report = reportWithData([0, 1, 1]);
-    trend = report.get("yesterdayTrend");
-    assert.ok(trend === "no-change");
+    report = reportWithData.call(this, [0, 1, 1]);
+    trend = report.yesterdayTrend;
+    assert.strictEqual(trend, "no-change");
 
-    report = reportWithData([0, 1, 0]);
-    trend = report.get("yesterdayTrend");
-    assert.ok(trend === "high-trending-up");
+    report = reportWithData.call(this, [0, 1, 0]);
+    trend = report.yesterdayTrend;
+    assert.strictEqual(trend, "high-trending-up");
 
-    report = reportWithData([0, 1.1, 1]);
-    trend = report.get("yesterdayTrend");
-    assert.ok(trend === "trending-up");
+    report = reportWithData.call(this, [0, 1.1, 1]);
+    trend = report.yesterdayTrend;
+    assert.strictEqual(trend, "trending-up");
 
-    report = reportWithData([0, 0, 1]);
-    trend = report.get("yesterdayTrend");
-    assert.ok(trend === "high-trending-down");
+    report = reportWithData.call(this, [0, 0, 1]);
+    trend = report.yesterdayTrend;
+    assert.strictEqual(trend, "high-trending-down");
 
-    report = reportWithData([0, 1, 1.1]);
-    trend = report.get("yesterdayTrend");
-    assert.ok(trend === "trending-down");
+    report = reportWithData.call(this, [0, 1, 1.1]);
+    trend = report.yesterdayTrend;
+    assert.strictEqual(trend, "trending-down");
   });
 
   test("thirtyDaysTrend", function (assert) {
     let report;
     let trend;
 
-    report = reportWithData([
-      0,
-      1,
-      1,
-      1,
-      1,
-      1,
-      1,
-      1,
-      1,
-      1,
-      1,
-      1,
-      1,
-      1,
-      1,
-      1,
-      1,
-      1,
-      1,
-      1,
-      1,
-      1,
-      1,
-      1,
-      1,
-      1,
-      1,
-      1,
-      1,
-      1,
-      1,
-    ]);
+    report = reportWithData.call(
+      this,
+      [
+        0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+        1, 1, 1, 1, 1, 1, 1,
+      ]
+    );
     report.set("prev30Days", 30);
-    trend = report.get("thirtyDaysTrend");
-    assert.ok(trend === "no-change");
+    trend = report.thirtyDaysTrend;
+    assert.strictEqual(trend, "no-change");
 
-    report = reportWithData([
-      0,
-      1,
-      1,
-      1,
-      1,
-      1,
-      1,
-      1,
-      1,
-      1,
-      1,
-      1,
-      1,
-      1,
-      1,
-      1,
-      1,
-      1,
-      1,
-      1,
-      1,
-      1,
-      1,
-      1,
-      1,
-      1,
-      1,
-      1,
-      1,
-      1,
-      1,
-    ]);
+    report = reportWithData.call(
+      this,
+      [
+        0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+        1, 1, 1, 1, 1, 1, 1,
+      ]
+    );
     report.set("prev30Days", 0);
-    trend = report.get("thirtyDaysTrend");
-    assert.ok(trend === "high-trending-up");
+    trend = report.thirtyDaysTrend;
+    assert.strictEqual(trend, "high-trending-up");
 
-    report = reportWithData([
-      0,
-      1,
-      1,
-      1,
-      1,
-      1,
-      1,
-      1,
-      1,
-      1,
-      1,
-      1,
-      1,
-      1,
-      1,
-      1,
-      1,
-      1,
-      1,
-      1,
-      1,
-      1,
-      1,
-      1,
-      1,
-      1,
-      1,
-      1,
-      1,
-      1,
-      1,
-    ]);
+    report = reportWithData.call(
+      this,
+      [
+        0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+        1, 1, 1, 1, 1, 1, 1,
+      ]
+    );
     report.set("prev30Days", 25);
-    trend = report.get("thirtyDaysTrend");
-    assert.ok(trend === "trending-up");
+    trend = report.thirtyDaysTrend;
+    assert.strictEqual(trend, "trending-up");
 
-    report = reportWithData([
-      0,
-      0,
-      0,
-      0,
-      0,
-      0,
-      0,
-      0,
-      0,
-      0,
-      0,
-      0,
-      0,
-      0,
-      0,
-      0,
-      0,
-      0,
-      0,
-      0,
-      0,
-      0,
-      0,
-      0,
-      0,
-      0,
-      0,
-      0,
-      0,
-      0,
-      0,
-    ]);
+    report = reportWithData.call(
+      this,
+      [
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0,
+      ]
+    );
     report.set("prev30Days", 60);
-    trend = report.get("thirtyDaysTrend");
-    assert.ok(trend === "high-trending-down");
+    trend = report.thirtyDaysTrend;
+    assert.strictEqual(trend, "high-trending-down");
 
-    report = reportWithData([
-      0,
-      1,
-      1,
-      1,
-      1,
-      1,
-      1,
-      1,
-      1,
-      1,
-      1,
-      1,
-      1,
-      1,
-      1,
-      1,
-      1,
-      1,
-      1,
-      1,
-      1,
-      1,
-      1,
-      1,
-      1,
-      1,
-      1,
-      1,
-      1,
-      1,
-      0,
-    ]);
+    report = reportWithData.call(
+      this,
+      [
+        0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+        1, 1, 1, 1, 1, 1, 0,
+      ]
+    );
     report.set("prev30Days", 35);
-    trend = report.get("thirtyDaysTrend");
-    assert.ok(trend === "trending-down");
+    trend = report.thirtyDaysTrend;
+    assert.strictEqual(trend, "trending-down");
   });
 
   test("higher is better false", function (assert) {
     let report;
     let trend;
 
-    report = reportWithData([0, 1, 0]);
+    report = reportWithData.call(this, [0, 1, 0]);
     report.set("higher_is_better", false);
-    trend = report.get("yesterdayTrend");
-    assert.ok(trend === "high-trending-down");
+    trend = report.yesterdayTrend;
+    assert.strictEqual(trend, "high-trending-down");
 
-    report = reportWithData([0, 1.1, 1]);
+    report = reportWithData.call(this, [0, 1.1, 1]);
     report.set("higher_is_better", false);
-    trend = report.get("yesterdayTrend");
-    assert.ok(trend === "trending-down");
+    trend = report.yesterdayTrend;
+    assert.strictEqual(trend, "trending-down");
 
-    report = reportWithData([0, 0, 1]);
+    report = reportWithData.call(this, [0, 0, 1]);
     report.set("higher_is_better", false);
-    trend = report.get("yesterdayTrend");
-    assert.ok(trend === "high-trending-up");
+    trend = report.yesterdayTrend;
+    assert.strictEqual(trend, "high-trending-up");
 
-    report = reportWithData([0, 1, 1.1]);
+    report = reportWithData.call(this, [0, 1, 1.1]);
     report.set("higher_is_better", false);
-    trend = report.get("yesterdayTrend");
-    assert.ok(trend === "trending-up");
+    trend = report.yesterdayTrend;
+    assert.strictEqual(trend, "trending-up");
   });
 
   test("small variation (-2/+2% change) is no-change", function (assert) {
     let report;
     let trend;
 
-    report = reportWithData([0, 1, 1, 1, 1, 1, 1, 0.9, 1, 1, 1, 1, 1, 1, 1]);
-    trend = report.get("sevenDaysTrend");
-    assert.ok(trend === "no-change");
+    report = reportWithData.call(
+      this,
+      [0, 1, 1, 1, 1, 1, 1, 0.9, 1, 1, 1, 1, 1, 1, 1]
+    );
+    trend = report.sevenDaysTrend;
+    assert.strictEqual(trend, "no-change");
 
-    report = reportWithData([0, 1, 1, 1, 1, 1, 1, 1.1, 1, 1, 1, 1, 1, 1, 1]);
-    trend = report.get("sevenDaysTrend");
-    assert.ok(trend === "no-change");
+    report = reportWithData.call(
+      this,
+      [0, 1, 1, 1, 1, 1, 1, 1.1, 1, 1, 1, 1, 1, 1, 1]
+    );
+    trend = report.sevenDaysTrend;
+    assert.strictEqual(trend, "no-change");
   });
 
   test("average", function (assert) {
     let report;
 
-    report = reportWithData([5, 5, 5, 5, 5, 5, 5, 5]);
+    report = reportWithData.call(this, [5, 5, 5, 5, 5, 5, 5, 5]);
 
     report.set("average", true);
-    assert.ok(report.get("lastSevenDaysCount") === 5);
+    assert.strictEqual(report.lastSevenDaysCount, 5);
 
     report.set("average", false);
-    assert.ok(report.get("lastSevenDaysCount") === 35);
+    assert.strictEqual(report.lastSevenDaysCount, 35);
   });
 
   test("computed labels", function (assert) {
@@ -441,110 +352,114 @@ module("Unit | Model | report", function () {
       { type: "bytes", property: "filesize", title: "Filesize" },
     ];
 
-    const report = Report.create({
+    const store = getOwner(this).lookup("service:store");
+    const report = store.createRecord("report", {
       type: "topics",
       labels,
       data,
     });
 
-    const row = report.get("data.0");
-    const computedLabels = report.get("computedLabels");
+    const row = report.data[0];
+    const computedLabels = report.computedLabels;
 
     const usernameLabel = computedLabels[0];
-    assert.equal(usernameLabel.mainProperty, "username");
-    assert.equal(usernameLabel.sortProperty, "username");
-    assert.equal(usernameLabel.title, "Moderator");
-    assert.equal(usernameLabel.type, "user");
+    assert.strictEqual(usernameLabel.mainProperty, "username");
+    assert.strictEqual(usernameLabel.sortProperty, "username");
+    assert.strictEqual(usernameLabel.title, "Moderator");
+    assert.strictEqual(usernameLabel.type, "user");
     const computedUsernameLabel = usernameLabel.compute(row);
-    assert.equal(
-      computedUsernameLabel.formatedValue,
-      "<a href='/admin/users/1/joffrey'><img alt='' width='20' height='20' src='/' class='avatar' title='joffrey' aria-label='joffrey'><span class='username'>joffrey</span></a>"
+    assert.strictEqual(
+      computedUsernameLabel.formattedValue,
+      "<a href='/admin/users/1/joffrey'><img loading='lazy' alt='' width='24' height='24' src='/' class='avatar' title='joffrey' aria-label='joffrey'><span class='username'>joffrey</span></a>"
     );
-    assert.equal(computedUsernameLabel.value, "joffrey");
+    assert.strictEqual(computedUsernameLabel.value, "joffrey");
 
     const flagCountLabel = computedLabels[1];
-    assert.equal(flagCountLabel.mainProperty, "flag_count");
-    assert.equal(flagCountLabel.sortProperty, "flag_count");
-    assert.equal(flagCountLabel.title, "Flag count");
-    assert.equal(flagCountLabel.type, "number");
+    assert.strictEqual(flagCountLabel.mainProperty, "flag_count");
+    assert.strictEqual(flagCountLabel.sortProperty, "flag_count");
+    assert.strictEqual(flagCountLabel.title, "Flag count");
+    assert.strictEqual(flagCountLabel.type, "number");
     let computedFlagCountLabel = flagCountLabel.compute(row);
-    assert.equal(computedFlagCountLabel.formatedValue, "1.9k");
+    assert.strictEqual(computedFlagCountLabel.formattedValue, "1.9k");
     assert.strictEqual(computedFlagCountLabel.value, 1876);
     computedFlagCountLabel = flagCountLabel.compute(row, {
       formatNumbers: false,
     });
-    assert.equal(computedFlagCountLabel.formatedValue, 1876);
+    assert.strictEqual(computedFlagCountLabel.formattedValue, "1876");
 
     const timeReadLabel = computedLabels[2];
-    assert.equal(timeReadLabel.mainProperty, "time_read");
-    assert.equal(timeReadLabel.sortProperty, "time_read");
-    assert.equal(timeReadLabel.title, "Time read");
-    assert.equal(timeReadLabel.type, "seconds");
+    assert.strictEqual(timeReadLabel.mainProperty, "time_read");
+    assert.strictEqual(timeReadLabel.sortProperty, "time_read");
+    assert.strictEqual(timeReadLabel.title, "Time read");
+    assert.strictEqual(timeReadLabel.type, "seconds");
     const computedTimeReadLabel = timeReadLabel.compute(row);
-    assert.equal(computedTimeReadLabel.formatedValue, "3d");
-    assert.equal(computedTimeReadLabel.value, 287362);
+    assert.strictEqual(computedTimeReadLabel.formattedValue, "3d");
+    assert.strictEqual(computedTimeReadLabel.value, 287362);
 
     const noteLabel = computedLabels[3];
-    assert.equal(noteLabel.mainProperty, "note");
-    assert.equal(noteLabel.sortProperty, "note");
-    assert.equal(noteLabel.title, "Note");
-    assert.equal(noteLabel.type, "text");
+    assert.strictEqual(noteLabel.mainProperty, "note");
+    assert.strictEqual(noteLabel.sortProperty, "note");
+    assert.strictEqual(noteLabel.title, "Note");
+    assert.strictEqual(noteLabel.type, "text");
     const computedNoteLabel = noteLabel.compute(row);
-    assert.equal(computedNoteLabel.formatedValue, "This is a long note");
-    assert.equal(computedNoteLabel.value, "This is a long note");
+    assert.strictEqual(computedNoteLabel.formattedValue, "This is a long note");
+    assert.strictEqual(computedNoteLabel.value, "This is a long note");
 
     const topicLabel = computedLabels[4];
-    assert.equal(topicLabel.mainProperty, "topic_title");
-    assert.equal(topicLabel.sortProperty, "topic_title");
-    assert.equal(topicLabel.title, "Topic");
-    assert.equal(topicLabel.type, "topic");
+    assert.strictEqual(topicLabel.mainProperty, "topic_title");
+    assert.strictEqual(topicLabel.sortProperty, "topic_title");
+    assert.strictEqual(topicLabel.title, "Topic");
+    assert.strictEqual(topicLabel.type, "topic");
     const computedTopicLabel = topicLabel.compute(row);
-    assert.equal(
-      computedTopicLabel.formatedValue,
+    assert.strictEqual(
+      computedTopicLabel.formattedValue,
       "<a href='/t/-/2'>Test topic &lt;html&gt;</a>"
     );
-    assert.equal(computedTopicLabel.value, "Test topic <html>");
+    assert.strictEqual(computedTopicLabel.value, "Test topic <html>");
 
     const postLabel = computedLabels[5];
-    assert.equal(postLabel.mainProperty, "post_raw");
-    assert.equal(postLabel.sortProperty, "post_raw");
-    assert.equal(postLabel.title, "Post");
-    assert.equal(postLabel.type, "post");
+    assert.strictEqual(postLabel.mainProperty, "post_raw");
+    assert.strictEqual(postLabel.sortProperty, "post_raw");
+    assert.strictEqual(postLabel.title, "Post");
+    assert.strictEqual(postLabel.type, "post");
     const computedPostLabel = postLabel.compute(row);
-    assert.equal(
-      computedPostLabel.formatedValue,
+    assert.strictEqual(
+      computedPostLabel.formattedValue,
       "<a href='/t/-/2/3'>This is the beginning of &lt;html&gt;</a>"
     );
-    assert.equal(computedPostLabel.value, "This is the beginning of <html>");
+    assert.strictEqual(
+      computedPostLabel.value,
+      "This is the beginning of <html>"
+    );
 
     const filesizeLabel = computedLabels[6];
-    assert.equal(filesizeLabel.mainProperty, "filesize");
-    assert.equal(filesizeLabel.sortProperty, "filesize");
-    assert.equal(filesizeLabel.title, "Filesize");
-    assert.equal(filesizeLabel.type, "bytes");
+    assert.strictEqual(filesizeLabel.mainProperty, "filesize");
+    assert.strictEqual(filesizeLabel.sortProperty, "filesize");
+    assert.strictEqual(filesizeLabel.title, "Filesize");
+    assert.strictEqual(filesizeLabel.type, "bytes");
     const computedFilesizeLabel = filesizeLabel.compute(row);
-    assert.equal(computedFilesizeLabel.formatedValue, "569.0 KB");
-    assert.equal(computedFilesizeLabel.value, 582641);
+    assert.strictEqual(computedFilesizeLabel.formattedValue, "569.0 KB");
+    assert.strictEqual(computedFilesizeLabel.value, 582641);
 
     // subfolder support
     setPrefix("/forum");
 
-    const postLink = computedLabels[5].compute(row).formatedValue;
-    assert.equal(
+    const postLink = computedLabels[5].compute(row).formattedValue;
+    assert.strictEqual(
       postLink,
       "<a href='/forum/t/-/2/3'>This is the beginning of &lt;html&gt;</a>"
     );
 
-    const topicLink = computedLabels[4].compute(row).formatedValue;
-    assert.equal(
+    const topicLink = computedLabels[4].compute(row).formattedValue;
+    assert.strictEqual(
       topicLink,
       "<a href='/forum/t/-/2'>Test topic &lt;html&gt;</a>"
     );
 
-    const userLink = computedLabels[0].compute(row).formatedValue;
-    assert.equal(
+    const userLink = computedLabels[0].compute(row).formattedValue;
+    assert.strictEqual(
       userLink,
-      "<a href='/forum/admin/users/1/joffrey'><img alt='' width='20' height='20' src='/forum/' class='avatar' title='joffrey' aria-label='joffrey'><span class='username'>joffrey</span></a>"
+      "<a href='/forum/admin/users/1/joffrey'><img loading='lazy' alt='' width='24' height='24' src='/forum/' class='avatar' title='joffrey' aria-label='joffrey'><span class='username'>joffrey</span></a>"
     );
   });
 });

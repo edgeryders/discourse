@@ -1,9 +1,6 @@
-$avatar_width: 120px;
-
 // shared styles for user and group cards
 .user-card,
 .group-card {
-  position: fixed;
   // mobile cards should always be on top of everything - 1102
   z-index: z("mobile-composer") + 2;
   max-width: 95vw;
@@ -13,17 +10,20 @@ $avatar_width: 120px;
   .first-row {
     flex-wrap: wrap;
     .names {
-      flex: 1 1 calc(100% - #{$avatar_width});
+      flex: 1 1 auto;
       box-sizing: border-box;
     }
+    .user-card-avatar {
+      flex: 0 0 auto;
+    }
     .usercard-controls {
+      width: 100%; // always wraps to next line
       --usercard-control-margin: 0.25em;
       display: flex;
-      flex: 1;
       flex-wrap: wrap;
       margin: 1em calc(var(--usercard-control-margin) * -1) 0;
       li {
-        flex: 1 0 auto;
+        flex: 1 0 calc(50% - (var(--usercard-control-margin) * 2));
         min-width: 0;
         margin: 0 var(--usercard-control-margin);
         &:empty {
@@ -31,21 +31,22 @@ $avatar_width: 120px;
         }
         button {
           @include ellipsis;
+          margin-bottom: calc(var(--usercard-control-margin) * 2);
         }
       }
     }
   }
   h1 {
-    font-size: $font-up-3;
+    font-size: var(--font-up-3);
     .d-icon {
-      font-size: $font-down-2;
+      font-size: var(--font-down-2);
     }
   }
   h2 {
-    font-size: $font-0;
+    font-size: var(--font-0);
   }
   h3 {
-    font-size: $font-down-1;
+    font-size: var(--font-down-1);
   }
 }
 
@@ -53,6 +54,8 @@ $avatar_width: 120px;
 .user-card {
   // badges
   .badge-section {
+    display: flex;
+    align-items: flex-start;
     flex-wrap: wrap;
     .user-card-badge-link,
     .more-user-badges {
@@ -61,8 +64,7 @@ $avatar_width: 120px;
       max-width: 50%; // for text ellipsis
       padding: 2px 0;
       box-sizing: border-box;
-      &:nth-child(1),
-      &:nth-child(3) {
+      &:nth-child(odd) {
         padding-right: 4px;
       }
       a {

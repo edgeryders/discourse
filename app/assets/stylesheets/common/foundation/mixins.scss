@@ -5,6 +5,8 @@
 // Media queries
 // --------------------------------------------------
 
+@use "sass:math";
+
 $breakpoints: (
   mobile-small: 320px,
   mobile-medium: 350px,
@@ -16,9 +18,27 @@ $breakpoints: (
   extra-large: 1140px,
 );
 
-@mixin breakpoint($bp, $rule: max-width, $type: screen) {
-  @media #{$type} and (#{$rule}: map-get($breakpoints, $bp)) {
+@mixin breakpoint($bp, $rule: max-width, $type: screen, $sidebar: false) {
+  $bp-value: map-get($breakpoints, $bp);
+
+  @if $rule == min-width {
+    $bp-value: calc(#{$bp-value} + 1px);
+  }
+
+  @media #{$type} and (#{$rule}: #{$bp-value}) {
     @content;
+  }
+
+  // if you want to consider the sidebar in your breakpoint
+  // you can pass in $sidebar: true
+  // note that your breakpoint will need to be at the root level
+  @if $sidebar {
+    // when the sidebar is shown, we want to increase the breakpoints by the width of the sidebar
+    @media #{$type} and (#{$rule}: calc(#{map-get($breakpoints, $bp)} + #{$d-sidebar-width})) {
+      .has-sidebar-page {
+        @content;
+      }
+    }
   }
 }
 
@@ -42,6 +62,14 @@ $breakpoints: (
 @mixin linear-gradient($start-color, $end-color) {
   background-color: $start-color;
   background-image: linear-gradient(to bottom, $start-color, $end-color);
+}
+
+@mixin darken-background($background-color, $amt) {
+  $overlay: dark-light-choose(
+    rgba(var(--primary-rgb), $amt),
+    rgba(var(--secondary-rgb), $amt)
+  );
+  background-image: linear-gradient(to bottom, $overlay 100%, $overlay 100%);
 }
 
 // Visibility
@@ -69,11 +97,29 @@ $breakpoints: (
   text-overflow: ellipsis;
   word-wrap: break-word;
   -webkit-line-clamp: $lines;
+  -moz-box-orient: vertical;
   -webkit-box-orient: vertical;
 }
 
 //
 // --------------------------------------------------
+
+$vpad: 0.5em;
+$hpad: 0.65em;
+
+// for consistent sizing across inputs, buttons and dropdowns
+@mixin form-item-sizing {
+  border: 1px solid transparent;
+  font-size: var(--font-0);
+  line-height: normal;
+  box-sizing: border-box;
+  padding: $vpad $hpad;
+  .ios-device & {
+    font-size: var(--font-size-ios-input);
+    padding-top: $vpad * 0.8;
+    padding-bottom: $vpad * 0.8;
+  }
+}
 
 @mixin sticky {
   position: -webkit-sticky;
@@ -84,24 +130,22 @@ $breakpoints: (
 
 @mixin user-select($mode) {
   -webkit-user-select: $mode;
-  -moz-user-select: $mode;
-  -ms-user-select: $mode;
   user-select: $mode;
 }
 
 @mixin unselectable {
   @include user-select(none);
+  cursor: default;
 }
 
 // Stuff we repeat
 @mixin post-aside {
-  border-left: 5px solid var(--primary-low);
+  border-left: 5px solid var(--primary-300);
   background-color: var(--blend-primary-secondary-5);
 }
 
 // We still need -webkit for latest iPhone and Safari
 @mixin transform($transforms) {
-  -webkit-transform: $transforms;
   transform: $transforms;
 }
 
@@ -119,9 +163,6 @@ $breakpoints: (
 }
 
 @mixin fa-rotate($degrees, $rotation) {
-  -ms-filter: "progid:DXImageTransform.Microsoft.BasicImage(rotation=#{$rotation})";
-  -webkit-transform: rotate($degrees);
-  -ms-transform: rotate($degrees);
   transform: rotate($degrees);
 }
 
@@ -137,7 +178,7 @@ $breakpoints: (
   $encoded: "";
   $slice: 2000;
   $index: 0;
-  $loops: ceil(str-length($svg) / $slice);
+  $loops: ceil(math.div(str-length($svg), $slice));
 
   @for $i from 1 through $loops {
     $chunk: str-slice($svg, $index, $index + $slice - 1);
@@ -209,4 +250,15 @@ $breakpoints: (
   } @else {
     @return url("#{$path}");
   }
+}
+
+@mixin mention() {
+  display: inline-block; // https://bugzilla.mozilla.org/show_bug.cgi?id=1656119
+  font-size: 0.93em;
+  font-weight: normal;
+  color: var(--primary);
+  padding: 0 0.4em 0.07em;
+  background: var(--primary-low);
+  border-radius: 0.6em;
+  text-decoration: none;
 }

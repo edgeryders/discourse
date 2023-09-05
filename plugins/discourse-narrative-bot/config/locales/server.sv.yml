@@ -46,8 +46,8 @@ sv:
       invalid: |-
         Förlåt, men det är inte matematiskt möjligt att kombinera tärningarna så. :confounded:
       not_enough_dice:
-        one: "Jag har bara %{count} tärning. [Shameful](https://www.toplessrobot.com/2009/04/the_10_most_shameful_rpg_dice.php), jag vet!"
-        other: "Jag har bara %{count} tärningar. [Shameful](https://www.toplessrobot.com/2009/04/the_10_most_shameful_rpg_dice.php), jag vet!"
+        one: "Jag har bara %{count} tärningar. Skamligt, jag vet!"
+        other: "Jag har bara %{count} tärningar. Skamligt, jag vet!"
       out_of_range: |-
         Visste du att [maximalt antal sidor](https://www.wired.com/2016/05/mathematical-challenge-of-designing-the-worlds-most-complex-120-sided-dice) på en matematiskt rättvis tärning är 120?
       results: |-
@@ -84,6 +84,15 @@ sv:
       "10":
         quote: "Oavsett vad människans sinne kan tänka och tro, kan det uppnås."
         author: "Napoleon Hill"
+      "11":
+        quote: "Fred hemma, fred i världen."
+        author: "Mustafa Kemal Atatürk"
+      "12":
+        quote: "Utbildning är inte ett sätt att undkomma fattigdomen, det är ett sätt att bekämpa den."
+        author: "Julius Nyerere"
+      "13":
+        quote: "En resa på tusen mil måste börja med ett enda steg."
+        author: "Lao Tzu"
       results: |-
         > :left_speech_bubble: _%{quote}_ &mdash; %{author}
     magic_8_ball:
@@ -214,7 +223,7 @@ sv:
 
           - eller, tryck på knappen <kbd><b>B</b></kbd> eller <kbd><i>I</i></kbd> i redigeraren
         reply: |-
-          Bra jobbat! HTML eller BBCode fungerar också för formatering – för att lära dig mer, [testa denna handledning](http://commonmark.org/help) :nerd:
+          Bra jobbat! HTML eller BBCode fungerar också för formatering – för att lära dig mer, [testa denna handledning](https://commonmark.org/help) :nerd:
         not_found: |-
           Äsch, jag kunde inte hitta någon formatering i ditt svar. :pencil2:
 
@@ -277,11 +286,11 @@ sv:
           (Och ja, mitt användarnamn stavas _disco_, precis som i 70-talets dansera. Jag [älskar nattlivet!](https://www.youtube.com/watch?v=B_wGI3_sGf8) :dancer:)
       flag:
         instructions: |-
-          Vi gillar vänskapliga diskussioner, och vi behöver din hjälp för att [hålla en civiliserad ton](%{guidelines_url}). Om du ser ett problem, ber vi dig flagga inlägget för att anonymt informera författaren, eller [vår hjälpsamma personal](%{about_url}), om problemet.
+          Vi gillar vänskapliga diskussioner, och vi behöver din hjälp för att [hålla en civiliserad ton](%{guidelines_url}). Om du ser ett problem, ber vi dig flagga inlägget för att privat informera författaren, eller [vår hjälpsamma personal](%{about_url}), om problemet. Det finns många anledningar till att du kanske vill flagga ett inlägg, allt från ett oskyldigt ämnesdelande förslag till en tydlig kränkning av forumets standarder. Om du väljer **Något annat** startas en privat meddelandediskussion med moderatorerna där du kan ställa ytterligare frågor.
 
           > :imp: Jag skrev något otrevligt här
 
-          Jag antar att du vet vad du bör göra. Kör på och **flagga detta inlägg** <img src="%{base_uri}/plugins/discourse-narrative-bot/images/font-awesome-flag.png" width="16" height="16"> som olämpligt!
+          Var så god och **flagga detta inlägg** <img src="%{base_uri}/plugins/discourse-narrative-bot/images/font-awesome-flag.png" width="16" height="16"> och välj **Olämpligt** som anledning!
         reply: |-
           [Vår personal](%{base_uri}/groups/staff) kommer att aviseras om din flaggning. Om tillräckligt många forummedlemmar flaggar ett inlägg, kommer det också att döljas automatiskt som en säkerhetsåtgärd. (Eftersom jag inte skrev ett otrevligt inlägg :angel:, har jag gått i förväg och tagit bort flaggan för stunden.)
         not_found: |-
@@ -369,12 +378,22 @@ sv:
           Visste du att du kan hänvisa till kategorier och taggar i dina inlägg? Har du till exempel sett kategorin %{category}?
 
           Skriv `#` i mitten på en mening och välj en kategori eller tagg.
+        instructions_experimental: |-
+          Visste du att du kan hänvisa till kategorier och taggar i dina inlägg? Har du till exempel sett kategorin %{category}?
+
+          Skriv `#` var som helst i en mening och välj en kategori eller tagg.
         not_found: |-
           Hmm, jag ser ingen kategori någonstans. Notera att `#` inte kan vara det första tecknet.  Kan du kopiera detta i ditt nästa svar?
 
           ```text
           Jag kan skapa en kategorilänk genom #
           ...
+        not_found_experimental: |-
+          Hmm, jag ser ingen kategori någonstans där. Kan du kopiera denna i ditt nästa svar?
+
+          ```text
+          Jag kan skapa en kategorilänk genom #
+          ```
         reply: |-
           Utmärkt! Kom ihåg att detta fungerar både för kategorier _och_ taggar, om taggar har aktiverats.
       change_topic_notification_level:

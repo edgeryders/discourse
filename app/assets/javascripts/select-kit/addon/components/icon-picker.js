@@ -4,10 +4,10 @@ import {
   enableMissingIconWarning,
 } from "discourse-common/lib/icon-library";
 import MultiSelectComponent from "select-kit/components/multi-select";
-import { ajax } from "discourse/lib/ajax";
 import { computed } from "@ember/object";
 import { isDevelopment } from "discourse-common/config/environment";
 import { makeArray } from "discourse-common/lib/helpers";
+import { ajax } from "discourse/lib/ajax";
 
 export default MultiSelectComponent.extend({
   pluginApiIdentifiers: ["icon-picker"],
@@ -36,7 +36,10 @@ export default MultiSelectComponent.extend({
       return this._cachedIconsList;
     } else {
       return ajax("/svg-sprite/picker-search", {
-        data: { filter },
+        data: {
+          filter,
+          only_available: this.onlyAvailable,
+        },
       }).then((icons) => {
         icons = icons.map(this._processIcon);
         if (filter === "") {

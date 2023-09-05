@@ -1,10 +1,14 @@
 import Category from "discourse/models/category";
 import ComboBoxComponent from "select-kit/components/combo-box";
-import DiscourseURL, { getCategoryAndTagUrl } from "discourse/lib/url";
+import DiscourseURL, {
+  getCategoryAndTagUrl,
+  getEditCategoryUrl,
+} from "discourse/lib/url";
 import I18n from "I18n";
 import { categoryBadgeHTML } from "discourse/helpers/category-link";
 import { computed } from "@ember/object";
 import { readOnly } from "@ember/object/computed";
+import { htmlSafe } from "@ember/template";
 
 export const NO_CATEGORIES_ID = "no-categories";
 export const ALL_CATEGORIES_ID = "all-categories";
@@ -15,9 +19,11 @@ export default ComboBoxComponent.extend({
   classNames: ["category-drop"],
   value: readOnly("category.id"),
   content: readOnly("categoriesWithShortcuts.[]"),
-  tagName: "li",
   categoryStyle: readOnly("siteSettings.category_style"),
   noCategoriesLabel: I18n.t("categories.no_subcategory"),
+  navigateToEdit: false,
+  editingCategory: false,
+  editingCategoryTab: null,
 
   selectKitOptions: {
     filterable: true,
@@ -33,6 +39,7 @@ export default ComboBoxComponent.extend({
     autoInsertNoneItem: false,
     displayCategoryDescription: "displayCategoryDescription",
     headerComponent: "category-drop/category-drop-header",
+    parentCategory: false,
   },
 
   modifyComponentForRow() {
@@ -57,7 +64,7 @@ export default ComboBoxComponent.extend({
       const shortcuts = [];
 
       if (
-        this.value ||
+        (this.value && !this.editingCategory) ||
         (this.selectKit.options.noSubcategories &&
           this.selectKit.options.subCategory)
       ) {
@@ -94,11 +101,13 @@ export default ComboBoxComponent.extend({
     if (this.value) {
       const category = Category.findById(this.value);
       content.title = category.title;
-      content.label = categoryBadgeHTML(category, {
-        link: false,
-        allowUncategorized: true,
-        hideParent: true,
-      }).htmlSafe();
+      content.label = htmlSafe(
+        categoryBadgeHTML(category, {
+          link: false,
+          allowUncategorized: true,
+          hideParent: true,
+        })
+      );
     }
 
     return content;
@@ -110,6 +119,9 @@ export default ComboBoxComponent.extend({
     "parentCategoryName",
     "selectKit.options.subCategory",
     function () {
+      if (this.editingCategory) {
+        return this.noCategoriesLabel;
+      }
       if (this.selectKit.options.subCategory) {
         return I18n.t("categories.all_subcategories", {
           categoryName: this.parentCategoryName,
@@ -122,7 +134,10 @@ export default ComboBoxComponent.extend({
 
   search(filter) {
     if (filter) {
-      let results = Category.search(filter);
+      let opts = {
+        parentCategoryId: this.options.parentCategory?.id,
+      };
+      let results = Category.search(filter, opts);
       results = this._filterUncategorized(results).sort((a, b) => {
         if (a.parent_category_id && !b.parent_category_id) {
           return 1;
@@ -145,13 +160,19 @@ export default ComboBoxComponent.extend({
           ? this.selectKit.options.parentCategory
           : Category.findById(parseInt(categoryId, 10));
 
-      DiscourseURL.routeToUrl(
-        getCategoryAndTagUrl(
-          category,
-          categoryId !== NO_CATEGORIES_ID,
-          this.tagId
-        )
-      );
+      const route = this.editingCategory
+        ? getEditCategoryUrl(
+            category,
+            categoryId !== NO_CATEGORIES_ID,
+            this.editingCategoryTab
+          )
+        : getCategoryAndTagUrl(
+            category,
+            categoryId !== NO_CATEGORIES_ID,
+            this.tagId
+          );
+
+      DiscourseURL.routeToUrl(route);
     },
   },
 

@@ -22,7 +22,7 @@ class ThemeSettingsManager
   end
 
   def value
-    has_record? ? db_record.value : @default
+    has_record? ? db_record.value : default
   end
 
   def type_name
@@ -37,6 +37,10 @@ class ThemeSettingsManager
     @opts[:description] # Old method of specifying description. Is now overridden by locale file
   end
 
+  def requests_refresh?
+    @opts[:refresh]
+  end
+
   def value=(new_value)
     ensure_is_valid_value!(new_value)
 
@@ -49,7 +53,9 @@ class ThemeSettingsManager
   def db_record
     # theme.theme_settings will already be preloaded, so it is better to use
     # `find` on an array, rather than make a round trip to the database
-    theme.theme_settings.to_a.find { |i| i.name.to_s == @name.to_s && i.data_type.to_s == type.to_s }
+    theme.theme_settings.to_a.find do |i|
+      i.name.to_s == @name.to_s && i.data_type.to_s == type.to_s
+    end
   end
 
   def has_record?
@@ -113,7 +119,11 @@ class ThemeSettingsManager
     end
 
     def json_schema
-      JSON.parse(@opts[:json_schema]) rescue false
+      begin
+        JSON.parse(@opts[:json_schema])
+      rescue StandardError
+        false
+      end
     end
   end
 
@@ -174,9 +184,46 @@ class ThemeSettingsManager
 
   class Upload < self
     def value
-      val = super
-      Discourse.store.cdn_url(val)
+      has_record? ? cdn_url(db_record.value) : default
     end
 
+    def default
+      upload_id = default_upload_id
+      return if upload_id.blank?
+
+      cdn_url(upload_id)
+    end
+
+    def value=(new_value)
+      if new_value.present?
+        if new_value == default
+          new_value = default_upload_id
+        else
+          upload = ::Upload.find_by(url: new_value)
+          new_value = upload.id if upload.present?
+        end
+      end
+
+      super(new_value)
+    end
+
+    private
+
+    def cdn_url(upload_id)
+      return if upload_id.blank?
+
+      upload = ::Upload.find_by_id(upload_id.to_i)
+      return if upload.blank?
+
+      Discourse.store.cdn_url(upload.url)
+    end
+
+    def default_upload_id
+      theme_field =
+        theme.theme_fields.find_by(name: @default, type_id: ThemeField.types[:theme_upload_var])
+      return if theme_field.blank?
+
+      theme_field.upload_id
+    end
   end
 end

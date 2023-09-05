@@ -9,6 +9,12 @@
   }
 }
 
+.topic-post-visited {
+  + .topic-post article {
+    border-top: none;
+  }
+}
+
 .topic-post article {
   border-top: 1px solid var(--primary-low);
   padding: 15px 0 8px 0;
@@ -22,102 +28,69 @@ span.badge-posts {
   display: none;
 }
 
-.topic-post {
-  nav.post-controls {
-    color: var(--primary-low-mid-or-secondary-high);
-    &.expanded {
-      // on small devices with many buttons this can overflow
-      overflow-x: scroll;
-    }
-    .actions {
-      display: flex;
-      justify-content: flex-end;
+nav.post-controls {
+  // for consistency, try to control spacing by editing these variables
+  --control-space: 0.58em;
+  --control-space-small: calc(var(--control-space) / 2);
+  --control-space-large: calc(var(--control-space) * 1.3);
+  // on small devices with many buttons this can overflow
+  overflow-x: scroll;
 
-      // Handles the like and flag buttons in the post menu.
-      .double-button {
-        display: flex;
-        flex: 0 1 auto;
-        align-items: center;
-        button {
-          &.like,
-          &.read-indicator,
-          &.create-flag {
-            flex: 1 1 auto;
-          }
-          &.button-count {
-            padding: 8px 4px 8px 8px;
-            + .toggle-like,
-            + .create-flag {
-              padding: 8px 8px 8px 4px;
-            }
-            &.my-likes,
-            &.regular-likes {
-              display: flex;
-              max-width: unset;
-              padding: 8px;
-              .d-icon {
-                padding-left: 8px;
-              }
-            }
-          }
-        }
-      }
-      .d-icon {
-        opacity: 1;
-      }
+  .actions {
+    // using an auto margin on first-child instead of justify-content on the parent
+    // because justify-content breaks overflow scrolling
+    :first-child {
+      margin-left: auto;
+    }
+    // Some buttons can be doubled up, like likes or flags
+    .double-button {
       button {
-        border: none;
-        font-size: $font-up-1;
-        padding: 10px 8px;
-        background: transparent;
-        flex: 1 1 auto;
-        max-width: 45px;
-        &.hidden {
-          display: none;
-        }
-        &.admin {
-          position: relative;
-        }
-        &.expand-post {
-          margin: 10px 0 10px 0;
-        }
-        &.reply {
-          .d-icon {
-            color: var(--primary-high);
+        &.button-count {
+          padding: var(--control-space);
+          + .toggle-like,
+          + .create-flag {
+            padding: var(--control-space) var(--control-space-large)
+              var(--control-space) var(--control-space-small);
           }
-        }
-        &.has-like {
-          .d-icon {
-            color: var(--love);
-          }
-        }
-        &.bookmarked {
-          .d-icon {
-            color: var(--tertiary);
+          &.regular-likes {
+            padding: var(--control-space) var(--control-space-small)
+              var(--control-space) var(--control-space-large);
           }
         }
       }
     }
-    &.replies-button-visible {
-      display: flex;
-      align-items: center;
-      .show-replies {
-        display: flex;
-        font-size: $font-up-1;
-        padding: 10px 8px;
-        + .reply {
-          margin-left: 0;
-        }
-        .d-icon {
-          padding-left: 8px;
-          font-size: $font-down-1;
-        }
+    button {
+      padding: var(--control-space) var(--control-space-large);
+      &.expand-post {
+        margin: var(--control-space) 0 var(--control-space) 0;
       }
-      .actions {
-        flex-grow: 2;
+      &.has-like {
+        .d-icon {
+          color: var(--love);
+        }
       }
     }
   }
+  &.replies-button-visible {
+    display: flex;
+    align-items: center;
+    .show-replies {
+      display: flex;
+      + .reply {
+        margin-left: 0;
+      }
+      .d-icon {
+        padding-left: var(--control-space);
+      }
+    }
+    .actions {
+      flex-grow: 2;
+    }
+  }
+}
+
+nav.post-controls button.reply .d-icon {
+  color: var(--primary-high);
 }
 
 .post-admin-menu {
@@ -161,7 +134,7 @@ a.reply-to-tab {
 .topic-map {
   margin: 10px 0;
   h4 {
-    line-height: $line-height-medium;
+    line-height: var(--line-height-medium);
   }
   .user {
     float: left;
@@ -181,12 +154,12 @@ a.reply-to-tab {
       }
     }
     .number {
-      line-height: $line-height-medium;
+      line-height: var(--line-height-medium);
     }
     .number,
     .d-icon {
       color: var(--primary-high-or-secondary-low);
-      font-size: $font-up-1;
+      font-size: var(--font-up-1);
     }
     .avatar + a {
       float: left;
@@ -216,7 +189,7 @@ a.reply-to-tab {
       border-left: 1px solid var(--primary-low);
       .fa {
         margin: 0;
-        font-size: $font-up-2;
+        font-size: var(--font-up-2);
         line-height: 52px;
       }
     }
@@ -225,6 +198,16 @@ a.reply-to-tab {
     color: var(--primary-med-or-secondary-high);
     background: var(--blend-primary-secondary-5);
     width: 100%;
+  }
+
+  .toggle-summary {
+    .summarization-buttons {
+      flex-direction: column;
+
+      .top-replies {
+        margin-top: 10px;
+      }
+    }
   }
 }
 
@@ -282,7 +265,7 @@ a.reply-to-tab {
   }
   a.badge-category,
   a.badge-category-parent {
-    font-size: $font-down-1;
+    font-size: var(--font-down-1);
     vertical-align: top;
   }
 }
@@ -295,16 +278,12 @@ span.post-count {
 
 #topic-title {
   z-index: z("base") + 1;
-  margin: 0 0 0 0 !important;
-  padding: 15px 0;
+  margin: 0;
+  padding: 0 0 1em;
 }
 
 .quote-button.visible {
   z-index: z("tooltip");
-}
-
-iframe {
-  max-width: 100%;
 }
 
 .btn-group {
@@ -331,14 +310,8 @@ button.select-post {
   display: inline-block;
 }
 
-.deleted {
-  .topic-body {
-    background-color: var(--danger-low-mid);
-  }
-}
-
 .deleted-user-avatar {
-  font-size: $font-up-5;
+  font-size: var(--font-up-5);
 }
 
 span.btn-text {
@@ -352,7 +325,7 @@ blockquote {
   margin-right: 0;
 }
 
-pre.copy-codeblocks code {
+pre.codeblock-buttons code {
   padding-right: 2.75em;
 }
 
@@ -365,7 +338,7 @@ pre.copy-codeblocks code {
 }
 
 span.highlighted {
-  background-color: var(--highlight-low);
+  background-color: var(--highlight-bg);
 }
 
 .topic-avatar {
@@ -377,9 +350,9 @@ span.highlighted {
 
 .topic-meta-data {
   margin-left: 50px;
-  font-size: $font-down-1;
+  font-size: var(--font-down-1);
   .names {
-    line-height: $line-height-medium;
+    line-height: var(--line-height-medium);
     display: flex;
     flex-wrap: wrap;
 
@@ -392,6 +365,10 @@ span.highlighted {
     }
 
     .poster-icon {
+      order: 2;
+    }
+
+    .user-status-message-wrap {
       order: 2;
     }
 
@@ -425,6 +402,7 @@ span.highlighted {
 }
 
 .post-notice {
+  box-sizing: border-box;
   margin-bottom: 1em;
   &.old {
     border-top: none;
@@ -433,16 +411,16 @@ span.highlighted {
 }
 
 .posts-filtered-notice {
-  padding-right: 10em;
+  padding-right: 8.5em;
+  padding-bottom: unquote("max(1em, env(safe-area-inset-bottom))");
   flex-wrap: wrap;
   justify-content: flex-start;
-  padding-bottom: unquote("max(0.75em, env(safe-area-inset-bottom))");
   margin: 1em -9px;
 
   z-index: 101;
   .filtered-replies-show-all {
     position: absolute;
-    right: 2em;
+    right: 1em;
   }
 
   .filtered-replies-viewing {
@@ -457,4 +435,13 @@ span.highlighted {
       height: 20px;
     }
   }
+}
+
+.open-popup-link {
+  opacity: 100%;
+  margin-bottom: 1rem;
+}
+
+.placeholder .topic-body {
+  width: 100%;
 }

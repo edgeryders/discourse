@@ -1,4 +1,8 @@
-import { acceptance, queryAll } from "discourse/tests/helpers/qunit-helpers";
+import {
+  acceptance,
+  query,
+  visible,
+} from "discourse/tests/helpers/qunit-helpers";
 import { click, fillIn, visit } from "@ember/test-helpers";
 import { test } from "qunit";
 
@@ -28,15 +32,16 @@ http://www.example.com/has-title.html
         `
     );
 
-    assert.equal(
-      queryAll(".d-editor-preview:visible").html().trim(),
+    assert.ok(visible(".d-editor-preview"));
+    assert.strictEqual(
+      query(".d-editor-preview").innerHTML.trim(),
       `
-<p><aside class=\"onebox\"><article class=\"onebox-body\"><h3><a href=\"http://www.example.com/article.html\">An interesting article</a></h3></article></aside><br>
-This is another test <a href=\"http://www.example.com/has-title.html\" class=\"inline-onebox\">This is a great title</a></p>
-<p><a href=\"http://www.example.com/no-title.html\" class=\"onebox\" target=\"_blank\">http://www.example.com/no-title.html</a></p>
-<p>This is another test <a href=\"http://www.example.com/no-title.html\" class=\"\">http://www.example.com/no-title.html</a><br>
-This is another test <a href=\"http://www.example.com/has-title.html\" class=\"inline-onebox\">This is a great title</a></p>
-<p><aside class=\"onebox\"><article class=\"onebox-body\"><h3><a href=\"http://www.example.com/article.html\">An interesting article</a></h3></article></aside></p>
+<p><aside class=\"onebox\"><article class=\"onebox-body\"><h3><a href=\"http://www.example.com/article.html\" tabindex=\"-1\">An interesting article</a></h3></article></aside><br>
+This is another test <a href=\"http://www.example.com/has-title.html\" class=\"inline-onebox\" tabindex=\"-1\">This is a great title</a></p>
+<p><a href=\"http://www.example.com/no-title.html\" class=\"onebox\" target=\"_blank\" tabindex=\"-1\">http://www.example.com/no-title.html</a></p>
+<p>This is another test <a href=\"http://www.example.com/no-title.html\" class=\"\" tabindex=\"-1\">http://www.example.com/no-title.html</a><br>
+This is another test <a href=\"http://www.example.com/has-title.html\" class=\"inline-onebox\" tabindex=\"-1\">This is a great title</a></p>
+<p><aside class=\"onebox\"><article class=\"onebox-body\"><h3><a href=\"http://www.example.com/article.html\" tabindex=\"-1\">An interesting article</a></h3></article></aside></p>
         `.trim()
     );
   });
@@ -66,17 +71,17 @@ acceptance("Composer - Inline Onebox", function (needs) {
     await click("#topic-footer-buttons .btn.create");
 
     await fillIn(".d-editor-input", `Test www.example.com/page`);
-    assert.equal(requestsCount, 1);
-    assert.equal(
-      queryAll(".d-editor-preview").html().trim(),
-      '<p>Test <a href="http://www.example.com/page" class="inline-onebox-loading">www.example.com/page</a></p>'
+    assert.strictEqual(requestsCount, 1);
+    assert.strictEqual(
+      query(".d-editor-preview").innerHTML.trim(),
+      '<p>Test <a href="http://www.example.com/page" class="inline-onebox-loading" tabindex="-1">www.example.com/page</a></p>'
     );
 
     await fillIn(".d-editor-input", `Test www.example.com/page Test`);
-    assert.equal(requestsCount, 1);
-    assert.equal(
-      queryAll(".d-editor-preview").html().trim(),
-      '<p>Test <a href="http://www.example.com/page">www.example.com/page</a> Test</p>'
+    assert.strictEqual(requestsCount, 1);
+    assert.strictEqual(
+      query(".d-editor-preview").innerHTML.trim(),
+      '<p>Test <a href="http://www.example.com/page" tabindex="-1">www.example.com/page</a> Test</p>'
     );
   });
 });

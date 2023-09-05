@@ -1,7 +1,13 @@
 # frozen_string_literal: true
 
 class GroupShowSerializer < BasicGroupSerializer
-  attributes :is_group_user, :is_group_owner, :is_group_owner_display, :mentionable, :messageable, :flair_icon, :flair_type
+  attributes :is_group_user,
+             :is_group_owner,
+             :is_group_owner_display,
+             :mentionable,
+             :messageable,
+             :flair_icon,
+             :flair_type
 
   def self.admin_attributes(*attrs)
     attributes(*attrs)
@@ -12,22 +18,33 @@ class GroupShowSerializer < BasicGroupSerializer
     end
   end
 
+  has_one :smtp_updated_by, embed: :object, serializer: BasicUserSerializer
+  has_one :imap_updated_by, embed: :object, serializer: BasicUserSerializer
+
   admin_attributes :automatic_membership_email_domains,
                    :smtp_server,
                    :smtp_port,
                    :smtp_ssl,
+                   :smtp_enabled,
+                   :smtp_updated_at,
+                   :smtp_updated_by,
                    :imap_server,
                    :imap_port,
                    :imap_ssl,
                    :imap_mailbox_name,
                    :imap_mailboxes,
+                   :imap_enabled,
+                   :imap_updated_at,
+                   :imap_updated_by,
                    :email_username,
                    :email_password,
+                   :email_from_alias,
                    :imap_last_error,
                    :imap_old_emails,
                    :imap_new_emails,
                    :message_count,
-                   :allow_unknown_sender_topic_replies
+                   :allow_unknown_sender_topic_replies,
+                   :associated_group_ids
 
   def self.admin_or_owner_attributes(*attrs)
     attributes(*attrs)
@@ -86,7 +103,7 @@ class GroupShowSerializer < BasicGroupSerializer
   end
 
   def messageable
-    Group.messageable(scope.user).exists?(id: object.id)
+    scope.can_send_private_message?(object)
   end
 
   def include_flair_icon?
@@ -97,19 +114,24 @@ class GroupShowSerializer < BasicGroupSerializer
     flair_type.present? && (is_group_owner || scope.is_admin?)
   end
 
-  [:watching, :regular, :tracking, :watching_first_post, :muted].each do |level|
+  %i[watching regular tracking watching_first_post muted].each do |level|
     define_method("#{level}_category_ids") do
       group_category_notifications[NotificationLevels.all[level]] || []
     end
 
     define_method("include_#{level}_tags?") do
-      SiteSetting.tagging_enabled? &&
-        scope.is_admin? || (include_is_group_owner? && is_group_owner)
+      SiteSetting.tagging_enabled? && scope.is_admin? || (include_is_group_owner? && is_group_owner)
     end
 
-    define_method("#{level}_tags") do
-      group_tag_notifications[NotificationLevels.all[level]] || []
-    end
+    define_method("#{level}_tags") { group_tag_notifications[NotificationLevels.all[level]] || [] }
+  end
+
+  def associated_group_ids
+    object.associated_groups.map(&:id)
+  end
+
+  def include_associated_group_ids?
+    scope.can_associate_groups?
   end
 
   private
@@ -125,7 +147,8 @@ class GroupShowSerializer < BasicGroupSerializer
 
   def group_category_notifications
     @group_category_notification_defaults ||=
-      GroupCategoryNotificationDefault.where(group_id: object.id)
+      GroupCategoryNotificationDefault
+        .where(group_id: object.id)
         .pluck(:notification_level, :category_id)
         .inject({}) do |h, arr|
           h[arr[0]] ||= []
@@ -136,7 +159,8 @@ class GroupShowSerializer < BasicGroupSerializer
 
   def group_tag_notifications
     @group_tag_notification_defaults ||=
-      GroupTagNotificationDefault.where(group_id: object.id)
+      GroupTagNotificationDefault
+        .where(group_id: object.id)
         .joins(:tag)
         .pluck(:notification_level, :name)
         .inject({}) do |h, arr|

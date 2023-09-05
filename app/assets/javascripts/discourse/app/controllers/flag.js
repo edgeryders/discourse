@@ -1,26 +1,25 @@
-import ActionSummary from "discourse/models/action-summary";
+import { schedule } from "@ember/runloop";
 import Controller from "@ember/controller";
-import EmberObject from "@ember/object";
 import I18n from "I18n";
 import { MAX_MESSAGE_LENGTH } from "discourse/models/post-action-type";
 import ModalFunctionality from "discourse/mixins/modal-functionality";
 import { Promise } from "rsvp";
 import User from "discourse/models/user";
-import discourseComputed from "discourse-common/utils/decorators";
+import discourseComputed, { bind } from "discourse-common/utils/decorators";
 import { not } from "@ember/object/computed";
 import optionalService from "discourse/lib/optional-service";
-import { popupAjaxError } from "discourse/lib/ajax-error";
+import { classify } from "@ember/string";
 
 export default Controller.extend(ModalFunctionality, {
   adminTools: optionalService(),
   userDetails: null,
   selected: null,
-  flagTopic: null,
   message: null,
   isWarning: false,
   topicActionByName: null,
   spammerDetails: null,
   flagActions: null,
+  flagTarget: null,
 
   init() {
     this._super(...arguments);
@@ -52,6 +51,17 @@ export default Controller.extend(ModalFunctionality, {
     };
   },
 
+  @bind
+  keyDown(event) {
+    // CTRL+ENTER or CMD+ENTER
+    if (event.key === "Enter" && (event.ctrlKey || event.metaKey)) {
+      if (this.submitEnabled) {
+        this.send("createFlag");
+        return false;
+      }
+    }
+  },
+
   clientSuspend(performAction) {
     this._penalize("showSuspendModal", performAction);
   },
@@ -63,13 +73,14 @@ export default Controller.extend(ModalFunctionality, {
   _penalize(adminToolMethod, performAction) {
     if (this.adminTools) {
       return User.findByUsername(this.model.username).then((createdBy) => {
-        let postId = this.model.id;
-        let postEdit = this.model.cooked;
-        return this.adminTools[adminToolMethod](createdBy, {
-          postId,
-          postEdit,
-          before: performAction,
-        });
+        const opts = { before: performAction };
+
+        if (this.flagTarget.editable()) {
+          opts.postId = this.model.id;
+          opts.postEdit = this.model.cooked;
+        }
+
+        return this.adminTools[adminToolMethod](createdBy, opts);
       });
     }
   },
@@ -85,6 +96,16 @@ export default Controller.extend(ModalFunctionality, {
         this.set("spammerDetails", result);
       });
     }
+
+    schedule("afterRender", () => {
+      const element = document.querySelector(".flag-modal");
+      element.addEventListener("keydown", this.keyDown);
+    });
+  },
+
+  onClose() {
+    const element = document.querySelector(".flag-modal");
+    element.removeEventListener("keydown", this.keyDown);
   },
 
   @discourseComputed("spammerDetails.canDelete", "selected.name_key")
@@ -92,47 +113,25 @@ export default Controller.extend(ModalFunctionality, {
     return canDeleteSpammer && nameKey === "spam";
   },
 
-  @discourseComputed("flagTopic")
-  title(flagTopic) {
-    return flagTopic ? "flagging_topic.title" : "flagging.title";
+  @discourseComputed("flagTarget")
+  title(flagTarget) {
+    return flagTarget.title();
   },
 
-  @discourseComputed("post", "flagTopic", "model.actions_summary.@each.can_act")
+  @discourseComputed(
+    "post",
+    "flagTarget",
+    "model.actions_summary.@each.can_act"
+  )
   flagsAvailable() {
-    if (!this.flagTopic) {
-      // flagging post
-      let flagsAvailable = this.get("model.flagsAvailable");
-
-      // "message user" option should be at the top
-      const notifyUserIndex = flagsAvailable.indexOf(
-        flagsAvailable.filterBy("name_key", "notify_user")[0]
-      );
-      if (notifyUserIndex !== -1) {
-        const notifyUser = flagsAvailable[notifyUserIndex];
-        flagsAvailable.splice(notifyUserIndex, 1);
-        flagsAvailable.splice(0, 0, notifyUser);
-      }
-      return flagsAvailable;
-    } else {
-      // flagging topic
-      let lookup = EmberObject.create();
-      let model = this.model;
-      model.get("actions_summary").forEach((a) => {
-        a.flagTopic = model;
-        a.actionType = this.site.topicFlagTypeById(a.id);
-        lookup.set(a.actionType.get("name_key"), ActionSummary.create(a));
-      });
-      this.set("topicActionByName", lookup);
-
-      return this.site.get("topic_flag_types").filter((item) => {
-        return this.get("model.actions_summary").some((a) => {
-          return a.id === item.get("id") && a.can_act;
-        });
-      });
-    }
+    return this.flagTarget.flagsAvailable(this, this.site, this.model);
   },
 
-  @discourseComputed("post", "flagTopic", "model.actions_summary.@each.can_act")
+  @discourseComputed(
+    "post",
+    "flagTarget",
+    "model.actions_summary.@each.can_act"
+  )
   staffFlagsAvailable() {
     return (
       this.get("model.flagsAvailable") &&
@@ -158,11 +157,22 @@ export default Controller.extend(ModalFunctionality, {
   },
 
   submitDisabled: not("submitEnabled"),
+  cantFlagForReview: not("notifyModeratorsFlag"),
+
+  @discourseComputed("flagsAvailable")
+  notifyModeratorsFlag(flagsAvailable) {
+    const notifyModeratorsID = 7;
+    return flagsAvailable.find((f) => f.id === notifyModeratorsID);
+  },
 
   // Staff accounts can "take action"
-  @discourseComputed("flagTopic", "selected.is_custom_flag")
-  canTakeAction(flagTopic, isCustomFlag) {
-    return !flagTopic && !isCustomFlag && this.currentUser.get("staff");
+  @discourseComputed("flagTarget", "selected.is_custom_flag")
+  canTakeAction(flagTarget, isCustomFlag) {
+    return (
+      !flagTarget.targetsTopic() &&
+      !isCustomFlag &&
+      this.currentUser.get("staff")
+    );
   },
 
   @discourseComputed("selected.is_custom_flag")
@@ -170,14 +180,13 @@ export default Controller.extend(ModalFunctionality, {
     return isCustomFlag ? "envelope" : "flag";
   },
 
-  @discourseComputed("selected.is_custom_flag", "flagTopic")
-  submitLabel(isCustomFlag, flagTopic) {
+  @discourseComputed("selected.is_custom_flag", "flagTarget")
+  submitLabel(isCustomFlag, flagTarget) {
     if (isCustomFlag) {
-      return flagTopic
-        ? "flagging_topic.notify_action"
-        : "flagging.notify_action";
+      return flagTarget.customSubmitLabel();
     }
-    return flagTopic ? "flagging_topic.action" : "flagging.action";
+
+    return flagTarget.submitLabel();
   },
 
   actions: {
@@ -196,7 +205,7 @@ export default Controller.extend(ModalFunctionality, {
       };
 
       if (action.client_action) {
-        let actionMethod = this[`client${action.client_action.classify()}`];
+        let actionMethod = this[`client${classify(action.client_action)}`];
         if (actionMethod) {
           return actionMethod.call(this, () =>
             performAction({ skipClose: true })
@@ -213,52 +222,13 @@ export default Controller.extend(ModalFunctionality, {
     },
 
     createFlag(opts) {
-      let postAction; // an instance of ActionSummary
+      const params = opts || {};
 
-      if (!this.flagTopic) {
-        postAction = this.get("model.actions_summary").findBy(
-          "id",
-          this.get("selected.id")
-        );
-      } else {
-        postAction = this.get(
-          "topicActionByName." + this.get("selected.name_key")
-        );
+      if (this.get("selected.is_custom_flag")) {
+        params.message = this.message;
       }
 
-      let params = this.get("selected.is_custom_flag")
-        ? { message: this.message }
-        : {};
-      if (opts) {
-        params = $.extend(params, opts);
-      }
-
-      this.appEvents.trigger(
-        this.flagTopic ? "topic:flag-created" : "post:flag-created",
-        this.model,
-        postAction,
-        params
-      );
-
-      this.send("hideModal");
-
-      postAction
-        .act(this.model, params)
-        .then(() => {
-          if (!params.skipClose) {
-            this.send("closeModal");
-          }
-          if (params.message) {
-            this.set("message", "");
-          }
-          this.appEvents.trigger("post-stream:refresh", {
-            id: this.get("model.id"),
-          });
-        })
-        .catch((error) => {
-          this.send("closeModal");
-          popupAjaxError(error);
-        });
+      this.flagTarget.create(this, params);
     },
 
     createFlagAsWarning() {
@@ -267,11 +237,9 @@ export default Controller.extend(ModalFunctionality, {
     },
 
     flagForReview() {
-      const notifyModeratorsID = 7;
-      const notifyModerators = this.flagsAvailable.find(
-        (f) => f.id === notifyModeratorsID
-      );
-      this.set("selected", notifyModerators);
+      if (!this.selected) {
+        this.set("selected", this.get("notifyModeratorsFlag"));
+      }
 
       this.send("createFlag", { queue_for_review: true });
       this.set("model.hidden", true);
@@ -282,10 +250,12 @@ export default Controller.extend(ModalFunctionality, {
     },
   },
 
-  @discourseComputed("flagTopic", "selected.name_key")
-  canSendWarning(flagTopic, nameKey) {
+  @discourseComputed("flagTarget", "selected.name_key")
+  canSendWarning(flagTarget, nameKey) {
     return (
-      !flagTopic && this.currentUser.get("staff") && nameKey === "notify_user"
+      !flagTarget.targetsTopic() &&
+      this.currentUser.get("staff") &&
+      nameKey === "notify_user"
     );
   },
 });

@@ -2,7 +2,7 @@
 
 class UserApiKey < ActiveRecord::Base
   self.ignored_columns = [
-    "scopes" # TODO(2020-12-18): remove
+    "scopes", # TODO(2020-12-18): remove
   ]
 
   REVOKE_MATCHER = RouteMatcher.new(actions: "user_api_keys#revoke", methods: :post, params: [:id])
@@ -23,12 +23,32 @@ class UserApiKey < ActiveRecord::Base
   end
 
   def key
-    raise ApiKey::KeyAccessError.new "API key is only accessible immediately after creation" unless key_available?
+    unless key_available?
+      raise ApiKey::KeyAccessError.new "API key is only accessible immediately after creation"
+    end
     @key
   end
 
   def key_available?
     @key.present?
+  end
+
+  def ensure_allowed!(env)
+    raise Discourse::InvalidAccess.new if !allow?(env)
+  end
+
+  def update_last_used(client_id)
+    update_args = { last_used_at: Time.zone.now }
+    if client_id.present? && client_id != self.client_id
+      # invalidate old dupe api key for client if needed
+      UserApiKey
+        .where(client_id: client_id, user_id: self.user_id)
+        .where("id <> ?", self.id)
+        .destroy_all
+
+      update_args[:client_id] = client_id
+    end
+    self.update_columns(**update_args)
   end
 
   # Scopes allowed to be requested by external services
@@ -41,8 +61,7 @@ class UserApiKey < ActiveRecord::Base
   end
 
   def has_push?
-    scopes.any? { |s| s.name == "push" || s.name == "notifications" } &&
-      push_url.present? &&
+    scopes.any? { |s| s.name == "push" || s.name == "notifications" } && push_url.present? &&
       SiteSetting.allowed_user_api_push_urls.include?(push_url)
   end
 
@@ -51,8 +70,9 @@ class UserApiKey < ActiveRecord::Base
   end
 
   def self.invalid_auth_redirect?(auth_redirect)
-    SiteSetting.allowed_user_api_auth_redirects
-      .split('|')
+    SiteSetting
+      .allowed_user_api_auth_redirects
+      .split("|")
       .none? { |u| WildcardUrlChecker.check_url(u, auth_redirect) }
   end
 

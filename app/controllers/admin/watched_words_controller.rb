@@ -1,19 +1,21 @@
 # frozen_string_literal: true
 
-require 'csv'
+require "csv"
 
-class Admin::WatchedWordsController < Admin::AdminController
+class Admin::WatchedWordsController < Admin::StaffController
   skip_before_action :check_xhr, only: [:download]
 
   def index
     watched_words = WatchedWord.by_action
-    watched_words = watched_words.where.not(action: WatchedWord.actions[:tag]) if !SiteSetting.tagging_enabled
+    watched_words =
+      watched_words.where.not(action: WatchedWord.actions[:tag]) if !SiteSetting.tagging_enabled
     render_json_dump WatchedWordListSerializer.new(watched_words, scope: guardian, root: false)
   end
 
   def create
     watched_word = WatchedWord.create_or_update_word(watched_words_params)
     if watched_word.valid?
+      StaffActionLogger.new(current_user).log_watched_words_creation(watched_word)
       render json: watched_word, root: false
     else
       render_json_error(watched_word)
@@ -24,6 +26,7 @@ class Admin::WatchedWordsController < Admin::AdminController
     watched_word = WatchedWord.find_by(id: params[:id])
     raise Discourse::InvalidParameters.new(:id) unless watched_word
     watched_word.destroy!
+    StaffActionLogger.new(current_user).log_watched_words_deletion(watched_word)
     render json: success_json
   end
 
@@ -36,15 +39,20 @@ class Admin::WatchedWordsController < Admin::AdminController
       begin
         CSV.foreach(file.tempfile, encoding: "bom|utf-8") do |row|
           if row[0].present? && (!has_replacement || row[1].present?)
-            WatchedWord.create_or_update_word(
-              word: row[0],
-              replacement: has_replacement ? row[1] : nil,
-              action_key: action_key
-            )
+            watched_word =
+              WatchedWord.create_or_update_word(
+                word: row[0],
+                replacement: has_replacement ? row[1] : nil,
+                action_key: action_key,
+                case_sensitive: "true" == row[2]&.strip&.downcase,
+              )
+            if watched_word.valid?
+              StaffActionLogger.new(current_user).log_watched_words_creation(watched_word)
+            end
           end
         end
 
-        data = { url: '/ok' }
+        data = { url: "/ok" }
       rescue => e
         data = failed_json.merge(errors: [e.message])
       end
@@ -67,10 +75,10 @@ class Admin::WatchedWordsController < Admin::AdminController
       content = content.pluck(:word).join("\n")
     end
 
-    headers['Content-Length'] = content.bytesize.to_s
+    headers["Content-Length"] = content.bytesize.to_s
     send_data content,
-      filename: "#{Discourse.current_hostname}-watched-words-#{name}.csv",
-      content_type: "text/csv"
+              filename: "#{Discourse.current_hostname}-watched-words-#{name}.csv",
+              content_type: "text/csv"
   end
 
   def clear_all
@@ -79,7 +87,12 @@ class Admin::WatchedWordsController < Admin::AdminController
     action = WatchedWord.actions[name]
     raise Discourse::NotFound if !action
 
-    WatchedWord.where(action: action).delete_all
+    WatchedWord
+      .where(action: action)
+      .find_each do |watched_word|
+        watched_word.destroy!
+        StaffActionLogger.new(current_user).log_watched_words_deletion(watched_word)
+      end
     WordWatcher.clear_cache!
     render json: success_json
   end
@@ -87,7 +100,6 @@ class Admin::WatchedWordsController < Admin::AdminController
   private
 
   def watched_words_params
-    params.permit(:id, :word, :replacement, :action_key)
+    params.permit(:id, :word, :replacement, :action_key, :case_sensitive)
   end
-
 end

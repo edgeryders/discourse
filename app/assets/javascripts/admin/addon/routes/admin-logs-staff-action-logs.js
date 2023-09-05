@@ -1,11 +1,13 @@
 import DiscourseRoute from "discourse/routes/discourse";
-import EmberObject from "@ember/object";
-import showModal from "discourse/lib/show-modal";
+import EmberObject, { action } from "@ember/object";
+import { inject as service } from "@ember/service";
 
-export default DiscourseRoute.extend({
-  queryParams: {
+export default class AdminLogsStaffActionLogsRoute extends DiscourseRoute {
+  @service router;
+
+  queryParams = {
     filters: { refreshModel: true },
-  },
+  };
 
   beforeModel(transition) {
     const params = transition.to.queryParams;
@@ -13,15 +15,15 @@ export default DiscourseRoute.extend({
     if (controller.filters === null || params.force_refresh) {
       controller.resetFilters();
     }
-  },
+  }
 
   deserializeQueryParam(value, urlKey, defaultValueType) {
-    if (urlKey === "filters") {
+    if (urlKey === "filters" && value) {
       return EmberObject.create(JSON.parse(decodeURIComponent(value)));
     }
 
-    return this._super(value, urlKey, defaultValueType);
-  },
+    return super.deserializeQueryParam(value, urlKey, defaultValueType);
+  }
 
   serializeQueryParam(value, urlKey, defaultValueType) {
     if (urlKey === "filters") {
@@ -32,36 +34,13 @@ export default DiscourseRoute.extend({
       }
     }
 
-    return this._super(value, urlKey, defaultValueType);
-  },
+    return super.serializeQueryParam(value, urlKey, defaultValueType);
+  }
 
-  // TODO: make this automatic using an `{{outlet}}`
-  renderTemplate() {
-    this.render("admin/templates/logs/staff-action-logs", {
-      into: "adminLogs",
+  @action
+  onFiltersChange(filters) {
+    this.router.transitionTo("adminLogs.staffActionLogs", {
+      queryParams: { filters },
     });
-  },
-
-  actions: {
-    showDetailsModal(model) {
-      showModal("admin-staff-action-log-details", { model, admin: true });
-      this.controllerFor("modal").set("modalClass", "log-details-modal");
-    },
-
-    showCustomDetailsModal(model) {
-      let modal = showModal("admin-theme-change", { model, admin: true });
-      this.controllerFor("modal").set("modalClass", "history-modal");
-      modal.loadDiff();
-    },
-
-    onFiltersChange(filters) {
-      if (filters && Object.keys(filters) === 0) {
-        this.transitionTo("adminLogs.staffActionLogs");
-      } else {
-        this.transitionTo("adminLogs.staffActionLogs", {
-          queryParams: { filters },
-        });
-      }
-    },
-  },
-});
+  }
+}

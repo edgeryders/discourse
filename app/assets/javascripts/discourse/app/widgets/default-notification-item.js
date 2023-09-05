@@ -14,6 +14,7 @@ import { h } from "virtual-dom";
 import { iconNode } from "discourse-common/lib/icon-library";
 import { isEmpty } from "@ember/utils";
 import { wantsNewWindow } from "discourse/lib/intercept-click";
+import cookie from "discourse/lib/cookie";
 
 export const DefaultNotificationItem = createWidget(
   "default-notification-item",
@@ -27,6 +28,12 @@ export const DefaultNotificationItem = createWidget(
       }
       if (attrs.is_warning) {
         classNames.push("is-warning");
+      }
+      const notificationName = this.lookupNotificationName(
+        attrs.notification_type
+      );
+      if (notificationName) {
+        classNames.push(notificationName.replace(/_/g, "-"));
       }
       return classNames;
     },
@@ -57,6 +64,10 @@ export const DefaultNotificationItem = createWidget(
       if (data.group_id) {
         return userPath(data.username + "/messages/group/" + data.group_name);
       }
+
+      if (data.bookmarkable_url) {
+        return getURL(data.bookmarkable_url);
+      }
     },
 
     description(data) {
@@ -83,7 +94,7 @@ export const DefaultNotificationItem = createWidget(
         return this.attrs.fancy_title;
       }
 
-      const description = data.topic_title;
+      const description = data.topic_title || data.title;
 
       return isEmpty(description) ? "" : escapeExpression(description);
     },
@@ -99,7 +110,10 @@ export const DefaultNotificationItem = createWidget(
     },
 
     icon(notificationName) {
-      let icon = iconNode(`notification.${notificationName}`);
+      return iconNode(`notification.${notificationName}`);
+    },
+
+    _addA11yAttrsTo(icon, notificationName) {
       icon.properties.attributes["aria-label"] = I18n.t(
         `notifications.titles.${notificationName}`
       );
@@ -116,14 +130,19 @@ export const DefaultNotificationItem = createWidget(
       }
     },
 
-    html(attrs) {
-      const notificationType = attrs.notification_type;
+    lookupNotificationName(notificationType) {
       const lookup = this.site.get("notificationLookup");
-      const notificationName = lookup[notificationType];
+      return lookup[notificationType];
+    },
 
+    html(attrs) {
+      const notificationName = this.lookupNotificationName(
+        attrs.notification_type
+      );
       let { data } = attrs;
       let text = emojiUnescape(this.text(notificationName, data));
       let icon = this.icon(notificationName, data);
+      this._addA11yAttrsTo(icon, notificationName);
 
       const title = this.notificationTitle(notificationName, data);
 
@@ -147,30 +166,22 @@ export const DefaultNotificationItem = createWidget(
       this.attrs.set("read", true);
       const id = this.attrs.id;
       setTransientHeader("Discourse-Clear-Notifications", id);
-      if (document && document.cookie) {
-        document.cookie = `cn=${id}; path=${getURL(
-          "/"
-        )}; expires=Fri, 31 Dec 9999 23:59:59 GMT`;
-      }
+      cookie("cn", id, { path: getURL("/") });
+
       if (wantsNewWindow(e)) {
         return;
       }
       e.preventDefault();
 
       this.sendWidgetEvent("linkClicked");
-      DiscourseURL.routeTo(this.url(this.attrs.data), {
-        afterRouteComplete: () => {
-          if (!this.attrs.data.revision_number) {
-            return;
-          }
-
-          this.appEvents.trigger(
-            "post:show-revision",
-            this.attrs.post_number,
-            this.attrs.data.revision_number
-          );
-        },
-      });
+      if (this.attrs.data.revision_number) {
+        this.appEvents.trigger("edit-notification:clicked", {
+          topicId: this.attrs.topic_id,
+          postNumber: this.attrs.post_number,
+          revisionNumber: this.attrs.data.revision_number,
+        });
+      }
+      DiscourseURL.routeTo(this.url(this.attrs.data));
     },
 
     mouseUp(event) {
@@ -181,6 +192,7 @@ export const DefaultNotificationItem = createWidget(
           method: "PUT",
           data: { id: this.attrs.id },
         });
+        this.scheduleRerender();
       }
     },
   }

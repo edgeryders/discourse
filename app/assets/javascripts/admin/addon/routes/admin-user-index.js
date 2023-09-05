@@ -1,10 +1,10 @@
 import DiscourseRoute from "discourse/routes/discourse";
 import Group from "discourse/models/group";
 
-export default DiscourseRoute.extend({
+export default class AdminUserIndexRoute extends DiscourseRoute {
   model() {
     return this.modelFor("adminUser");
-  },
+  }
 
   afterModel(model) {
     if (this.currentUser.admin) {
@@ -13,14 +13,16 @@ export default DiscourseRoute.extend({
         return model;
       });
     }
-  },
+  }
 
   setupController(controller, model) {
     controller.setProperties({
       originalPrimaryGroupId: model.primary_group_id,
       availableGroups: this._availableGroups,
       customGroupIdsBuffer: model.customGroups.mapBy("id"),
+      ssoExternalEmail: null,
+      ssoLastPayload: null,
       model,
     });
-  },
-});
+  }
+}

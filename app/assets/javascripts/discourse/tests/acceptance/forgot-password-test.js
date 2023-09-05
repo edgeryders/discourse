@@ -1,7 +1,7 @@
 import {
   acceptance,
   exists,
-  queryAll,
+  query,
 } from "discourse/tests/helpers/qunit-helpers";
 import { click, fillIn, visit } from "@ember/test-helpers";
 import I18n from "I18n";
@@ -23,17 +23,16 @@ acceptance("Forgot password", function (needs) {
     await click("header .login-button");
     await click("#forgot-password-link");
 
-    assert.equal(
-      queryAll(".forgot-password-reset").attr("disabled"),
-      "disabled",
+    assert.ok(
+      query(".forgot-password-reset").disabled,
       "it should disable the button until the field is filled"
     );
 
     await fillIn("#username-or-email", "someuser");
     await click(".forgot-password-reset");
 
-    assert.equal(
-      queryAll(".alert-error").html().trim(),
+    assert.strictEqual(
+      query(".alert-error").innerHTML.trim(),
       I18n.t("forgot_password.complete_username_not_found", {
         username: "someuser",
       }),
@@ -43,8 +42,8 @@ acceptance("Forgot password", function (needs) {
     await fillIn("#username-or-email", "someuser@gmail.com");
     await click(".forgot-password-reset");
 
-    assert.equal(
-      queryAll(".alert-error").html().trim(),
+    assert.strictEqual(
+      query(".alert-error").innerHTML.trim(),
       I18n.t("forgot_password.complete_email_not_found", {
         email: "someuser@gmail.com",
       }),
@@ -58,12 +57,12 @@ acceptance("Forgot password", function (needs) {
     await click(".forgot-password-reset");
 
     assert.notOk(
-      exists(queryAll(".alert-error")),
+      exists(".alert-error"),
       "it should remove the flash error when succeeding"
     );
 
-    assert.equal(
-      queryAll(".modal-body").html().trim(),
+    assert.strictEqual(
+      query(".modal-body").innerHTML.trim(),
       I18n.t("forgot_password.complete_username_found", {
         username: "someuser",
       }),
@@ -76,8 +75,8 @@ acceptance("Forgot password", function (needs) {
     await fillIn("#username-or-email", "someuser@gmail.com");
     await click(".forgot-password-reset");
 
-    assert.equal(
-      queryAll(".modal-body").html().trim(),
+    assert.strictEqual(
+      query(".modal-body").innerHTML.trim(),
       I18n.t("forgot_password.complete_email_found", {
         email: "someuser@gmail.com",
       }),
@@ -85,3 +84,36 @@ acceptance("Forgot password", function (needs) {
     );
   });
 });
+
+acceptance(
+  "Forgot password - hide_email_address_taken enabled",
+  function (needs) {
+    needs.pretender((server, helper) => {
+      server.post("/session/forgot_password", () => {
+        return helper.response({});
+      });
+    });
+
+    test("requesting password reset", async function (assert) {
+      await visit("/");
+      await click("header .login-button");
+      await click("#forgot-password-link");
+
+      assert.ok(
+        query(".forgot-password-reset").disabled,
+        "it should disable the button until the field is filled"
+      );
+
+      await fillIn("#username-or-email", "someuser");
+      await click(".forgot-password-reset");
+
+      assert.strictEqual(
+        query(".modal-body").innerHTML.trim(),
+        I18n.t("forgot_password.complete_username", {
+          username: "someuser",
+        }),
+        "it should display a success message"
+      );
+    });
+  }
+);

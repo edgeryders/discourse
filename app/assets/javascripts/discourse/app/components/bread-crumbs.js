@@ -7,6 +7,8 @@ import { filter } from "@ember/object/computed";
 export default Component.extend({
   classNameBindings: ["hidden:hidden", ":category-breadcrumb"],
   tagName: "ol",
+  editingCategory: false,
+  editingCategoryTab: null,
 
   @discourseComputed("categories")
   filteredCategories(categories) {
@@ -47,17 +49,24 @@ export default Component.extend({
     });
   },
 
+  @discourseComputed("siteSettings.tagging_enabled", "editingCategory")
+  showTagsSection(taggingEnabled, editingCategory) {
+    return taggingEnabled && !editingCategory;
+  },
+
   @discourseComputed("category")
   parentCategory(category) {
     deprecated(
-      "The parentCategory property of the bread-crumbs component is deprecated"
+      "The parentCategory property of the bread-crumbs component is deprecated",
+      { id: "discourse.breadcrumbs.parentCategory" }
     );
     return category && category.parentCategory;
   },
 
   parentCategories: filter("categories", function (c) {
     deprecated(
-      "The parentCategories property of the bread-crumbs component is deprecated"
+      "The parentCategories property of the bread-crumbs component is deprecated",
+      { id: "discourse.breadcrumbs.parentCategories" }
     );
     if (
       c.id === this.site.get("uncategorized_category_id") &&
@@ -73,7 +82,8 @@ export default Component.extend({
   @discourseComputed("parentCategories")
   parentCategoriesSorted(parentCategories) {
     deprecated(
-      "The parentCategoriesSorted property of the bread-crumbs component is deprecated"
+      "The parentCategoriesSorted property of the bread-crumbs component is deprecated",
+      { id: "discourse.breadcrumbs.parentCategoriesSorted" }
     );
     if (this.siteSettings.fixed_category_positions) {
       return parentCategories;
@@ -90,7 +100,8 @@ export default Component.extend({
   @discourseComputed("category", "parentCategory")
   firstCategory(category, parentCategory) {
     deprecated(
-      "The firstCategory property of the bread-crumbs component is deprecated"
+      "The firstCategory property of the bread-crumbs component is deprecated",
+      { id: "discourse.breadcrumbs.firstCategory" }
     );
     return parentCategory || category;
   },
@@ -98,7 +109,8 @@ export default Component.extend({
   @discourseComputed("category", "parentCategory")
   secondCategory(category, parentCategory) {
     deprecated(
-      "The secondCategory property of the bread-crumbs component is deprecated"
+      "The secondCategory property of the bread-crumbs component is deprecated",
+      { id: "discourse.breadcrumbs.secondCategory" }
     );
     return parentCategory && category;
   },
@@ -106,7 +118,8 @@ export default Component.extend({
   @discourseComputed("firstCategory", "hideSubcategories")
   childCategories(firstCategory, hideSubcategories) {
     deprecated(
-      "The childCategories property of the bread-crumbs component is deprecated"
+      "The childCategories property of the bread-crumbs component is deprecated",
+      { id: "discourse.breadcrumbs.childCategories" }
     );
     if (hideSubcategories) {
       return [];

@@ -11,14 +11,18 @@ class TopicListItemSerializer < ListableTopicSerializer
              :category_id,
              :op_like_count,
              :pinned_globally,
-             :bookmarked_post_numbers,
              :liked_post_numbers,
              :featured_link,
              :featured_link_root_domain,
-             :allowed_user_count
+             :allowed_user_count,
+             :participant_groups
 
   has_many :posters, serializer: TopicPosterSerializer, embed: :objects
   has_many :participants, serializer: TopicPosterSerializer, embed: :objects
+
+  def include_participant_groups?
+    object.private_message?
+  end
 
   def posters
     object.posters || object.posters_summary || []
@@ -33,7 +37,6 @@ class TopicListItemSerializer < ListableTopicSerializer
   end
 
   def category_id
-
     # If it's a shared draft, show the destination topic instead
     if object.includes_destination_category && object.shared_draft
       return object.shared_draft.category_id
@@ -46,8 +49,8 @@ class TopicListItemSerializer < ListableTopicSerializer
     object.participants_summary || []
   end
 
-  def include_bookmarked_post_numbers?
-    include_post_action? :bookmark
+  def participant_groups
+    object.participant_groups_summary || []
   end
 
   def include_liked_post_numbers?
@@ -55,17 +58,12 @@ class TopicListItemSerializer < ListableTopicSerializer
   end
 
   def include_post_action?(action)
-    object.user_data &&
-      object.user_data.post_action_data &&
+    object.user_data && object.user_data.post_action_data &&
       object.user_data.post_action_data.key?(PostActionType.types[action])
   end
 
   def liked_post_numbers
     object.user_data.post_action_data[PostActionType.types[:like]]
-  end
-
-  def bookmarked_post_numbers
-    object.user_data.post_action_data[PostActionType.types[:bookmark]]
   end
 
   def include_participants?
@@ -95,5 +93,4 @@ class TopicListItemSerializer < ListableTopicSerializer
   def include_allowed_user_count?
     object.private_message?
   end
-
 end

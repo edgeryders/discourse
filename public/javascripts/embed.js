@@ -17,7 +17,7 @@
   var queryParams = {};
 
   if (DE.discourseEmbedUrl) {
-    if (DE.discourseEmbedUrl.indexOf("/") === 0) {
+    if (DE.discourseEmbedUrl.startsWith("/")) {
       console.error(
         "discourseEmbedUrl must be a full URL, not a relative path"
       );
@@ -32,6 +32,10 @@
 
   if (DE.topicId) {
     queryParams.topic_id = DE.topicId;
+  }
+
+  if (DE.className) {
+    queryParams.class_name = DE.className;
   }
 
   var src = DE.discourseUrl + "embed/comments";
@@ -81,7 +85,7 @@
     if (!e) {
       return;
     }
-    if (normalizeUrl(DE.discourseUrl).indexOf(normalizeUrl(e.origin)) === -1) {
+    if (!normalizeUrl(DE.discourseUrl).includes(normalizeUrl(e.origin))) {
       return;
     }
 

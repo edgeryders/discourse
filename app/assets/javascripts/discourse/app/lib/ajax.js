@@ -15,8 +15,12 @@ export function setTransientHeader(key, value) {
   _transientHeader = { key, value };
 }
 
-export function viewTrackingRequired() {
+export function trackNextAjaxAsPageview() {
   _trackView = true;
+}
+
+export function resetAjax() {
+  _trackView = false;
 }
 
 export function setLogoffCallback(cb) {
@@ -29,14 +33,9 @@ export function handleLogoff(xhr) {
   }
 }
 
-function handleRedirect(data) {
-  if (
-    data &&
-    data.getResponseHeader &&
-    data.getResponseHeader("Discourse-Xhr-Redirect")
-  ) {
-    window.location.replace(data.responseText);
-    window.location.reload();
+function handleRedirect(xhr) {
+  if (xhr && xhr.getResponseHeader("Discourse-Xhr-Redirect")) {
+    window.location = xhr.responseText;
   }
 }
 
@@ -70,6 +69,12 @@ export function ajax() {
     args = arguments[1];
   }
 
+  let ignoreUnsent = true;
+  if (args.ignoreUnsent !== undefined) {
+    ignoreUnsent = args.ignoreUnsent;
+    delete args.ignoreUnsent;
+  }
+
   function performAjax(resolve, reject) {
     args.headers = args.headers || {};
 
@@ -93,7 +98,7 @@ export function ajax() {
     }
 
     args.success = (data, textStatus, xhr) => {
-      handleRedirect(data);
+      handleRedirect(xhr);
       handleLogoff(xhr);
 
       run(() => {
@@ -104,7 +109,7 @@ export function ajax() {
       });
 
       if (args.returnXHR) {
-        data = { result: data, xhr: xhr };
+        data = { result: data, xhr };
       }
 
       run(null, resolve, data);
@@ -112,7 +117,7 @@ export function ajax() {
 
     args.error = (xhr, textStatus, errorThrown) => {
       // 0 represents the `UNSENT` state
-      if (xhr.readyState === 0) {
+      if (ignoreUnsent && xhr.readyState === 0) {
         // Make sure we log pretender errors in test mode
         if (textStatus === "error" && isTesting()) {
           throw errorThrown;
@@ -128,7 +133,7 @@ export function ajax() {
         Session.current().set("csrfToken", null);
       }
 
-      // If it's a parsererror, don't reject
+      // If it's a parser error, don't reject
       if (xhr.status === 200) {
         return args.success(xhr);
       }
@@ -139,8 +144,8 @@ export function ajax() {
 
       run(null, reject, {
         jqXHR: xhr,
-        textStatus: textStatus,
-        errorThrown: errorThrown,
+        textStatus,
+        errorThrown,
       });
     };
 
@@ -160,10 +165,6 @@ export function ajax() {
 
     if (args.dataType === "script") {
       args.headers["Discourse-Script"] = true;
-    }
-
-    if (args.type === "GET" && args.cache !== true) {
-      args.cache = true; // Disable JQuery cache busting param, which was created to deal with IE8
     }
 
     ajaxObj = $.ajax(getURL(url), args);
