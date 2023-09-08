@@ -31,10 +31,10 @@ set :linked_dirs, fetch(:linked_dirs, []).push('log', 'tmp/pids', 'tmp/cache', '
 
 
 # https://github.com/capistrano/chruby
-set :chruby_ruby, 'ruby-2.7.1'
+set :chruby_ruby, 'ruby-3.2.2'
 # Workaround for capistrano bug: https://github.com/capistrano/chruby/issues/7#issuecomment-214770540
-set :default_env, { path: '/opt/rubies/ruby-2.7.1/lib/ruby/gems/2.7.0/bin:/opt/rubies/ruby-2.7.1/bin:$PATH' }
-# set :default_env, { path: '/home/discourse/production_multisite/shared/bundle/ruby/2.7.0/bin:/opt/rubies/ruby-2.7.1/lib/ruby/gems/2.7.0/bin:/opt/rubies/ruby-2.7.1/bin:$PATH' }
+set :default_env, { path: '/opt/rubies/ruby-3.2.2/lib/ruby/gems/2.7.0/bin:/opt/rubies/ruby-3.2.2/bin:$PATH' }
+# set :default_env, { path: '/home/discourse/production_multisite/shared/bundle/ruby/2.7.0/bin:/opt/rubies/ruby-3.2.2/lib/ruby/gems/2.7.0/bin:/opt/rubies/ruby-3.2.2/bin:$PATH' }
 
 
 # https://github.com/capistrano/rails
