@@ -1477,6 +1477,26 @@
     "@nodelib/fs.scandir" "2.1.5"
     fastq "^1.6.0"
 
+"@pnpm/constants@7.1.1":
+  version "7.1.1"
+  resolved "https://registry.yarnpkg.com/@pnpm/constants/-/constants-7.1.1.tgz#3db261425fe15425aa213a2b003f4f60c9378b43"
+  integrity sha512-31pZqMtjwV+Vaq7MaPrT1EoDFSYwye3dp6BiHIGRJmVThCQwySRKM7hCvqqI94epNkqFAAYoWrNynWoRYosGdw==
+
+"@pnpm/error@5.0.2":
+  version "5.0.2"
+  resolved "https://registry.yarnpkg.com/@pnpm/error/-/error-5.0.2.tgz#153d18fe9eeaeb02e48e9dc45b042f4c962b3822"
+  integrity sha512-0TEm+tWNYm+9uh6DSKyRbv8pv/6b4NL0PastLvMxIoqZbBZ5Zj1cYi332R9xsSUi31ZOsu2wpgn/bC7DA9hrjg==
+  dependencies:
+    "@pnpm/constants" "7.1.1"
+
+"@pnpm/find-workspace-dir@^6.0.1":
+  version "6.0.2"
+  resolved "https://registry.yarnpkg.com/@pnpm/find-workspace-dir/-/find-workspace-dir-6.0.2.tgz#4e295f92dd8caef1db6597ec50ecf357e81d83e2"
+  integrity sha512-JSrpQUFCs4vY1D5tOmj7qBb+oE2j/lO6341giEdUpvYf3FijY8CY13l8rPjfHV2y3m//utzl0An+q+qx14S6Nw==
+  dependencies:
+    "@pnpm/error" "5.0.2"
+    find-up "^5.0.0"
+
 "@popperjs/core@^2.11.8", "@popperjs/core@^2.9.0":
   version "2.11.8"
   resolved "https://registry.yarnpkg.com/@popperjs/core/-/core-2.11.8.tgz#6b79032e760a0899cd4204710beede972a3a185f"
@@ -4067,12 +4087,13 @@ ember-cli-version-checker@^5.1.1, ember-cli-version-checker@^5.1.2:
     semver "^7.3.4"
     silent-error "^1.1.1"
 
-ember-cli@~5.0.0:
-  version "5.0.0"
-  resolved "https://registry.yarnpkg.com/ember-cli/-/ember-cli-5.0.0.tgz#9a42aea5699c9c34b262dfca614c4f15fb8ef0f5"
-  integrity sha512-poklpwf+GrDhkFRTYvYmpkSA5R0pNy4Vahxjvji5jUl82tot+J95ZY1QH1yx//QzQ7zb1XlcOnceieyd2j1Rbw==
+ember-cli@~5.2.1:
+  version "5.2.1"
+  resolved "https://registry.yarnpkg.com/ember-cli/-/ember-cli-5.2.1.tgz#2605085254373d50eed51a995c3e57f90517e812"
+  integrity sha512-TYojG0uxyvX0rEgb3GkOVVUPCtfLmQbw2YHnAdZxHTJ1d45oRaDHlJmPfsaY8suVbP4EjXOiPR1CkFKoOvAuXg==
   dependencies:
     "@babel/core" "^7.21.4"
+    "@pnpm/find-workspace-dir" "^6.0.1"
     broccoli "^3.5.2"
     broccoli-builder "^0.18.14"
     broccoli-concat "^4.2.5"
@@ -4106,7 +4127,7 @@ ember-cli@~5.0.0:
     execa "^5.1.1"
     exit "^0.1.2"
     express "^4.18.1"
-    filesize "^10.0.5"
+    filesize "^10.0.7"
     find-up "^5.0.0"
     find-yarn-workspace-root "^2.0.0"
     fixturify-project "^2.1.1"
@@ -4143,7 +4164,7 @@ ember-cli@~5.0.0:
     remove-types "^1.0.0"
     resolve "^1.22.1"
     resolve-package-path "^4.0.3"
-    safe-stable-stringify "^2.4.2"
+    safe-stable-stringify "^2.4.3"
     sane "^5.0.1"
     semver "^7.3.5"
     silent-error "^1.1.1"
@@ -5006,10 +5027,10 @@ file-entry-cache@^6.0.1:
   dependencies:
     flat-cache "^3.0.4"
 
-filesize@^10.0.5:
-  version "10.0.7"
-  resolved "https://registry.yarnpkg.com/filesize/-/filesize-10.0.7.tgz#2237a816ee60a83fd0c3382ae70800e54eced3ad"
-  integrity sha512-iMRG7Qo9nayLoU3PNCiLizYtsy4W1ClrapeCwEgtiQelOAOuRJiw4QaLI+sSr8xr901dgHv+EYP2bCusGZgoiA==
+filesize@^10.0.7:
+  version "10.0.12"
+  resolved "https://registry.yarnpkg.com/filesize/-/filesize-10.0.12.tgz#6eef217c08e9633cdbf438d9124e8f5f524ffa05"
+  integrity sha512-6RS9gDchbn+qWmtV2uSjo5vmKizgfCQeb5jKmqx8HyzA3MoLqqyQxN+QcjkGBJt7FjJ9qFce67Auyya5rRRbpw==
 
 fill-range@^4.0.0:
   version "4.0.0"
@@ -8396,7 +8417,7 @@ safe-regex@^1.1.0:
   dependencies:
     ret "~0.1.10"
 
-safe-stable-stringify@^2.4.2:
+safe-stable-stringify@^2.4.3:
   version "2.4.3"
   resolved "https://registry.yarnpkg.com/safe-stable-stringify/-/safe-stable-stringify-2.4.3.tgz#138c84b6f6edb3db5f8ef3ef7115b8f55ccbf886"
   integrity sha512-e2bDA2WJT0wxseVd4lsDP4+3ONX6HpMXQa1ZhFQ7SU+GjvORCmShbCMltrtIDfkYhVHrOcPtj+KhmDBdPdZD1g==
