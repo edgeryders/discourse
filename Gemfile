@@ -83,7 +83,7 @@ gem "email_reply_trimmer"
 gem "image_optim"
 gem "multi_json"
 gem "mustache"
-gem "nokogiri", ">= 1.15"
+gem "nokogiri"
 gem "loofah"
 gem "css_parser", require: false
 
