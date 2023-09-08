@@ -1,0 +1,20 @@
+<a class="topic-link" href {{on "click" (fn this.goToTopic)}}>
+  {{cookedTitle}}
+</a>
+
+<a class="close" href {{on "click" (fn this.close)}}>
+  {{d-icon 'times'}}
+</a>
+
+<div class="topic-meta">
+  {{category-link topic.category}}
+  {{discourse-tags topic mode="list"}}
+</div>
+
+<a href class="topic-event event-label" {{on "click" (fn this.goToTopic)}}>
+  {{event-label topic.event}}
+</a>
+
+<a href class="topic-excerpt" {{on "click" (fn this.goToTopic)}}>
+  {{cookedExcerpt}}
+</a>

@@ -1,0 +1,250 @@
+en:
+  js:
+    add_event:
+      btn_label: "Add Event"
+      modal_title: Add Event
+      event_start: Start
+      event_end: End
+      event_date: Date
+      event_time: Time
+      event_add: Done
+      event_clear: Clear
+      end_enabled: "Event end"
+      all_day: "All day"
+      timezone: "Timezone"
+      no_timezone: "Select a timezone"
+      rsvp_enabled: "Rsvp enabled"
+      rsvp_enabled_label: "Rsvp"
+      going: "Guests"
+      going_max: "Maximum guests"
+      going_max_label: "{{goingMax}} Guests"
+      error: "Event end should be same as or after event start"
+    category:
+      events_setting_heading: "Events"
+      enable_events: "Allow events to be added to topics in this category."
+      enable_events_agenda: "Show an agenda topic list in this category."
+      enable_events_calendar: "Show a calendar topic list in this category."
+      events_min_trust_to_create: "Min trust to create event in this category (overrides site setting)."
+      events_event_label_no_text: "No text on add event buttons in this category (overrides site setting)."
+      require_event: "All topics in this category must have an event."
+    composer:
+      error:
+        event_missing: "Topics in this category must have an event."
+    event_list:
+      title: '{{categoryName}} Events'
+      about: 'Events in your area'
+      no_results: "No upcoming events"
+      create: "Create Event"
+    filters:
+      agenda:
+        title: "Agenda"
+        help: "List events in ascending chronological order according to the start datetime."
+      calendar:
+        title: "Calendar"
+        help: "Show events in a calendar"
+    add_to_calendar:
+      label: "Add to Calendar"
+      google: "Google Calendar"
+      ics: ".ics File"
+      default_details: "Event details: {{url}}"
+    topics:
+      none:
+        agenda: "There are no agenda topics."
+      bottom:
+        agenda: "There are no more agenda topics."
+    events_calendar:
+      today: "Today"
+      hidden: "{{count}} more"
+      subscribe: "Subscribe"
+      ical: "iCal"
+      rss: "RSS"
+      subscription:
+        warning: "Never share these links with anyone!"
+    user:
+      events_calendar:
+        label: "Calendar"
+        first_day_week: "Start week on"
+
+    webcal_preferences:
+      webcal_keys: "Webcal Keys"
+      heading: "Webcal API Keys"
+      api_key: "API Key"
+      client_id: "Client ID"
+      generate: "Generate"
+      notice: "The key and client id will be visible only once. Please store them in a safe place before you leave this page."
+      calendar_notice: "Generate Webcal API keys in order to subscribe to the ical feed."
+      calendar_usage: "Documentation on how to use Webcal API keys."
+
+    event_rsvp:
+      modal:
+        title: "Guests"
+        filter: "Filter"
+      going:
+        label: "Going"
+        max_reached: "Booked out"
+        one_spot_left: "1 spot left"
+        x_spots_left: "{{spotsLeft}} spots left"
+
+    post:
+      event:
+        manage:
+          label: Manage Event
+          title: Manage event on event provider.
+
+    site_settings:
+      events_timezone_default_placeholder: "Select a Timezone"
+
+  admin_js:
+    admin:
+      site_settings:
+        categories:
+          discourse_events: "Events"
+
+      events:
+        title: Events
+        actions: Actions
+        beta_notice: "These features are currently in beta. We'll soon be launching subscription plans for the Events Plugin, which will apply to some of these features. <a href='https://pavilion.tech/products/discourse-events-plugin'>Find out more</a>."
+        source:
+          title: Sources
+          none: No sources.
+          add:
+            label: Add
+            title: Add Source
+          remove:
+            label: Remove
+            title: Remove Source
+            confirm: Are you sure you want to remove '%{source_name}'? Removing a source removes all associated events and connections.
+          name:
+            label: Name
+            placeholder: underscored
+          provider:
+            label: Provider
+            select: Select a provider...
+          save:
+            label: Save
+            title: Save Source
+          source_options:
+            label: Options
+            none: No options
+          date_range: Date Range
+          import:
+            label: Import
+            title: Import Source
+        provider:
+          title: Providers
+          none: No providers.
+          add:
+            label: Add
+            title: Add Provider
+          status: Status
+          ready: Ready
+          not_ready: Not Ready
+          name:
+            label: Name
+            placeholder: underscored
+          url:
+            label: URL
+            placeholder: admin url
+          provider_type:
+            label: Type
+            select: Select a type...
+          method: Method
+          credentials: Credentials
+          no_credentials: No Credentials
+          username: Username
+          password: Password
+          token: Token
+          client_id: Client ID
+          client_secret: Client Secret
+          save:
+            label: Save
+            title: Save Provider
+          remove:
+            label: Remove
+            title: Remove Provider
+            confirm: Are you sure you want to remove '%{provider_name}'? Removing a provider removes associated sources.
+          authenticate:
+            label: Authenticate
+            title: Authenticate Provider
+        connection:
+          title: Connections
+          none: No connections.
+          add:
+            label: Add
+            title: Add Connection
+          remove:
+            label: Remove
+            title: Remove Connection
+            confirm: Are you sure you want to remove this connection?
+          save:
+            label: Save
+            title: Save Connection
+          user: User
+          category: Category
+          source: Source
+          client:
+            label: Client
+            select: Select...
+          source:
+            label: Source
+            select: Select...
+          sync:
+            label: Sync
+            title: Sync Connection
+          filters:
+            title: Connection Filters
+            label: Filters
+            add:
+              label: Add
+              title: Add a filter
+            done:
+              label: Done
+              title: Close filters
+          filter:
+            query_column:
+              select: Select an attribute...
+            query_value: Enter a value
+            remove:
+              title: Remove filter
+
+        event:
+          title: Events
+          select_all: Select All
+          show_select: Show event select
+          start_time: Start Time
+          name: Name
+          source: Source
+          topics: Topics
+          none: No events.
+          delete:
+            title: Delete Events and Topics
+            label: Delete
+            events_only: Delete events only
+            events_and_topics: Delete events and associated topics
+            topics_only: Delete topics only
+            events_only_btn: Delete Events
+            events_and_topics_btn: Delete Events and Topics
+            topics_only_btn: Delete Topics
+        log:
+          title: Logs
+          created_at: Created At
+          level: Level
+          context: Context
+          message: Message
+          none: No logs.
+        message:
+          documentation: "Check out the documentation"
+          connection:
+            info: "Connections are where you show your events"
+            sync_started: "Sync started. Check the result in the <a href='/admin/events/log'>Logs</a>."
+            sync_failed_to_start: "Sync failed to start."
+          source:
+            info: "Sources are how you import events from a provider"
+            import_started: "Import started. Check the result in the <a href='/admin/events/log'>Logs</a>."
+            import_failed_to_start: "Import failed to start."
+          event:
+            info: "The events you've imported"
+          provider:
+            info: "Providers are the services providing your events"
+          log:
+            info: "The logs of your events"
