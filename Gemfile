@@ -277,33 +277,6 @@ gem "cgi", ">= 0.3.6", require: false
 gem "tzinfo-data"
 
 
-
-# NOTE: Quickfix as 1.2 breaks administrate
-gem 'kaminari', '1.1.1'
-
-
-# damingo (Github ID), 2019-09, #annotator
-gem 'discourse-annotator', git: 'https://github.com/edgeryders/discourse-annotator', branch: 'master'
-# gem 'discourse-annotator', path: '~/Projects/discourse-annotator'
-
-
-# NOTE: This is a quickfix to make sure the gem is loaded for annotator_store. It is specified in the annotator_store/Gemfile
-# as a dependency but this doesn't load the gem "uninitialized constant Administrate::Field::NestedHasMany"
-# The gems main file (administrate-field-nested_has_many/lib/administrate/field/nested_has_many.rb) is supposed to
-# be required in `annotator_store/lib/annotator_store.rb` but that doesn't work.
-gem "administrate-field-nested_has_many", git: 'https://github.com/edgeryders/administrate-field-nested_has_many.git', branch: 'master'
-# gem 'administrate-field-nested_has_many', path: '~/Projects/administrate-field-nested_has_many'
-
-# gem 'administrate-field-belongs_to_search'
-gem "administrate-field-belongs_to_search", git: 'https://github.com/edgeryders/administrate-field-belongs_to_search.git', branch: 'master'
-
-
-
-# Required by the edgeryders-multisite-accounts plugin.
-# https://github.com/discourse/discourse_api
-gem 'discourse_api' #, git: 'https://github.com/discourse/discourse_api.git', tag: 'v0.38.0'
-
-
 # damingo (Github ID), 2018-11-27
 group :development do
   # https://github.com/capistrano/capistrano
@@ -319,3 +292,20 @@ group :development do
   # https://github.com/capistrano/bundler
   gem 'capistrano-bundler', '~> 1.6'
 end
+
+
+# --- edgeryders-multisite-accounts ---
+# Required by the edgeryders-multisite-accounts plugin.
+# Added here to avoid that all of the discourse_api dependencies
+# must be listed in the plugin.rb. See: https://meta.discourse.org/t/plugin-using-own-gem/50007/6
+gem 'discourse_api' # https://github.com/discourse/discourse_api
+
+
+# --- discourse-annotator ---
+# damingo (Github ID), 2019-09, #annotator
+gem 'discourse-annotator', git: 'https://github.com/edgeryders/discourse-annotator', branch: 'master'
+# gem 'discourse-annotator', path: '~/Projects/discourse-annotator'
+# Must be included here as dependencies that are still in development cannot be added in the gems gemspec.
+gem 'administrate', git: 'https://github.com/edgeryders/administrate'
+gem "administrate-field-nested_has_many", git: 'https://github.com/edgeryders/administrate-field-nested_has_many', branch: 'master'
+gem "administrate-field-belongs_to_search", git: 'https://github.com/edgeryders/administrate-field-belongs_to_search', branch: 'master'
