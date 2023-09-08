@@ -1,15 +1,19 @@
+import Component from "@ember/component";
+import { BookmarkFormData } from "discourse/lib/bookmark";
+import BookmarkModal from "discourse/components/modal/bookmark";
+import { action } from "@ember/object";
+import { ajax } from "discourse/lib/ajax";
 import {
   openLinkInNewTab,
   shouldOpenInNewTab,
 } from "discourse/lib/click-track";
-import Component from "@ember/component";
 import I18n from "I18n";
 import { Promise } from "rsvp";
-import { action } from "@ember/object";
-import bootbox from "bootbox";
-import showModal from "discourse/lib/show-modal";
+import { inject as service } from "@ember/service";
 
 export default Component.extend({
+  dialog: service(),
+  modal: service(),
   classNames: ["bookmark-list-wrapper"],
 
   @action
@@ -19,6 +23,11 @@ export default Component.extend({
         bookmark
           .destroy()
           .then(() => {
+            this.appEvents.trigger(
+              "bookmarks:changed",
+              null,
+              bookmark.attachedTo()
+            );
             this._removeBookmarkFromList(bookmark);
             resolve(true);
           })
@@ -29,39 +38,51 @@ export default Component.extend({
       if (!bookmark.reminder_at) {
         return deleteBookmark();
       }
-      bootbox.confirm(I18n.t("bookmarks.confirm_delete"), (result) => {
-        if (result) {
-          deleteBookmark();
-        } else {
-          resolve(false);
-        }
+      this.dialog.deleteConfirm({
+        message: I18n.t("bookmarks.confirm_delete"),
+        didConfirm: () => deleteBookmark(),
+        didCancel: () => resolve(false),
       });
     });
   },
 
   @action
   screenExcerptForExternalLink(event) {
-    if (event.target && event.target.tagName === "A") {
-      let link = event.target;
-      if (shouldOpenInNewTab(link.href)) {
-        openLinkInNewTab(link);
+    if (event?.target?.tagName === "A") {
+      if (shouldOpenInNewTab(event.target.href)) {
+        openLinkInNewTab(event, event.target);
       }
     }
   },
 
   @action
   editBookmark(bookmark) {
-    let controller = showModal("bookmark", {
+    this.modal.show(BookmarkModal, {
       model: {
-        postId: bookmark.post_id,
-        id: bookmark.id,
-        reminderAt: bookmark.reminder_at,
-        name: bookmark.name,
+        bookmark: new BookmarkFormData(bookmark),
+        afterSave: (savedData) => {
+          this.appEvents.trigger(
+            "bookmarks:changed",
+            savedData,
+            bookmark.attachedTo()
+          );
+          this.reload();
+        },
+        afterDelete: () => {
+          this.reload();
+        },
       },
-      title: "post.bookmarks.edit",
-      modalClass: "bookmark-with-reminder",
     });
-    controller.set("afterSave", this.reload);
+  },
+
+  @action
+  clearBookmarkReminder(bookmark) {
+    return ajax(`/bookmarks/${bookmark.id}`, {
+      type: "PUT",
+      data: { reminder_at: null },
+    }).then(() => {
+      bookmark.set("reminder_at", null);
+    });
   },
 
   @action

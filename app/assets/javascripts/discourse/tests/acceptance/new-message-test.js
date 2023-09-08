@@ -1,7 +1,8 @@
+import selectKit from "discourse/tests/helpers/select-kit-helper";
 import {
   acceptance,
   exists,
-  queryAll,
+  query,
 } from "discourse/tests/helpers/qunit-helpers";
 import { test } from "qunit";
 import { visit } from "@ember/test-helpers";
@@ -21,25 +22,25 @@ acceptance("New Message - Authenticated", function (needs) {
 
   test("accessing new-message route when logged in", async function (assert) {
     await visit(
-      "/new-message?username=charlie&title=message%20title&body=message%20body"
+      "/new-message?username=charlie,john&title=message%20title&body=message%20body"
     );
 
     assert.ok(exists(".composer-fields"), "it opens composer");
-    assert.equal(
-      queryAll("#reply-title").val().trim(),
+    assert.strictEqual(
+      query("#reply-title").value.trim(),
       "message title",
       "it pre-fills message title"
     );
-    assert.equal(
-      queryAll(".d-editor-input").val().trim(),
+    assert.strictEqual(
+      query(".d-editor-input").value.trim(),
       "message body",
       "it pre-fills message body"
     );
-    assert.equal(
-      queryAll("#private-message-users .selected-name:nth-of-type(1)")
-        .text()
-        .trim(),
-      "charlie",
+
+    const privateMessageUsers = selectKit("#private-message-users");
+    assert.strictEqual(
+      privateMessageUsers.header().value(),
+      "charlie,john",
       "it selects correct username"
     );
   });

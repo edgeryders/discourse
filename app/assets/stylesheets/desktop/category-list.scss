@@ -37,11 +37,11 @@
     text-align: right;
 
     .value {
-      font-size: $font-up-1;
+      font-size: var(--font-up-1);
       font-weight: bold;
     }
     .unit {
-      font-size: $font-down-1;
+      font-size: var(--font-down-1);
     }
     .badge-notification {
       display: block;
@@ -62,7 +62,7 @@
     .badge-wrapper {
       margin-right: 0.5em;
     }
-    .badge-notification.new-posts {
+    .badge-notification.unread-posts {
       display: block;
       padding: 0;
     }
@@ -77,17 +77,14 @@
     }
     a.last-posted-at,
     a.last-posted-at:visited {
-      font-size: $font-down-1;
+      font-size: var(--font-down-1);
       color: var(--primary-med-or-secondary-high);
     }
     .title {
       @include ellipsis;
       flex: 0 1 auto;
     }
-    .topic-statuses {
-      margin-right: 0.15em;
-    }
-    .topic-post-badges .badge.new-posts,
+    .topic-post-badges .badge.unread-posts,
     .title {
       margin-right: 5px;
     }
@@ -95,21 +92,21 @@
 
   tbody {
     .category {
-      border-left: 6px solid;
+      border-left: 6px solid var(--category-color, var(--primary-low));
       h3,
       h4 {
-        line-height: $line-height-medium;
+        line-height: var(--line-height-medium);
         a[href] {
           color: var(--primary);
         }
       }
 
       h3 {
-        font-size: $font-up-2;
+        font-size: var(--font-up-2);
       }
 
       h4 {
-        font-size: $font-up-1;
+        font-size: var(--font-up-1);
       }
     }
 
@@ -144,7 +141,7 @@
 
   .discourse-tags {
     .discourse-tag {
-      font-size: $font-down-1;
+      font-size: var(--font-down-1);
     }
   }
 

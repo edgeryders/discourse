@@ -1,8 +1,10 @@
-import discourseComputed, { on } from "discourse-common/utils/decorators";
+import { action } from "@ember/object";
+import { classNames, tagName } from "@ember-decorators/component";
+import { inject as service } from "@ember/service";
+import discourseComputed from "discourse-common/utils/decorators";
 import Component from "@ember/component";
 import I18n from "I18n";
 import ScreenedIpAddress from "admin/models/screened-ip-address";
-import bootbox from "bootbox";
 import { schedule } from "@ember/runloop";
 
 /**
@@ -16,10 +18,13 @@ import { schedule } from "@ember/runloop";
   as an argument.
 **/
 
-export default Component.extend({
-  classNames: ["screened-ip-address-form"],
-  formSubmitted: false,
-  actionName: "block",
+@tagName("form")
+@classNames("screened-ip-address-form", "inline-form")
+export default class ScreenedIpAddressForm extends Component {
+  @service dialog;
+
+  formSubmitted = false;
+  actionName = "block";
 
   @discourseComputed("siteSettings.use_admin_ip_allowlist")
   actionNames(adminAllowlistEnabled) {
@@ -44,49 +49,42 @@ export default Component.extend({
         },
       ];
     }
-  },
+  }
 
-  actions: {
-    submit() {
-      if (!this.formSubmitted) {
-        this.set("formSubmitted", true);
-        const screenedIpAddress = ScreenedIpAddress.create({
-          ip_address: this.ip_address,
-          action_name: this.actionName,
-        });
-        screenedIpAddress
-          .save()
-          .then((result) => {
-            this.setProperties({ ip_address: "", formSubmitted: false });
-            this.action(ScreenedIpAddress.create(result.screened_ip_address));
-            schedule("afterRender", () =>
-              this.element.querySelector(".ip-address-input").focus()
-            );
-          })
-          .catch((e) => {
-            this.set("formSubmitted", false);
-            const msg =
-              e.jqXHR.responseJSON && e.jqXHR.responseJSON.errors
-                ? I18n.t("generic_error_with_reason", {
-                    error: e.jqXHR.responseJSON.errors.join(". "),
-                  })
-                : I18n.t("generic_error");
-            bootbox.alert(msg, () =>
-              this.element.querySelector(".ip-address-input").focus()
-            );
-          });
-      }
-    },
-  },
-
-  @on("didInsertElement")
-  _init() {
+  focusInput() {
     schedule("afterRender", () => {
-      $(this.element.querySelector(".ip-address-input")).keydown((e) => {
-        if (e.keyCode === 13) {
-          this.send("submit");
-        }
-      });
+      this.element.querySelector("input").focus();
     });
-  },
-});
+  }
+
+  @action
+  submitForm() {
+    if (!this.formSubmitted) {
+      this.set("formSubmitted", true);
+      const screenedIpAddress = ScreenedIpAddress.create({
+        ip_address: this.ip_address,
+        action_name: this.actionName,
+      });
+      screenedIpAddress
+        .save()
+        .then((result) => {
+          this.setProperties({ ip_address: "", formSubmitted: false });
+          this.action(ScreenedIpAddress.create(result.screened_ip_address));
+          this.focusInput();
+        })
+        .catch((e) => {
+          this.set("formSubmitted", false);
+          const message = e.jqXHR.responseJSON?.errors
+            ? I18n.t("generic_error_with_reason", {
+                error: e.jqXHR.responseJSON.errors.join(". "),
+              })
+            : I18n.t("generic_error");
+          this.dialog.alert({
+            message,
+            didConfirm: () => this.focusInput(),
+            didCancel: () => this.focusInput(),
+          });
+        });
+    }
+  }
+}

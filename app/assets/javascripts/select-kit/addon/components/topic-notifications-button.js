@@ -5,10 +5,8 @@ import { NotificationLevels } from "discourse/lib/notification-levels";
 import discourseComputed from "discourse-common/utils/decorators";
 import getURL from "discourse-common/lib/get-url";
 import Component from "@ember/component";
-import layout from "select-kit/templates/components/topic-notifications-button";
 
 export default Component.extend({
-  layout,
   classNames: ["topic-notifications-button"],
   classNameBindings: ["isLoading"],
   appendReason: true,
@@ -17,6 +15,7 @@ export default Component.extend({
   topic: null,
   showCaret: true,
   isLoading: false,
+
   icon: computed("isLoading", function () {
     return this.isLoading ? "spinner" : null;
   }),
@@ -31,7 +30,10 @@ export default Component.extend({
     }
   },
 
-  @discourseComputed("topic", "topic.details")
+  @discourseComputed(
+    "topic",
+    "topic.details.{notification_level,notifications_reason_id}"
+  )
   notificationReasonText(topic, topicDetails) {
     let level = topicDetails.notification_level;
     let reason = topicDetails.notifications_reason_id;
@@ -58,7 +60,7 @@ export default Component.extend({
 
     if (
       this.currentUser &&
-      this.currentUser.mailing_list_mode &&
+      this.currentUser.user_option.mailing_list_mode &&
       level > NotificationLevels.MUTED
     ) {
       return I18n.t("topic.notifications.reasons.mailing_list_mode");

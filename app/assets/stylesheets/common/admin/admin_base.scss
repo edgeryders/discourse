@@ -1,7 +1,5 @@
 // Styles for /admin section
 
-@import "common/foundation/helpers";
-
 $mobile-breakpoint: 700px;
 
 // Common admin styles
@@ -10,12 +8,9 @@ $mobile-breakpoint: 700px;
   display: inline-flex;
   position: relative;
   width: 100%;
-  height: auto;
   overflow: hidden;
   height: 100%;
-  .mobile-view & {
-    margin-top: 10px;
-  }
+
   @include breakpoint(tablet) {
     width: calc(100% + 10px);
     margin-left: -10px;
@@ -27,6 +22,7 @@ $mobile-breakpoint: 700px;
     flex-wrap: wrap;
     width: calc(100% - 10px);
     flex: 1 0 auto;
+    margin-top: 0;
     @include breakpoint(tablet) {
       white-space: nowrap;
       flex-wrap: nowrap;
@@ -83,6 +79,15 @@ $mobile-breakpoint: 700px;
       margin: 0 15px 0 -10px;
     }
   }
+
+  .row:before,
+  .row:after {
+    display: table;
+    content: "";
+  }
+  .row:after {
+    clear: both;
+  }
 }
 
 .admin-contents table {
@@ -132,13 +137,13 @@ $mobile-breakpoint: 700px;
     .label {
       display: block;
       color: var(--primary-medium);
-      font-size: $font-down-1;
+      font-size: var(--font-down-1);
       margin: 0.5em 0 0.15em 0;
     }
     tr {
       grid-template-columns: repeat(3, 1fr);
       display: grid;
-      line-height: $line-height-medium;
+      line-height: var(--line-height-medium);
       padding: 8px 0;
       min-width: 0;
       td {
@@ -198,7 +203,7 @@ $mobile-breakpoint: 700px;
     }
     .site-text-search {
       padding: 0.5em;
-      font-size: $font-0;
+      font-size: var(--font-0);
       width: 50%;
     }
     .reseed {
@@ -219,11 +224,11 @@ $mobile-breakpoint: 700px;
     border-bottom: 1px solid var(--primary-low);
     margin-bottom: 0.5em;
     &.overridden {
-      background-color: var(--highlight-medium);
+      background-color: var(--highlight-bg);
     }
     h3 {
       font-weight: normal;
-      font-size: $font-0;
+      font-size: var(--font-0);
       @include breakpoint(mobile-extra-large) {
         word-wrap: break-word;
       }
@@ -231,21 +236,46 @@ $mobile-breakpoint: 700px;
     button.edit {
       float: right;
     }
+
+    $maxHeight: 8 * 1.4em;
+    $gradientHeight: 2.2em;
+
     .site-text-value {
       margin: 0.5em 5em 0.5em 0;
-      @include breakpoint(medium, min-width) {
-        max-height: 100px;
+      max-height: $maxHeight;
+      overflow: hidden;
+      position: relative;
+      &::after {
+        content: " ";
+        position: absolute;
+        background-color: red;
+        left: 0;
+        right: 0;
+        top: $maxHeight - $gradientHeight;
+        height: $gradientHeight;
+        background: linear-gradient(
+          to top,
+          rgba(var(--secondary-rgb), 1),
+          rgba(var(--secondary-rgb), 0.15)
+        );
       }
       @include breakpoint(mobile-extra-large) {
         word-wrap: break-word;
+        max-width: 80vw;
+        margin-right: 3em;
       }
       color: var(--primary-medium);
     }
   }
   .edit-site-text {
     textarea {
+      display: block;
       width: 100%;
       max-width: 800px;
+      margin: 0;
+    }
+    .save-button {
+      margin-top: 1em;
     }
     .save-button,
     .title {
@@ -259,6 +289,24 @@ $mobile-breakpoint: 700px;
     .go-back {
       margin-top: 1em;
     }
+    .desc {
+      padding-top: 3px;
+      font-size: var(--font-down-1);
+      line-height: var(--line-height-large);
+      color: var(--primary-medium);
+    }
+    .outdated {
+      border: 1px solid var(--primary-low);
+      box-sizing: border-box;
+      color: var(--primary);
+      margin-bottom: 1em;
+      max-width: 800px;
+      padding: 1em;
+
+      p {
+        color: var(--primary-high);
+      }
+    }
   }
   p.warning {
     color: var(--danger);
@@ -269,7 +317,7 @@ $mobile-breakpoint: 700px;
   width: 27%;
   float: left;
   li a span.count {
-    font-size: $font-down-1;
+    font-size: var(--font-down-1);
     float: right;
     margin-right: 10px;
     background-color: var(--primary-low);
@@ -324,7 +372,7 @@ $mobile-breakpoint: 700px;
       width: 300px;
       margin-right: 15px;
       margin-bottom: 5px;
-      display: inline-block;
+
       .bar {
         margin-top: 5px;
         background-color: var(--tertiary);
@@ -355,12 +403,12 @@ $mobile-breakpoint: 700px;
     width: 460px;
     right: 0;
     z-index: z("dropdown");
-    box-shadow: shadow("card");
+    box-shadow: var(--shadow-card);
     margin-top: -2px;
     background-color: var(--secondary);
     padding: 12px 12px 5px;
     .powered-by {
-      font-size: $font-down-1;
+      font-size: var(--font-down-1);
       position: absolute;
       bottom: -10px;
       left: 10px;
@@ -385,6 +433,10 @@ $mobile-breakpoint: 700px;
 
 .admin-container {
   margin-top: 10px;
+
+  .admin-section {
+    margin-bottom: 1em;
+  }
 
   .username {
     input {
@@ -416,16 +468,12 @@ $mobile-breakpoint: 700px;
     clear: both;
     padding: 4px;
   }
-  @include breakpoint(tablet) {
-    .select-kit.period-chooser
-      .period-chooser-header
-      h2.selected-name
-      .top-date-string {
-      font-size: $font-down-3;
-    }
-  }
+
   .controls {
     @include clearfix;
+  }
+  .users-list-container {
+    overflow-x: auto;
   }
 }
 
@@ -515,16 +563,11 @@ $mobile-breakpoint: 700px;
       a.active {
         background: var(--primary-medium);
       }
-      &:last-of-type {
-        > a {
-          margin-right: 25px;
-        }
-      }
     }
   }
   h1 {
-    font-size: $font-up-3;
-    line-height: $line-height-medium;
+    font-size: var(--font-up-3);
+    line-height: var(--line-height-medium);
     color: var(--primary);
   }
   .controls {
@@ -533,15 +576,18 @@ $mobile-breakpoint: 700px;
     padding: 10px;
     display: flex;
     align-items: center;
+    .inline-form {
+      // Hacky, but fixes email preview summary
+      margin-bottom: -0.5em;
+      > div {
+        margin-right: 0.5em;
+      }
+    }
+
     @include breakpoint(mobile-extra-large) {
       margin: 0 -10px;
     }
-    label {
-      margin-bottom: 0;
-    }
     input {
-      margin-right: 5px;
-      margin-bottom: 0;
       @include breakpoint(tablet) {
         max-width: 150px;
       }
@@ -559,50 +605,37 @@ $mobile-breakpoint: 700px;
       }
     }
   }
-  .controls .menu-toggle {
-    display: none;
-    float: left;
-    padding: 5px 10px;
-    margin-right: 15px;
-    border: 1px solid var(--primary-medium);
+  .menu-toggle {
+    border-color: var(--primary-medium);
     border-radius: 3px;
     background: transparent;
     color: var(--primary);
     &:hover {
       background-color: var(--primary-low-mid);
     }
-    @media (max-width: $mobile-breakpoint) {
-      display: inline-block;
+
+    .not-mobile-device & {
+      display: none;
     }
   }
-  button {
-    margin-right: 5px;
-  }
-  input[type="text"] {
-    display: inline-block;
-    float: left;
-  }
+
   .result-message {
     display: inline-block;
     padding-left: 10px;
   }
-  .username {
-    input[type="text"] {
-      width: 240px;
-    }
-  }
+
   .search {
     label {
-      margin-top: 5px;
+      margin-bottom: 0px;
     }
-    .controls {
-      margin-left: 0;
-    } // Hide the search checkbox for very small screens
+
+    // Hide the search checkbox for very small screens
     // Todo: find somewhere to display it - probably requires switching its order in the html
     @media (max-width: 550px) {
       display: none;
     }
   }
+
   .toggle {
     span {
       font-weight: bold;
@@ -612,39 +645,19 @@ $mobile-breakpoint: 700px;
     display: inline-block;
     margin-right: 5px;
   }
-  .pull-right {
-    padding-right: 10px;
+
+  .horizontal-overflow-nav__scroll-right,
+  .horizontal-overflow-nav__scroll-left {
+    --fade-color: var(--primary-low-rgb);
+    background: var(--primary-low);
   }
 }
 
-.paste-users {
-  width: 400px;
-  height: 150px;
-}
-
-.groups,
 .badges,
 .web-hook-container {
-  .form-horizontal {
-    & > div {
-      margin-bottom: 20px;
-    }
-    .d-editor-textarea-wrapper {
-      max-width: 60%;
-      .d-editor-button-bar {
-        overflow: hidden;
-      }
-    }
-    input,
-    textarea,
-    select,
-    .select-box {
-      width: 350px;
-    }
-    input[type="checkbox"],
-    input[type="radio"] {
-      width: 20px;
-    }
+  input[type="text"],
+  textarea {
+    min-width: 350px;
   }
 }
 
@@ -708,7 +721,7 @@ $mobile-breakpoint: 700px;
 
 section.details {
   h1 {
-    font-size: $font-up-3;
+    font-size: var(--font-up-3);
     color: var(--primary);
     padding: 5px 10px;
     margin: 30px 0 5px 0;
@@ -721,7 +734,7 @@ section.details {
   clear: both;
   text-align: right;
   .btn {
-    line-height: $line-height-medium;
+    line-height: var(--line-height-medium);
   }
   @media (max-width: $mobile-breakpoint) {
     .btn {
@@ -814,19 +827,15 @@ section.details {
   }
 }
 
-tr.not-activated {
-  td,
-  td a,
-  td a:visited {
-    color: #bbb;
-  }
-}
-
-.details.not-activated {
-  .username .value,
-  .email .value a,
-  .email .value a:visited {
-    color: #bbb;
+.directory-table {
+  .not-activated {
+    .directory-table__cell {
+      &,
+      a,
+      a:visited {
+        color: #bbb;
+      }
+    }
   }
 }
 
@@ -878,6 +887,19 @@ table#user-badges {
       @include value-btn;
       margin-right: 0.25em;
     }
+
+    .shift-up-value-btn,
+    .shift-down-value-btn {
+      display: none;
+      margin-inline: 0.25em;
+    }
+
+    &:hover {
+      .shift-up-value-btn,
+      .shift-down-value-btn {
+        display: block;
+      }
+    }
   }
   .values {
     margin-bottom: 0.5em;
@@ -888,13 +910,14 @@ table#user-badges {
   margin-left: 0;
 
   .emoji-details {
+    @include form-item-sizing;
     display: flex;
     align-items: center;
     min-height: 30px;
-    padding: $input-padding;
-    line-height: 1;
     color: var(--primary);
-    border: 1px solid var(--primary-low);
+    border-color: var(--primary-low);
+    padding-left: 10px;
+    padding-right: 10px;
 
     .emoji-name {
       margin-left: 0.5em;
@@ -984,13 +1007,6 @@ table#user-badges {
   }
 }
 
-// Mobile view text-inputs need some padding
-.mobile-view .admin-contents {
-  input[type="text"] {
-    padding: 4px;
-  }
-}
-
 .mobile-view .full-width {
   margin: 0;
 }
@@ -1015,9 +1031,10 @@ a.inline-editable-field {
 @import "common/admin/dashboard";
 @import "common/admin/settings";
 @import "common/admin/users";
-@import "common/admin/suspend";
+@import "common/admin/penalty";
 @import "common/admin/badges";
 @import "common/admin/emails";
+@import "common/admin/json_schema_editor";
 @import "common/admin/staff_logs";
 @import "common/admin/customize";
 @import "common/admin/customize-install-theme";
@@ -1033,3 +1050,4 @@ a.inline-editable-field {
 @import "common/admin/admin_report_inline_table";
 @import "common/admin/admin_intro";
 @import "common/admin/admin_emojis";
+@import "common/admin/mini_profiler";

@@ -39,7 +39,6 @@ class UserActivator
       LoginActivator
     end
   end
-
 end
 
 class ApprovalActivator < UserActivator
@@ -54,15 +53,8 @@ end
 
 class EmailActivator < UserActivator
   def activate
-    email_token = user.email_tokens.unconfirmed.active.first
-    email_token = user.email_tokens.create(email: user.email) if email_token.nil?
-
-    Jobs.enqueue(:critical_user_email,
-      type: :signup,
-      user_id: user.id,
-      email_token: email_token.token
-    )
-
+    email_token = user.email_tokens.create!(email: user.email, scope: EmailToken.scopes[:signup])
+    EmailToken.enqueue_signup_email(email_token)
     success_message
   end
 
@@ -76,7 +68,7 @@ class LoginActivator < UserActivator
 
   def activate
     log_on_user(user)
-    user.enqueue_welcome_message('welcome_user')
+    user.enqueue_welcome_message("welcome_user")
     success_message
   end
 

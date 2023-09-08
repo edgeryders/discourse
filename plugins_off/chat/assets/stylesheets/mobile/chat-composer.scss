@@ -1,0 +1,7 @@
+.chat-composer {
+  &__input {
+    .ios-device & {
+      background-color: transparent;
+    }
+  }
+}

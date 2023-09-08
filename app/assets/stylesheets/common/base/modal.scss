@@ -12,12 +12,13 @@
 }
 
 .modal-inner-container {
+  --modal-max-width: 47em; // set in ems to scale with user font-size
   box-sizing: border-box;
   flex: 0 1 auto;
   margin: 0 auto;
-  max-width: 700px;
+  max-width: var(--modal-max-width);
   background-color: var(--secondary);
-  box-shadow: shadow("modal");
+  box-shadow: var(--shadow-modal);
 
   .select-kit {
     width: 220px;
@@ -43,7 +44,7 @@
   overflow: auto;
   height: auto;
   background-color: var(--secondary);
-  box-shadow: shadow("card");
+  box-shadow: var(--shadow-card);
   background-clip: padding-box;
 }
 
@@ -73,6 +74,8 @@
   .modal-close {
     order: 2;
     margin-left: auto;
+    align-self: start;
+    padding: 0.15em 0;
 
     .close {
       color: var(--primary-high);
@@ -132,8 +135,12 @@
     }
   }
 
-  &:not(.history-modal) {
-    .modal-body:not(.reorder-categories):not(.poll-ui-builder):not(.poll-breakdown) {
+  &:not(.bookmark-reminder-modal):not(.history-modal):not(
+      .sidebar__edit-navigation-menu__modal
+    ) {
+    .modal-body:not(.reorder-categories):not(.poll-ui-builder):not(
+        .poll-breakdown
+      ) {
       max-height: 80vh !important;
       @media screen and (max-height: 500px) {
         max-height: 65vh !important;
@@ -152,16 +159,12 @@
   align-items: center;
   padding: 14px 15px 10px;
   border-top: 1px solid var(--primary-low);
-  --btn-bottom-margin: 0.3em;
+  gap: 0.3em 0;
   .btn {
-    margin: 0 0.75em var(--btn-bottom-margin) 0;
+    margin: 0 0.75em 0 0;
     &[href] {
       min-height: unset;
     }
-  }
-
-  a {
-    margin-bottom: var(--btn-bottom-margin);
   }
 }
 
@@ -170,7 +173,7 @@
     padding: 10px 30px 10px 15px;
     background-color: var(--secondary);
     li > a {
-      font-size: $font-0;
+      font-size: var(--font-0);
     }
     border-bottom: 1px solid var(--primary-low);
   }
@@ -207,7 +210,7 @@
           position: absolute;
           top: 70%;
           padding: 5px 10px;
-          box-shadow: shadow("card");
+          box-shadow: var(--shadow-card);
           z-index: 5;
           background-color: var(--secondary);
           max-height: 150px;
@@ -220,14 +223,14 @@
             display: block;
             &:hover,
             &:focus {
-              background-color: var(--highlight-medium);
+              background-color: var(--highlight-bg);
             }
             .search-category {
               display: flex;
               align-items: center;
             }
             .discourse-tags {
-              font-size: $font-down-1;
+              font-size: var(--font-down-1);
             }
           }
         }
@@ -239,7 +242,7 @@
       box-sizing: border-box;
     }
     p {
-      font-size: $font-0;
+      font-size: var(--font-0);
     }
     .archetype-option {
       margin-bottom: 20px;
@@ -268,58 +271,102 @@
 
   // password reset modal
   .modal-body.forgot-password-modal p {
-    font-size: $font-0;
+    font-size: var(--font-0);
   }
 
   pre code {
     white-space: pre-wrap;
-    max-width: 700px;
+    max-width: var(--modal-max-width);
   }
 }
 
 .reply-where-modal {
-  max-width: 400px;
-
-  h1 {
-    margin: 0;
-    font-size: $font-up-2;
+  .dialog-content {
+    width: 100%;
+    min-width: unset;
+    max-width: 30em;
   }
 
-  .d-modal-cancel {
-    width: 100%;
-    margin: 0.5em 0;
+  .dialog-footer {
+    display: block;
   }
 
   .btn {
     display: block;
     text-align: left;
-    font-size: $font-up-1;
-    line-height: $line-height-medium;
     margin-bottom: 0.75em;
-    font-weight: bold;
+    margin-right: 0;
     overflow: hidden;
     width: 100%;
-    &:first-of-type {
-      margin-top: 0.25em;
-    }
-    .topic-title {
-      font-weight: normal;
-    }
-  }
-}
 
-.d-modal-cancel {
-  margin-left: 1em;
-  color: var(--primary-medium);
-  &:hover {
-    color: var(--danger);
+    &.dialog-close {
+      display: none;
+    }
+
+    &.btn-reply-on-original {
+      --text-color: var(--secondary);
+    }
+
+    &.btn-reply-where__cancel {
+      padding-left: 0;
+      margin: 0;
+    }
+
+    &.btn-reply-here {
+      --text-color: var(--primary);
+      .discourse-no-touch & {
+        &:hover {
+          --text-color: var(--secondary);
+        }
+      }
+    }
+
+    &.btn-reply-where {
+      min-height: 3em; // for situations when there are no categories/tags
+    }
+
+    .fancy-title {
+      display: inline-block;
+      width: 100%;
+
+      @include ellipsis;
+    }
+
+    .topic-title__top-line {
+      display: flex;
+      align-items: baseline;
+      color: var(--text-color);
+      font-size: var(--font-up-1);
+      .d-icon {
+        color: var(--text-color);
+        margin: 0;
+      }
+    }
+
+    .topic-statuses {
+      display: flex;
+      font-size: 0.95em;
+    }
+
+    .topic-title__bottom-line {
+      margin-top: 0.15em;
+      display: flex;
+      align-items: baseline;
+      .discourse-tags {
+        font-size: var(--font-down-1);
+      }
+      .category-name,
+      .discourse-tag {
+        color: var(--text-color);
+      }
+    }
   }
 }
 
 .delete-user-modal {
   .modal-footer {
     .btn {
-      line-height: $line-height-medium;
+      line-height: var(--line-height-medium);
     }
   }
 }
@@ -344,6 +391,8 @@
 }
 
 .incoming-email-modal {
+  max-height: 80vh;
+
   .btn {
     transition: none;
     background-color: transparent;
@@ -364,7 +413,7 @@
   }
   .incoming-email-content {
     height: 300px;
-    max-width: 700px;
+    max-width: 100%;
     width: 90vw; // forcing textarea wider
     textarea,
     .incoming-email-html-part {
@@ -372,6 +421,7 @@
       border: none;
       border-top: 1px solid var(--primary-low);
       padding-top: 10px;
+      width: 100%;
     }
     textarea {
       font-family: monospace;
@@ -427,7 +477,8 @@
 }
 
 .change-timestamp {
-  max-width: 420px;
+  width: 28em; // scales with user font-size
+  max-width: 90vw; // prevents overflow due to extra large user font-size
 }
 
 .change-timestamp {
@@ -458,7 +509,7 @@
   .flag-action-type-details {
     width: 100%;
     max-width: 500px;
-    line-height: $line-height-large;
+    line-height: var(--line-height-large);
   }
 }
 
@@ -468,7 +519,7 @@
 
 .custom-message-length {
   color: var(--primary-medium);
-  font-size: $font-down-1;
+  font-size: var(--font-down-1);
 }
 
 .jump-to-post-modal {
@@ -477,10 +528,14 @@
   }
   .modal-body {
     overflow-y: visible;
-    #post-jump,
-    .date-picker {
+    #post-jump {
       margin: 0;
       width: 100px;
+    }
+
+    .date-picker {
+      margin: 0;
+      width: 180px;
     }
 
     .input-hint-text {
@@ -491,8 +546,13 @@
       color: var(--primary-medium);
     }
 
-    .jump-to-date-control .input-hint-text {
-      margin-left: 0;
+    .jump-to-date-control {
+      display: flex;
+      align-items: center;
+      .input-hint-text {
+        margin-left: 0;
+        margin-right: 0.5em;
+      }
     }
 
     .separator {
@@ -542,6 +602,14 @@
     }
     .topic-categories {
       width: 100%;
+    }
+  }
+
+  #choosing-topic {
+    form {
+      hr {
+        margin-bottom: 0.5em;
+      }
     }
   }
 }
@@ -622,7 +690,9 @@
           &.single-tab {
             background: none;
             color: var(--primary);
-            padding: 4px 0;
+            padding: 0;
+            font-size: var(--font-up-3);
+            font-weight: bold;
           }
         }
       }
@@ -631,36 +701,21 @@
 }
 
 .topic-bulk-actions-modal {
+  .modal-inner-container {
+    min-width: 0;
+    width: 100%;
+  }
   p {
     margin-top: 0;
   }
-  &.full .modal-body {
-    height: 400px;
-    max-height: 400px;
-  }
-
   .bulk-buttons {
-    display: flex;
-    flex-wrap: wrap;
-    margin-right: -1%;
-
-    .btn {
-      flex: 1 0 30%;
-      margin-bottom: 1em;
-      margin-right: 1%;
-      white-space: nowrap;
-      overflow: hidden;
-      max-width: 33%;
-
-      @media screen and (max-width: 767px) {
-        flex: 1 0 48%;
-        max-width: 48%;
-      }
-
-      @include breakpoint(mobile-extra-large) {
-        flex: 1 1 auto;
-        min-width: 49%;
-      }
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(12em, 1fr));
+    gap: 0.5em;
+    max-width: 100%;
+    min-width: 0;
+    .d-button-label {
+      @include ellipsis;
     }
   }
 }
@@ -693,253 +748,35 @@
   }
 }
 
-.json-schema-editor-modal {
-  h3.card-title {
-    margin-top: 0;
-    label {
-      display: none;
-    }
-  }
-
-  .card .je-object__container {
-    border-bottom: 1px dashed var(--primary-low);
-    padding-bottom: 1em;
-    margin-bottom: 1em;
-    position: relative;
-
-    .card-title label {
-      display: inline-block;
-      font-size: $font-down-1;
-      color: var(--primary-medium);
-    }
-    .form-group {
-      label {
-        display: inline-block;
-        width: 33%;
-      }
-      .form-control {
-        width: 66%;
-      }
-    }
-    .btn-group:last-child {
-      position: absolute;
-      right: 0px;
-      top: 0px;
-      .btn {
-        font-size: $font-down-2;
-      }
-    }
-  }
-
-  .btn-group {
-    margin-top: 0;
-  }
-
-  .json-editor-btn-delete {
-    @extend .btn-danger !optional;
-    @extend .no-text !optional;
-    .d-icon + span {
-      display: none;
-    }
-  }
-
-  .card-body > .btn-group {
-    // !important needed to override inline style :-(
-    display: block !important;
-    text-align: right;
-  }
-}
-
-.json-schema-editor-modal {
-  h3.card-title {
-    margin-top: 0;
-    label {
-      display: none;
-    }
-  }
-
-  .card .je-object__container {
-    border-bottom: 1px dashed var(--primary-low);
-    padding-bottom: 1em;
-    margin-bottom: 1em;
-    position: relative;
-
-    .card-title label {
-      display: inline-block;
-      font-size: $font-down-1;
-      color: var(--primary-medium);
-    }
-    .form-group {
-      label {
-        display: inline-block;
-        width: 33%;
-      }
-      .form-control {
-        width: 66%;
-      }
-    }
-    .btn-group:last-child {
-      position: absolute;
-      right: 0px;
-      top: 0px;
-      .btn {
-        font-size: $font-down-2;
-      }
-    }
-  }
-
-  .btn-group {
-    margin-top: 0;
-  }
-
-  .json-editor-btn-delete {
-    @extend .btn-danger !optional;
-    @extend .no-text !optional;
-    .d-icon + span {
-      display: none;
-    }
-  }
-
-  .card-body > .btn-group {
-    // !important needed to override inline style :-(
-    display: block !important;
-    text-align: right;
-  }
-
-  .table {
-    td {
-      vertical-align: top;
-      padding: 1em 0;
-    }
-    td.compact {
-      .invalid-feedback {
-        margin: 0;
-        font-size: $font-down-1;
-        color: var(--danger);
-      }
-    }
-    input[type="text"] {
-      margin-bottom: 0;
-      width: 95%;
-      &.is-invalid {
-        border-color: var(--danger);
-        outline: 1px solid var(--danger);
-      }
-    }
-  }
-}
-
-.create-invite-modal,
-.share-topic-modal {
+.group-add-members-modal {
   .input-group {
-    margin-bottom: 1em;
+    margin-bottom: 0.5em;
 
     &:last-child {
       margin-bottom: 0;
     }
-
-    input[type="text"] {
-      width: 100%;
-    }
   }
 
-  .invite-type {
-    input[type="checkbox"] {
-      display: inline;
-      vertical-align: middle;
-      margin-top: -1px;
-    }
-
-    label {
-      display: inline-block;
-    }
-  }
-
-  .group-chooser,
-  .user-chooser,
-  .future-date-input-selector {
-    width: 100%;
-  }
-
-  .input-group input[type="text"],
-  .input-group .btn,
-  .user-chooser .select-kit-header,
-  .future-date-input .select-kit-header {
-    height: 34px;
-  }
-
-  .input-group .btn {
-    vertical-align: top;
-  }
-
-  .invite-input-with-button {
-    display: flex;
-
-    .btn {
-      margin-left: 3px;
-    }
-  }
-
-  .future-date-input {
-    .date-picker-wrapper {
-      input {
-        margin: 0;
-      }
-    }
-
-    .control-group:nth-child(2),
-    .control-group:nth-child(3) {
-      display: inline-block;
-      margin-bottom: 0;
-      width: 49%;
-
-      input {
-        margin-bottom: 0;
-        width: 150px;
-      }
-    }
-  }
-
-  .invite-max-redemptions {
-    label {
-      display: inline;
-    }
-
-    input {
-      width: 80px;
-    }
-  }
-
-  .show-advanced {
-    margin-left: auto;
-    margin-right: 0;
+  .user-chooser {
+    width: calc(100%);
   }
 }
 
-.share-topic-modal {
-  .sources {
-    align-items: center;
-    display: flex;
-    flex-wrap: wrap;
-    flex-direction: row;
-    margin-bottom: 1em;
+.modal-body .codeblock-buttons {
+  margin: 0;
 
-    .social-link {
-      font-size: $font-up-6;
-      margin-right: 8px;
-    }
-
-    .btn-primary {
-      border-radius: 4px;
-      height: calc(#{$font-up-6} - 4px);
-      margin-bottom: 2px;
-      margin-right: 8px;
-      padding-left: 8px;
-      padding-right: 8px;
-
-      .d-icon {
-        font-size: $font-up-3;
-      }
-    }
+  button {
+    top: 21px;
   }
+}
+
+.json-editor-btn-delete {
+  @extend .btn-danger;
+  @extend .no-text;
+}
+
+.json-editor-btn-collapse {
+  @extend .no-text;
+  @extend .btn-flat;
+  @extend .btn-small;
 }

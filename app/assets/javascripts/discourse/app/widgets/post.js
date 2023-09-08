@@ -1,9 +1,6 @@
 import { applyDecorators, createWidget } from "discourse/widgets/widget";
-import {
-  avatarUrl,
-  formatUsername,
-  translateSize,
-} from "discourse/lib/utilities";
+import { formatUsername } from "discourse/lib/utilities";
+import { avatarUrl, translateSize } from "discourse-common/lib/avatar-utils";
 import getURL, { getURLWithCDN } from "discourse-common/lib/get-url";
 import DecoratorHelper from "discourse/widgets/decorator-helper";
 import DiscourseURL from "discourse/lib/url";
@@ -11,16 +8,22 @@ import I18n from "I18n";
 import PostCooked from "discourse/widgets/post-cooked";
 import { Promise } from "rsvp";
 import RawHtml from "discourse/widgets/raw-html";
-import bootbox from "bootbox";
 import { dateNode } from "discourse/helpers/node";
 import { h } from "virtual-dom";
 import hbs from "discourse/widgets/hbs-compiler";
 import { iconNode } from "discourse-common/lib/icon-library";
 import { postTransformCallbacks } from "discourse/widgets/post-stream";
-import { prioritizeNameInUx } from "discourse/lib/settings";
+import {
+  prioritizeNameFallback,
+  prioritizeNameInUx,
+} from "discourse/lib/settings";
 import { relativeAgeMediumSpan } from "discourse/lib/formatter";
 import { transformBasicPost } from "discourse/lib/transform-post";
 import autoGroupFlairForUser from "discourse/lib/avatar-flair";
+import { nativeShare } from "discourse/lib/pwa-utils";
+import { hideUserTip } from "discourse/lib/user-tips";
+import ShareTopicModal from "discourse/components/modal/share-topic";
+import { getOwner } from "@ember/application";
 
 function transformWithCallbacks(post) {
   let transformed = transformBasicPost(post);
@@ -57,6 +60,9 @@ export function avatarImg(wanted, attrs) {
       height: size,
       src: getURLWithCDN(url),
       title,
+      "aria-label": title,
+      loading: "lazy",
+      tabindex: "-1",
     },
     className,
   };
@@ -64,16 +70,20 @@ export function avatarImg(wanted, attrs) {
   return h("img", properties);
 }
 
-export function avatarFor(wanted, attrs) {
+export function avatarFor(wanted, attrs, linkAttrs) {
+  const attributes = {
+    href: attrs.url,
+    "data-user-card": attrs.username,
+    "aria-hidden": true,
+  };
+  if (linkAttrs) {
+    Object.assign(attributes, linkAttrs);
+  }
   return h(
     "a",
     {
       className: `trigger-user-card ${attrs.className || ""}`,
-      attributes: {
-        href: attrs.url,
-        "data-user-card": attrs.username,
-        "aria-hidden": true,
-      },
+      attributes,
     },
     avatarImg(wanted, attrs)
   );
@@ -130,18 +140,37 @@ createWidget("reply-to-tab", {
     return { loading: false };
   },
 
+  buildAttributes(attrs) {
+    let result = {
+      tabindex: "0",
+    };
+
+    if (!this.attrs.mobileView) {
+      result["aria-controls"] = `embedded-posts__top--${attrs.post_number}`;
+      result["aria-expanded"] = this.attrs.repliesAbove.length
+        ? "true"
+        : "false";
+    }
+
+    return result;
+  },
+
   html(attrs, state) {
     const icon = state.loading ? h("div.spinner.small") : iconNode("share");
+    const name = prioritizeNameFallback(
+      attrs.replyToName,
+      attrs.replyToUsername
+    );
 
     return [
       icon,
       " ",
       avatarImg("small", {
         template: attrs.replyToAvatarTemplate,
-        username: attrs.replyToUsername,
+        username: name,
       }),
       " ",
-      h("span", formatUsername(attrs.replyToUsername)),
+      h("span", formatUsername(name)),
     ];
   },
 
@@ -171,31 +200,43 @@ createWidget("post-avatar", {
 
   html(attrs) {
     let body;
+    let hideFromAnonUser =
+      this.siteSettings.hide_user_profiles_from_public && !this.currentUser;
     if (!attrs.user_id) {
       body = iconNode("far-trash-alt", { class: "deleted-user-avatar" });
     } else {
-      body = avatarFor.call(this, this.settings.size, {
-        template: attrs.avatar_template,
-        username: attrs.username,
-        name: attrs.name,
-        url: attrs.usernameUrl,
-        className: "main-avatar",
-        hideTitle: true,
-      });
+      body = avatarFor.call(
+        this,
+        this.settings.size,
+        {
+          template: attrs.avatar_template,
+          username: attrs.username,
+          name: attrs.name,
+          url: attrs.usernameUrl,
+          className: `main-avatar ${hideFromAnonUser ? "non-clickable" : ""}`,
+          hideTitle: true,
+        },
+        {
+          tabindex: "-1",
+        }
+      );
     }
 
-    const result = [body];
+    const postAvatarBody = [body];
 
-    if (attrs.primary_group_flair_url || attrs.primary_group_flair_bg_color) {
-      result.push(this.attach("avatar-flair", attrs));
-    } else {
-      const autoFlairAttrs = autoGroupFlairForUser(this.site, attrs);
-      if (autoFlairAttrs) {
-        result.push(this.attach("avatar-flair", autoFlairAttrs));
+    if (attrs.flair_group_id) {
+      if (attrs.flair_url || attrs.flair_bg_color) {
+        postAvatarBody.push(this.attach("avatar-flair", attrs));
+      } else {
+        const autoFlairAttrs = autoGroupFlairForUser(this.site, attrs);
+
+        if (autoFlairAttrs) {
+          postAvatarBody.push(this.attach("avatar-flair", autoFlairAttrs));
+        }
       }
     }
 
-    result.push(h("div.poster-avatar-extra"));
+    const result = [h("div.post-avatar", postAvatarBody)];
 
     if (this.settings.displayPosterName) {
       result.push(this.attach("post-avatar-user-info", attrs));
@@ -247,6 +288,13 @@ function showReplyTab(attrs, siteSettings) {
 createWidget("post-meta-data", {
   tagName: "div.topic-meta-data",
 
+  buildAttributes() {
+    return {
+      role: "heading",
+      "aria-level": "2",
+    };
+  },
+
   settings: {
     displayPosterName: true,
   },
@@ -255,30 +303,26 @@ createWidget("post-meta-data", {
     let postInfo = [];
 
     if (attrs.isWhisper) {
+      const groups = this.site.get("whispers_allowed_groups_names");
+      let title = "";
+
+      if (groups?.length > 0) {
+        title = I18n.t("post.whisper_groups", {
+          groupNames: groups.join(", "),
+        });
+      } else {
+        title = I18n.t("post.whisper");
+      }
+
       postInfo.push(
         h(
           "div.post-info.whisper",
           {
-            attributes: { title: I18n.t("post.whisper") },
+            attributes: { title },
           },
           iconNode("far-eye-slash")
         )
       );
-    }
-
-    const lastWikiEdit =
-      attrs.wiki && attrs.lastWikiEdit && new Date(attrs.lastWikiEdit);
-    const createdAt = new Date(attrs.created_at);
-    const date = lastWikiEdit ? dateNode(lastWikiEdit) : dateNode(createdAt);
-    const attributes = {
-      class: "post-date",
-      href: attrs.shareUrl,
-      "data-share-url": attrs.shareUrl,
-      "data-post-number": attrs.post_number,
-    };
-
-    if (lastWikiEdit) {
-      attributes["class"] += " last-wiki-edit";
     }
 
     if (attrs.via_email) {
@@ -301,7 +345,7 @@ createWidget("post-meta-data", {
       postInfo.push(this.attach("reply-to-tab", attrs));
     }
 
-    postInfo.push(h("div.post-info.post-date", h("a", { attributes }, date)));
+    postInfo.push(this.attach("post-date", attrs));
 
     postInfo.push(
       h(
@@ -335,6 +379,40 @@ createWidget("expand-hidden", {
 
   click() {
     this.sendWidgetAction("expandHidden");
+  },
+});
+
+createWidget("post-date", {
+  tagName: "div.post-info.post-date",
+
+  html(attrs) {
+    let date,
+      linkClassName = "post-date";
+
+    if (attrs.wiki && attrs.lastWikiEdit) {
+      linkClassName += " last-wiki-edit";
+      date = new Date(attrs.lastWikiEdit);
+    } else {
+      date = new Date(attrs.created_at);
+    }
+    return this.attach("link", {
+      rawLabel: dateNode(date),
+      className: linkClassName,
+      omitSpan: true,
+      title: "post.sr_date",
+      href: attrs.shareUrl,
+      action: "showShareModal",
+    });
+  },
+
+  showShareModal() {
+    const post = this.findAncestorModel();
+    const topic = post.topic;
+    getOwner(this)
+      .lookup("service:modal")
+      .show(ShareTopicModal, {
+        model: { category: topic.category, topic, post },
+      });
   },
 });
 
@@ -379,8 +457,23 @@ createWidget("post-group-request", {
 createWidget("post-contents", {
   buildKey: (attrs) => `post-contents-${attrs.id}`,
 
-  defaultState() {
-    return { expandedFirstPost: false, repliesBelow: [] };
+  defaultState(attrs) {
+    const defaultState = {
+      expandedFirstPost: false,
+      repliesBelow: [],
+    };
+
+    if (this.siteSettings.enable_filtered_replies_view) {
+      const topicController = this.register.lookup("controller:topic");
+
+      if (attrs.post_number) {
+        defaultState.filteredRepliesShown =
+          topicController.replies_to_post_number ===
+          attrs.post_number.toString();
+      }
+    }
+
+    return defaultState;
   },
 
   buildClasses(attrs) {
@@ -405,7 +498,7 @@ createWidget("post-contents", {
 
     result = result.concat(applyDecorators(this, "after-cooked", attrs, state));
 
-    if (attrs.cooked_hidden) {
+    if (attrs.cooked_hidden && attrs.canSeeHiddenPost) {
       result.push(this.attach("expand-hidden", attrs));
     }
 
@@ -424,18 +517,31 @@ createWidget("post-contents", {
     const repliesBelow = state.repliesBelow;
     if (repliesBelow.length) {
       result.push(
-        h("section.embedded-posts.bottom", [
-          repliesBelow.map((p) => {
-            return this.attach("embedded-post", p, { model: p.asPost });
-          }),
-          this.attach("button", {
-            title: "post.collapse",
-            icon: "chevron-up",
-            action: "toggleRepliesBelow",
-            actionParam: "true",
-            className: "btn collapse-up",
-          }),
-        ])
+        h(
+          `section.embedded-posts.bottom#embedded-posts__bottom--${this.attrs.post_number}`,
+          [
+            repliesBelow.map((p) => {
+              return this.attach("embedded-post", p, {
+                model: p.asPost,
+                state: {
+                  role: "region",
+                  "aria-label": I18n.t("post.sr_embedded_reply_description", {
+                    post_number: attrs.post_number,
+                    username: p.username,
+                  }),
+                },
+              });
+            }),
+            this.attach("button", {
+              title: "post.collapse",
+              icon: "chevron-up",
+              action: "toggleRepliesBelow",
+              actionParam: "true",
+              className: "btn collapse-up",
+              translatedAriaLabel: I18n.t("post.sr_collapse_replies"),
+            }),
+          ]
+        )
       );
     }
 
@@ -462,9 +568,11 @@ createWidget("post-contents", {
     ) {
       controller.send("cancelFilter", currentFilterPostNumber);
       this.state.filteredRepliesShown = false;
+      return Promise.resolve();
     } else {
       this.state.filteredRepliesShown = true;
-      post
+
+      return post
         .get("topic.postStream")
         .filterReplies(post.post_number, post.id)
         .then(() => {
@@ -491,7 +599,16 @@ createWidget("post-contents", {
       .then((posts) => {
         this.state.repliesBelow = posts.map((p) => {
           let result = transformWithCallbacks(p);
-          result.shareUrl = `${topicUrl}/${p.post_number}`;
+
+          // these would conflict with computed properties with identical names
+          // in the post model if we kept them.
+          delete result.new_user;
+          delete result.deleted;
+          delete result.shareUrl;
+          delete result.firstPost;
+          delete result.usernameUrl;
+
+          result.customShare = `${topicUrl}/${p.post_number}`;
           result.asPost = this.store.createRecord("post", result);
           return result;
         });
@@ -501,6 +618,30 @@ createWidget("post-contents", {
   expandFirstPost() {
     const post = this.findAncestorModel();
     return post.expand().then(() => (this.state.expandedFirstPost = true));
+  },
+
+  share() {
+    if (this.currentUser && this.siteSettings.enable_user_tips) {
+      this.currentUser.hideUserTipForever("post_menu");
+    }
+
+    const post = this.findAncestorModel();
+    nativeShare(this.capabilities, { url: post.shareUrl }).catch(() => {
+      const topic = post.topic;
+      getOwner(this)
+        .lookup("service:modal")
+        .show(ShareTopicModal, {
+          model: { category: topic.category, topic, post },
+        });
+    });
+  },
+
+  init() {
+    this.postContentsDestroyCallbacks = [];
+  },
+
+  destroy() {
+    this.postContentsDestroyCallbacks.forEach((c) => c());
   },
 });
 
@@ -598,6 +739,7 @@ createWidget("post-article", {
     return {
       "aria-label": I18n.t("share.post", {
         postNumber: attrs.post_number,
+        username: attrs.username,
       }),
       role: "region",
       "data-post-id": attrs.id,
@@ -608,8 +750,8 @@ createWidget("post-article", {
 
   html(attrs, state) {
     const rows = [
-      h("a.tabLoc", {
-        attributes: { href: "", "aria-hidden": true, tabindex: -1 },
+      h("span.tabLoc", {
+        attributes: { "aria-hidden": true, tabindex: -1 },
       }),
     ];
     if (state.repliesAbove.length) {
@@ -623,16 +765,19 @@ createWidget("post-article", {
       rows.push(
         h(
           "div.row",
-          h("section.embedded-posts.top.topic-body", [
-            this.attach("button", {
-              title: "post.collapse",
-              icon: "chevron-down",
-              action: "toggleReplyAbove",
-              actionParam: "true",
-              className: "btn collapse-down",
-            }),
-            replies,
-          ])
+          h(
+            `section.embedded-posts.top.topic-body#embedded-posts__top--${attrs.post_number}`,
+            [
+              this.attach("button", {
+                title: "post.collapse",
+                icon: "chevron-down",
+                action: "toggleReplyAbove",
+                actionParam: "true",
+                className: "btn collapse-down",
+              }),
+              replies,
+            ]
+          )
         )
       );
     }
@@ -644,7 +789,10 @@ createWidget("post-article", {
     rows.push(
       h("div.row", [
         this.attach("post-avatar", attrs),
-        this.attach("post-body", attrs),
+        this.attach("post-body", {
+          ...attrs,
+          repliesAbove: state.repliesAbove,
+        }),
       ])
     );
     return rows;
@@ -693,7 +841,17 @@ createWidget("post-article", {
         .then((posts) => {
           this.state.repliesAbove = posts.map((p) => {
             let result = transformWithCallbacks(p);
-            result.shareUrl = `${topicUrl}/${p.post_number}`;
+
+            // We don't want to overwrite CPs - we are doing something a bit weird
+            // here by creating a post object from a transformed post. They aren't
+            // 100% the same.
+            delete result.new_user;
+            delete result.deleted;
+            delete result.shareUrl;
+            delete result.firstPost;
+            delete result.usernameUrl;
+
+            result.customShare = `${topicUrl}/${p.post_number}`;
             result.asPost = this.store.createRecord("post", result);
             return result;
           });
@@ -710,6 +868,7 @@ export function addPostClassesCallback(callback) {
 
 export default createWidget("post", {
   buildKey: (attrs) => `post-${attrs.id}`,
+  services: ["dialog"],
   shadowTree: true,
 
   buildAttributes(attrs) {
@@ -728,7 +887,7 @@ export default createWidget("post", {
     }
     const classNames = ["topic-post", "clearfix"];
 
-    if (attrs.id === -1 || attrs.isSaving) {
+    if (attrs.id === -1 || attrs.isSaving || attrs.staged) {
       classNames.push("staged");
     }
     if (attrs.selected) {
@@ -736,6 +895,9 @@ export default createWidget("post", {
     }
     if (attrs.topicOwner) {
       classNames.push("topic-owner");
+    }
+    if (this.currentUser && attrs.user_id === this.currentUser.id) {
+      classNames.push("current-user-post");
     }
     if (attrs.groupModerator) {
       classNames.push("category-moderator");
@@ -759,6 +921,9 @@ export default createWidget("post", {
       classNames.push("moderator");
     } else {
       classNames.push("regular");
+    }
+    if (attrs.userSuspended) {
+      classNames.push("user-suspended");
     }
     if (addPostClassesCallbacks) {
       for (let i = 0; i < addPostClassesCallbacks.length; i++) {
@@ -808,8 +973,38 @@ export default createWidget("post", {
     const { remaining, max } = result;
     const threshold = Math.ceil(max * 0.1);
     if (remaining === threshold) {
-      bootbox.alert(I18n.t("post.few_likes_left"));
+      this.dialog.alert(I18n.t("post.few_likes_left"));
       kvs.set({ key: "lastWarnedLikes", value: Date.now() });
     }
+  },
+
+  didRenderWidget() {
+    if (!this.currentUser || !this.siteSettings.enable_user_tips) {
+      return;
+    }
+
+    const reference = document.querySelector(
+      ".post-controls .actions .show-more-actions"
+    );
+
+    this.currentUser.showUserTip({
+      id: "post_menu",
+
+      titleText: I18n.t("user_tips.post_menu.title"),
+      contentText: I18n.t("user_tips.post_menu.content"),
+
+      reference,
+      appendTo: reference?.closest(".post-controls"),
+
+      placement: "top",
+    });
+  },
+
+  destroy() {
+    hideUserTip("post_menu");
+  },
+
+  willRerenderWidget() {
+    hideUserTip("post_menu");
   },
 });

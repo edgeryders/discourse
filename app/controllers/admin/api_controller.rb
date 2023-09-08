@@ -4,38 +4,46 @@ class Admin::ApiController < Admin::AdminController
   # Note: in the REST API, ApiKeys are referred to simply as "key"
   # If we used "api_key", then our user provider would try to use the value for authentication
 
+  INDEX_LIMIT = 50
+
   def index
-    keys = ApiKey.where(hidden: false)
+    offset = (params[:offset] || 0).to_i
+    limit = fetch_limit_from_params(default: INDEX_LIMIT, max: INDEX_LIMIT)
 
-    # Put active keys first
-    # Sort active keys by created_at, sort revoked keys by revoked_at
-    keys = keys.order(<<~SQL)
-      CASE WHEN revoked_at IS NULL THEN 0 ELSE 1 END,
-      COALESCE(revoked_at, created_at) DESC
-    SQL
+    keys =
+      ApiKey
+        .where(hidden: false)
+        .includes(:user, :api_key_scopes)
+        # Sort revoked keys by revoked_at and active keys by created_at
+        .order("revoked_at DESC NULLS FIRST, created_at DESC")
+        .offset(offset)
+        .limit(limit)
 
-    render_serialized(keys.to_a, ApiKeySerializer, root: 'keys')
+    render_json_dump(keys: serialize_data(keys, ApiKeySerializer), offset: offset, limit: limit)
   end
 
   def show
     api_key = ApiKey.includes(:api_key_scopes).find_by!(id: params[:id])
-    render_serialized(api_key, ApiKeySerializer, root: 'key')
+    render_serialized(api_key, ApiKeySerializer, root: "key")
   end
 
   def scopes
-    scopes = ApiKeyScope.scope_mappings.reduce({}) do |memo, (resource, actions)|
-      memo.tap do |m|
-        m[resource] = actions.map do |k, v|
-          {
-            scope_id: "#{resource}:#{k}",
-            key: k,
-            name: k.to_s.gsub('_', ' '),
-            params: v[:params],
-            urls: v[:urls]
-          }
+    scopes =
+      ApiKeyScope
+        .scope_mappings
+        .reduce({}) do |memo, (resource, actions)|
+          memo.tap do |m|
+            m[resource] = actions.map do |k, v|
+              {
+                scope_id: "#{resource}:#{k}",
+                key: k,
+                name: k.to_s.gsub("_", " "),
+                params: v[:params],
+                urls: v[:urls],
+              }
+            end
+          end
         end
-      end
-    end
 
     render json: { scopes: scopes }
   end
@@ -46,7 +54,7 @@ class Admin::ApiController < Admin::AdminController
       api_key.update!(update_params)
       log_api_key(api_key, UserHistory.actions[:api_key_update], changes: api_key.saved_changes)
     end
-    render_serialized(api_key, ApiKeySerializer, root: 'key')
+    render_serialized(api_key, ApiKeySerializer, root: "key")
   end
 
   def destroy
@@ -70,7 +78,7 @@ class Admin::ApiController < Admin::AdminController
       api_key.save!
       log_api_key(api_key, UserHistory.actions[:api_key_create], changes: api_key.saved_changes)
     end
-    render_serialized(api_key, ApiKeySerializer, root: 'key')
+    render_serialized(api_key, ApiKeySerializer, root: "key")
   end
 
   def undo_revoke_key
@@ -99,7 +107,7 @@ class Admin::ApiController < Admin::AdminController
 
   def build_scopes
     params.require(:key)[:scopes].to_a.map do |scope_params|
-      resource, action = scope_params[:scope_id].split(':')
+      resource, action = scope_params[:scope_id].split(":")
 
       mapping = ApiKeyScope.scope_mappings.dig(resource.to_sym, action.to_sym)
       raise Discourse::InvalidParameters if mapping.nil? # invalid mapping
@@ -107,7 +115,7 @@ class Admin::ApiController < Admin::AdminController
       ApiKeyScope.new(
         resource: resource,
         action: action,
-        allowed_parameters: build_params(scope_params, mapping[:params])
+        allowed_parameters: build_params(scope_params, mapping[:params]),
       )
     end
   end
@@ -115,11 +123,13 @@ class Admin::ApiController < Admin::AdminController
   def build_params(scope_params, params)
     return if params.nil?
 
-    scope_params.slice(*params).tap do |allowed_params|
-      allowed_params.each do |k, v|
-        v.blank? ? allowed_params.delete(k) : allowed_params[k] = v.split(',')
+    scope_params
+      .slice(*params)
+      .tap do |allowed_params|
+        allowed_params.each do |k, v|
+          v.blank? ? allowed_params.delete(k) : allowed_params[k] = v.split(",")
+        end
       end
-    end
   end
 
   def update_params
@@ -140,5 +150,4 @@ class Admin::ApiController < Admin::AdminController
   def log_api_key_restore(*args)
     StaffActionLogger.new(current_user).log_api_key_restore(*args)
   end
-
 end

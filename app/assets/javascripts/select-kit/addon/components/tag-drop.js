@@ -1,4 +1,4 @@
-import { equal, gte, readOnly } from "@ember/object/computed";
+import { equal, readOnly } from "@ember/object/computed";
 import { i18n, setting } from "discourse/lib/computed";
 import ComboBoxComponent from "select-kit/components/combo-box";
 import DiscourseURL, { getCategoryAndTagUrl } from "discourse/lib/url";
@@ -18,7 +18,6 @@ export default ComboBoxComponent.extend(TagsMixin, {
   classNameBindings: ["categoryStyle", "tagClass"],
   classNames: ["tag-drop"],
   value: readOnly("tagId"),
-  tagName: "li",
   categoryStyle: setting("category_style"),
   maxTagSearchResults: setting("max_tag_search_results"),
   sortTagsAlphabetically: setting("tags_sort_alphabetically"),
@@ -42,8 +41,6 @@ export default ComboBoxComponent.extend(TagsMixin, {
   },
 
   noTagsSelected: equal("tagId", NONE_TAG_ID),
-
-  filterable: gte("content.length", 15),
 
   init() {
     this._super(...arguments);
@@ -160,7 +157,9 @@ export default ComboBoxComponent.extend(TagsMixin, {
       .map((r) => {
         const content = context.defaultItem(r.id, r.text);
         content.targetTagId = r.target_tag || r.id;
-        content.count = r.count;
+        if (!context.currentCategory) {
+          content.count = r.count;
+        }
         content.pmCount = r.pm_count;
         return content;
       });

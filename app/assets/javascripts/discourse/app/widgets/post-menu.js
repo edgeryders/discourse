@@ -1,53 +1,43 @@
 import { applyDecorators, createWidget } from "discourse/widgets/widget";
-import { next, run } from "@ember/runloop";
+import { next } from "@ember/runloop";
+import discourseLater from "discourse-common/lib/later";
 import { Promise } from "rsvp";
 import { formattedReminderTime } from "discourse/lib/bookmark";
 import { h } from "virtual-dom";
-import { isTesting } from "discourse-common/config/environment";
-import showModal from "discourse/lib/show-modal";
 import { smallUserAtts } from "discourse/widgets/actions-summary";
+import I18n from "I18n";
+import {
+  NO_REMINDER_ICON,
+  WITH_REMINDER_ICON,
+} from "discourse/models/bookmark";
+import { isTesting } from "discourse-common/config/environment";
+import DeleteTopicDisallowedModal from "discourse/components/modal/delete-topic-disallowed";
 
 const LIKE_ACTION = 2;
 const VIBRATE_DURATION = 5;
 
-function animateHeart($elem, start, end, complete) {
-  if (isTesting()) {
-    return run(this, complete);
-  }
-
-  $elem
-    .stop()
-    .css("textIndent", start)
-    .animate(
-      { textIndent: end },
-      {
-        complete,
-        step(now) {
-          $(this)
-            .css("transform", "scale(" + now + ")")
-            .addClass("d-liked")
-            .removeClass("d-unliked");
-        },
-        duration: 150,
-      },
-      "linear"
-    );
-}
-
 const _builders = {};
-const _extraButtons = {};
+export let apiExtraButtons = {};
+let _extraButtons = {};
+let _buttonsToRemoveCallbacks = {};
 
 export function addButton(name, builder) {
   _extraButtons[name] = builder;
 }
 
-export function removeButton(name) {
-  if (_extraButtons[name]) {
-    delete _extraButtons[name];
+export function resetPostMenuExtraButtons() {
+  for (const key of Object.keys(apiExtraButtons)) {
+    delete apiExtraButtons[key];
   }
-  if (_builders[name]) {
-    delete _builders[name];
-  }
+
+  _extraButtons = {};
+  _buttonsToRemoveCallbacks = {};
+}
+
+export function removeButton(name, callback) {
+  // 🏌️
+  _buttonsToRemoveCallbacks[name] ??= [];
+  _buttonsToRemoveCallbacks[name].push(callback || (() => true));
 }
 
 function registerButton(name, builder) {
@@ -56,8 +46,18 @@ function registerButton(name, builder) {
 
 export function buildButton(name, widget) {
   let { attrs, state, siteSettings, settings, currentUser } = widget;
+
+  let shouldAddButton = true;
+
+  if (_buttonsToRemoveCallbacks[name]) {
+    shouldAddButton = !_buttonsToRemoveCallbacks[name].some((c) =>
+      c(attrs, state, siteSettings, settings, currentUser)
+    );
+  }
+
   let builder = _builders[name];
-  if (builder) {
+
+  if (shouldAddButton && builder) {
     let button = builder(attrs, state, siteSettings, settings, currentUser);
     if (button && !button.id) {
       button.id = name;
@@ -66,10 +66,14 @@ export function buildButton(name, widget) {
   }
 }
 
-registerButton("read-count", (attrs) => {
+registerButton("read-count", (attrs, state) => {
   if (attrs.showReadIndicator) {
     const count = attrs.readCount;
     if (count > 0) {
+      let ariaPressed = "false";
+      if (state?.readers && state.readers.length > 0) {
+        ariaPressed = "true";
+      }
       return {
         action: "toggleWhoRead",
         title: "post.controls.read_indicator",
@@ -77,6 +81,10 @@ registerButton("read-count", (attrs) => {
         contents: count,
         iconRight: true,
         addContainer: false,
+        translatedAriaLabel: I18n.t("post.sr_post_read_count_button", {
+          count,
+        }),
+        ariaPressed,
       };
     }
   }
@@ -95,7 +103,7 @@ registerButton("read", (attrs) => {
   }
 });
 
-function likeCount(attrs) {
+function likeCount(attrs, state) {
   const count = attrs.likeCount;
 
   if (count > 0) {
@@ -113,6 +121,10 @@ function likeCount(attrs) {
       addContainer = true;
     }
 
+    let ariaPressed = "false";
+    if (state?.likedUsers && state.likedUsers.length > 0) {
+      ariaPressed = "true";
+    }
     return {
       action: "toggleWhoLiked",
       title,
@@ -122,44 +134,53 @@ function likeCount(attrs) {
       iconRight: true,
       addContainer,
       titleOptions: { count: attrs.liked ? count - 1 : count },
+      translatedAriaLabel: I18n.t("post.sr_post_like_count_button", { count }),
+      ariaPressed,
     };
   }
 }
 
 registerButton("like-count", likeCount);
 
-registerButton("like", (attrs) => {
-  if (!attrs.showLike) {
-    return likeCount(attrs);
+registerButton(
+  "like",
+  (attrs, _state, _siteSettings, _settings, currentUser) => {
+    if (!attrs.showLike) {
+      return likeCount(attrs);
+    }
+
+    const className = attrs.liked
+      ? "toggle-like has-like fade-out"
+      : "toggle-like like";
+
+    const button = {
+      action: "like",
+      icon: attrs.liked ? "d-liked" : "d-unliked",
+      className,
+      before: "like-count",
+      data: {
+        "post-id": attrs.id,
+      },
+    };
+
+    // If the user has already liked the post and doesn't have permission
+    // to undo that operation, then indicate via the title that they've liked it
+    // and disable the button. Otherwise, set the title even if the user
+    // is anonymous (meaning they don't currently have permission to like);
+    // this is important for accessibility.
+    if (attrs.liked && !attrs.canToggleLike) {
+      button.title = "post.controls.has_liked";
+    } else {
+      button.title = attrs.liked
+        ? "post.controls.undo_like"
+        : "post.controls.like";
+    }
+    if (currentUser && !attrs.canToggleLike) {
+      button.disabled = true;
+    }
+    return button;
   }
-
-  const className = attrs.liked
-    ? "toggle-like has-like fade-out"
-    : "toggle-like like";
-
-  const button = {
-    action: "like",
-    icon: attrs.liked ? "d-liked" : "d-unliked",
-    className,
-    before: "like-count",
-  };
-
-  // If the user has already liked the post and doesn't have permission
-  // to undo that operation, then indicate via the title that they've liked it
-  // and disable the button. Otherwise, set the title even if the user
-  // is anonymous (meaning they don't currently have permission to like);
-  // this is important for accessibility.
-  if (attrs.liked && !attrs.canToggleLike) {
-    button.title = "post.controls.has_liked";
-    button.disabled = true;
-  } else {
-    button.title = attrs.liked
-      ? "post.controls.undo_like"
-      : "post.controls.like";
-  }
-
-  return button;
-});
+);
 
 registerButton("flag-count", (attrs) => {
   let className = "button-count";
@@ -210,6 +231,10 @@ registerButton("reply-small", (attrs) => {
     title: "post.controls.reply",
     icon: "reply",
     className: "reply",
+    translatedAriaLabel: I18n.t("post.sr_reply_to", {
+      post_number: attrs.post_number,
+      username: attrs.username,
+    }),
   };
 
   return args;
@@ -254,6 +279,10 @@ registerButton("replies", (attrs, state, siteSettings) => {
     return;
   }
 
+  let ariaPressed;
+  if (!siteSettings.enable_filtered_replies_view) {
+    ariaPressed = state.repliesShown ? "true" : "false";
+  }
   return {
     action,
     icon,
@@ -263,23 +292,29 @@ registerButton("replies", (attrs, state, siteSettings) => {
       ? state.filteredRepliesShown
         ? "post.view_all_posts"
         : "post.filtered_replies_hint"
-      : "post.has_replies",
+      : "",
     labelOptions: { count: replyCount },
     label: attrs.mobileView ? "post.has_replies_count" : "post.has_replies",
     iconRight: !siteSettings.enable_filtered_replies_view || attrs.mobileView,
+    disabled: !!attrs.deleted,
+    translatedAriaLabel: I18n.t("post.sr_expand_replies", {
+      count: replyCount,
+    }),
+    ariaExpanded:
+      !siteSettings.enable_filtered_replies_view && state.repliesShown
+        ? "true"
+        : "false",
+    ariaPressed,
+    ariaControls: `embedded-posts__bottom--${attrs.post_number}`,
   };
 });
 
-registerButton("share", (attrs) => {
+registerButton("share", () => {
   return {
     action: "share",
     className: "share",
     title: "post.controls.share",
-    icon: "link",
-    data: {
-      "share-url": attrs.shareUrl,
-      "post-number": attrs.post_number,
-    },
+    icon: "d-post-share",
   };
 });
 
@@ -289,6 +324,10 @@ registerButton("reply", (attrs, state, siteSettings, postMenuSettings) => {
     title: "post.controls.reply",
     icon: "reply",
     className: "reply create fade-out",
+    translatedAriaLabel: I18n.t("post.sr_reply_to", {
+      post_number: attrs.post_number,
+      username: attrs.username,
+    }),
   };
 
   if (!attrs.canCreatePost) {
@@ -304,7 +343,7 @@ registerButton("reply", (attrs, state, siteSettings, postMenuSettings) => {
 
 registerButton(
   "bookmark",
-  (attrs, _state, _siteSettings, _settings, currentUser) => {
+  (attrs, _state, siteSettings, _settings, currentUser) => {
     if (!attrs.canBookmark) {
       return;
     }
@@ -319,7 +358,7 @@ registerButton(
       if (attrs.bookmarkReminderAt) {
         let formattedReminder = formattedReminderTime(
           attrs.bookmarkReminderAt,
-          currentUser.resolvedTimezone(currentUser)
+          currentUser.user_option.timezone
         );
         title = "bookmarks.created_with_reminder";
         titleOptions.date = formattedReminder;
@@ -338,7 +377,7 @@ registerButton(
       title,
       titleOptions,
       className: classNames.join(" "),
-      icon: attrs.bookmarkReminderAt ? "discourse-bookmark-clock" : "bookmark",
+      icon: attrs.bookmarkReminderAt ? WITH_REMINDER_ICON : NO_REMINDER_ICON,
     };
   }
 );
@@ -408,6 +447,7 @@ function replaceButton(buttons, find, replace) {
 
 export default createWidget("post-menu", {
   tagName: "section.post-menu-area.clearfix",
+  services: ["modal"],
 
   settings: {
     collapseButtons: true,
@@ -482,7 +522,7 @@ export default createWidget("post-menu", {
         if (
           (attrs.yours && button.attrs && button.attrs.alwaysShowYours) ||
           (attrs.reviewableId && i === "flag") ||
-          hiddenButtons.indexOf(i) === -1
+          !hiddenButtons.includes(i)
         ) {
           visibleButtons.push(button);
         }
@@ -511,7 +551,21 @@ export default createWidget("post-menu", {
     }
 
     Object.values(_extraButtons).forEach((builder) => {
-      if (builder) {
+      let shouldAddButton = true;
+
+      if (_buttonsToRemoveCallbacks[name]) {
+        shouldAddButton = !_buttonsToRemoveCallbacks[name].some((c) =>
+          c(
+            attrs,
+            this.state,
+            this.siteSettings,
+            this.settings,
+            this.currentUser
+          )
+        );
+      }
+
+      if (shouldAddButton && builder) {
         const buttonAtts = builder(
           attrs,
           this.state,
@@ -618,6 +672,9 @@ export default createWidget("post-menu", {
           listClassName: "who-read",
           description,
           count,
+          ariaLabel: I18n.t(
+            "post.actions.people.sr_post_readers_list_description"
+          ),
         })
       );
     }
@@ -637,6 +694,9 @@ export default createWidget("post-menu", {
           listClassName: "who-liked",
           description,
           count,
+          ariaLabel: I18n.t(
+            "post.actions.people.sr_post_likers_list_description"
+          ),
         })
       );
     }
@@ -653,10 +713,14 @@ export default createWidget("post-menu", {
   },
 
   showDeleteTopicModal() {
-    showModal("delete-topic-disallowed");
+    this.modal.show(DeleteTopicDisallowedModal);
   },
 
   showMoreActions() {
+    if (this.currentUser && this.siteSettings.enable_user_tips) {
+      this.currentUser.hideUserTipForever("post_menu");
+    }
+
     this.state.collapsed = false;
     const likesPromise = !this.state.likedUsers.length
       ? this.getWhoLiked()
@@ -678,7 +742,11 @@ export default createWidget("post-menu", {
       return this.sendWidgetAction("showLogin");
     }
 
-    if (this.capabilities.canVibrate) {
+    if (this.currentUser && this.siteSettings.enable_user_tips) {
+      this.currentUser.hideUserTipForever("post_menu");
+    }
+
+    if (this.capabilities.canVibrate && !isTesting()) {
       navigator.vibrate(VIBRATE_DURATION);
     }
 
@@ -686,16 +754,16 @@ export default createWidget("post-menu", {
       return this.sendWidgetAction("toggleLike");
     }
 
-    const $heart = $(`[data-post-id=${attrs.id}] .toggle-like .d-icon`);
-    $heart.closest("button").addClass("has-like");
+    const heart = document.querySelector(
+      `.toggle-like[data-post-id="${attrs.id}"] .d-icon`
+    );
+    heart.closest(".toggle-like").classList.add("has-like");
+    heart.classList.add("heart-animation");
 
-    const scale = [1.0, 1.5];
     return new Promise((resolve) => {
-      animateHeart($heart, scale[0], scale[1], () => {
-        animateHeart($heart, scale[1], scale[0], () => {
-          this.sendWidgetAction("toggleLike").then(() => resolve());
-        });
-      });
+      discourseLater(() => {
+        this.sendWidgetAction("toggleLike").then(() => resolve());
+      }, 400);
     });
   },
 

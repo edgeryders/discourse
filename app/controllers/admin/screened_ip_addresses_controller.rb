@@ -1,16 +1,19 @@
 # frozen_string_literal: true
 
-class Admin::ScreenedIpAddressesController < Admin::AdminController
-
-  before_action :fetch_screened_ip_address, only: [:update, :destroy]
+class Admin::ScreenedIpAddressesController < Admin::StaffController
+  before_action :fetch_screened_ip_address, only: %i[update destroy]
 
   def index
     filter = params[:filter]
     filter = IPAddr.handle_wildcards(filter)
 
     screened_ip_addresses = ScreenedIpAddress
-    screened_ip_addresses = screened_ip_addresses.where("cidr :filter >>= ip_address", filter: filter) if filter.present?
-    screened_ip_addresses = screened_ip_addresses.limit(200).order('match_count desc')
+    screened_ip_addresses =
+      screened_ip_addresses.where(
+        "cidr :filter >>= ip_address OR ip_address >>= cidr :filter",
+        filter: filter,
+      ) if filter.present?
+    screened_ip_addresses = screened_ip_addresses.limit(200).order("match_count desc")
 
     begin
       screened_ip_addresses = screened_ip_addresses.to_a
@@ -44,11 +47,6 @@ class Admin::ScreenedIpAddressesController < Admin::AdminController
     render json: success_json
   end
 
-  def roll_up
-    subnets = ScreenedIpAddress.roll_up(current_user)
-    render json: success_json.merge!(subnets: subnets)
-  end
-
   private
 
   def allowed_params
@@ -59,5 +57,4 @@ class Admin::ScreenedIpAddressesController < Admin::AdminController
   def fetch_screened_ip_address
     @screened_ip_address = ScreenedIpAddress.find(params[:id])
   end
-
 end

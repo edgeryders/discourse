@@ -1,9 +1,6 @@
 # frozen_string_literal: true
 
-require 'rails_helper'
-
-describe UserSummary do
-
+RSpec.describe UserSummary do
   it "produces secure summaries" do
     topic = create_post.topic
     user = topic.user
@@ -77,5 +74,20 @@ describe UserSummary do
 
     expect(summary.top_categories.length).to eq(UserSummary::MAX_SUMMARY_RESULTS)
     expect(summary.top_categories.first[:id]).to eq(top_category.id)
+  end
+
+  it "excludes moderator action posts" do
+    topic = create_post.topic
+    user = topic.user
+    create_post(user: user, topic: topic)
+    Fabricate(:small_action, topic: topic, user: user)
+
+    summary = UserSummary.new(user, Guardian.new)
+
+    expect(summary.topics.length).to eq(1)
+    expect(summary.replies.length).to eq(1)
+    expect(summary.top_categories.length).to eq(1)
+    expect(summary.top_categories.first[:topic_count]).to eq(1)
+    expect(summary.top_categories.first[:post_count]).to eq(1)
   end
 end

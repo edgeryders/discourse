@@ -1,93 +1,49 @@
+import "./global-compat";
+
+import require from "require";
 import Application from "@ember/application";
-import Mousetrap from "mousetrap";
 import { buildResolver } from "discourse-common/resolver";
 import { isTesting } from "discourse-common/config/environment";
+import { normalizeEmberEventHandling } from "./lib/ember-events";
 
 const _pluginCallbacks = [];
-let _themeErrors = [];
+let _unhandledThemeErrors = [];
 
 const Discourse = Application.extend({
+  modulePrefix: "discourse",
+
   rootElement: "#main",
 
   customEvents: {
     paste: "paste",
   },
 
-  reset() {
-    this._super(...arguments);
-    Mousetrap.reset();
-  },
-
   Resolver: buildResolver("discourse"),
-
-  _prepareInitializer(moduleName) {
-    const themeId = moduleThemeId(moduleName);
-    let module = null;
-
-    try {
-      module = requirejs(moduleName, null, null, true);
-
-      if (!module) {
-        throw new Error(moduleName + " must export an initializer.");
-      }
-    } catch (err) {
-      if (!themeId || isTesting()) {
-        throw err;
-      }
-      _themeErrors.push([themeId, err]);
-      fireThemeErrorEvent();
-      return;
-    }
-
-    const init = module.default;
-    const oldInitialize = init.initialize;
-    init.initialize = (app) => {
-      try {
-        return oldInitialize.call(init, app.__container__, app);
-      } catch (err) {
-        if (!themeId || isTesting()) {
-          throw err;
-        }
-        _themeErrors.push([themeId, err]);
-        fireThemeErrorEvent();
-      }
-    };
-
-    return init;
-  },
 
   // Start up the Discourse application by running all the initializers we've defined.
   start() {
-    $("noscript").remove();
+    document.querySelector("noscript")?.remove();
 
-    Object.keys(requirejs._eak_seen).forEach((key) => {
-      if (/\/pre\-initializers\//.test(key)) {
-        const initializer = this._prepareInitializer(key);
-        if (initializer) {
-          this.initializer(initializer);
-        }
-      } else if (/\/(api\-)?initializers\//.test(key)) {
-        const initializer = this._prepareInitializer(key);
-        if (initializer) {
-          this.instanceInitializer(initializer);
-        }
-      }
-    });
+    // Rewire event handling to eliminate event delegation for better compat
+    // between Glimmer and Classic components.
+    normalizeEmberEventHandling(this);
 
-    // Plugins that are registered via `<script>` tags.
-    const withPluginApi = requirejs("discourse/lib/plugin-api").withPluginApi;
-    let initCount = 0;
-    _pluginCallbacks.forEach((cb) => {
-      this.instanceInitializer({
-        name: `_discourse_plugin_${++initCount}`,
-        after: "inject-objects",
-        initialize: () => withPluginApi(cb.version, cb.code),
-      });
-    });
+    if (Error.stackTraceLimit) {
+      // We need Errors to have full stack traces for `lib/source-identifier`
+      Error.stackTraceLimit = Infinity;
+    }
+
+    loadInitializers(this);
   },
 
   _registerPluginCode(version, code) {
     _pluginCallbacks.push({ version, code });
+  },
+
+  ready() {
+    performance.mark("discourse-ready");
+    const event = new CustomEvent("discourse-ready");
+    document.dispatchEvent(event);
   },
 });
 
@@ -98,15 +54,155 @@ function moduleThemeId(moduleName) {
   }
 }
 
-function fireThemeErrorEvent() {
-  const event = new CustomEvent("discourse-theme-error");
-  document.dispatchEvent(event);
+function fireThemeErrorEvent({ themeId, error }) {
+  const event = new CustomEvent("discourse-error", {
+    cancelable: true,
+    detail: { themeId, error },
+  });
+
+  const unhandled = document.dispatchEvent(event);
+
+  if (unhandled) {
+    _unhandledThemeErrors.push(event);
+  }
 }
 
-export function getAndClearThemeErrors() {
-  const copy = _themeErrors;
-  _themeErrors = [];
+export function getAndClearUnhandledThemeErrors() {
+  const copy = _unhandledThemeErrors;
+  _unhandledThemeErrors = [];
   return copy;
+}
+
+/**
+ * Logic for loading initializers. Similar to ember-cli-load-initializers, but
+ * has some discourse-specific logic to handle loading initializers from
+ * plugins and themes.
+ */
+function loadInitializers(app) {
+  let initializers = [];
+  let instanceInitializers = [];
+
+  let discourseInitializers = [];
+  let discourseInstanceInitializers = [];
+
+  for (let moduleName of Object.keys(requirejs._eak_seen)) {
+    if (moduleName.startsWith("discourse/") && !moduleName.endsWith("-test")) {
+      // In discourse core, initializers follow standard Ember conventions
+      if (moduleName.startsWith("discourse/initializers/")) {
+        initializers.push(moduleName);
+      } else if (moduleName.startsWith("discourse/instance-initializers/")) {
+        instanceInitializers.push(moduleName);
+      } else {
+        // https://meta.discourse.org/t/updating-our-initializer-naming-patterns/241919
+        //
+        // For historical reasons, the naming conventions in plugins and themes
+        // differs from Ember:
+        //
+        // | Ember                 | Discourse          |                        |
+        // | initializers          | pre-initializers   | runs once per app load |
+        // | instance-initializers | (api-)initializers | runs once per app boot |
+        //
+        // In addition, the arguments to the initialize function is different –
+        // Ember initializers get either the `Application` or `ApplicationInstance`
+        // as the only argument, but the "discourse style" gets an extra container
+        // argument preceding that.
+
+        const themeId = moduleThemeId(moduleName);
+
+        if (
+          themeId !== undefined ||
+          moduleName.startsWith("discourse/plugins/")
+        ) {
+          if (moduleName.includes("/pre-initializers/")) {
+            discourseInitializers.push([moduleName, themeId]);
+          } else if (
+            moduleName.includes("/initializers/") ||
+            moduleName.includes("/api-initializers/")
+          ) {
+            discourseInstanceInitializers.push([moduleName, themeId]);
+          }
+        }
+      }
+    }
+  }
+
+  for (let moduleName of initializers) {
+    app.initializer(resolveInitializer(moduleName));
+  }
+
+  for (let moduleName of instanceInitializers) {
+    app.instanceInitializer(resolveInitializer(moduleName));
+  }
+
+  for (let [moduleName, themeId] of discourseInitializers) {
+    app.initializer(resolveDiscourseInitializer(moduleName, themeId));
+  }
+
+  for (let [moduleName, themeId] of discourseInstanceInitializers) {
+    app.instanceInitializer(resolveDiscourseInitializer(moduleName, themeId));
+  }
+
+  // Plugins that are registered via `<script>` tags.
+  const { withPluginApi } = require("discourse/lib/plugin-api");
+
+  for (let [i, callback] of _pluginCallbacks.entries()) {
+    app.instanceInitializer({
+      name: `_discourse_plugin_${i}`,
+      after: "inject-objects",
+      initialize: () => withPluginApi(callback.version, callback.code),
+    });
+  }
+}
+
+function resolveInitializer(moduleName) {
+  const module = require(moduleName, null, null, true);
+
+  if (!module) {
+    throw new Error(moduleName + " must export an initializer.");
+  }
+
+  const initializer = module["default"];
+
+  if (!initializer) {
+    throw new Error(moduleName + " must have a default export");
+  }
+
+  if (!initializer.name) {
+    initializer.name = moduleName.slice(moduleName.lastIndexOf("/") + 1);
+  }
+
+  return initializer;
+}
+
+function resolveDiscourseInitializer(moduleName, themeId) {
+  let initializer;
+
+  try {
+    initializer = resolveInitializer(moduleName);
+  } catch (error) {
+    if (!themeId || isTesting()) {
+      throw error;
+    } else {
+      fireThemeErrorEvent({ themeId, error });
+      return;
+    }
+  }
+
+  const oldInitialize = initializer.initialize;
+
+  initializer.initialize = (app) => {
+    try {
+      return oldInitialize.call(initializer, app.__container__, app);
+    } catch (error) {
+      if (!themeId || isTesting()) {
+        throw error;
+      } else {
+        fireThemeErrorEvent({ themeId, error });
+      }
+    }
+  };
+
+  return initializer;
 }
 
 export default Discourse;

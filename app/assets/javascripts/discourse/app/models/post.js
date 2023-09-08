@@ -19,8 +19,14 @@ import { resolveShareUrl } from "discourse/helpers/share-url";
 import { userPath } from "discourse/lib/url";
 
 const Post = RestModel.extend({
-  @discourseComputed("url")
+  customShare: null,
+
+  @discourseComputed("url", "customShare")
   shareUrl(url) {
+    if (this.customShare) {
+      return this.customShare;
+    }
+
     const user = User.current();
     return resolveShareUrl(url, user);
   },
@@ -172,7 +178,6 @@ const Post = RestModel.extend({
 
     return ajax(`/posts/${this.id}/recover`, {
       type: "PUT",
-      cache: false,
     })
       .then((data) => {
         this.setProperties({
@@ -203,21 +208,20 @@ const Post = RestModel.extend({
         deleted_at: new Date(),
         deleted_by: deletedBy,
         can_delete: false,
+        can_permanently_delete:
+          this.siteSettings.can_permanently_delete && deletedBy.admin,
         can_recover: true,
       });
     } else {
       const key =
         this.post_number === 1
-          ? "topic.deleted_by_author"
-          : "post.deleted_by_author";
-      promise = cookAsync(
-        I18n.t(key, {
-          count: this.siteSettings.delete_removed_posts_after,
-        })
-      ).then((cooked) => {
+          ? "topic.deleted_by_author_simple"
+          : "post.deleted_by_author_simple";
+      promise = cookAsync(I18n.t(key)).then((cooked) => {
         this.setProperties({
-          cooked: cooked,
+          cooked,
           can_delete: false,
+          can_permanently_delete: false,
           version: this.version + 1,
           can_recover: true,
           can_edit: false,
@@ -248,10 +252,10 @@ const Post = RestModel.extend({
     }
   },
 
-  destroy(deletedBy) {
+  destroy(deletedBy, opts) {
     return this.setDeletedState(deletedBy).then(() => {
       return ajax("/posts/" + this.id, {
-        data: { context: window.location.pathname },
+        data: { context: window.location.pathname, ...opts },
         type: "DELETE",
       });
     });
@@ -296,7 +300,9 @@ const Post = RestModel.extend({
   },
 
   rebake() {
-    return ajax(`/posts/${this.id}/rebake`, { type: "PUT" });
+    return ajax(`/posts/${this.id}/rebake`, { type: "PUT" }).catch(
+      popupAjaxError
+    );
   },
 
   unhide() {
@@ -307,30 +313,36 @@ const Post = RestModel.extend({
     this.setProperties({
       "topic.bookmarked": true,
       bookmarked: true,
-      bookmark_reminder_at: data.reminderAt,
-      bookmark_reminder_type: data.reminderType,
-      bookmark_auto_delete_preference: data.autoDeletePreference,
+      bookmark_reminder_at: data.reminder_at,
+      bookmark_auto_delete_preference: data.auto_delete_preference,
       bookmark_name: data.name,
       bookmark_id: data.id,
     });
-    this.appEvents.trigger("page:bookmark-post-toggled", this);
+    this.topic.incrementProperty("bookmarksWereChanged");
+    this.appEvents.trigger("bookmarks:changed", data, {
+      target: "post",
+      targetId: this.id,
+    });
     this.appEvents.trigger("post-stream:refresh", { id: this.id });
   },
 
   deleteBookmark(bookmarked) {
     this.set("topic.bookmarked", bookmarked);
     this.clearBookmark();
-    this.appEvents.trigger("page:bookmark-post-toggled", this);
   },
 
   clearBookmark() {
     this.setProperties({
       bookmark_reminder_at: null,
-      bookmark_reminder_type: null,
       bookmark_name: null,
       bookmark_id: null,
       bookmarked: false,
       bookmark_auto_delete_preference: null,
+    });
+    this.topic.incrementProperty("bookmarksWereChanged");
+    this.appEvents.trigger("bookmarks:changed", null, {
+      target: "post",
+      targetId: this.id,
     });
   },
 
@@ -338,6 +350,40 @@ const Post = RestModel.extend({
     if (json && json.id === this.id) {
       json = Post.munge(json);
       this.set("actions_summary", json.actions_summary);
+    }
+  },
+
+  updateLikeCount(count, userId, eventType) {
+    let ownAction = User.current()?.id === userId;
+    let ownLike = ownAction && eventType === "liked";
+    let current_actions_summary = this.get("actions_summary");
+    let likeActionID = Site.current().post_action_types.find(
+      (a) => a.name_key === "like"
+    ).id;
+    const newActionObject = { id: likeActionID, count, acted: ownLike };
+
+    if (!this.actions_summary.find((entry) => entry.id === likeActionID)) {
+      let json = Post.munge({
+        id: this.id,
+        actions_summary: [newActionObject],
+      });
+      this.set(
+        "actions_summary",
+        Object.assign(current_actions_summary, json.actions_summary)
+      );
+      this.set("actionByName", json.actionByName);
+      this.set("likeAction", json.likeAction);
+    } else {
+      newActionObject.acted =
+        (ownLike || this.likeAction.acted) &&
+        !(eventType === "unliked" && ownAction);
+
+      Object.assign(
+        this.actions_summary.find((entry) => entry.id === likeActionID),
+        newActionObject
+      );
+      Object.assign(this.actionByName["like"], newActionObject);
+      Object.assign(this.likeAction, newActionObject);
     }
   },
 
@@ -412,6 +458,12 @@ Post.reopenClass({
   hideRevision(postId, version) {
     return ajax(`/posts/${postId}/revisions/${version}/hide`, {
       type: "PUT",
+    });
+  },
+
+  permanentlyDeleteRevisions(postId) {
+    return ajax(`/posts/${postId}/revisions/permanently_delete`, {
+      type: "DELETE",
     });
   },
 

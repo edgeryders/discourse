@@ -1,21 +1,21 @@
-import Controller, { inject } from "@ember/controller";
-import EmberObject, { computed, set } from "@ember/object";
-import { and, equal, gt, not, or } from "@ember/object/computed";
+import Controller, { inject as controller } from "@ember/controller";
+import EmberObject, { action, computed, set } from "@ember/object";
+import { and, equal, gt, not, or, readOnly } from "@ember/object/computed";
 import CanCheckEmails from "discourse/mixins/can-check-emails";
 import User from "discourse/models/user";
 import I18n from "I18n";
-import bootbox from "bootbox";
 import discourseComputed from "discourse-common/utils/decorators";
 import getURL from "discourse-common/lib/get-url";
-import { iconHTML } from "discourse-common/lib/icon-library";
 import { isEmpty } from "@ember/utils";
 import optionalService from "discourse/lib/optional-service";
 import { prioritizeNameInUx } from "discourse/lib/settings";
 import { inject as service } from "@ember/service";
+import { dasherize } from "@ember/string";
 
 export default Controller.extend(CanCheckEmails, {
   router: service(),
-  userNotifications: inject("user-notifications"),
+  dialog: service(),
+  userNotifications: controller("user-notifications"),
   adminTools: optionalService(),
 
   @discourseComputed("model.username")
@@ -61,10 +61,15 @@ export default Controller.extend(CanCheckEmails, {
       isExpanded: !this.collapsedInfo,
       icon: this.collapsedInfo ? "angle-double-down" : "angle-double-up",
       label: this.collapsedInfo ? "expand_profile" : "collapse_profile",
+      ariaLabel: this.collapsedInfo
+        ? "user.sr_expand_profile"
+        : "user.sr_collapse_profile",
       action: this.collapsedInfo ? "expandProfile" : "collapseProfile",
     };
   }),
 
+  isTrustLevelZero: equal("model.trust_level", 0),
+  hasTrustLevel: or("isTrustLevelZero", "model.trust_level"),
   showStaffCounters: or(
     "hasGivenFlags",
     "hasFlaggedPosts",
@@ -106,16 +111,20 @@ export default Controller.extend(CanCheckEmails, {
     return viewingSelf;
   },
 
-  @discourseComputed("viewingSelf", "currentUser.admin")
+  @discourseComputed(
+    "viewingSelf",
+    "currentUser.admin",
+    "currentUser.can_send_private_messages"
+  )
   showPrivateMessages(viewingSelf, isAdmin) {
     return (
-      this.siteSettings.enable_personal_messages && (viewingSelf || isAdmin)
+      this.currentUser?.can_send_private_messages && (viewingSelf || isAdmin)
     );
   },
 
-  @discourseComputed("viewingSelf", "currentUser.staff")
-  showNotificationsTab(viewingSelf, staff) {
-    return viewingSelf || staff;
+  @discourseComputed("viewingSelf", "currentUser.admin")
+  showNotificationsTab(viewingSelf, isAdmin) {
+    return viewingSelf || isAdmin;
   },
 
   @discourseComputed("model.name")
@@ -144,7 +153,7 @@ export default Controller.extend(CanCheckEmails, {
         .filterBy("show_on_profile", true)
         .sortBy("position")
         .map((field) => {
-          set(field, "dasherized_name", field.get("name").dasherize());
+          set(field, "dasherized_name", dasherize(field.get("name")));
           const value = userFields
             ? userFields[field.get("id").toString()]
             : null;
@@ -161,20 +170,44 @@ export default Controller.extend(CanCheckEmails, {
     }
   },
 
+  currentParentRoute: readOnly("router.currentRoute.parent.name"),
+
   userNotificationLevel: computed(
     "currentUser.ignored_ids",
     "model.ignored",
     "model.muted",
-    function () {
-      if (this.get("model.ignored")) {
-        return "changeToIgnored";
-      } else if (this.get("model.muted")) {
-        return "changeToMuted";
-      } else {
-        return "changeToNormal";
-      }
+    {
+      get() {
+        if (this.get("model.ignored")) {
+          return "changeToIgnored";
+        } else if (this.get("model.muted")) {
+          return "changeToMuted";
+        } else {
+          return "changeToNormal";
+        }
+      },
+      set(key, value) {
+        return value;
+      },
     }
   ),
+
+  get displayTopLevelAdminButton() {
+    if (!this.currentUser?.staff) {
+      return false;
+    }
+
+    return this.site.desktopView;
+  },
+
+  @action
+  showSuspensions(event) {
+    event?.preventDefault();
+    this.adminTools.showActionLogs(this, {
+      target_user: this.get("model.username"),
+      action_name: "suspend_user",
+    });
+  },
 
   actions: {
     collapseProfile() {
@@ -185,20 +218,12 @@ export default Controller.extend(CanCheckEmails, {
       this.set("forceExpand", true);
     },
 
-    showSuspensions() {
-      this.adminTools.showActionLogs(this, {
-        target_user: this.get("model.username"),
-        action_name: "suspend_user",
-      });
-    },
-
     adminDelete() {
       const userId = this.get("model.id");
-      const message = I18n.t("admin.user.delete_confirm");
       const location = document.location.pathname;
 
       const performDestroy = (block) => {
-        bootbox.dialog(I18n.t("admin.user.deleting_user"));
+        this.dialog.notice(I18n.t("admin.user.deleting_user"));
         let formData = { context: location };
         if (block) {
           formData["block_email"] = true;
@@ -207,48 +232,47 @@ export default Controller.extend(CanCheckEmails, {
         }
         formData["delete_posts"] = true;
 
-        this.adminTools
+        return this.adminTools
           .deleteUser(userId, formData)
           .then((data) => {
             if (data.deleted) {
               document.location = getURL("/admin/users/list/active");
             } else {
-              bootbox.alert(I18n.t("admin.user.delete_failed"));
+              this.dialog.alert(I18n.t("admin.user.delete_failed"));
             }
           })
-          .catch(() => bootbox.alert(I18n.t("admin.user.delete_failed")));
+          .catch(() => this.dialog.alert(I18n.t("admin.user.delete_failed")));
       };
 
-      const buttons = [
-        {
-          label: I18n.t("composer.cancel"),
-          class: "btn",
-          link: true,
-        },
-        {
-          label:
-            `${iconHTML("exclamation-triangle")} ` +
-            I18n.t("admin.user.delete_and_block"),
-          class: "btn btn-danger",
-          callback: function () {
-            performDestroy(true);
+      this.dialog.alert({
+        title: I18n.t("admin.user.delete_confirm_title"),
+        message: I18n.t("admin.user.delete_confirm"),
+        class: "delete-user-modal",
+        buttons: [
+          {
+            label: I18n.t("admin.user.delete_dont_block"),
+            class: "btn-primary",
+            action: () => {
+              return performDestroy(false);
+            },
           },
-        },
-        {
-          label: I18n.t("admin.user.delete_dont_block"),
-          class: "btn btn-primary",
-          callback: function () {
-            performDestroy(false);
+          {
+            icon: "exclamation-triangle",
+            label: I18n.t("admin.user.delete_and_block"),
+            class: "btn-danger",
+            action: () => {
+              return performDestroy(true);
+            },
           },
-        },
-      ];
-
-      bootbox.dialog(message, buttons, { classes: "delete-user-modal" });
+          {
+            label: I18n.t("composer.cancel"),
+          },
+        ],
+      });
     },
 
-    updateNotificationLevel(level) {
-      const user = this.model;
-      return user.updateNotificationLevel(level);
+    updateNotificationLevel(params) {
+      return this.model.updateNotificationLevel(params);
     },
   },
 });

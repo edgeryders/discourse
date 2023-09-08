@@ -1,126 +1,83 @@
-import Docking from "discourse/mixins/docking";
-import MountWidget from "discourse/components/mount-widget";
-import { next } from "@ember/runloop";
-import { observes } from "discourse-common/utils/decorators";
+import Component from "@glimmer/component";
+import { tracked } from "@glimmer/tracking";
 import optionalService from "discourse/lib/optional-service";
-import outletHeights from "discourse/lib/header-outlet-height";
+import { inject as service } from "@ember/service";
+import { bind } from "discourse-common/utils/decorators";
+import I18n from "I18n";
+import { action } from "@ember/object";
 
-const headerPadding = () => {
-  let topPadding = parseInt($("#main-outlet").css("padding-top"), 10) + 3;
-  const iPadNavHeight = $(".footer-nav-ipad .footer-nav").height();
-  if (iPadNavHeight) {
-    topPadding += iPadNavHeight;
+export default class TopicTimeline extends Component {
+  @service siteSettings;
+  @service currentUser;
+
+  @tracked enteredIndex = this.args.enteredIndex;
+  @tracked docked = false;
+  @tracked dockedBottom = false;
+
+  adminTools = optionalService();
+
+  constructor() {
+    super(...arguments);
+
+    if (this.args.prevEvent) {
+      this.enteredIndex = this.args.prevEvent.postIndex - 1;
+    }
   }
-  return topPadding;
-};
 
-export default MountWidget.extend(Docking, {
-  adminTools: optionalService(),
-  widget: "topic-timeline-container",
-  dockBottom: null,
-  dockAt: null,
+  get createdAt() {
+    return new Date(this.args.model.created_at);
+  }
 
-  buildArgs() {
-    let attrs = {
-      topic: this.topic,
-      notificationLevel: this.notificationLevel,
-      topicTrackingState: this.topicTrackingState,
-      enteredIndex: this.enteredIndex,
-      dockAt: this.dockAt,
-      dockBottom: this.dockBottom,
-      mobileView: this.get("site.mobileView"),
-    };
-
-    let event = this.prevEvent;
-    if (event) {
-      attrs.enteredIndex = event.postIndex - 1;
+  get classes() {
+    const classes = [];
+    if (this.args.fullscreen) {
+      classes.push("timeline-fullscreen");
     }
 
-    if (this.fullscreen) {
-      attrs.fullScreen = true;
-      attrs.addShowClass = this.addShowClass;
-    } else {
-      attrs.top = this.dockAt || headerPadding();
-    }
-
-    return attrs;
-  },
-
-  @observes("topic.highest_post_number", "loading")
-  newPostAdded() {
-    this.queueRerender(() => this.queueDockCheck());
-  },
-
-  @observes("topic.details.notification_level")
-  _queueRerender() {
-    this.queueRerender();
-  },
-
-  dockCheck(info) {
-    const mainOffset = $("#main").offset();
-    const offsetTop = mainOffset ? mainOffset.top : 0;
-    const topicTop = $(".container.posts").offset().top - offsetTop;
-    const topicBottom =
-      $("#topic-bottom").offset().top - $("#main-outlet").offset().top;
-    const timeline = this.element.querySelector(".timeline-container");
-    const timelineHeight = (timeline && timeline.offsetHeight) || 400;
-    const footerHeight = $(".timeline-footer-controls").outerHeight(true) || 0;
-
-    const prev = this.dockAt;
-    const posTop = headerPadding() + info.offset();
-    const pos = posTop + timelineHeight - outletHeights();
-
-    this.dockBottom = false;
-    if (posTop < topicTop) {
-      this.dockAt = parseInt(topicTop, 10);
-    } else if (pos > topicBottom + footerHeight) {
-      this.dockAt = parseInt(
-        topicBottom - timelineHeight + footerHeight + outletHeights(),
-        10
-      );
-      this.dockBottom = true;
-      if (this.dockAt < 0) {
-        this.dockAt = 0;
+    if (this.docked) {
+      classes.push("timeline-docked");
+      if (this.dockedBottom) {
+        classes.push("timeline-docked-bottom");
       }
-    } else {
-      this.dockAt = null;
-      this.fastDockAt = parseInt(
-        topicBottom - timelineHeight + footerHeight - offsetTop,
-        10
-      );
     }
 
-    if (this.dockAt !== prev) {
-      this.queueRerender();
+    return classes.join(" ");
+  }
+
+  @bind
+  addShowClass(element) {
+    if (this.args.fullscreen && !this.args.addShowClass) {
+      element.classList.add("show");
     }
-  },
+  }
 
-  didInsertElement() {
-    this._super(...arguments);
-
-    if (this.fullscreen && !this.addShowClass) {
-      next(() => {
-        this.set("addShowClass", true);
-        this.queueRerender();
-      });
+  @bind
+  addUserTip(element) {
+    if (!this.currentUser) {
+      return;
     }
 
-    this.dispatch("topic:current-post-scrolled", "timeline-scrollarea");
-    this.dispatch("topic:toggle-actions", "topic-admin-menu-button");
-    if (!this.site.mobileView) {
-      this.appEvents.on("composer:opened", this, this.queueRerender);
-      this.appEvents.on("composer:resized", this, this.queueRerender);
-      this.appEvents.on("composer:closed", this, this.queueRerender);
-    }
-  },
+    this.currentUser.showUserTip({
+      id: "topic_timeline",
+      titleText: I18n.t("user_tips.topic_timeline.title"),
+      contentText: I18n.t("user_tips.topic_timeline.content"),
+      reference: document.querySelector("div.timeline-scrollarea-wrapper"),
+      appendTo: element,
+      placement: "left",
+    });
+  }
 
-  willDestroyElement() {
-    this._super(...arguments);
-
-    if (!this.site.mobileView) {
-      this.appEvents.off("composer:opened", this, this.queueRerender);
-      this.appEvents.off("composer:resized", this, this.queueRerender);
-      this.appEvents.off("composer:closed", this, this.queueRerender);
+  @action
+  setDocked(value) {
+    if (this.docked !== value) {
+      this.docked = value;
     }
-  },
-});
+  }
+
+  @action
+  setDockedBottom(value) {
+    if (this.dockedBottom !== value) {
+      this.dockedBottom = value;
+    }
+  }
+}

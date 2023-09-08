@@ -6,7 +6,7 @@
   margin-bottom: 1em;
 
   .close {
-    font-size: $font-up-3;
+    font-size: var(--font-up-3);
     position: absolute;
     top: 0.265em;
     right: 0.66em;
@@ -23,11 +23,16 @@
     background-color: var(--danger-low);
     color: var(--primary);
   }
+  &.alert-warning {
+    background-color: var(--highlight-bg);
+    color: var(--primary);
+  }
   &.alert-info {
     background-color: var(--tertiary-low);
     color: var(--primary);
     &.clickable {
       color: var(--tertiary);
+      z-index: z("base");
     }
   }
 }

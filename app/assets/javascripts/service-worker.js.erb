@@ -1,35 +1,65 @@
 'use strict';
 
-importScripts("<%= "#{Discourse.asset_host}#{Discourse.base_path}/javascripts/workbox/workbox-sw.js" %>");
+<%
+  base = if GlobalSetting.use_s3? && GlobalSetting.s3_cdn_url
+    GlobalSetting.s3_asset_cdn_url.presence || GlobalSetting.s3_cdn_url
+  elsif GlobalSetting.cdn_url
+    GlobalSetting.cdn_url + Discourse.base_path
+  else
+    Discourse.base_path
+  end
+
+  workbox_base = "#{base}/assets/#{EmberCli.workbox_dir_name}"
+%>
+
+importScripts("<%= "#{workbox_base}/workbox-sw.js" %>");
 
 workbox.setConfig({
-  modulePathPrefix: "<%= "#{Discourse.asset_host}#{Discourse.base_path}/javascripts/workbox" %>",
+  modulePathPrefix: "<%= workbox_base %>",
   debug: false
 });
 
-var authUrl = "<%= Discourse.base_path %>/auth/";
+var authUrls = ["auth", "session/sso_login", "session/sso", "srv/status"].map(path => `<%= Discourse.base_path %>/${path}`);
+var chatRegex = /\/chat\/channel\/(\d+)\//;
+var inlineReplyIcon = "<%= UrlHelper.absolute("/images/push-notifications/inline_reply.png") %>";
 
-var cacheVersion = "1";
+const oldCacheNames = [
+  "discourse-1", "external-1"
+]
+
+oldCacheNames.forEach(cacheName => caches.delete(cacheName))
+
+var cacheVersion = "2";
 var discourseCacheName = "discourse-" + cacheVersion;
 var externalCacheName = "external-" + cacheVersion;
 
-// Cache all GET requests, so Discourse can be used while offline
+const expirationOptions = {
+  maxAgeSeconds: 7 * 24 * 60 * 60, // 7 days
+  maxEntries: 250,
+  purgeOnQuotaError: true, // safe to automatically delete if exceeding the available storage
+  matchOptions: {
+    ignoreVary: true // Many discourse responses include `Vary` header. This option is required to ensure they are cleaned up correctly.
+  }
+}
 
+// Chrome 97 shipped with broken samesite cookie handling when proxying requests through service workers
+// https://bugs.chromium.org/p/chromium/issues/detail?id=1286367
+var chromeVersionMatch = navigator.userAgent.match(/Chrome\/97.0.(\d+)/);
+var isBrokenChrome97 = chromeVersionMatch && parseInt(chromeVersionMatch[1]) <= 4692;
+var isApple = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
+
+// Cache all GET requests, so Discourse can be used while offline
 workbox.routing.registerRoute(
   function(args) {
-    return args.url.origin === location.origin && !args.url.pathname.startsWith(authUrl);
+    return args.url.origin === location.origin && !authUrls.some(u => args.url.pathname.startsWith(u)) && !isBrokenChrome97 && !isApple;
   }, // Match all except auth routes
   new workbox.strategies.NetworkFirst({ // This will only use the cache when a network request fails
     cacheName: discourseCacheName,
     plugins: [
-      new workbox.cacheableResponse.Plugin({
+      new workbox.cacheableResponse.CacheableResponsePlugin({
         statuses: [200] // opaque responses will return status code '0'
-      }), // for s3 secure media signed urls
-      new workbox.expiration.Plugin({
-        maxAgeSeconds: 7* 24 * 60 * 60, // 7 days
-        maxEntries: 250,
-        purgeOnQuotaError: true, // safe to automatically delete if exceeding the available storage
-      }),
+      }), // for s3 secure uploads signed urls
+      new workbox.expiration.ExpirationPlugin(expirationOptions),
     ],
   })
 );
@@ -74,11 +104,10 @@ if (cdnUrls.length > 0) {
         credentials: 'omit'
       },
       plugins: [
-        new workbox.expiration.Plugin({
-          maxAgeSeconds: 7* 24 * 60 * 60, // 7 days
-          maxEntries: 250,
-          purgeOnQuotaError: true, // safe to automatically delete if exceeding the available storage
+        new workbox.cacheableResponse.CacheableResponsePlugin({
+          statuses: [200] // opaque responses will return status code '0'
         }),
+        new workbox.expiration.ExpirationPlugin(expirationOptions),
         appendQueryStringPlugin
       ],
     })
@@ -102,14 +131,10 @@ workbox.routing.registerRoute(
   new workbox.strategies.NetworkFirst({ // This will only use the cache when a network request fails
     cacheName: externalCacheName,
     plugins: [
-      new workbox.cacheableResponse.Plugin({
+      new workbox.cacheableResponse.CacheableResponsePlugin({
         statuses: [200] // opaque responses will return status code '0'
       }),
-      new workbox.expiration.Plugin({
-        maxAgeSeconds: 7* 24 * 60 * 60, // 7 days
-        maxEntries: 250,
-        purgeOnQuotaError: true, // safe to automatically delete if exceeding the available storage
-      }),
+      new workbox.expiration.ExpirationPlugin(expirationOptions),
     ],
   })
 );
@@ -128,6 +153,16 @@ function showNotification(title, body, icon, badge, tag, baseUrl, url) {
     badge: badge,
     data: { url: url, baseUrl: baseUrl },
     tag: tag
+  }
+
+  if (chatRegex.test(url)) {
+    notificationOptions['actions'] = [{
+      action: "reply",
+      title: "Reply",
+      placeholder: "reply",
+      type: "text",
+      icon: inlineReplyIcon
+    }];
   }
 
   return self.registration.showNotification(title, notificationOptions);
@@ -159,18 +194,51 @@ self.addEventListener('notificationclick', function(event) {
   var url = event.notification.data.url;
   var baseUrl = event.notification.data.baseUrl;
 
-  // This looks to see if the current window is already open and
-  // focuses if it is
-  event.waitUntil(
-    clients.matchAll({ type: "window" })
-      .then(function(clientList) {
-        var reusedClientWindow = clientList.some(function(client) {
-          if (client.url === baseUrl + url && 'focus' in client) {
+  if (event.action === "reply") {
+    let csrf;
+    fetch("/session/csrf", {
+      credentials: "include",
+      headers: {
+        Accept: "application/json",
+      },
+    })
+      .then((response) => {
+        if (!response.ok) {
+          throw new Error("Network response was not OK");
+        }
+        return response.json();
+      })
+      .then((data) => {
+        csrf = data.csrf;
+
+        let chatTest = url.match(chatRegex);
+        if (chatTest.length > 0) {
+          let chatChannel = chatTest[1];
+
+          fetch(`${baseUrl}/chat/${chatChannel}.json`, {
+            credentials: "include",
+            headers: {
+              "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
+              "X-CSRF-Token": csrf,
+            },
+            body: `message=${event.reply}`,
+            method: "POST",
+            mode: "cors",
+          });
+        }
+      });
+  } else {
+    // This looks to see if the current window is already open and
+    // focuses if it is
+    event.waitUntil(
+      clients.matchAll({ type: "window" }).then(function (clientList) {
+        var reusedClientWindow = clientList.some(function (client) {
+          if (client.url === baseUrl + url && "focus" in client) {
             client.focus();
             return true;
           }
 
-          if ('postMessage' in client && 'focus' in client) {
+          if ("postMessage" in client && "focus" in client) {
             client.focus();
             client.postMessage({ url: url });
             return true;
@@ -178,9 +246,11 @@ self.addEventListener('notificationclick', function(event) {
           return false;
         });
 
-        if (!reusedClientWindow && clients.openWindow) return clients.openWindow(baseUrl + url);
+        if (!reusedClientWindow && clients.openWindow)
+          return clients.openWindow(baseUrl + url);
       })
-  );
+    );
+  }
 });
 
 self.addEventListener('message', function(event) {

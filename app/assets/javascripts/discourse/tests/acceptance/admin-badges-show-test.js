@@ -3,7 +3,7 @@ import {
   exists,
   query,
 } from "discourse/tests/helpers/qunit-helpers";
-import { click, visit } from "@ember/test-helpers";
+import { click, fillIn, settled, visit } from "@ember/test-helpers";
 import { test } from "qunit";
 
 acceptance("Admin - Badges - Show", function (needs) {
@@ -37,6 +37,24 @@ acceptance("Admin - Badges - Show", function (needs) {
       exists(".image-uploader"),
       "image uploader becomes visible after clicking the upload image radio button"
     );
+
+    // SQL fields
+    assert.false(exists("label[for=query]"), "sql input is hidden by default");
+    this.siteSettings.enable_badge_sql = true;
+    await settled();
+    assert.true(exists("label[for=query]"), "sql input shows when enabled");
+
+    assert.false(
+      exists("input[name=auto_revoke]"),
+      "does not show sql-specific options when query is blank"
+    );
+
+    await fillIn(".ace-wrapper textarea", "SELECT 1");
+
+    assert.true(
+      exists("input[name=auto_revoke]"),
+      "shows sql-specific options when query is present"
+    );
   });
 
   test("existing badge that has an icon", async function (assert) {
@@ -51,7 +69,7 @@ acceptance("Admin - Badges - Show", function (needs) {
     );
     assert.ok(exists(".icon-picker"), "icon picker is visible");
     assert.ok(!exists(".image-uploader"), "image uploader is not visible");
-    assert.equal(query(".icon-picker").textContent.trim(), "fa-rocket");
+    assert.strictEqual(query(".icon-picker").textContent.trim(), "fa-rocket");
   });
 
   test("existing badge that has an image URL", async function (assert) {
@@ -67,9 +85,7 @@ acceptance("Admin - Badges - Show", function (needs) {
     assert.ok(!exists(".icon-picker"), "icon picker is not visible");
     assert.ok(exists(".image-uploader"), "image uploader is visible");
     assert.ok(
-      query(".image-uploader a.lightbox").href.endsWith(
-        "/assets/some-image.png"
-      ),
+      query(".image-uploader a.lightbox").href.endsWith("/images/avatar.png?2"),
       "image uploader shows the right image"
     );
   });
@@ -87,15 +103,13 @@ acceptance("Admin - Badges - Show", function (needs) {
     assert.ok(!exists(".icon-picker"), "icon picker is not visible");
     assert.ok(exists(".image-uploader"), "image uploader is visible");
     assert.ok(
-      query(".image-uploader a.lightbox").href.endsWith(
-        "/assets/some-image.png"
-      ),
+      query(".image-uploader a.lightbox").href.endsWith("/images/avatar.png?3"),
       "image uploader shows the right image"
     );
 
     await click("input#badge-icon");
     assert.ok(exists(".icon-picker"), "icon picker is becomes visible");
-    assert.ok(!exists(".image-uploader"), "image uploader bcomes hidden");
-    assert.equal(query(".icon-picker").textContent.trim(), "fa-rocket");
+    assert.ok(!exists(".image-uploader"), "image uploader becomes hidden");
+    assert.strictEqual(query(".icon-picker").textContent.trim(), "fa-rocket");
   });
 });

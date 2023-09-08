@@ -2,7 +2,7 @@
 
 <section itemscope itemtype="https://schema.org/AboutPage">
   <h1 itemprop="name">
-    <%=t "js.about.title", {title: @about.title} %>
+    <%=t "js.about.title", **{title: @about.title} %>
   </h1>
 
   <div itemprop="text">
@@ -100,6 +100,15 @@
         <td><%= stats["likes_7_days"] %></td>
         <td><%= stats["likes_30_days"] %></td>
       </tr>
+      <% About.displayed_plugin_stat_groups.each do |stat_group_name| %>
+      <tr>
+        <td><%=t "js.about.#{stat_group_name}_count" %></td>
+        <td><%= stats["#{stat_group_name}_count"] %></td>
+        <td><%= stats["#{stat_group_name}_last_day"] %></td>
+        <td><%= stats["#{stat_group_name}_7_days"] %></td>
+        <td><%= stats["#{stat_group_name}_30_days"] %></td>
+      </tr>
+      <% end %>
     </table>
   </section>
 

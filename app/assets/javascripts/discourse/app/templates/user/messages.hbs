@@ -1,91 +1,50 @@
-{{#d-section class="user-secondary-navigation" pageClass="user-messages"}}
-  {{#unless site.mobileView}}
-    {{#if showNewPM}}
-      {{d-button class="btn-primary new-private-message" action=(route-action "composePrivateMessage") icon="envelope" label="user.new_private_message"}}
-    {{/if}}
-  {{/unless}}
+<DSection @pageClass="user-messages" />
 
-  {{#mobile-nav class="messages-nav" desktopClass="nav-stacked action-list"}}
-    <li class="noGlyph">
-      {{#link-to "userPrivateMessages.index" model}}
-        {{i18n "user.messages.inbox"}}
-      {{/link-to}}
+<PluginOutlet
+  @name="user-messages-above-navigation"
+  @outletArgs={{hash model=this.model}}
+/>
+
+<div class="user-navigation user-navigation-secondary">
+  <ol class="category-breadcrumb">
+    <li>
+      <UserNav::MessagesDropdown
+        @content={{this.messagesDropdownContent}}
+        @value={{this.messagesDropdownValue}}
+        @onChange={{this.onMessagesDropdownChange}}
+      />
     </li>
-    <li class="noGlyph">
-      {{#link-to "userPrivateMessages.sent" model}}
-        {{i18n "user.messages.sent"}}
-      {{/link-to}}
-    </li>
-    <li class="noGlyph">
-      {{#link-to "userPrivateMessages.archive" model}}
-        {{i18n "user.messages.archive"}}
-      {{/link-to}}
-    </li>
-    {{plugin-outlet name="user-messages-nav" connectorTagName="li" args=(hash model=model)}}
-    {{#each model.groups as |group|}}
-      {{#if group.has_messages}}
-        <li>
-          {{#link-to "userPrivateMessages.group" group.name}}
-            {{d-icon "users"}}
-            {{capitalize-string group.name}}
-          {{/link-to}}
-        </li>
-        <li class="archive">
-          {{#link-to "userPrivateMessages.groupArchive" group.name}}
-            {{i18n "user.messages.archive"}}
-          {{/link-to}}
-        </li>
-      {{/if}}
-    {{/each}}
+  </ol>
 
-    {{#if pmTaggingEnabled}}
-      <li class="noGlyph">
-        {{#link-to "userPrivateMessages.tags" model}}
-          {{i18n "user.messages.tags"}}
-        {{/link-to}}
-      </li>
-      {{#if tagId}}
-        <li class="archive">
-          {{#link-to "userPrivateMessages.tagsShow" tagId}}
-            {{tagId}}
-          {{/link-to}}
-        </li>
-      {{/if}}
-    {{/if}}
-  {{/mobile-nav}}
-{{/d-section}}
+  <HorizontalOverflowNav
+    @className="messages-nav"
+    @ariaLabel="User secondary - messages"
+    id="user-navigation-secondary__horizontal-nav"
+  />
 
-<section class="user-content">
-  <div class="list-actions">
-    {{#unless site.mobileView}}
-      {{#if showToggleBulkSelect}}
-        {{d-button icon="list" class="btn-default bulk-select" title="topics.bulk.toggle" action=(action "toggleBulkSelect")}}
-        {{bulk-select-button selected=selected action=(route-action "refresh")}}
-      {{/if}}
-    {{/unless}}
-
-    {{#if site.mobileView}}
-      {{#if showNewPM}}
-        {{d-button
-          class="btn-primary new-private-message"
-          action=(route-action "composePrivateMessage")
-          icon="envelope"
-          label="user.new_private_message"}}
+  <div class="navigation-controls">
+    {{#if this.site.mobileView}}
+      {{#if this.currentUser.admin}}
+        <BulkSelectToggle
+          @parentController={{"user-topics-list"}}
+          @tagName=""
+        />
       {{/if}}
     {{/if}}
 
-    {{#if bulkSelectEnabled}}
-      {{bulk-select-all
-        class="btn-default btn-select-all"
-        label="user.messages.select_all"}}
-    {{/if}}
+    <span id="navigation-controls__button"></span>
 
-    {{#if isGroup}}
-      {{group-notifications-button
-        value=group.group_user.notification_level
-        onChange=(action "changeGroupNotificationLevel")
-      }}
+    {{#if this.showNewPM}}
+      <DButton
+        @class="btn-primary new-private-message"
+        @action={{route-action "composePrivateMessage"}}
+        @icon="envelope"
+        @label="user.new_private_message"
+      />
     {{/if}}
   </div>
+</div>
+
+<section class="user-content" id="user-content">
   {{outlet}}
 </section>

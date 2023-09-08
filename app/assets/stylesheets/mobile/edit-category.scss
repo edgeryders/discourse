@@ -31,7 +31,7 @@ div.edit-category {
     width: 100%;
     margin-bottom: 0;
     li {
-      font-size: $font-down-1;
+      font-size: var(--font-down-1);
       border-bottom: none;
     }
     a.active::after {
@@ -39,7 +39,7 @@ div.edit-category {
     }
   }
 
-  .edit-category-title {
+  .edit-category-title-bar {
     justify-content: start;
     align-items: center;
     padding-bottom: 1em;

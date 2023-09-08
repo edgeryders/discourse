@@ -10,7 +10,7 @@ module Middleware
       # enforces hostname to match the hostname of our connection
       # this middleware lives after rails multisite so at this point
       # Discourse.current_hostname MUST be canonical, enforce it so
-      # all Rails helpers are guarenteed to use it unconditionally and
+      # all Rails helpers are guaranteed to use it unconditionally and
       # never generate incorrect links
       env[Rack::Request::HTTP_X_FORWARDED_HOST] = nil
 
@@ -18,7 +18,8 @@ module Middleware
       requested_hostname = env[Rack::HTTP_HOST]
 
       env[Discourse::REQUESTED_HOSTNAME] = requested_hostname
-      env[Rack::HTTP_HOST] = allowed_hostnames.find { |h| h == requested_hostname } || Discourse.current_hostname
+      env[Rack::HTTP_HOST] = allowed_hostnames.find { |h| h == requested_hostname } ||
+        Discourse.current_hostname_with_port
 
       @app.call(env)
     end

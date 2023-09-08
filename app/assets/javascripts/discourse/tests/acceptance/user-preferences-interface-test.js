@@ -1,7 +1,8 @@
 import {
   acceptance,
+  count,
   exists,
-  queryAll,
+  query,
 } from "discourse/tests/helpers/qunit-helpers";
 import { click, visit } from "@ember/test-helpers";
 import cookie, { removeCookie } from "discourse/lib/cookie";
@@ -10,9 +11,18 @@ import Session from "discourse/models/session";
 import Site from "discourse/models/site";
 import selectKit from "discourse/tests/helpers/select-kit-helper";
 import { test } from "qunit";
+import userFixtures from "discourse/tests/fixtures/user-fixtures";
 
 acceptance("User Preferences - Interface", function (needs) {
   needs.user();
+
+  let lastUserData;
+  needs.pretender((server, helper) => {
+    server.put("/u/eviltrout.json", (request) => {
+      lastUserData = helper.parsePostData(request.requestBody);
+      return helper.response({ user: {} });
+    });
+  });
 
   test("font size change", async function (assert) {
     removeCookie("text_size");
@@ -21,40 +31,41 @@ acceptance("User Preferences - Interface", function (needs) {
       assert.ok(!exists(".saved"), "it hasn't been saved yet");
       await click(".save-changes");
       assert.ok(exists(".saved"), "it displays the saved message");
-      queryAll(".saved").remove();
+      query(".saved").remove();
     };
 
     await visit("/u/eviltrout/preferences/interface");
 
     // Live changes without reload
-    await selectKit(".text-size .combobox").expand();
-    await selectKit(".text-size .combobox").selectRowByValue("larger");
+    const textSize = selectKit(".text-size .combo-box");
+    await textSize.expand();
+    await textSize.selectRowByValue("larger");
     assert.ok(document.documentElement.classList.contains("text-size-larger"));
 
-    await selectKit(".text-size .combobox").expand();
-    await selectKit(".text-size .combobox").selectRowByValue("largest");
+    await textSize.expand();
+    await textSize.selectRowByValue("largest");
     assert.ok(document.documentElement.classList.contains("text-size-largest"));
 
-    assert.equal(cookie("text_size"), null, "cookie is not set");
+    assert.strictEqual(cookie("text_size"), undefined, "cookie is not set");
 
     // Click save (by default this sets for all browsers, no cookie)
     await savePreferences();
 
-    assert.equal(cookie("text_size"), null, "cookie is not set");
+    assert.strictEqual(cookie("text_size"), undefined, "cookie is not set");
 
-    await selectKit(".text-size .combobox").expand();
-    await selectKit(".text-size .combobox").selectRowByValue("larger");
+    await textSize.expand();
+    await textSize.selectRowByValue("larger");
     await click(".text-size input[type=checkbox]");
 
     await savePreferences();
 
-    assert.equal(cookie("text_size"), "larger|1", "cookie is set");
+    assert.strictEqual(cookie("text_size"), "larger|1", "cookie is set");
     await click(".text-size input[type=checkbox]");
-    await selectKit(".text-size .combobox").expand();
-    await selectKit(".text-size .combobox").selectRowByValue("largest");
+    await textSize.expand();
+    await textSize.selectRowByValue("largest");
 
     await savePreferences();
-    assert.equal(cookie("text_size"), null, "cookie is removed");
+    assert.strictEqual(cookie("text_size"), undefined, "cookie is removed");
 
     removeCookie("text_size");
   });
@@ -87,11 +98,11 @@ acceptance("User Preferences - Interface", function (needs) {
     await visit("/u/eviltrout/preferences/interface");
     assert.ok(exists(".light-color-scheme"), "has regular dropdown");
 
-    assert.equal(
+    assert.strictEqual(
       selectKit(".light-color-scheme .select-kit").header().value(),
       null
     );
-    assert.equal(
+    assert.strictEqual(
       selectKit(".light-color-scheme .select-kit").header().label(),
       I18n.t("user.color_schemes.default_description")
     );
@@ -99,7 +110,7 @@ acceptance("User Preferences - Interface", function (needs) {
 
   test("shows no default option for light scheme when theme's color scheme is user selectable", async function (assert) {
     let meta = document.createElement("meta");
-    meta.name = "discourse_theme_ids";
+    meta.name = "discourse_theme_id";
     meta.content = "2";
     document.getElementsByTagName("head")[0].appendChild(meta);
 
@@ -122,15 +133,34 @@ acceptance("User Preferences - Interface", function (needs) {
     await visit("/u/eviltrout/preferences/interface");
 
     assert.ok(exists(".light-color-scheme"), "has regular dropdown");
-    assert.equal(selectKit(".theme .select-kit").header().value(), 2);
+    assert.strictEqual(selectKit(".theme .select-kit").header().value(), "2");
 
     await selectKit(".light-color-scheme .select-kit").expand();
-    assert.equal(
-      queryAll(".light-color-scheme .select-kit .select-kit-row").length,
+    assert.strictEqual(
+      count(".light-color-scheme .select-kit .select-kit-row"),
       2
     );
 
-    document.querySelector("meta[name='discourse_theme_ids']").remove();
+    document.querySelector("meta[name='discourse_theme_id']").remove();
+  });
+
+  test("shows reset seen user tips popups button", async function (assert) {
+    let site = Site.current();
+    site.set("user_tips", { first_notification: 1 });
+
+    await visit("/u/eviltrout/preferences/interface");
+
+    assert.ok(
+      exists(".pref-reset-seen-user-tips"),
+      "has reset seen user tips button"
+    );
+
+    await click(".pref-reset-seen-user-tips");
+
+    assert.deepEqual(lastUserData, {
+      seen_popups: "",
+      skip_new_user_tips: "false",
+    });
   });
 });
 
@@ -144,6 +174,14 @@ acceptance(
         return helper.response({
           success: "OK",
         });
+      });
+      server.get("/color-scheme-stylesheet/3.json", () => {
+        return helper.response({
+          new_href: "3.css",
+        });
+      });
+      server.get("/u/charlie.json", () => {
+        return helper.response(userFixtures["/u/charlie.json"]);
       });
     });
 
@@ -184,11 +222,40 @@ acceptance(
 
       await visit("/u/eviltrout/preferences/interface");
       assert.ok(exists(".light-color-scheme"), "has light scheme dropdown");
-      assert.equal(
-        queryAll(".light-color-scheme .selected-name").data("value"),
-        session.userColorSchemeId,
+      assert.strictEqual(
+        query(".light-color-scheme .selected-name").dataset.value,
+        session.userColorSchemeId.toString(),
         "user's selected color scheme is selected value in light scheme dropdown"
       );
+    });
+
+    test("display 'Theme default' when default color scheme is not marked as selectable", async function (assert) {
+      let meta = document.createElement("meta");
+      meta.name = "discourse_theme_id";
+      meta.content = "1";
+      document.getElementsByTagName("head")[0].appendChild(meta);
+
+      let site = Site.current();
+      site.set("user_themes", [
+        { theme_id: 1, name: "A Theme", color_scheme_id: 2, default: true },
+      ]);
+
+      site.set("user_color_schemes", [{ id: 3, name: "A Color Scheme" }]);
+
+      await visit("/u/eviltrout/preferences/interface");
+
+      assert.ok(exists(".light-color-scheme"), "has regular dropdown");
+      const dropdownObject = selectKit(".light-color-scheme .select-kit");
+      assert.strictEqual(dropdownObject.header().value(), null);
+      assert.strictEqual(
+        dropdownObject.header().label(),
+        I18n.t("user.color_schemes.default_description")
+      );
+
+      await dropdownObject.expand();
+      assert.strictEqual(dropdownObject.rows().length, 1);
+
+      document.querySelector("meta[name='discourse_theme_id']").remove();
     });
 
     test("light and dark color scheme pickers", async function (assert) {
@@ -206,20 +273,19 @@ acceptance(
         assert.ok(!exists(".saved"), "it hasn't been saved yet");
         await click(".save-changes");
         assert.ok(exists(".saved"), "it displays the saved message");
-        queryAll(".saved").remove();
+        query(".saved").remove();
       };
 
       await visit("/u/eviltrout/preferences/interface");
       assert.ok(exists(".light-color-scheme"), "has regular dropdown");
       assert.ok(exists(".dark-color-scheme"), "has dark color scheme dropdown");
-      assert.equal(
-        queryAll(".dark-color-scheme .selected-name").data("value"),
-        session.userDarkSchemeId,
+      assert.strictEqual(
+        query(".dark-color-scheme .selected-name").dataset.value,
+        session.userDarkSchemeId.toString(),
         "sets site default as selected dark scheme"
       );
       assert.ok(
         !exists(".control-group.dark-mode"),
-        0,
         "it does not show disable dark mode checkbox"
       );
 
@@ -228,19 +294,27 @@ acceptance(
 
       await selectKit(".light-color-scheme .combobox").expand();
       await selectKit(".light-color-scheme .combobox").selectRowByValue(2);
-      assert.equal(cookie("color_scheme_id"), null, "cookie is not set");
+      assert.strictEqual(
+        cookie("color_scheme_id"),
+        undefined,
+        "cookie is not set"
+      );
       assert.ok(
         exists(".color-scheme-checkbox input:checked"),
         "defaults to storing values in user options"
       );
 
       await savePreferences();
-      assert.equal(cookie("color_scheme_id"), null, "cookie is unchanged");
+      assert.strictEqual(
+        cookie("color_scheme_id"),
+        undefined,
+        "cookie is unchanged"
+      );
 
       // Switch to saving changes in cookies
       await click(".color-scheme-checkbox input[type=checkbox]");
       await savePreferences();
-      assert.equal(cookie("color_scheme_id"), 2, "cookie is set");
+      assert.strictEqual(cookie("color_scheme_id"), "2", "cookie is set");
 
       // dark scheme
       await selectKit(".dark-color-scheme .combobox").expand();
@@ -250,26 +324,58 @@ acceptance(
       );
 
       await selectKit(".dark-color-scheme .combobox").selectRowByValue(-1);
-      assert.equal(
+      assert.strictEqual(
         cookie("dark_scheme_id"),
-        null,
+        undefined,
         "cookie is not set before saving"
       );
 
       await savePreferences();
-      assert.equal(cookie("dark_scheme_id"), -1, "cookie is set");
+      assert.strictEqual(cookie("dark_scheme_id"), "-1", "cookie is set");
 
       await click("button.undo-preview");
-      assert.equal(
+      assert.strictEqual(
         selectKit(".light-color-scheme .combobox").header().value(),
         null,
         "resets light scheme dropdown"
       );
 
-      assert.equal(
+      assert.strictEqual(
         selectKit(".dark-color-scheme .combobox").header().value(),
-        session.userDarkSchemeId,
+        session.userDarkSchemeId.toString(),
         "resets dark scheme dropdown"
+      );
+    });
+
+    test("preview the color scheme only in current user's profile", async function (assert) {
+      let site = Site.current();
+
+      site.set("default_dark_color_scheme", { id: 1, name: "Dark" });
+      site.set("user_color_schemes", [
+        { id: 2, name: "Cool Breeze" },
+        { id: 3, name: "Dark Night", is_dark: true },
+      ]);
+
+      await visit("/u/eviltrout/preferences/interface");
+
+      await selectKit(".light-color-scheme .combobox").expand();
+      await selectKit(".light-color-scheme .combobox").selectRowByValue(3);
+
+      assert.ok(
+        document.querySelector("link#cs-preview-light").href.endsWith("/3.css"),
+        "correct stylesheet loaded"
+      );
+
+      document.querySelector("link#cs-preview-light").remove();
+
+      await visit("/u/charlie/preferences/interface");
+
+      await selectKit(".light-color-scheme .combobox").expand();
+      await selectKit(".light-color-scheme .combobox").selectRowByValue(3);
+
+      assert.notOk(
+        document.querySelector("link#cs-preview-light"),
+        "stylesheet not loaded"
       );
     });
   }

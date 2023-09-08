@@ -2,8 +2,12 @@ import DiscourseRoute from "discourse/routes/discourse";
 import I18n from "I18n";
 import { action } from "@ember/object";
 import showModal from "discourse/lib/show-modal";
+import { inject as service } from "@ember/service";
+import GroupAddMembersModal from "discourse/components/modal/group-add-members";
 
 export default DiscourseRoute.extend({
+  modal: service(),
+
   titleToken() {
     return I18n.t("groups.members.title");
   },
@@ -20,12 +24,19 @@ export default DiscourseRoute.extend({
       showing: "members",
     });
 
-    controller.findMembers(true);
+    controller.reloadMembers(true);
   },
 
   @action
   showAddMembersModal() {
-    showModal("group-add-members", { model: this.modelFor("group") });
+    this.modal.show(GroupAddMembersModal, { model: this.modelFor("group") });
+  },
+
+  @action
+  showInviteModal() {
+    const model = this.modelFor("group");
+    const controller = showModal("create-invite");
+    controller.buffered.set("groupIds", [model.id]);
   },
 
   @action

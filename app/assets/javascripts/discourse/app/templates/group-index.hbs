@@ -1,112 +1,242 @@
 <section class="user-content">
   <div class="group-members-actions">
-    {{#if model.can_see_members}}
-      {{text-field
-        value=filterInput
-        placeholderKey=filterPlaceholder
-        autocomplete="discourse"
-        class="group-username-filter no-blur"
-      }}
+
+    {{#if this.canManageGroup}}
+      <DButton
+        @class="bulk-select"
+        @icon="list"
+        @action={{action "toggleBulkSelect"}}
+        @title="topics.bulk.toggle"
+      />
     {{/if}}
 
-    <div class="group-members-manage">
-      {{#if canManageGroup}}
-        {{d-button icon="plus"
-          action=(route-action "showAddMembersModal")
-          label="groups.manage.add_members"
-        class="btn-default group-members-add"}}
+    {{#if this.model.can_see_members}}
+      <TextField
+        @value={{this.filterInput}}
+        @placeholderKey={{this.filterPlaceholder}}
+        @autocomplete="off"
+        @class="group-username-filter no-blur"
+      />
+    {{/if}}
+
+    {{#if this.canManageGroup}}
+
+      {{#if this.isBulk}}
+        <span class="bulk-select-buttons-wrap">
+          {{#if this.bulkSelection}}
+            <BulkGroupMemberDropdown
+              @bulkSelection={{this.bulkSelection}}
+              @canAdminGroup={{this.model.can_admin_group}}
+              @canEditGroup={{this.model.can_edit_group}}
+              @onChange={{action "actOnSelection" this.bulkSelection}}
+            />
+
+            <DButton
+              @action={{action "bulkClearAll"}}
+              @label="topics.bulk.clear_all"
+              @icon="far-square"
+              @class="bulk-select-clear"
+            />
+          {{/if}}
+
+          <DButton
+            @action={{action "bulkSelectAll"}}
+            @label="topics.bulk.select_all"
+            @icon="check-square"
+            @class="bulk-select-all"
+          />
+
+        </span>
       {{/if}}
-    </div>
+
+      <div class="group-members-manage">
+        <DButton
+          @icon="plus"
+          @action={{route-action "showAddMembersModal"}}
+          @label="groups.manage.add_members"
+          @class="btn-default group-members-add"
+        />
+
+        {{#if this.currentUser.can_invite_to_forum}}
+          <DButton
+            @icon="plus"
+            @action={{route-action "showInviteModal"}}
+            @label="groups.manage.invite_members"
+            @class="btn-default group-members-add"
+          />
+        {{/if}}
+      </div>
+    {{/if}}
   </div>
 
-  {{#if hasMembers}}
-    {{#load-more selector=".group-members tr" action=(action "loadMore")}}
-      <table class="group-members">
-        <thead>
-          <tr>
-            <th class="bulk-select">
-              {{#if canManageGroup}}
-                {{flat-button class="bulk-select" icon="list" action=(action "toggleBulkSelect") title="topics.bulk.toggle"}}
-              {{/if}}
-            </th>
-            {{#if isBulk}}
-              <th class="bulk-select-buttons">
-                {{d-button action=(action "bulkSelectAll") label="topics.bulk.select_all"}}
-                {{d-button action=(action "bulkClearAll") label="topics.bulk.clear_all"}}
-              </th>
-            {{/if}}
-            {{table-header-toggle order=order asc=asc field="username_lower" labelKey="username" class="username"}}
-            <th class="group-owner"></th>
-            {{table-header-toggle order=order asc=asc field="added_at" labelKey="groups.member_added"}}
-            {{table-header-toggle order=order asc=asc field="last_posted_at" labelKey="last_post"}}
-            {{table-header-toggle order=order asc=asc field="last_seen_at" labelKey="last_seen"}}
-            <th>
-              {{#if isBulk}}
-                {{group-member-dropdown
-                  bulkSelection=bulkSelection
-                  canAdminGroup=model.can_admin_group
-                  onChange=(action "actOnSelection" bulkSelection)
-                }}
-              {{/if}}
-            </th>
-          </tr>
-        </thead>
+  {{#if this.hasMembers}}
+    <LoadMore
+      @selector=".directory-table .directory-table__cell"
+      @action={{action "loadMore"}}
+    >
 
-        <tbody>
-          {{#each model.members as |m|}}
-            <tr>
-              {{#if isBulk}}
-                <td class="bulk-select">
-                  {{input type="checkbox" class="bulk-select" click=(action "selectMember" m)}}
-                </td>
-              {{/if}}
+      <ResponsiveTable
+        @className="group-members
+          {{if this.isBulk 'sticky-header' ''}}
+          {{if this.canManageGroup 'group-members--can-manage' ''}}"
+      >
+        <:header>
+          <TableHeaderToggle
+            @order={{this.order}}
+            @asc={{this.asc}}
+            @field="username_lower"
+            @labelKey="username"
+            @class="directory-table__column-header--username username"
+            @automatic={{true}}
+            @colspan="2"
+          />
 
-              <td class="avatar" colspan="2">
-                {{user-info user=m skipName=skipName}}
-              </td>
+          {{#if this.canManageGroup}}
+            <div
+              class="directory-table__column-header directory-table__column-header--can-manage"
+            ></div>
+          {{/if}}
 
-              <td class="group-owner">
-                {{#if m.owner}}
-                  {{d-icon "shield-alt"}} {{i18n "groups.members.owner"}}<br>
+          <TableHeaderToggle
+            @class="directory-table__column-header--added"
+            @order={{this.order}}
+            @asc={{this.asc}}
+            @field="added_at"
+            @labelKey="groups.member_added"
+            @automatic={{true}}
+          />
+          <TableHeaderToggle
+            @class="directory-table__column-header--last-posted"
+            @order={{this.order}}
+            @asc={{this.asc}}
+            @field="last_posted_at"
+            @labelKey="last_post"
+            @automatic={{true}}
+          />
+          <TableHeaderToggle
+            @class="directory-table__column-header--last-seen"
+            @order={{this.order}}
+            @asc={{this.asc}}
+            @field="last_seen_at"
+            @labelKey="last_seen"
+            @automatic={{true}}
+          />
+
+          {{#if this.canManageGroup}}
+            <div
+              class="directory-table__column-header directory-table__column-header--member-settings"
+            ></div>
+          {{/if}}
+        </:header>
+
+        <:body>
+          {{#each this.model.members as |m|}}
+            <div class="directory-table__row">
+
+              <div
+                class="directory-table__cell directory-table__cell--username group-member"
+                colspan="2"
+              >
+                {{#if this.canManageGroup}}
+                  {{#if this.isBulk}}
+                    <Input
+                      @type="checkbox"
+                      class="bulk-select"
+                      {{on "click" (action "selectMember" m)}}
+                    />
+                  {{/if}}
                 {{/if}}
-                {{#if m.primary}}
-                  {{i18n "groups.members.primary"}}
-                {{/if}}
-              </td>
-              <td>
-                <span class="text">{{bound-date m.added_at}}</span>
-              </td>
-              <td>
-                <span class="text">{{bound-date m.last_posted_at}}</span>
-              </td>
-              <td>
-                <span class="text">{{bound-date m.last_seen_at}}</span>
-              </td>
+                <UserInfo
+                  @user={{m}}
+                  @skipName={{this.skipName}}
+                  @showStatus={{true}}
+                  @showStatusTooltip={{true}}
+                />
+              </div>
 
-              <td>
-                {{#if canManageGroup}}
-                  {{group-member-dropdown
-                    member=m
-                    canAdminGroup=model.can_admin_group
-                    onChange=(action "actOnGroup" m)
+              {{#if this.canManageGroup}}
+                <div
+                  class="directory-table__cell directory-table__cell--can-manage group-owner"
+                >
+                  {{#if (or m.owner m.primary)}}
+                    <span class="directory-table__label">
+                      <span>{{i18n "groups.members.status"}}</span>
+                    </span>
+                  {{/if}}
+                  <span class="directory-table__value">
+                    {{#if m.owner}}
+                      {{d-icon "shield-alt"}}
+                      {{i18n "groups.members.owner"}}<br />
+                    {{/if}}
+                    {{#if m.primary}}
+                      {{i18n "groups.members.primary"}}
+                    {{/if}}
+                  </span>
+
+                </div>
+              {{/if}}
+              <div class="directory-table__cell directory-table__cell--added">
+                <span class="directory-table__label">
+                  <span>{{i18n "groups.member_added"}}</span>
+                </span>
+                <span class="directory-table__value">
+                  {{bound-date m.added_at}}
+                </span>
+              </div>
+              <div
+                class="directory-table__cell{{unless
+                    m.last_posted_at
+                    '--empty'
                   }}
+                  directory-table__cell--last-posted"
+              >
+                {{#if m.last_posted_at}}
+                  <span class="directory-table__label">
+                    <span>{{i18n "last_post"}}</span>
+                  </span>
                 {{/if}}
-                {{!-- group parameter is used by plugins --}}
-              </td>
-            </tr>
+                <span class="directory-table__value">
+                  {{bound-date m.last_posted_at}}
+                </span>
+              </div>
+              <div
+                class="directory-table__cell{{unless m.last_seen_at '--empty'}}
+                  directory-table__cell--last-seen"
+              >
+                {{#if m.last_seen_at}}
+                  <span class="directory-table__label">
+                    <span>{{i18n "last_seen"}}</span>
+                  </span>
+                {{/if}}
+                <span class="directory-table__value">
+                  {{bound-date m.last_seen_at}}
+                </span>
+              </div>
+              {{#if this.canManageGroup}}
+                <div
+                  class="directory-table__cell directory-table__cell--member-settings member-settings"
+                >
+                  <GroupMemberDropdown
+                    @member={{m}}
+                    @canAdminGroup={{this.model.can_admin_group}}
+                    @canEditGroup={{this.model.can_edit_group}}
+                    @onChange={{action "actOnGroup" m}}
+                  />
+                  {{! group parameter is used by plugins }}
+                </div>
+              {{/if}}
+            </div>
           {{/each}}
-        </tbody>
-      </table>
-    {{/load-more}}
+        </:body>
 
-    {{conditional-loading-spinner condition=loading}}
-  {{else if model.can_see_members}}
-    <br>
+      </ResponsiveTable>
 
-    <div>{{i18n "groups.empty.members"}}</div>
+    </LoadMore>
+
+    <ConditionalLoadingSpinner @condition={{this.loading}} />
   {{else}}
-    <br>
+    <br />
 
-    <div>{{i18n "groups.members.forbidden"}}</div>
+    <div>{{i18n this.emptyMessageKey}}</div>
   {{/if}}
 </section>

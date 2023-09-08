@@ -1,20 +1,24 @@
 # frozen_string_literal: true
 
-require 'i18n/locale_file_checker'
-require 'seed_data/categories'
-require 'seed_data/topics'
-require 'colored2'
+require "i18n/locale_file_checker"
+require "seed_data/categories"
+require "seed_data/topics"
+require "colored2"
 
 desc "Checks locale files for errors"
-task "i18n:check", [:locale] => [:environment] do |_, args|
+task "i18n:check" => [:environment] do |_, args|
   failed_locales = []
 
-  if args[:locale].present?
-    if LocaleSiteSetting.valid_value?(args[:locale])
-      locales = [args[:locale]]
-    else
-      puts "ERROR: #{locale} is not a valid locale"
-      exit 1
+  if args.extras.present?
+    locales = []
+
+    args.extras.each do |locale|
+      if LocaleSiteSetting.valid_value?(locale)
+        locales << locale
+      else
+        puts "ERROR: #{locale} is not a valid locale"
+        exit 1
+      end
     end
   else
     locales = LocaleSiteSetting.supported_locales
@@ -23,7 +27,7 @@ task "i18n:check", [:locale] => [:environment] do |_, args|
   locales.each do |locale|
     begin
       all_errors = LocaleFileChecker.new.check(locale)
-    rescue
+    rescue StandardError
       failed_locales << locale
       next
     end
@@ -44,8 +48,10 @@ task "i18n:check", [:locale] => [:environment] do |_, args|
             "Missing plural keys".magenta
           when LocaleFileChecker::TYPE_INVALID_MESSAGE_FORMAT
             "Invalid message format".yellow
+          when LocaleFileChecker::TYPE_INVALID_MARKDOWN_LINK
+            "Invalid markdown links".yellow
           end
-        details = error[:details] ? ": #{error[:details]}" : ""
+        details = error[:details].present? ? ": #{error[:details]}" : ""
 
         puts error[:key] << " -- " << message << details
       end

@@ -1,31 +1,31 @@
-import { acceptance, queryAll } from "discourse/tests/helpers/qunit-helpers";
+import { acceptance, query } from "discourse/tests/helpers/qunit-helpers";
 import { click, visit } from "@ember/test-helpers";
 import I18n from "I18n";
 import { test } from "qunit";
 
 function assertNoSecondary(assert) {
-  assert.equal(
-    queryAll(".display-row.email .value a").text(),
+  assert.strictEqual(
+    query(".display-row.email .value a").innerText,
     "eviltrout@example.com",
     "it should display the primary email"
   );
 
-  assert.equal(
-    queryAll(".display-row.secondary-emails .value").text().trim(),
+  assert.strictEqual(
+    query(".display-row.secondary-emails .value").innerText.trim(),
     I18n.t("user.email.no_secondary"),
     "it should not display secondary emails"
   );
 }
 
 function assertMultipleSecondary(assert, firstEmail, secondEmail) {
-  assert.equal(
-    queryAll(".display-row.secondary-emails .value li:first-of-type a").text(),
+  assert.strictEqual(
+    query(".display-row.secondary-emails .value li:first-of-type a").innerText,
     firstEmail,
     "it should display the first secondary email"
   );
 
-  assert.equal(
-    queryAll(".display-row.secondary-emails .value li:last-of-type a").text(),
+  assert.strictEqual(
+    query(".display-row.secondary-emails .value li:last-of-type a").innerText,
     secondEmail,
     "it should display the second secondary email"
   );
@@ -43,8 +43,8 @@ acceptance("Admin - User Emails", function (needs) {
   test("viewing self with multiple secondary emails", async function (assert) {
     await visit("/admin/users/3/markvanlan");
 
-    assert.equal(
-      queryAll(".display-row.email .value a").text(),
+    assert.strictEqual(
+      query(".display-row.email .value a").innerText,
       "markvanlan@example.com",
       "it should display the user's primary email"
     );

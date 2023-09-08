@@ -6,6 +6,7 @@ import PermissionType from "discourse/models/permission-type";
 import { categoryBadgeHTML } from "discourse/helpers/category-link";
 import { isNone } from "@ember/utils";
 import { setting } from "discourse/lib/computed";
+import { htmlSafe } from "@ember/template";
 
 export default ComboBoxComponent.extend({
   pluginApiIdentifiers: ["category-chooser"],
@@ -20,6 +21,7 @@ export default ComboBoxComponent.extend({
     permissionType: PermissionType.FULL,
     excludeCategoryId: null,
     scopedCategoryId: null,
+    prioritizedCategoryId: null,
   },
 
   modifyComponentForRow() {
@@ -32,9 +34,9 @@ export default ComboBoxComponent.extend({
       const isString = typeof none === "string";
       return this.defaultItem(
         null,
-        I18n.t(
-          isString ? this.selectKit.options.none : "category.none"
-        ).htmlSafe()
+        htmlSafe(
+          I18n.t(isString ? this.selectKit.options.none : "category.none")
+        )
       );
     } else if (
       this.allowUncategorizedTopics ||
@@ -42,7 +44,13 @@ export default ComboBoxComponent.extend({
     ) {
       return Category.findUncategorized();
     } else {
-      return this.defaultItem(null, I18n.t("category.choose").htmlSafe());
+      const defaultCategoryId = parseInt(
+        this.siteSettings.default_composer_category,
+        10
+      );
+      if (!defaultCategoryId || defaultCategoryId < 0) {
+        return this.defaultItem(null, htmlSafe(I18n.t("category.choose")));
+      }
     }
   },
 
@@ -53,12 +61,14 @@ export default ComboBoxComponent.extend({
       set(
         content,
         "label",
-        categoryBadgeHTML(category, {
-          link: false,
-          hideParent: category ? !!category.parent_category_id : true,
-          allowUncategorized: true,
-          recursive: true,
-        }).htmlSafe()
+        htmlSafe(
+          categoryBadgeHTML(category, {
+            link: false,
+            hideParent: category ? !!category.parent_category_id : true,
+            allowUncategorized: true,
+            recursive: true,
+          })
+        )
       );
     }
 
@@ -90,16 +100,29 @@ export default ComboBoxComponent.extend({
   content: computed(
     "selectKit.filter",
     "selectKit.options.scopedCategoryId",
+    "selectKit.options.prioritizedCategoryId",
     function () {
-      if (!this.selectKit.filter && this.selectKit.options.scopedCategoryId) {
-        return this.categoriesByScope(this.selectKit.options.scopedCategoryId);
-      } else {
-        return this.categoriesByScope();
+      if (!this.selectKit.filter) {
+        let { scopedCategoryId, prioritizedCategoryId } =
+          this.selectKit.options;
+
+        if (scopedCategoryId) {
+          return this.categoriesByScope({ scopedCategoryId });
+        }
+
+        if (prioritizedCategoryId) {
+          return this.categoriesByScope({ prioritizedCategoryId });
+        }
       }
+
+      return this.categoriesByScope();
     }
   ),
 
-  categoriesByScope(scopedCategoryId = null) {
+  categoriesByScope({
+    scopedCategoryId = null,
+    prioritizedCategoryId = null,
+  } = {}) {
     const categories = this.fixedCategoryPositionsOnCreate
       ? Category.list()
       : Category.listByActivity();
@@ -109,9 +132,14 @@ export default ComboBoxComponent.extend({
       scopedCategoryId = scopedCat.parent_category_id || scopedCat.id;
     }
 
+    if (prioritizedCategoryId) {
+      const category = Category.findById(prioritizedCategoryId);
+      prioritizedCategoryId = category.parent_category_id || category.id;
+    }
+
     const excludeCategoryId = this.selectKit.options.excludeCategoryId;
 
-    return categories.filter((category) => {
+    let scopedCategories = categories.filter((category) => {
       const categoryId = this.getValue(category);
 
       if (
@@ -144,9 +172,31 @@ export default ComboBoxComponent.extend({
 
       return true;
     });
+
+    if (prioritizedCategoryId) {
+      let prioritized = [];
+      let other = [];
+
+      for (let category of scopedCategories) {
+        const categoryId = this.getValue(category);
+
+        if (
+          categoryId === prioritizedCategoryId ||
+          category.parent_category_id === prioritizedCategoryId
+        ) {
+          prioritized.push(category);
+        } else {
+          other.push(category);
+        }
+      }
+
+      return prioritized.concat(other);
+    } else {
+      return scopedCategories;
+    }
   },
 
   _matchCategory(filter, categoryName) {
-    return this._normalize(categoryName).indexOf(filter) > -1;
+    return this._normalize(categoryName).includes(filter);
   },
 });

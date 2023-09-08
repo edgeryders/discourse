@@ -1,9 +1,9 @@
 import discourseComputed, { observes } from "discourse-common/utils/decorators";
 import Component from "@ember/component";
+import { action } from "@ember/object";
 import DiscourseURL from "discourse/lib/url";
 import FilterModeMixin from "discourse/mixins/filter-mode";
 import { next } from "@ember/runloop";
-import { renderedConnectorsFor } from "discourse/lib/plugin-connectors";
 
 export default Component.extend(FilterModeMixin, {
   tagName: "ul",
@@ -12,7 +12,6 @@ export default Component.extend(FilterModeMixin, {
 
   init() {
     this._super(...arguments);
-    this.set("connectors", renderedConnectorsFor("extra-nav-item", null, this));
   },
 
   @discourseComputed("filterType", "navItems")
@@ -52,6 +51,10 @@ export default Component.extend(FilterModeMixin, {
   },
 
   ensureDropClosed() {
+    if (!this.element || this.isDestroying || this.isDestroyed) {
+      return;
+    }
+
     if (this.expanded) {
       this.set("expanded", false);
     }
@@ -59,37 +62,33 @@ export default Component.extend(FilterModeMixin, {
     DiscourseURL.appEvents.off("dom:clean", this, this.ensureDropClosed);
   },
 
-  actions: {
-    toggleDrop() {
-      this.set("expanded", !this.expanded);
+  @action
+  toggleDrop(event) {
+    event?.preventDefault();
+    this.set("expanded", !this.expanded);
 
-      if (this.expanded) {
-        DiscourseURL.appEvents.on("dom:clean", this, this.ensureDropClosed);
+    if (this.expanded) {
+      DiscourseURL.appEvents.on("dom:clean", this, this.ensureDropClosed);
 
-        next(() => {
-          if (!this.expanded) {
-            return;
-          }
+      next(() => {
+        if (!this.expanded) {
+          return;
+        }
 
-          $(this.element.querySelector(".drop a")).on("click", () => {
-            this.element.querySelector(".drop").style.display = "none";
+        $(this.element.querySelector(".drop a")).on("click", () => {
+          this.element.querySelector(".drop").style.display = "none";
 
-            next(() => {
-              if (!this.element || this.isDestroying || this.isDestroyed) {
-                return;
-              }
-              this.set("expanded", false);
-            });
-
-            return true;
+          next(() => {
+            this.ensureDropClosed();
           });
-
-          $(window).on("click.navigation-bar", () => {
-            this.set("expanded", false);
-            return true;
-          });
+          return true;
         });
-      }
-    },
+
+        $(window).on("click.navigation-bar", () => {
+          this.ensureDropClosed();
+          return true;
+        });
+      });
+    }
   },
 });

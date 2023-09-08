@@ -9,17 +9,14 @@
       }
 
       .period-chooser-header {
-        background: none;
-        border: none;
-        justify-content: flex-start;
-        width: auto;
-        height: auto;
+        display: inline-block; // safari 14 has issues with summary elements and flexbox
+        background: transparent;
+        border-color: transparent;
         padding: 0;
 
         h2.selected-name {
           color: var(--secondary);
           display: inline-block;
-          box-sizing: border-box;
 
           .date-section {
             color: var(--primary);
@@ -27,7 +24,7 @@
           }
 
           .top-date-string {
-            font-size: $font-down-1;
+            font-size: var(--font-down-1);
             color: var(--primary-med-or-secondary-high);
             font-weight: normal;
             text-transform: uppercase;
@@ -37,14 +34,14 @@
         .d-icon {
           color: var(--primary);
           opacity: 1;
-          margin: 5px 0 10px 5px;
-          font-size: $font-up-3;
+          font-size: var(--font-up-3);
         }
 
         &.is-focused,
+        &:focus,
         &:hover {
-          background: none;
-          border: none;
+          background: transparent;
+          border-color: transparent;
           outline: none;
         }
       }
@@ -52,7 +49,7 @@
       .period-chooser-row {
         font-weight: bold;
         padding: 5px;
-        font-size: $font-up-1;
+        font-size: var(--font-up-1);
         align-items: center;
         display: flex;
 
@@ -66,7 +63,7 @@
 
         .top-date-string {
           font-weight: normal;
-          font-size: $font-down-1;
+          font-size: var(--font-down-1);
           color: var(--primary-med-or-secondary-high);
           text-transform: uppercase;
           margin-left: 5px;

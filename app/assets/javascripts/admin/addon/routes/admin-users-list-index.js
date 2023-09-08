@@ -1,7 +1,10 @@
 import DiscourseRoute from "discourse/routes/discourse";
+import { inject as service } from "@ember/service";
 
-export default DiscourseRoute.extend({
-  beforeModel: function () {
-    this.transitionTo("adminUsersList.show", "active");
-  },
-});
+export default class AdminUsersListIndexRoute extends DiscourseRoute {
+  @service router;
+
+  beforeModel() {
+    this.router.transitionTo("adminUsersList.show", "active");
+  }
+}

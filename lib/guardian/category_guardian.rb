@@ -1,49 +1,40 @@
 # frozen_string_literal: true
 
-#mixin for all guardian methods dealing with category permisions
+#mixin for all guardian methods dealing with category permissions
 module CategoryGuardian
-
   # Creating Method
   def can_create_category?(parent = nil)
-    is_admin? ||
-    (
-      SiteSetting.moderators_manage_categories_and_groups &&
-      is_moderator?
-    )
+    is_admin? || (SiteSetting.moderators_manage_categories_and_groups && is_moderator?)
   end
 
   # Editing Method
   def can_edit_category?(category)
     is_admin? ||
-    (
-      SiteSetting.moderators_manage_categories_and_groups &&
-      is_moderator? &&
-      can_see_category?(category)
-    )
+      (
+        SiteSetting.moderators_manage_categories_and_groups && is_moderator? &&
+          can_see_category?(category)
+      )
+  end
+
+  def can_edit_serialized_category?(category_id:, read_restricted:)
+    is_admin? ||
+      (
+        SiteSetting.moderators_manage_categories_and_groups && is_moderator? &&
+          can_see_serialized_category?(category_id: category_id, read_restricted: read_restricted)
+      )
   end
 
   def can_delete_category?(category)
-    can_edit_category?(category) &&
-    category.topic_count <= 0 &&
-    !category.uncategorized? &&
-    !category.has_children?
+    can_edit_category?(category) && category.topic_count <= 0 && !category.uncategorized? &&
+      !category.has_children?
   end
 
-  def cannot_delete_category_reason(category)
-    return I18n.t('category.cannot_delete.uncategorized') if category.uncategorized?
-    return I18n.t('category.cannot_delete.has_subcategories') if category.has_children?
+  def can_see_serialized_category?(category_id:, read_restricted: true)
+    # Guard to ensure only a boolean is passed in
+    read_restricted = true unless !!read_restricted == read_restricted
 
-    if category.topic_count != 0
-      oldest_topic = category.topics.where.not(id: category.topic_id).order('created_at ASC').limit(1).first
-      if oldest_topic
-        return I18n.t('category.cannot_delete.topic_exists', count: category.topic_count, topic_link: "<a href=\"#{oldest_topic.url}\">#{CGI.escapeHTML(oldest_topic.title)}</a>")
-      else
-        # This is a weird case, probably indicating a bug.
-        return I18n.t('category.cannot_delete.topic_exists_no_oldest', count: category.topic_count)
-      end
-    end
-
-    nil
+    return true if !read_restricted
+    secure_category_ids.include?(category_id)
   end
 
   def can_see_category?(category)
@@ -52,6 +43,13 @@ module CategoryGuardian
     return true if !category.read_restricted
     return true if is_staged? && category.email_in.present? && category.email_in_allow_strangers
     secure_category_ids.include?(category.id)
+  end
+
+  def can_post_in_category?(category)
+    return false unless category
+    return false if is_anonymous?
+    return true if is_admin?
+    Category.post_create_allowed(self).exists?(id: category.id)
   end
 
   def can_edit_category_description?(category)
@@ -76,6 +74,7 @@ module CategoryGuardian
   end
 
   def topic_featured_link_allowed_category_ids
-    @topic_featured_link_allowed_category_ids = Category.where(topic_featured_link_allowed: true).pluck(:id)
+    @topic_featured_link_allowed_category_ids =
+      Category.where(topic_featured_link_allowed: true).pluck(:id)
   end
 end

@@ -1,13 +1,14 @@
 import Component from "@ember/component";
 import I18n from "I18n";
-import bootbox from "bootbox";
 import cookie from "discourse/lib/cookie";
 import discourseComputed from "discourse-common/utils/decorators";
 import { popupAjaxError } from "discourse/lib/ajax-error";
+import { inject as service } from "@ember/service";
 import showModal from "discourse/lib/show-modal";
 
 export default Component.extend({
   classNames: ["group-membership-button"],
+  dialog: service(),
 
   @discourseComputed("model.public_admission", "userIsGroupUser")
   canJoinGroup(publicAdmission, userIsGroupUser) {
@@ -37,7 +38,7 @@ export default Component.extend({
   removeFromGroup() {
     const model = this.model;
     model
-      .removeMember(this.currentUser)
+      .leave()
       .then(() => {
         model.set("is_group_user", false);
         this.appEvents.trigger("group:leave", model);
@@ -50,13 +51,13 @@ export default Component.extend({
     joinGroup() {
       if (this.currentUser) {
         this.set("updatingMembership", true);
-        const model = this.model;
+        const group = this.model;
 
-        model
-          .addMembers(this.currentUser.get("username"))
+        group
+          .join()
           .then(() => {
-            model.set("is_group_user", true);
-            this.appEvents.trigger("group:join", model);
+            group.set("is_group_user", true);
+            this.appEvents.trigger("group:join", group);
           })
           .catch(popupAjaxError)
           .finally(() => {
@@ -73,16 +74,11 @@ export default Component.extend({
       if (this.model.public_admission) {
         this.removeFromGroup();
       } else {
-        return bootbox.confirm(
-          I18n.t("groups.confirm_leave"),
-          I18n.t("no_value"),
-          I18n.t("yes_value"),
-          (result) => {
-            result
-              ? this.removeFromGroup()
-              : this.set("updatingMembership", false);
-          }
-        );
+        return this.dialog.yesNoConfirm({
+          message: I18n.t("groups.confirm_leave"),
+          didConfirm: () => this.removeFromGroup(),
+          didCancel: () => this.set("updatingMembership", false),
+        });
       }
     },
 

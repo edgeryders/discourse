@@ -15,7 +15,8 @@ function trailingSpaceOnly(src, start, max) {
   return true;
 }
 
-const ATTR_REGEX = /^\s*=(.+)$|((([a-z0-9]*)\s*)=)([“”"][^“”"]*[“”"]|['][^']*[']|[^"'“”]\S*)/gi;
+const ATTR_REGEX =
+  /^\s*=(.+)$|((([a-z0-9]*)\s*)=)([“”"][^“”"]*[“”"]|['][^']*[']|[^"'“”]\S*)/gi;
 
 // parse a tag [test a=1 b=2] to a data structure
 // {tag: "test", attrs={a: "1", b: "2"}
@@ -351,7 +352,7 @@ export function setup(helper) {
 
     ruler.push("code", {
       tag: "code",
-      replace: function (state, tagInfo, content) {
+      replace(state, tagInfo, content) {
         let token;
         token = state.push("fence", "code", 0);
         token.content = content;

@@ -1,8 +1,7 @@
+import { classNames } from "@ember-decorators/component";
 import { action, computed } from "@ember/object";
-import loadScript, { loadCSS } from "discourse/lib/load-script";
 import Component from "@ember/component";
-import { observes } from "discourse-common/utils/decorators";
-import { schedule } from "@ember/runloop";
+import { observes } from "@ember-decorators/object";
 
 /**
   An input field for a color.
@@ -11,63 +10,65 @@ import { schedule } from "@ember/runloop";
   @param brightnessValue is a number from 0 to 255 representing the brightness of the color. See ColorSchemeColor.
   @params valid is a boolean indicating if the input field is a valid color.
 **/
-export default Component.extend({
-  classNames: ["color-picker"],
+@classNames("color-picker")
+export default class ColorInput extends Component {
+  onlyHex = true;
+  styleSelection = true;
 
-  onlyHex: true,
-
-  styleSelection: true,
-
-  maxlength: computed("onlyHex", function () {
+  @computed("onlyHex")
+  get maxlength() {
     return this.onlyHex ? 6 : null;
-  }),
+  }
+
+  @computed("hexValue")
+  get normalizedHexValue() {
+    return this.normalize(this.hexValue);
+  }
+
+  normalize(color) {
+    if (this._valid(color)) {
+      if (!color.startsWith("#")) {
+        color = "#" + color;
+      }
+      if (color.length === 4) {
+        color =
+          "#" +
+          color
+            .slice(1)
+            .split("")
+            .map((hex) => hex + hex)
+            .join("");
+      }
+    }
+    return color;
+  }
 
   @action
   onHexInput(color) {
-    this.attrs.onChangeColor && this.attrs.onChangeColor(color || "");
-  },
+    if (this.attrs.onChangeColor) {
+      this.attrs.onChangeColor(this.normalize(color || ""));
+    }
+  }
+
+  @action
+  onPickerInput(event) {
+    this.set("hexValue", event.target.value.replace("#", ""));
+  }
 
   @observes("hexValue", "brightnessValue", "valid")
-  hexValueChanged: function () {
+  hexValueChanged() {
     const hex = this.hexValue;
-    let text = this.element.querySelector("input.hex-input");
 
-    this.attrs.onChangeColor && this.attrs.onChangeColor(hex);
-
-    if (this.valid) {
-      this.styleSelection &&
-        text.setAttribute(
-          "style",
-          "color: " +
-            (this.brightnessValue > 125 ? "black" : "white") +
-            "; background-color: #" +
-            hex +
-            ";"
-        );
-
-      if (this.pickerLoaded) {
-        $(this.element.querySelector(".picker")).spectrum({
-          color: "#" + hex,
-        });
-      }
-    } else {
-      this.styleSelection && text.setAttribute("style", "");
+    if (this.attrs.onChangeColor) {
+      this.attrs.onChangeColor(this.normalize(hex));
     }
-  },
 
-  didInsertElement() {
-    loadScript("/javascripts/spectrum.js").then(() => {
-      loadCSS("/javascripts/spectrum.css").then(() => {
-        schedule("afterRender", () => {
-          $(this.element.querySelector(".picker"))
-            .spectrum({ color: "#" + this.hexValue })
-            .on("change.spectrum", (me, color) => {
-              this.set("hexValue", color.toHexString().replace("#", ""));
-            });
-          this.set("pickerLoaded", true);
-        });
-      });
-    });
-    schedule("afterRender", () => this.hexValueChanged());
-  },
-});
+    if (this._valid()) {
+      this.element.querySelector(".picker").value = this.normalize(hex);
+    }
+  }
+
+  _valid(color = this.hexValue) {
+    return /^#?([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(color);
+  }
+}

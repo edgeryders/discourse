@@ -1,13 +1,17 @@
 import { action, computed } from "@ember/object";
-import { bind, observes } from "discourse-common/utils/decorators";
+import discourseComputed, {
+  bind,
+  observes,
+} from "discourse-common/utils/decorators";
 import {
   emojiSearch,
   extendedEmojiList,
   isSkinTonableEmoji,
 } from "pretty-text/emoji";
 import { emojiUnescape, emojiUrlFor } from "discourse/lib/text";
-import { escapeExpression, safariHacksDisabled } from "discourse/lib/utilities";
-import { later, schedule } from "@ember/runloop";
+import { escapeExpression } from "discourse/lib/utilities";
+import { schedule } from "@ember/runloop";
+import discourseLater from "discourse-common/lib/later";
 import Component from "@ember/component";
 import { createPopper } from "@popperjs/core";
 import { htmlSafe } from "@ember/template";
@@ -17,14 +21,13 @@ import { underscore } from "@ember/string";
 function customEmojis() {
   const list = extendedEmojiList();
   const groups = [];
-  Object.keys(list).forEach((code) => {
-    const emoji = list[code];
+  for (const [code, emoji] of list.entries()) {
     groups[emoji.group] = groups[emoji.group] || [];
     groups[emoji.group].push({
       code,
       src: emojiUrlFor(code),
     });
-  });
+  }
   return groups;
 }
 
@@ -32,26 +35,38 @@ export default Component.extend({
   emojiStore: service("emoji-store"),
   tagName: "",
   customEmojis: null,
-  selectedDiversity: null,
   recentEmojis: null,
   hoveredEmoji: null,
   isActive: false,
-  isLoading: true,
+  usePopper: true,
+  placement: "auto", // one of popper.js' placements, see https://popper.js.org/docs/v2/constructors/#options
+  initialFilter: "",
+  elements: {
+    searchInput: ".emoji-picker-search-container input",
+    picker: ".emoji-picker-emoji-area",
+  },
 
   init() {
     this._super(...arguments);
 
     this.set("customEmojis", customEmojis());
-    this.set("recentEmojis", this.emojiStore.favorites);
-    this.set("selectedDiversity", this.emojiStore.diversity);
 
-    this._sectionObserver = this._setupSectionObserver();
+    if ("IntersectionObserver" in window) {
+      this._sectionObserver = this._setupSectionObserver();
+    }
   },
 
   didInsertElement() {
     this._super(...arguments);
 
     this.appEvents.on("emoji-picker:close", this, "onClose");
+  },
+
+  // `readOnly` may seem like a better choice here, but the computed property
+  // provides caching (emojiStore.diversity is a simple getter)
+  @discourseComputed("emojiStore.diversity")
+  selectedDiversity(diversity) {
+    return diversity;
   },
 
   // didReceiveAttrs would be a better choice here, but this is sadly causing
@@ -76,9 +91,10 @@ export default Component.extend({
 
   @action
   onShow() {
-    this.set("isLoading", true);
+    this.set("recentEmojis", this.emojiStore.favorites);
 
     schedule("afterRender", () => {
+      this._applyFilter(this.initialFilter);
       document.addEventListener("click", this.handleOutsideClick);
 
       const emojiPicker = document.querySelector(".emoji-picker");
@@ -86,43 +102,60 @@ export default Component.extend({
         return;
       }
 
-      if (!this.site.isMobileDevice) {
-        this._popper = createPopper(
-          document.querySelector(".d-editor-textarea-wrapper"),
-          emojiPicker,
-          {
-            placement: "auto",
-            modifiers: [
-              {
-                name: "preventOverflow",
-              },
-              {
-                name: "offset",
-                options: {
-                  offset: [5, 5],
-                },
-              },
-            ],
-          }
-        );
-      }
+      const popperAnchor = this._getPopperAnchor();
 
-      emojiPicker
-        .querySelectorAll(".emojis-container .section .section-header")
-        .forEach((p) => this._sectionObserver.observe(p));
+      if (!this.site.isMobileDevice && this.usePopper && popperAnchor) {
+        const modifiers = [
+          {
+            name: "preventOverflow",
+          },
+          {
+            name: "offset",
+            options: {
+              offset: [5, 5],
+            },
+          },
+        ];
+
+        if (
+          this.placement === "auto" &&
+          window.innerWidth < popperAnchor.clientWidth * 2
+        ) {
+          modifiers.push({
+            name: "computeStyles",
+            enabled: true,
+            fn({ state }) {
+              state.styles.popper = {
+                ...state.styles.popper,
+                position: "fixed",
+                left: `${(window.innerWidth - state.rects.popper.width) / 2}px`,
+                top: "50%",
+                transform: "translateY(-50%)",
+              };
+
+              return state;
+            },
+          });
+        }
+
+        this._popper = createPopper(popperAnchor, emojiPicker, {
+          placement: this.placement,
+        });
+      }
 
       // this is a low-tech trick to prevent appending hundreds of emojis
       // of blocking the rendering of the picker
-      later(() => {
-        this.set("isLoading", false);
-
+      discourseLater(() => {
         schedule("afterRender", () => {
-          if (
-            (!this.site.isMobileDevice || this.isEditorFocused) &&
-            !safariHacksDisabled()
-          ) {
+          if (!this.site.isMobileDevice || this.isEditorFocused) {
             const filter = emojiPicker.querySelector("input.filter");
             filter && filter.focus();
+
+            if (this._sectionObserver) {
+              emojiPicker
+                .querySelectorAll(".emojis-container .section .section-header")
+                .forEach((p) => this._sectionObserver.observe(p));
+            }
           }
 
           if (this.selectedDiversity !== 0) {
@@ -134,9 +167,10 @@ export default Component.extend({
   },
 
   @action
-  onClose() {
+  onClose(event) {
+    event?.stopPropagation();
     document.removeEventListener("click", this.handleOutsideClick);
-    this.onEmojiPickerClose && this.onEmojiPickerClose();
+    this.onEmojiPickerClose && this.onEmojiPickerClose(event);
   },
 
   diversityScales: computed("selectedDiversity", function () {
@@ -157,7 +191,7 @@ export default Component.extend({
   }),
 
   @action
-  onClearRecents() {
+  onClearRecent() {
     this.emojiStore.favorites = [];
     this.set("recentEmojis", []);
   },
@@ -166,7 +200,6 @@ export default Component.extend({
   onDiversitySelection(index) {
     const scale = index + 1;
     this.emojiStore.diversity = scale;
-    this.set("selectedDiversity", scale);
 
     this._applyDiversity(scale);
   },
@@ -178,10 +211,7 @@ export default Component.extend({
       return false;
     }
 
-    this.set(
-      "hoveredEmoji",
-      this._codeWithDiversity(event.target.title, this.selectedDiversity)
-    );
+    this._updateEmojiPreview(event.target.title);
   },
 
   @action
@@ -197,17 +227,18 @@ export default Component.extend({
 
     this.emojiSelected(code);
 
-    if (!img.parentNode.parentNode.classList.contains("recent")) {
-      this._trackEmojiUsage(code);
-    }
+    this._trackEmojiUsage(code, {
+      refresh: !img.parentNode.parentNode.classList.contains("recent"),
+    });
 
     if (this.site.isMobileDevice) {
-      this.onClose();
+      this.onClose(event);
     }
   },
 
   @action
-  onCategorySelection(sectionName) {
+  onCategorySelection(sectionName, event) {
+    event?.preventDefault();
     const section = document.querySelector(
       `.emoji-picker-emoji-area .section[data-section="${sectionName}"]`
     );
@@ -215,37 +246,166 @@ export default Component.extend({
   },
 
   @action
-  onFilter(event) {
-    const emojiPickerArea = document.querySelector(".emoji-picker-emoji-area");
-    const emojisContainer = emojiPickerArea.querySelector(".emojis-container");
-    const results = emojiPickerArea.querySelector(".results");
+  keydown(event) {
+    const arrowKeys = ["ArrowDown", "ArrowUp", "ArrowLeft", "ArrowRight"];
+    const emojis = document.querySelectorAll(".emoji-picker-emoji-area .emoji");
+
+    let currentEmoji;
+
+    if (
+      event.key === "ArrowDown" &&
+      this._focusedOn(this.elements.searchInput)
+    ) {
+      this._updateEmojiPreview(emojis[0].title);
+      emojis[0].focus();
+      event.preventDefault();
+      return false;
+    }
+
+    if (event.key === "Escape") {
+      this.onClose(event);
+      const path = event.path || (event.composedPath && event.composedPath());
+
+      const fromChatComposer = path.find((e) =>
+        e?.classList?.contains("chat-composer-container")
+      );
+
+      const fromTopicComposer = path.find((e) =>
+        e?.classList?.contains("d-editor")
+      );
+
+      if (fromTopicComposer) {
+        document.querySelector(".d-editor-input")?.focus();
+      } else if (fromChatComposer) {
+        document.querySelector(".chat-composer__input")?.focus();
+      } else {
+        document.querySelector("textarea")?.focus();
+      }
+
+      return false;
+    }
+
+    if (arrowKeys.includes(event.key)) {
+      if (!this._focusedOn(this.elements.picker)) {
+        return;
+      }
+
+      Array.from(emojis).find((e, index) => {
+        currentEmoji = index;
+        return e.isEqualNode(event.target);
+      });
+
+      if (event.key === "ArrowRight") {
+        let nextEmoji = currentEmoji + 1;
+
+        if (nextEmoji < emojis.length) {
+          this._updateEmojiPreview(emojis[nextEmoji].title);
+          emojis[nextEmoji].focus();
+        } else if (nextEmoji >= emojis.length) {
+          this._updateEmojiPreview(emojis[0].title);
+          emojis[0].focus();
+        }
+      }
+
+      if (event.key === "ArrowLeft") {
+        const previousEmoji = currentEmoji - 1;
+        if (currentEmoji > 0) {
+          this._updateEmojiPreview(emojis[previousEmoji].title);
+          emojis[previousEmoji].focus();
+        }
+      }
+
+      const active = emojis[currentEmoji];
+
+      if (event.key === "ArrowDown") {
+        // source: https://stackoverflow.com/a/49090383/349424
+        // look for same element type with
+        // - higher offsetTop
+        // - same offsetLeft
+        const emojiBelow = [...emojis]
+          .filter((c) => c.offsetTop > active.offsetTop)
+          .find((c) => c.offsetLeft === active.offsetLeft);
+        this._updateEmojiPreview(emojiBelow.title);
+        emojiBelow?.focus();
+      }
+
+      if (event.key === "ArrowUp") {
+        // look for same element type with
+        // - lower offsetTop
+        // - same offsetLeft
+        const emojiAbove = [...emojis]
+          .reverse()
+          .filter((c) => c.offsetTop < active.offsetTop)
+          .find((c) => c.offsetLeft === active.offsetLeft);
+
+        if (emojiAbove) {
+          this._updateEmojiPreview(emojiAbove.title);
+          emojiAbove.focus();
+        } else {
+          this.set("hoveredEmoji", null);
+          document.querySelector(this.elements.searchInput).focus();
+        }
+      }
+
+      event.preventDefault();
+      return false;
+    }
+
+    if (event.key === "Enter") {
+      if (!this._focusedOn(".emoji")) {
+        return;
+      }
+      this.onEmojiSelection(event);
+      this.onClose(event);
+      event.preventDefault();
+      return false;
+    }
+  },
+
+  @action
+  onFilterChange(event) {
+    this._applyFilter(event.target.value);
+  },
+
+  _focusedOn(item) {
+    // returns the item currently being focused on
+    return document.activeElement.closest(item) ? document.activeElement : null;
+  },
+
+  _applyFilter(filter) {
+    const emojiPicker = document.querySelector(".emoji-picker");
+    const results = document.querySelector(".emoji-picker-emoji-area .results");
     results.innerHTML = "";
 
-    if (event.target.value) {
-      results.innerHTML = emojiSearch(event.target.value.toLowerCase(), {
-        maxResults: 10,
+    if (filter) {
+      results.innerHTML = emojiSearch(filter.toLowerCase(), {
         diversity: this.emojiStore.diversity,
+        exclude: this.site.denied_emojis,
       })
         .map(this._replaceEmoji)
         .join("");
 
-      emojisContainer.style.visibility = "hidden";
+      emojiPicker.classList.add("has-filter");
       results.scrollIntoView();
     } else {
-      emojisContainer.style.visibility = "visible";
+      emojiPicker.classList.remove("has-filter");
     }
   },
 
-  _trackEmojiUsage(code) {
+  _trackEmojiUsage(code, options = {}) {
     this.emojiStore.track(code);
-    this.set("recentEmojis", this.emojiStore.favorites.slice(0, 10));
+
+    if (options.refresh) {
+      this.set("recentEmojis", [...this.emojiStore.favorites]);
+    }
   },
 
   _replaceEmoji(code) {
     const escaped = emojiUnescape(`:${escapeExpression(code)}:`, {
       lazy: true,
+      tabIndex: "0",
     });
-    return htmlSafe(`<span>${escaped}</span>`);
+    return htmlSafe(escaped);
   },
 
   _codeWithDiversity(code, selectedDiversity) {
@@ -297,11 +457,27 @@ export default Component.extend({
     );
   },
 
+  _getPopperAnchor() {
+    // .d-editor-textarea-wrapper is only for backward compatibility here
+    // in new code use .emoji-picker-anchor
+    return (
+      document.querySelector(".emoji-picker-anchor") ??
+      document.querySelector(".d-editor-textarea-wrapper")
+    );
+  },
+
+  _updateEmojiPreview(title) {
+    return this.set(
+      "hoveredEmoji",
+      this._codeWithDiversity(title, this.selectedDiversity)
+    );
+  },
+
   @bind
   handleOutsideClick(event) {
     const emojiPicker = document.querySelector(".emoji-picker");
     if (emojiPicker && !emojiPicker.contains(event.target)) {
-      this.onClose();
+      this.onClose(event);
     }
   },
 });

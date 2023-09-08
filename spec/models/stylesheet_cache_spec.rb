@@ -1,10 +1,7 @@
 # frozen_string_literal: true
 
-require 'rails_helper'
-
-describe StylesheetCache do
-
-  describe "add" do
+RSpec.describe StylesheetCache do
+  describe ".add" do
     it "correctly cycles once MAX_TO_KEEP is hit" do
       StylesheetCache.destroy_all
 
@@ -35,8 +32,28 @@ describe StylesheetCache do
       StylesheetCache.add("mobile", SecureRandom.hex, "body { }", "map", max_to_keep: 2)
       StylesheetCache.add("mobile", SecureRandom.hex, "body { }", "map", max_to_keep: 2)
 
-      expect(StylesheetCache.order(:id).pluck(:target)).to eq(["desktop", "desktop", "mobile", "mobile"])
+      expect(StylesheetCache.order(:id).pluck(:target)).to eq(%w[desktop desktop mobile mobile])
     end
+  end
 
+  describe ".clean_up" do
+    it "removes items older than threshold" do
+      StylesheetCache.destroy_all
+
+      StylesheetCache.add("a", "b", "c", "map")
+      StylesheetCache.add("d", "e", "f", "map")
+
+      above_threshold = StylesheetCache::CLEANUP_AFTER_DAYS - 1
+      StylesheetCache.first.update!(created_at: above_threshold.days.ago)
+
+      StylesheetCache.clean_up
+      expect(StylesheetCache.all.size).to eq(2)
+
+      below_threshold = StylesheetCache::CLEANUP_AFTER_DAYS + 1
+      StylesheetCache.first.update!(created_at: below_threshold.days.ago)
+
+      StylesheetCache.clean_up
+      expect(StylesheetCache.all.size).to eq(1)
+    end
   end
 end

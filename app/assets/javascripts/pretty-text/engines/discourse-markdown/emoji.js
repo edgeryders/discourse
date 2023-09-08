@@ -90,7 +90,7 @@ function getEmojiName(content, pos, state, inlineEmoji) {
 
     if (content.charCodeAt(pos + length) === 58) {
       // check for t2-t6
-      if (content.substr(pos + length + 1, 3).match(/t[2-6]:/)) {
+      if (content.slice(pos + length + 1, pos + length + 4).match(/t[2-6]:/)) {
         length += 3;
       }
       break;
@@ -105,7 +105,7 @@ function getEmojiName(content, pos, state, inlineEmoji) {
     return;
   }
 
-  return content.substr(pos, length);
+  return content.slice(pos, pos + length);
 }
 
 // straight forward :smile: to emoji image
@@ -118,6 +118,9 @@ function getEmojiTokenByName(name, state) {
       ["title", info.title],
       ["class", info.classes],
       ["alt", info.title],
+      ["loading", "lazy"],
+      ["width", "20"],
+      ["height", "20"],
     ];
 
     return token;
@@ -192,13 +195,44 @@ function applyEmoji(
   emojiUnicodeReplacer,
   enableShortcuts,
   inlineEmoji,
-  customEmojiTranslation
+  customEmojiTranslation,
+  watchedWordsReplacer,
+  emojiDenyList
 ) {
   let result = null;
   let start = 0;
 
   if (emojiUnicodeReplacer) {
     content = emojiUnicodeReplacer(content);
+  }
+
+  if (watchedWordsReplacer) {
+    const watchedWordRegex = Object.keys(watchedWordsReplacer);
+
+    watchedWordRegex.forEach((watchedWord) => {
+      if (content?.match(watchedWord)) {
+        const regex = new RegExp(watchedWord, "g");
+        const matches = content.match(regex);
+        const replacement = watchedWordsReplacer[watchedWord].replacement;
+
+        matches.forEach(() => {
+          const matchingRegex = regex.exec(content);
+          if (matchingRegex) {
+            content = content.replace(matchingRegex[1], replacement);
+          }
+        });
+      }
+    });
+  }
+
+  // prevent denied emoji and aliases from being rendered
+  if (emojiDenyList?.length > 0) {
+    emojiDenyList.forEach((emoji) => {
+      if (content?.match(emoji)) {
+        const regex = new RegExp(`:${emoji}:`, "g");
+        content = content.replace(regex, "");
+      }
+    });
   }
 
   let end = content.length;
@@ -323,6 +357,7 @@ export function setup(helper) {
     opts.emojiSet = siteSettings.emoji_set || "";
     opts.customEmoji = state.customEmoji;
     opts.emojiCDNUrl = siteSettings.external_emoji_url;
+    opts.emojiDenyList = state.emojiDenyList;
   });
 
   helper.registerPlugin((md) => {
@@ -334,7 +369,9 @@ export function setup(helper) {
           md.options.discourse.emojiUnicodeReplacer,
           md.options.discourse.features.emojiShortcuts,
           md.options.discourse.features.inlineEmoji,
-          md.options.discourse.customEmojiTranslation
+          md.options.discourse.customEmojiTranslation,
+          md.options.discourse.watchedWordsReplace,
+          md.options.discourse.emojiDenyList
         )
       )
     );
@@ -345,5 +382,8 @@ export function setup(helper) {
     "img[class=emoji emoji-custom]",
     "img[class=emoji emoji-custom only-emoji]",
     "img[class=emoji only-emoji]",
+    "img[loading=lazy]",
+    "img[width=20]",
+    "img[height=20]",
   ]);
 }

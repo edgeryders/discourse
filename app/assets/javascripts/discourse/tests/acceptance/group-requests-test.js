@@ -1,4 +1,8 @@
-import { acceptance, queryAll } from "discourse/tests/helpers/qunit-helpers";
+import {
+  acceptance,
+  count,
+  query,
+} from "discourse/tests/helpers/qunit-helpers";
 import { click, visit } from "@ember/test-helpers";
 import { test } from "qunit";
 
@@ -85,39 +89,49 @@ acceptance("Group Requests", function (needs) {
   test("Group Requests", async function (assert) {
     await visit("/g/Macdonald/requests");
 
-    assert.equal(queryAll(".group-members tr").length, 2);
-    assert.equal(
-      queryAll(".group-members tr:first-child td:nth-child(1)")
-        .text()
-        .trim()
+    assert.strictEqual(count(".group-members .group-member"), 2);
+    assert.strictEqual(
+      query(".group-members .directory-table__row:first-child .user-detail")
+        .innerText.trim()
         .replace(/\s+/g, " "),
-      "Robin Ward eviltrout"
+      "eviltrout Robin Ward"
     );
-    assert.equal(
-      queryAll(".group-members tr:first-child td:nth-child(3)").text().trim(),
+    assert.strictEqual(
+      query(
+        ".group-members .directory-table__row:first-child .directory-table__cell:nth-child(3)"
+      ).innerText.trim(),
       "Please accept my membership request."
     );
-    assert.equal(
-      queryAll(".group-members tr:first-child .btn-primary").text().trim(),
+    assert.strictEqual(
+      query(
+        ".group-members .directory-table__row:first-child .btn-primary"
+      ).innerText.trim(),
       "Accept"
     );
-    assert.equal(
-      queryAll(".group-members tr:first-child .btn-danger").text().trim(),
+    assert.strictEqual(
+      query(
+        ".group-members .directory-table__row:first-child .btn-danger"
+      ).innerText.trim(),
       "Deny"
     );
 
-    await click(".group-members tr:first-child .btn-primary");
+    await click(
+      ".group-members .directory-table__row:first-child .btn-primary"
+    );
     assert.ok(
-      queryAll(".group-members tr:first-child td:nth-child(4)")
-        .text()
-        .trim()
-        .indexOf("accepted") === 0
+      query(
+        ".group-members .directory-table__row:first-child .directory-table__cell:nth-child(4)"
+      )
+        .innerText.trim()
+        .startsWith("accepted")
     );
     assert.deepEqual(requests, [["19", "true"]]);
 
-    await click(".group-members tr:last-child .btn-danger");
-    assert.equal(
-      queryAll(".group-members tr:last-child td:nth-child(4)").text().trim(),
+    await click(".group-members .directory-table__row:last-child .btn-danger");
+    assert.strictEqual(
+      query(
+        ".group-members .directory-table__row:last-child .directory-table__cell:nth-child(4)"
+      ).innerText.trim(),
       "denied"
     );
     assert.deepEqual(requests, [

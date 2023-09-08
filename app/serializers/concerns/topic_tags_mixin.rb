@@ -3,6 +3,7 @@
 module TopicTagsMixin
   def self.included(klass)
     klass.attributes :tags
+    klass.attributes :tags_descriptions
   end
 
   def include_tags?
@@ -10,16 +11,35 @@ module TopicTagsMixin
   end
 
   def tags
-    # Calling method `pluck` or `order` along with `includes` causing N+1 queries
-    tags = (SiteSetting.tags_sort_alphabetically ? topic.tags.sort_by(&:name) : topic.tags.sort_by(&:topic_count).reverse).map(&:name)
-    if scope.is_staff?
-      tags
-    else
-      tags - scope.hidden_tag_names
-    end
+    all_tags.map(&:name)
+  end
+
+  def tags_descriptions
+    all_tags.each.with_object({}) { |tag, acc| acc[tag.name] = tag.description }.compact
   end
 
   def topic
     object.is_a?(Topic) ? object : object.topic
+  end
+
+  private
+
+  def all_tags
+    return @tags if defined?(@tags)
+
+    tags = topic.visible_tags(scope)
+
+    # Calling method `pluck` or `order` along with `includes` causing N+1 queries
+    tags =
+      (
+        if SiteSetting.tags_sort_alphabetically
+          tags.sort_by(&:name)
+        else
+          topic_count_column = Tag.topic_count_column(scope)
+          tags.sort_by { |tag| tag.public_send(topic_count_column) }.reverse
+        end
+      )
+
+    @tags = tags
   end
 end

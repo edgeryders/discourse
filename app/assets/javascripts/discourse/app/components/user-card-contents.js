@@ -1,4 +1,4 @@
-import EmberObject, { set } from "@ember/object";
+import EmberObject, { action, set } from "@ember/object";
 import { alias, and, gt, gte, not, or } from "@ember/object/computed";
 import discourseComputed, { observes } from "discourse-common/utils/decorators";
 import { propertyNotEqual, setting } from "discourse/lib/computed";
@@ -12,11 +12,16 @@ import { durationTiny } from "discourse/lib/formatter";
 import { getURLWithCDN } from "discourse-common/lib/get-url";
 import { isEmpty } from "@ember/utils";
 import { prioritizeNameInUx } from "discourse/lib/settings";
+import { dasherize } from "@ember/string";
+import { emojiUnescape } from "discourse/lib/text";
+import { escapeExpression, modKeysPressed } from "discourse/lib/utilities";
 
 export default Component.extend(CardContentsBase, CanCheckEmails, CleansUp, {
   elementId: "user-card",
   classNames: "user-card",
-  triggeringLinkClass: "mention",
+  avatarSelector: "[data-user-card]",
+  avatarDataAttrKey: "userCard",
+  mentionSelector: "a.mention",
   classNameBindings: [
     "visible:show",
     "showBadges",
@@ -25,6 +30,7 @@ export default Component.extend(CardContentsBase, CanCheckEmails, CleansUp, {
     "usernameClass",
     "primaryGroup",
   ],
+  attributeBindings: ["labelledBy:aria-labelledby"],
   allowBackgrounds: setting("allow_profile_backgrounds"),
   showBadges: setting("enable_badges"),
 
@@ -42,8 +48,23 @@ export default Component.extend(CardContentsBase, CanCheckEmails, CleansUp, {
   linkWebsite: not("user.isBasic"),
 
   @discourseComputed("user")
+  labelledBy(user) {
+    return user ? "discourse-user-card-title" : null;
+  },
+
+  @discourseComputed("user")
   hasLocaleOrWebsite(user) {
     return user.location || user.website_name || this.userTimezone;
+  },
+
+  @discourseComputed("user.status")
+  hasStatus() {
+    return this.siteSettings.enable_user_status && this.user.status;
+  },
+
+  @discourseComputed("user.status.emoji")
+  userStatusEmoji(emoji) {
+    return emojiUnescape(escapeExpression(`:${emoji}:`));
   },
 
   isSuspendedOrHasBio: or("user.suspend_reason", "user.bio_excerpt"),
@@ -77,7 +98,7 @@ export default Component.extend(CardContentsBase, CanCheckEmails, CleansUp, {
     if (!this.showUserLocalTime) {
       return;
     }
-    return user.resolvedTimezone(this.currentUser);
+    return user.get("user_option.timezone");
   },
 
   @discourseComputed("userTimezone")
@@ -102,7 +123,7 @@ export default Component.extend(CardContentsBase, CanCheckEmails, CleansUp, {
         .filterBy("show_on_user_card", true)
         .sortBy("position")
         .map((field) => {
-          set(field, "dasherized_name", field.get("name").dasherize());
+          set(field, "dasherized_name", dasherize(field.get("name")));
           const value = userFields ? userFields[field.get("id")] : null;
           return isEmpty(value) ? null : EmberObject.create({ value, field });
         })
@@ -163,6 +184,11 @@ export default Component.extend(CardContentsBase, CanCheckEmails, CleansUp, {
     return `group-${primaryGroup}`;
   },
 
+  @discourseComputed("user.profile_hidden", "user.inactive")
+  contentHidden(profileHidden, inactive) {
+    return profileHidden || inactive;
+  },
+
   _showCallback(username, $target) {
     this._positionCard($target);
     this.setProperties({ visible: true, loading: true });
@@ -172,7 +198,7 @@ export default Component.extend(CardContentsBase, CanCheckEmails, CleansUp, {
       include_post_count_for: this.get("topic.id"),
     };
 
-    User.findByUsername(username, args)
+    return User.findByUsername(username, args)
       .then((user) => {
         if (user.topic_post_count) {
           this.set(
@@ -181,12 +207,18 @@ export default Component.extend(CardContentsBase, CanCheckEmails, CleansUp, {
           );
         }
         this.setProperties({ user });
+        this.user.trackStatus();
+        return user;
       })
       .catch(() => this._close())
       .finally(() => this.set("loading", null));
   },
 
   _close() {
+    if (this.user) {
+      this.user.stopTrackingStatus();
+    }
+
     this.setProperties({
       user: null,
       topicPostCount: null,
@@ -196,6 +228,18 @@ export default Component.extend(CardContentsBase, CanCheckEmails, CleansUp, {
   },
 
   cleanUp() {
+    this._close();
+  },
+
+  @action
+  handleShowUser(user, event) {
+    if (event && modKeysPressed(event).length > 0) {
+      return false;
+    }
+    event?.preventDefault();
+    // Invokes `showUser` argument. Convert to `this.args.showUser` when
+    // refactoring this to a glimmer component.
+    this.showUser(user);
     this._close();
   },
 
@@ -226,9 +270,8 @@ export default Component.extend(CardContentsBase, CanCheckEmails, CleansUp, {
       this._close();
     },
 
-    showUser(username) {
-      this.showUser(username);
-      this._close();
+    showUser(user) {
+      this.handleShowUser(user);
     },
 
     checkEmail(user) {

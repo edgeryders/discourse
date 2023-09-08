@@ -1,61 +1,108 @@
 import Controller, { inject as controller } from "@ember/controller";
 import { action } from "@ember/object";
-import { alias, and, equal } from "@ember/object/computed";
+import { inject as service } from "@ember/service";
+import { alias, and, equal, readOnly } from "@ember/object/computed";
+import { cached, tracked } from "@glimmer/tracking";
 import I18n from "I18n";
-import Topic from "discourse/models/topic";
-import bootbox from "bootbox";
-import discourseComputed from "discourse-common/utils/decorators";
+import DiscourseURL from "discourse/lib/url";
 
-export default Controller.extend({
-  userTopicsList: controller("user-topics-list"),
-  user: controller(),
+const customUserNavMessagesDropdownRows = [];
 
-  pmView: false,
-  viewingSelf: alias("user.viewingSelf"),
-  isGroup: equal("pmView", "groups"),
-  currentPath: alias("router._router.currentPath"),
-  selected: alias("userTopicsList.selected"),
-  bulkSelectEnabled: alias("userTopicsList.bulkSelectEnabled"),
-  showToggleBulkSelect: true,
-  pmTaggingEnabled: alias("site.can_tag_pms"),
-  tagId: null,
+export function registerCustomUserNavMessagesDropdownRow(
+  routeName,
+  name,
+  icon
+) {
+  customUserNavMessagesDropdownRows.push({
+    routeName,
+    name,
+    icon,
+  });
+}
 
-  showNewPM: and("user.viewingSelf", "currentUser.can_send_private_messages"),
+export function resetCustomUserNavMessagesDropdownRows() {
+  customUserNavMessagesDropdownRows.length = 0;
+}
 
-  @discourseComputed("selected.[]", "bulkSelectEnabled")
-  hasSelection(selected, bulkSelectEnabled) {
-    return bulkSelectEnabled && selected && selected.length > 0;
-  },
+export default class extends Controller {
+  @service router;
+  @controller user;
 
-  bulkOperation(operation) {
-    const selected = this.selected;
-    let params = { type: operation };
-    if (this.isGroup) {
-      params.group = this.groupFilter;
+  @tracked group;
+  @tracked tagId;
+
+  @alias("group.name") groupFilter;
+  @and("user.viewingSelf", "currentUser.can_send_private_messages") showNewPM;
+  @equal("currentParentRouteName", "userPrivateMessages.group") isGroup;
+  @readOnly("user.viewingSelf") viewingSelf;
+  @readOnly("router.currentRoute.parent.name") currentParentRouteName;
+  @readOnly("site.can_tag_pms") pmTaggingEnabled;
+
+  get messagesDropdownValue() {
+    let value;
+
+    const currentURL = this.router.currentURL.toLowerCase();
+
+    for (let i = this.messagesDropdownContent.length - 1; i >= 0; i--) {
+      const row = this.messagesDropdownContent[i];
+
+      if (
+        currentURL.includes(
+          row.id.toLowerCase().replace(this.router.rootURL, "/")
+        )
+      ) {
+        value = row.id;
+        break;
+      }
     }
 
-    Topic.bulkOperation(selected, params).then(
-      () => {
-        const model = this.get("userTopicsList.model");
-        const topics = model.get("topics");
-        topics.removeObjects(selected);
-        selected.clear();
-        model.loadMore();
+    return value;
+  }
+
+  @cached
+  get messagesDropdownContent() {
+    const usernameLower = this.model.username_lower;
+
+    const content = [
+      {
+        id: this.router.urlFor("userPrivateMessages.user", usernameLower),
+        name: I18n.t("user.messages.inbox"),
       },
-      () => {
-        bootbox.alert(I18n.t("user.messages.failed_to_move"));
-      }
-    );
-  },
+    ];
+
+    this.model.groupsWithMessages.forEach((group) => {
+      content.push({
+        id: this.router.urlFor(
+          "userPrivateMessages.group",
+          usernameLower,
+          group.name
+        ),
+        name: group.name,
+        icon: "inbox",
+      });
+    });
+
+    if (this.pmTaggingEnabled) {
+      content.push({
+        id: this.router.urlFor("userPrivateMessages.tags", usernameLower),
+        name: I18n.t("user.messages.tags"),
+        icon: "tags",
+      });
+    }
+
+    customUserNavMessagesDropdownRows.forEach((row) => {
+      content.push({
+        id: this.router.urlFor(row.routeName, usernameLower),
+        name: row.name,
+        icon: row.icon,
+      });
+    });
+
+    return content;
+  }
 
   @action
-  changeGroupNotificationLevel(notificationLevel) {
-    this.group.setNotification(notificationLevel, this.get("user.model.id"));
-  },
-
-  @action
-  toggleBulkSelect() {
-    this.selected.clear();
-    this.toggleProperty("bulkSelectEnabled");
-  },
-});
+  onMessagesDropdownChange(item) {
+    return DiscourseURL.routeTo(item);
+  }
+}

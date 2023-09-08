@@ -1,6 +1,7 @@
-import EmberObject, { action, computed } from "@ember/object";
-import Report, { SCHEMA_VERSION } from "admin/models/report";
+import { classNameBindings, classNames } from "@ember-decorators/component";
 import { alias, and, equal, notEmpty, or } from "@ember/object/computed";
+import EmberObject, { action, computed } from "@ember/object";
+import Report, { DAILY_LIMIT_DAYS, SCHEMA_VERSION } from "admin/models/report";
 import Component from "@ember/component";
 import I18n from "I18n";
 import ReportLoader from "discourse/lib/reports-loader";
@@ -21,71 +22,58 @@ const TABLE_OPTIONS = {
 
 const CHART_OPTIONS = {};
 
-function collapseWeekly(data, average) {
-  let aggregate = [];
-  let bucket, i;
-  let offset = data.length % 7;
-  for (i = offset; i < data.length; i++) {
-    if (bucket && i % 7 === offset) {
-      if (average) {
-        bucket.y = parseFloat((bucket.y / 7.0).toFixed(2));
-      }
-      aggregate.push(bucket);
-      bucket = null;
-    }
+@classNameBindings(
+  "isHidden:hidden",
+  "isHidden::is-visible",
+  "isEnabled",
+  "isLoading",
+  "dasherizedDataSourceName"
+)
+@classNames("admin-report")
+export default class AdminReport extends Component {
+  isEnabled = true;
+  disabledLabel = I18n.t("admin.dashboard.disabled");
+  isLoading = false;
+  rateLimitationString = null;
+  dataSourceName = null;
+  report = null;
+  model = null;
+  reportOptions = null;
+  forcedModes = null;
+  showAllReportsLink = false;
+  filters = null;
+  showTrend = false;
+  showHeader = true;
+  showTitle = true;
+  showFilteringUI = false;
 
-    bucket = bucket || { x: data[i].x, y: 0 };
-    bucket.y += data[i].y;
-  }
+  @alias("model.dates_filtering") showDatesOptions;
 
-  return aggregate;
-}
+  @or("showDatesOptions", "model.available_filters.length") showRefresh;
 
-export default Component.extend({
-  classNameBindings: [
-    "isHidden:hidden",
-    "isHidden::is-visible",
-    "isEnabled",
-    "isLoading",
-    "dasherizedDataSourceName",
-  ],
-  classNames: ["admin-report"],
-  isEnabled: true,
-  disabledLabel: I18n.t("admin.dashboard.disabled"),
-  isLoading: false,
-  rateLimitationString: null,
-  dataSourceName: null,
-  report: null,
-  model: null,
-  reportOptions: null,
-  forcedModes: null,
-  showAllReportsLink: false,
-  filters: null,
-  showTrend: false,
-  showHeader: true,
-  showTitle: true,
-  showFilteringUI: false,
-  showDatesOptions: alias("model.dates_filtering"),
-  showRefresh: or("showDatesOptions", "model.available_filters.length"),
-  shouldDisplayTrend: and("showTrend", "model.prev_period"),
-  endDate: null,
-  startDate: null,
+  @and("showTrend", "model.prev_period") shouldDisplayTrend;
 
-  init() {
-    this._super(...arguments);
+  endDate = null;
+  startDate = null;
 
-    this._reports = [];
-  },
+  @or("showTimeoutError", "showExceptionError", "showNotFoundError") showError;
+  @equal("model.error", "not_found") showNotFoundError;
+  @equal("model.error", "timeout") showTimeoutError;
+  @equal("model.error", "exception") showExceptionError;
+  @notEmpty("model.data") hasData;
 
-  isHidden: computed("siteSettings.dashboard_hidden_reports", function () {
+  _reports = [];
+
+  @computed("siteSettings.dashboard_hidden_reports")
+  get isHidden() {
     return (this.siteSettings.dashboard_hidden_reports || "")
       .split("|")
       .filter(Boolean)
       .includes(this.dataSourceName);
-  }),
+  }
 
   didReceiveAttrs() {
-    this._super(...arguments);
+    super.didReceiveAttrs(...arguments);
 
     let startDate = moment();
     if (this.filters && isPresent(this.filters.startDate)) {
@@ -99,47 +87,44 @@ export default Component.extend({
     }
     this.set("endDate", endDate);
 
+    if (this.filters) {
+      this.set("currentMode", this.filters.mode);
+    }
+
     if (this.report) {
       this._renderReport(this.report, this.forcedModes, this.currentMode);
     } else if (this.dataSourceName) {
       this._fetchReport();
     }
-  },
-
-  showError: or("showTimeoutError", "showExceptionError", "showNotFoundError"),
-  showNotFoundError: equal("model.error", "not_found"),
-  showTimeoutError: equal("model.error", "timeout"),
-  showExceptionError: equal("model.error", "exception"),
-
-  hasData: notEmpty("model.data"),
+  }
 
   @discourseComputed("dataSourceName", "model.type")
   dasherizedDataSourceName(dataSourceName, type) {
     return (dataSourceName || type || "undefined").replace(/_/g, "-");
-  },
+  }
 
   @discourseComputed("dataSourceName", "model.type")
   dataSource(dataSourceName, type) {
     dataSourceName = dataSourceName || type;
     return `/admin/reports/${dataSourceName}`;
-  },
+  }
 
   @discourseComputed("displayedModes.length")
   showModes(displayedModesLength) {
     return displayedModesLength > 1;
-  },
+  }
 
   @discourseComputed("currentMode")
   isChartMode(currentMode) {
     return currentMode === "chart";
-  },
+  }
 
   @action
   changeGrouping(grouping) {
     this.send("refreshReport", {
       chartGrouping: grouping,
     });
-  },
+  }
 
   @discourseComputed("currentMode", "model.modes", "forcedModes")
   displayedModes(currentMode, reportModes, forcedModes) {
@@ -147,7 +132,7 @@ export default Component.extend({
 
     return makeArray(modes).map((mode) => {
       const base = `btn-default mode-btn ${mode}`;
-      const cssClass = currentMode === mode ? `${base} is-current` : base;
+      const cssClass = currentMode === mode ? `${base} btn-primary` : base;
 
       return {
         mode,
@@ -155,12 +140,12 @@ export default Component.extend({
         icon: mode === "table" ? "table" : "signal",
       };
     });
-  },
+  }
 
   @discourseComputed("currentMode")
   modeComponent(currentMode) {
     return `admin-report-${currentMode.replace(/_/g, "-")}`;
-  },
+  }
 
   @discourseComputed(
     "dataSourceName",
@@ -194,20 +179,21 @@ export default Component.extend({
       .join(":");
 
     return reportKey;
-  },
+  }
 
-  @discourseComputed("reportOptions.chartGrouping")
-  chartGroupings(chartGrouping) {
-    chartGrouping = chartGrouping || "daily";
+  @discourseComputed("options.chartGrouping", "model.chartData.length")
+  chartGroupings(grouping, count) {
+    const options = ["daily", "weekly", "monthly"];
 
-    return ["daily", "weekly", "monthly"].map((id) => {
+    return options.map((id) => {
       return {
         id,
+        disabled: id === "daily" && count >= DAILY_LIMIT_DAYS,
         label: `admin.dashboard.reports.${id}`,
-        class: `chart-grouping ${chartGrouping === id ? "active" : "inactive"}`,
+        class: `chart-grouping ${grouping === id ? "active" : "inactive"}`,
       };
     });
-  },
+  }
 
   @action
   onChangeDateRange(range) {
@@ -215,7 +201,7 @@ export default Component.extend({
       startDate: range.from,
       endDate: range.to,
     });
-  },
+  }
 
   @action
   applyFilter(id, value) {
@@ -230,7 +216,7 @@ export default Component.extend({
     this.send("refreshReport", {
       filters: customFilters,
     });
-  },
+  }
 
   @action
   refreshReport(options = {}) {
@@ -240,6 +226,7 @@ export default Component.extend({
 
     this.attrs.onRefresh({
       type: this.get("model.type"),
+      mode: this.currentMode,
       chartGrouping: options.chartGrouping,
       startDate:
         typeof options.startDate === "undefined"
@@ -252,7 +239,7 @@ export default Component.extend({
           ? this.get("filters.customFilters")
           : options.filters,
     });
-  },
+  }
 
   @action
   exportCsv() {
@@ -268,16 +255,16 @@ export default Component.extend({
     }
 
     exportEntity("report", args).then(outputExportResult);
-  },
+  }
 
   @action
-  changeMode(mode) {
+  onChangeMode(mode) {
     this.set("currentMode", mode);
 
     this.send("refreshReport", {
       chartGrouping: null,
     });
-  },
+  }
 
   _computeReport() {
     if (!this.element || this.isDestroying || this.isDestroyed) {
@@ -320,7 +307,7 @@ export default Component.extend({
     }
 
     this._renderReport(report, this.forcedModes, this.currentMode);
-  },
+  }
 
   _renderReport(report, forcedModes, currentMode) {
     const modes = forcedModes ? forcedModes.split(",") : report.modes;
@@ -329,13 +316,11 @@ export default Component.extend({
     this.setProperties({
       model: report,
       currentMode,
-      options: this._buildOptions(currentMode),
+      options: this._buildOptions(currentMode, report),
     });
-  },
+  }
 
   _fetchReport() {
-    this._super(...arguments);
-
     this.setProperties({ isLoading: true, rateLimitationString: null });
 
     next(() => {
@@ -363,10 +348,10 @@ export default Component.extend({
 
       ReportLoader.enqueue(this.dataSourceName, payload.data, callback);
     });
-  },
+  }
 
   _buildPayload(facets) {
-    let payload = { data: { cache: true, facets } };
+    let payload = { data: { facets } };
 
     if (this.startDate) {
       payload.data.start_date = moment(this.startDate)
@@ -389,23 +374,25 @@ export default Component.extend({
     }
 
     return payload;
-  },
+  }
 
-  _buildOptions(mode) {
+  _buildOptions(mode, report) {
     if (mode === "table") {
       const tableOptions = JSON.parse(JSON.stringify(TABLE_OPTIONS));
       return EmberObject.create(
         Object.assign(tableOptions, this.get("reportOptions.table") || {})
       );
-    } else {
+    } else if (mode === "chart") {
       const chartOptions = JSON.parse(JSON.stringify(CHART_OPTIONS));
       return EmberObject.create(
         Object.assign(chartOptions, this.get("reportOptions.chart") || {}, {
-          chartGrouping: this.get("reportOptions.chartGrouping"),
+          chartGrouping:
+            this.get("reportOptions.chartGrouping") ||
+            Report.groupingForDatapoints(report.chartData.length),
         })
       );
     }
-  },
+  }
 
   _loadReport(jsonReport) {
     Report.fillMissingDates(jsonReport, { filledField: "chartData" });
@@ -414,7 +401,7 @@ export default Component.extend({
       jsonReport.chartData = jsonReport.chartData.map((chartData) => {
         if (chartData.length > 40) {
           return {
-            data: collapseWeekly(chartData.data),
+            data: chartData.data,
             req: chartData.req,
             label: chartData.label,
             color: chartData.color,
@@ -423,11 +410,6 @@ export default Component.extend({
           return chartData;
         }
       });
-    } else if (jsonReport.chartData && jsonReport.chartData.length > 40) {
-      jsonReport.chartData = collapseWeekly(
-        jsonReport.chartData,
-        jsonReport.average
-      );
     }
 
     if (jsonReport.prev_data) {
@@ -437,15 +419,8 @@ export default Component.extend({
         starDate: jsonReport.prev_startDate,
         endDate: jsonReport.prev_endDate,
       });
-
-      if (jsonReport.prevChartData && jsonReport.prevChartData.length > 40) {
-        jsonReport.prevChartData = collapseWeekly(
-          jsonReport.prevChartData,
-          jsonReport.average
-        );
-      }
     }
 
     return Report.create(jsonReport);
-  },
-});
+  }
+}

@@ -1,53 +1,85 @@
 <label class="control-label">{{i18n "user.users"}}</label>
-{{#if ignoredEnabled}}
-  <div class="control-group user-ignore">
+{{#if this.ignoredEnabled}}
+  <div class="control-group user-ignore" data-setting-name="user-ignored-users">
     <div class="controls tracking-controls user-notifications">
-      <label>{{d-icon "far-eye-slash" class="icon"}} {{i18n "user.ignored_users"}}</label>
-      {{ignored-user-list model=model items=model.ignored_usernames saving=saved}}
+      <label>{{d-icon "far-eye-slash" class="icon"}}
+        {{i18n "user.ignored_users"}}</label>
+      <IgnoredUserList
+        @model={{this.model}}
+        @items={{this.model.ignored_usernames}}
+        @saving={{this.saved}}
+      />
     </div>
   </div>
 {{/if}}
 
-<div class="control-group user-mute">
+<div class="control-group user-mute" data-setting-name="user-muted-users">
   <div class="controls tracking-controls">
     <label>
       {{d-icon "d-muted" class="icon"}}
       <span>{{i18n "user.muted_users"}}</span>
     </label>
-    {{user-chooser
-      value=mutedUsernames
-      onChange=(action "onChangeMutedUsernames")
-      options=(hash
-        excludeCurrentUser=true
-      )
-    }}
+    <UserChooser
+      @value={{this.mutedUsernames}}
+      @onChange={{action "onChangeMutedUsernames"}}
+      @options={{hash excludeCurrentUser=true}}
+    />
   </div>
   <div class="instructions">{{i18n "user.muted_users_instructions"}}</div>
 </div>
 
-{{#if siteSettings.enable_personal_messages}}
-  <div class="control-group user-allow-pm">
-    <div class="controls">
-      {{preference-checkbox
-          labelKey="user.allow_private_messages_from_specific_users"
-          checked=model.user_option.enable_allowed_pm_users
-          disabled=disableAllowPmUsersSetting}}
-    </div>
-    {{#if allowPmUsersEnabled}}
-      <div class="controls tracking-controls">
-        {{user-chooser
-          value=allowedPmUsernames
-          onChange=(action "onChangeAllowedPmUsernames")
-          options=(hash
-            excludeCurrentUser=true
-          )
-        }}
+{{#if this.currentUser.can_send_private_messages}}
+  <div class="control-group private-messages">
+    <label class="control-label">{{i18n "user.private_messages"}}</label>
+    <div
+      class="control-group user-allow-pm"
+      data-setting-name="user-allow-private-messages"
+    >
+      <div class="controls">
+        <PreferenceCheckbox
+          @labelKey="user.allow_private_messages"
+          @checked={{this.model.user_option.allow_private_messages}}
+        />
       </div>
-      <div class="instructions">{{i18n "user.allowed_pm_users_instructions"}}</div>
-    {{/if}}
+    </div>
+
+    <div
+      class="control-group user-allow-pm"
+      data-setting-name="user-allow-private-messages-from-specific-users"
+    >
+      <div class="controls">
+        <PreferenceCheckbox
+          @labelKey="user.allow_private_messages_from_specific_users"
+          @checked={{this.model.user_option.enable_allowed_pm_users}}
+          @disabled={{this.disableAllowPmUsersSetting}}
+        />
+      </div>
+      {{#if this.allowPmUsersEnabled}}
+        <div class="controls tracking-controls">
+          <UserChooser
+            @value={{this.allowedPmUsernames}}
+            @onChange={{action "onChangeAllowedPmUsernames"}}
+            @options={{hash excludeCurrentUser=true}}
+          />
+        </div>
+        <div class="instructions">{{i18n
+            "user.allowed_pm_users_instructions"
+          }}</div>
+      {{/if}}
+    </div>
   </div>
 {{/if}}
 
-{{plugin-outlet name="user-custom-controls" args=(hash model=model)}}
+<span>
+  <PluginOutlet
+    @name="user-custom-controls"
+    @connectorTagName="div"
+    @outletArgs={{hash model=this.model}}
+  />
+</span>
 
-{{#save-controls model=model action=(action "save") saved=saved}}{{/save-controls}}
+<SaveControls
+  @model={{this.model}}
+  @action={{action "save"}}
+  @saved={{this.saved}}
+/>

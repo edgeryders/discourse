@@ -1,6 +1,7 @@
 import getURL from "discourse-common/lib/get-url";
-import { cancel, later } from "@ember/runloop";
-import discourseComputed, { on } from "discourse-common/utils/decorators";
+import { cancel } from "@ember/runloop";
+import discourseLater from "discourse-common/lib/later";
+import discourseComputed, { bind, on } from "discourse-common/utils/decorators";
 import Component from "@ember/component";
 import { action } from "@ember/object";
 import { isTesting } from "discourse-common/config/environment";
@@ -9,36 +10,66 @@ export default Component.extend({
   tagName: "",
 
   showPrompt: false,
+  animatePrompt: false,
   _timeoutHandler: null,
+
+  init() {
+    this._super(...arguments);
+
+    this.messageBus.subscribe("/refresh_client", this.onRefresh);
+    this.messageBus.subscribe("/global/asset-version", this.onAsset);
+  },
+
+  willDestroy() {
+    this._super(...arguments);
+
+    this.messageBus.unsubscribe("/refresh_client", this.onRefresh);
+    this.messageBus.unsubscribe("/global/asset-version", this.onAsset);
+  },
+
+  @bind
+  onRefresh() {
+    this.session.requiresRefresh = true;
+  },
+
+  @bind
+  onAsset(version) {
+    if (this.session.assetVersion !== version) {
+      this.session.requiresRefresh = true;
+    }
+
+    if (!this._timeoutHandler && this.session.requiresRefresh) {
+      if (isTesting()) {
+        this.updatePromptState(true);
+      } else {
+        // Since we can do this transparently for people browsing the forum
+        // hold back the message 24 hours.
+        this._timeoutHandler = discourseLater(() => {
+          this.updatePromptState(true);
+        }, 1000 * 60 * 24 * 60);
+      }
+    }
+  },
 
   @discourseComputed
   rootUrl() {
     return getURL("/");
   },
 
-  @on("init")
-  initSubscribtions() {
-    this.messageBus.subscribe("/refresh_client", () => {
-      this.session.requiresRefresh = true;
-    });
+  updatePromptState(value) {
+    // when adding the message, we inject the HTML then add the animation
+    // when dismissing, things need to happen in the opposite order
+    const firstProp = value ? "showPrompt" : "animatePrompt",
+      secondProp = value ? "animatePrompt" : "showPrompt";
 
-    this.messageBus.subscribe("/global/asset-version", (version) => {
-      if (this.session.assetVersion !== version) {
-        this.session.requiresRefresh = true;
-      }
-
-      if (!this._timeoutHandler && this.session.requiresRefresh) {
-        if (isTesting()) {
-          this.set("showPrompt", true);
-        } else {
-          // Since we can do this transparently for people browsing the forum
-          // hold back the message 24 hours.
-          this._timeoutHandler = later(() => {
-            this.set("showPrompt", true);
-          }, 1000 * 60 * 24 * 60);
-        }
-      }
-    });
+    this.set(firstProp, value);
+    if (isTesting()) {
+      this.set(secondProp, value);
+    } else {
+      discourseLater(() => {
+        this.set(secondProp, value);
+      }, 500);
+    }
   },
 
   @action
@@ -48,7 +79,7 @@ export default Component.extend({
 
   @action
   dismiss() {
-    this.set("showPrompt", false);
+    this.updatePromptState(false);
   },
 
   @on("willDestroyElement")

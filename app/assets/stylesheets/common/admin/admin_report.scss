@@ -19,7 +19,7 @@
 
     .item {
       display: inline;
-      font-size: $font-up-1;
+      font-size: var(--font-up-1);
     }
 
     .all-reports .report-url {
@@ -67,11 +67,11 @@
     }
 
     .value {
-      font-size: $font-up-1;
+      font-size: var(--font-up-1);
     }
 
     .icon {
-      font-size: $font-up-1;
+      font-size: var(--font-up-1);
       font-weight: 700;
     }
   }
@@ -96,7 +96,7 @@
 
     .d-icon {
       color: currentColor;
-      font-size: $font-up-5;
+      font-size: var(--font-up-5);
       display: block;
       margin: 0.25em auto;
     }
@@ -117,6 +117,15 @@
       border-color: var(--danger-low);
       color: var(--danger);
     }
+  }
+
+  .average-chart {
+    padding: 0.5em;
+    border: 1px solid var(--highlight);
+    color: var(--highlight);
+    margin-bottom: 1em;
+    text-align: center;
+    background: var(--highlight-bg);
   }
 
   .filters {
@@ -170,11 +179,6 @@
       }
 
       .refresh-report-btn {
-        width: 100%;
-      }
-
-      .d-date-time-input-range {
-        flex-direction: column;
         width: 100%;
       }
     }

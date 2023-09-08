@@ -30,7 +30,9 @@ def setup_message_bus_env(env)
     extra_headers = {
       "Access-Control-Allow-Origin" => Discourse.base_url_no_prefix,
       "Access-Control-Allow-Methods" => "GET, POST",
-      "Access-Control-Allow-Headers" => "X-SILENCE-LOGGER, X-Shared-Session-Key, Dont-Chunk, Discourse-Present"
+      "Access-Control-Allow-Headers" =>
+        "X-SILENCE-LOGGER, X-Shared-Session-Key, Dont-Chunk, Discourse-Present",
+      "Access-Control-Max-Age" => "7200",
     }
 
     user = nil
@@ -39,25 +41,30 @@ def setup_message_bus_env(env)
     rescue Discourse::InvalidAccess => e
       # this is bad we need to remove the cookie
       if e.opts[:delete_cookie].present?
-        extra_headers['Set-Cookie'] = '_t=del; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT'
+        extra_headers["Set-Cookie"] = "_t=del; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT"
       end
     rescue => e
-      Discourse.warn_exception(e, message: "Unexpected error in Message Bus")
+      Discourse.warn_exception(e, message: "Unexpected error in Message Bus", env: env)
     end
+
     user_id = user && user.id
 
     raise Discourse::InvalidAccess if !user_id && SiteSetting.login_required
 
     is_admin = !!(user && user.admin?)
-    group_ids = if is_admin
-      # special rule, admin is allowed access to all groups
-      Group.pluck(:id)
-    elsif user
-      user.groups.pluck('groups.id')
-    end
+    group_ids =
+      if is_admin
+        # special rule, admin is allowed access to all groups
+        Group.pluck(:id)
+      elsif user
+        user.groups.pluck("groups.id")
+      end
 
-    if env[Auth::DefaultCurrentUserProvider::BAD_TOKEN]
-      extra_headers['Discourse-Logged-Out'] = '1'
+    extra_headers["Discourse-Logged-Out"] = "1" if env[Auth::DefaultCurrentUserProvider::BAD_TOKEN]
+
+    if Rails.env.development?
+      # Adding no-transform prevents the expressjs ember-cli proxy buffering/compressing the response
+      extra_headers["Cache-Control"] = "no-transform, must-revalidate, private, max-age=0"
     end
 
     hash = {
@@ -65,8 +72,7 @@ def setup_message_bus_env(env)
       user_id: user_id,
       group_ids: group_ids,
       is_admin: is_admin,
-      site_id: RailsMultisite::ConnectionManagement.current_db
-
+      site_id: RailsMultisite::ConnectionManagement.current_db,
     }
     env["__mb"] = hash
   end
@@ -98,7 +104,7 @@ MessageBus.on_middleware_error do |env, e|
   if Discourse::InvalidAccess === e
     [403, {}, ["Invalid Access"]]
   elsif RateLimiter::LimitExceeded === e
-    [429, { 'Retry-After' => e.available_in.to_s }, [e.description]]
+    [429, { "Retry-After" => e.available_in.to_s }, [e.description]]
   end
 end
 
@@ -115,12 +121,12 @@ if Rails.env == "test"
 else
   MessageBus.redis_config = GlobalSetting.message_bus_redis_config
 end
-MessageBus.reliable_pub_sub.max_backlog_size = GlobalSetting.message_bus_max_backlog_size
 
-MessageBus.long_polling_enabled = SiteSetting.enable_long_polling
-MessageBus.long_polling_interval = SiteSetting.long_polling_interval
-MessageBus.cache_assets = !Rails.env.development?
-MessageBus.enable_diagnostics
+MessageBus.backend_instance.max_backlog_size = GlobalSetting.message_bus_max_backlog_size
+MessageBus.backend_instance.clear_every = GlobalSetting.message_bus_clear_every
+MessageBus.long_polling_enabled =
+  GlobalSetting.enable_long_polling.nil? ? true : GlobalSetting.enable_long_polling
+MessageBus.long_polling_interval = GlobalSetting.long_polling_interval || 25_000
 
 if Rails.env == "test" || $0 =~ /rake$/
   # disable keepalive in testing

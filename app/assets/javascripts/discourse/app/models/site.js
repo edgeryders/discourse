@@ -1,6 +1,7 @@
 import EmberObject, { get } from "@ember/object";
 import { alias, sort } from "@ember/object/computed";
 import Archetype from "discourse/models/archetype";
+import Category from "discourse/models/category";
 import PostActionType from "discourse/models/post-action-type";
 import PreloadStore from "discourse/lib/preload-store";
 import RestModel from "discourse/models/rest";
@@ -10,6 +11,7 @@ import deprecated from "discourse-common/lib/deprecated";
 import discourseComputed from "discourse-common/utils/decorators";
 import { getOwner } from "discourse-common/lib/get-owner";
 import { isEmpty } from "@ember/utils";
+import { htmlSafe } from "@ember/template";
 
 const Site = RestModel.extend({
   isReadOnly: alias("is_readonly"),
@@ -48,7 +50,7 @@ const Site = RestModel.extend({
     if (!isEmpty(siteFields)) {
       return siteFields.map((f) => {
         let value = fields ? fields[f.id.toString()] : null;
-        value = value || "&mdash;".htmlSafe();
+        value = value || htmlSafe("&mdash;");
         return { name: f.name, value };
       });
     }
@@ -57,38 +59,34 @@ const Site = RestModel.extend({
 
   // Sort subcategories under parents
   @discourseComputed("categoriesByCount", "categories.[]")
-  sortedCategories(cats) {
-    const result = [],
-      remaining = {};
-
-    cats.forEach((c) => {
-      const parentCategoryId = parseInt(c.get("parent_category_id"), 10);
-      if (!parentCategoryId) {
-        result.pushObject(c);
-      } else {
-        remaining[parentCategoryId] = remaining[parentCategoryId] || [];
-        remaining[parentCategoryId].pushObject(c);
-      }
-    });
-
-    Object.keys(remaining).forEach((parentCategoryId) => {
-      const category = result.findBy("id", parseInt(parentCategoryId, 10)),
-        index = result.indexOf(category);
-
-      if (index !== -1) {
-        result.replace(index + 1, 0, remaining[parentCategoryId]);
-      }
-    });
-
-    return result;
+  sortedCategories(categories) {
+    return Category.sortCategories(categories);
   },
 
   // Returns it in the correct order, by setting
   @discourseComputed("categories.[]")
-  categoriesList() {
+  categoriesList(categories) {
     return this.siteSettings.fixed_category_positions
-      ? this.categories
+      ? categories
       : this.sortedCategories;
+  },
+
+  @discourseComputed("categories.[]", "categories.@each.notification_level")
+  trackedCategoriesList(categories) {
+    const trackedCategories = [];
+
+    for (const category of categories) {
+      if (category.isTracked) {
+        if (
+          this.siteSettings.allow_uncategorized_topics ||
+          !category.isUncategorizedCategory
+        ) {
+          trackedCategories.push(category);
+        }
+      }
+    }
+
+    return trackedCategories;
   },
 
   postActionTypeById(id) {
@@ -137,6 +135,7 @@ Site.reopenClass(Singleton, {
     const store = getOwner(this).lookup("service:store");
     const siteAttributes = PreloadStore.get("site");
     siteAttributes["isReadOnly"] = PreloadStore.get("isReadOnly");
+    siteAttributes["isStaffWritesOnly"] = PreloadStore.get("isStaffWritesOnly");
     return store.createRecord("site", siteAttributes);
   },
 
@@ -147,7 +146,7 @@ Site.reopenClass(Singleton, {
     if (result.categories) {
       let subcatMap = {};
 
-      result.categoriesById = {};
+      result.categoriesById = new Map();
       result.categories = result.categories.map((c) => {
         if (c.parent_category_id) {
           subcatMap[c.parent_category_id] =
@@ -179,8 +178,10 @@ Site.reopenClass(Singleton, {
     }
 
     if (result.trust_levels) {
-      result.trustLevels = result.trust_levels.map((tl) =>
-        TrustLevel.create(tl)
+      result.trustLevels = Object.entries(result.trust_levels).map(
+        ([key, id]) => {
+          return new TrustLevel(id, key);
+        }
       );
       delete result.trust_levels;
     }
@@ -222,12 +223,13 @@ Site.reopenClass(Singleton, {
 
 if (typeof Discourse !== "undefined") {
   let warned = false;
+  // eslint-disable-next-line no-undef
   Object.defineProperty(Discourse, "Site", {
     get() {
       if (!warned) {
         deprecated("Import the Site class instead of using Discourse.Site", {
           since: "2.4.0",
-          dropFrom: "2.6.0",
+          id: "discourse.globals.site",
         });
         warned = true;
       }

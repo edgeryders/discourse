@@ -1,6 +1,7 @@
 import I18n from "I18n";
 import { isEmpty } from "@ember/utils";
 import { userPath } from "discourse/lib/url";
+import getURL from "discourse-common/lib/get-url";
 
 const _additionalAttributes = [];
 
@@ -17,13 +18,15 @@ export function transformBasicPost(post) {
     deleted: post.get("deleted"),
     deleted_at: post.deleted_at,
     user_deleted: post.user_deleted,
-    isDeleted: post.deleted_at || post.user_deleted, // xxxxx
+    isDeleted: post.deleted_at || post.user_deleted,
     deletedByAvatarTemplate: null,
     deletedByUsername: null,
     primary_group_name: post.primary_group_name,
-    primary_group_flair_url: post.primary_group_flair_url,
-    primary_group_flair_bg_color: post.primary_group_flair_bg_color,
-    primary_group_flair_color: post.primary_group_flair_color,
+    flair_name: post.flair_name,
+    flair_url: post.flair_url,
+    flair_bg_color: post.flair_bg_color,
+    flair_color: post.flair_color,
+    flair_group_id: post.flair_group_id,
     wiki: post.wiki,
     lastWikiEdit: post.last_wiki_edit,
     firstPost: post.post_number === 1,
@@ -38,7 +41,6 @@ export function transformBasicPost(post) {
     bookmarked: post.bookmarked,
     bookmarkReminderAt: post.bookmark_reminder_at,
     bookmarkName: post.bookmark_name,
-    bookmarkReminderType: post.bookmark_reminder_type,
     yours: post.yours,
     shareUrl: post.get("shareUrl"),
     staff: post.staff,
@@ -52,10 +54,12 @@ export function transformBasicPost(post) {
     created_at: post.created_at,
     updated_at: post.updated_at,
     canDelete: post.can_delete,
+    canPermanentlyDelete: false,
     showFlagDelete: false,
     canRecover: post.can_recover,
+    canSeeHiddenPost: post.can_see_hidden_post,
     canEdit: post.can_edit,
-    canFlag: !isEmpty(post.get("flagsAvailable")),
+    canFlag: !post.get("topic.deleted") && !isEmpty(post.get("flagsAvailable")),
     canReviewTopic: false,
     reviewableId: post.reviewable_id,
     reviewableScoreCount: post.reviewable_score_count,
@@ -72,6 +76,7 @@ export function transformBasicPost(post) {
     actionsSummary: null,
     read: post.read,
     replyToUsername: null,
+    replyToName: null,
     replyToAvatarTemplate: null,
     reply_to_post_number: post.reply_to_post_number,
     cooked_hidden: !!post.cooked_hidden,
@@ -82,6 +87,7 @@ export function transformBasicPost(post) {
     readCount: post.readers_count,
     canPublishPage: false,
     trustLevel: post.trust_level,
+    userSuspended: post.user_suspended,
   };
 
   _additionalAttributes.forEach((a) => (postAtts[a] = post[a]));
@@ -123,8 +129,7 @@ export default function transformPost(
     postType === postTypes.small_action || post.action_code === "split_topic";
   postAtts.canBookmark = !!currentUser;
   postAtts.canManage = currentUser && currentUser.get("canManageTopic");
-  postAtts.canViewRawEmail =
-    currentUser && (currentUser.id === post.user_id || currentUser.staff);
+  postAtts.canViewRawEmail = currentUser && currentUser.staff;
   postAtts.canArchiveTopic = !!details.can_archive_topic;
   postAtts.canCloseTopic = !!details.can_close_topic;
   postAtts.canSplitMergeTopic = !!details.can_split_merge_topic;
@@ -146,8 +151,11 @@ export default function transformPost(
   postAtts.linkCounts = post.link_counts;
   postAtts.actionCode = post.action_code;
   postAtts.actionCodeWho = post.action_code_who;
+  postAtts.actionCodePath = getURL(post.action_code_path || `/t/${topic.id}`);
   postAtts.topicUrl = topic.get("url");
   postAtts.isSaving = post.isSaving;
+  postAtts.staged = post.staged;
+  postAtts.user = post.user;
 
   if (post.notice) {
     postAtts.notice = post.notice;
@@ -172,7 +180,7 @@ export default function transformPost(
   }
 
   const showTopicMap =
-    _additionalAttributes.indexOf("topicMap") !== -1 ||
+    (_additionalAttributes.includes("topicMap") && post.post_number === 1) ||
     showPMMap ||
     (post.post_number === 1 &&
       topic.archetype === "regular" &&
@@ -210,7 +218,8 @@ export default function transformPost(
     postAtts.userFilters = postStream.userFilters;
     postAtts.topicSummaryEnabled = postStream.summary;
     postAtts.topicWordCount = topic.word_count;
-    postAtts.hasTopicSummary = topic.has_summary;
+    postAtts.hasTopRepliesSummary = topic.has_summary;
+    postAtts.summarizable = topic.summarizable;
   }
 
   if (postAtts.isDeleted) {
@@ -223,6 +232,7 @@ export default function transformPost(
   const replyToUser = post.get("reply_to_user");
   if (replyToUser) {
     postAtts.replyToUsername = replyToUser.username;
+    postAtts.replyToName = replyToUser.name;
     postAtts.replyToAvatarTemplate = replyToUser.avatar_template;
   }
 
@@ -250,16 +260,19 @@ export default function transformPost(
     postAtts.canToggleLike = likeAction.get("canToggle");
     postAtts.showLike = postAtts.liked || postAtts.canToggleLike;
     postAtts.likeCount = likeAction.count;
-  }
-
-  if (!currentUser) {
-    postAtts.showLike = !topic.archived;
+  } else if (
+    !currentUser ||
+    (topic.archived && topic.user_id !== currentUser.id)
+  ) {
+    postAtts.showLike = true;
   }
 
   if (postAtts.post_number === 1) {
     postAtts.canRecoverTopic = postAtts.isDeleted && details.can_recover;
     postAtts.canDeleteTopic = !postAtts.isDeleted && details.can_delete;
     postAtts.expandablePost = topic.expandable_first_post;
+    postAtts.canPermanentlyDelete =
+      postAtts.isDeleted && details.can_permanently_delete;
 
     // Show a "Flag to delete" message if not staff and you can't
     // otherwise delete it.
@@ -276,6 +289,8 @@ export default function transformPost(
       !post.deleted_at &&
       currentUser &&
       (currentUser.staff || !post.user_deleted);
+    postAtts.canPermanentlyDelete =
+      postAtts.isDeleted && post.can_permanently_delete;
   }
 
   _additionalAttributes.forEach((a) => (postAtts[a] = post[a]));

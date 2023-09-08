@@ -1,3 +1,5 @@
+$topic-progress-height: 42px;
+
 @keyframes button-jump-up {
   0% {
     margin-bottom: -60px;
@@ -28,8 +30,9 @@
   > .row {
     grid-area: posts;
     max-width: calc(
-      100vw - 16px
-    ); // 16px is the left + right padding on .wrap in common/base/discourse.scss
+      100vw - 20px
+    ); // 20px is the left + right padding on .wrap in common/base/discourse.scss
+    min-width: 0; // grid needs to be able to shrink
   }
 
   .timeline-container {
@@ -46,31 +49,57 @@
       grid-area: timeline;
       align-self: start;
       @include sticky;
-      top: 6em;
+      top: calc(var(--header-offset, 60px) + 2em);
       margin-left: 1em;
       z-index: z("timeline");
-    }
-  }
 
-  // progress bar
-  @media screen and (max-width: 924px) {
-    // at 924px viewport width and below the progress bar is visible (see topic-navigation.js)
-    grid-template-areas: "posts posts";
-    .timeline-container:not(.timeline-fullscreen) {
-      display: none; // hiding this because sometimes the JS switch lags and causes layout issues
+      &.with-topic-progress {
+        align-self: end;
+      }
+
+      &.topic-progress-expanded {
+        z-index: z("fullscreen");
+      }
     }
-    .timeline-container {
-      .timeline-scroller-content {
-        position: relative;
+
+    .topic-navigation-popup {
+      box-sizing: border-box;
+      position: absolute;
+      top: 0;
+      overflow-y: auto;
+      z-index: z("timeline");
+      padding: 10px 10px 35px 10px;
+      box-shadow: var(--shadow-dropdown);
+      background: var(--tertiary-low);
+
+      .close {
+        display: flex;
+        align-items: center;
+        position: absolute;
+        right: 10px;
+        top: 10px;
+        color: var(--primary);
+        opacity: 0.5;
+        font-size: var(--font-up-1);
       }
     }
   }
-}
+  // progress bar
+  @media screen and (max-width: 924px) {
+    grid-template-areas: "posts";
+    grid-template-columns: auto;
+    .topic-navigation {
+      grid-area: posts;
+      grid-row: 2;
+      width: auto;
+    }
 
-@media screen and (max-width: 924px) {
-  .post-stream {
-    // make space for the topic progress bar to dock
-    padding-bottom: 2em;
+    .timeline-container:not(.timeline-fullscreen) {
+      display: none; // hiding this because sometimes the JS switch lags and causes layout issues
+    }
+    .timeline-container .timeline-scroller-content {
+      position: relative;
+    }
   }
 }
 
@@ -91,8 +120,13 @@
 }
 
 #topic-progress-wrapper {
+  position: fixed;
+  bottom: 0px;
+  right: 10px;
+  margin: 0 auto;
   display: flex;
-  right: 9px; // 8px padding on #main-outlet + 1px right border
+  justify-content: flex-end;
+  z-index: z("timeline");
   .topic-admin-menu-button-container {
     display: flex;
     > span {
@@ -109,11 +143,71 @@
       0
     ); // iOS11 Rendering bug https://meta.discourse.org/t/wrench-menu-not-disappearing-on-ios/94297
   }
+
+  &.docked {
+    position: initial;
+    .topic-admin-popup-menu.right-side {
+      bottom: unset;
+      right: 10px;
+    }
+  }
+
+  body:not(.footer-nav-visible) & {
+    bottom: env(safe-area-inset-bottom);
+  }
+
+  &:not(.docked) {
+    @media screen and (min-width: $reply-area-max-width) {
+      // position to right side of composer
+      right: calc(50% + 10px);
+      margin-right: calc(#{$reply-area-max-width} / 2 * -1);
+    }
+  }
+
+  &.with-transitions {
+    transition: bottom 0.2s, margin-bottom 0.2s;
+
+    #topic-progress .bg {
+      transition: width 0.5s;
+    }
+  }
 }
 
-#topic-progress-wrapper.docked {
-  .topic-admin-popup-menu.right-side {
-    bottom: -150px; // Prevents menu from being too high when a topic is very short
+#topic-progress {
+  position: relative;
+  background-color: var(--secondary);
+  color: var(--tertiary);
+  border: 1px solid var(--tertiary-low);
+  width: 145px;
+  height: $topic-progress-height;
+
+  /* as a big ol' click target, don't let text inside be selected */
+  @include unselectable;
+
+  .nums {
+    position: relative;
+    top: 12px;
+    width: 100%;
+    text-align: center;
+    z-index: z("base");
+  }
+  h4 {
+    display: inline;
+    font-size: var(--font-up-2);
+    line-height: var(--line-height-small);
+  }
+  .d-icon {
+    position: absolute;
+    right: 8px;
+    bottom: 9px;
+    z-index: z("base");
+  }
+  .bg {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: var(--progress-bg-width, 0);
+    background-color: var(--tertiary-low);
   }
 }
 
@@ -121,12 +215,15 @@
 .topic-timer-info {
   border-top: 1px solid var(--primary-low);
   margin: 0;
-  max-width: 758px;
+  max-width: calc(
+    var(--topic-body-width) + (var(--topic-body-width-padding) * 2) +
+      var(--topic-avatar-width)
+  );
   &:empty {
     padding: 0;
   }
   span .d-icon {
-    font-size: $font-down-1;
+    font-size: var(--font-down-1);
   }
   .topic-timer-heading,
   .slow-mode-heading {
@@ -142,7 +239,7 @@
     align-self: flex-start;
   }
   button {
-    font-size: $font-down-2;
+    font-size: var(--font-down-2);
     background: transparent;
   }
 }
@@ -158,18 +255,14 @@
   }
   .topic-statuses {
     line-height: 1.2;
-    margin-right: 0.15em;
-    &:empty {
-      margin-right: 0;
-    }
     .d-icon {
       color: var(--primary-medium);
     }
   }
-}
-
-h1 {
-  margin: 0 0 4px 0;
+  .header-title .private-message-glyph-wrapper {
+    float: left;
+    margin-right: 0.25em;
+  }
 }
 
 a.badge-category {
@@ -186,7 +279,7 @@ a.badge-category {
     }
   }
   h1 {
-    margin: 0 0 4px 0;
+    margin-bottom: 0;
     width: 100%;
   }
   a.badge-category {
@@ -199,23 +292,31 @@ a.badge-category {
     display: flex;
     flex-wrap: wrap;
     box-sizing: border-box;
-    max-width: 758px;
+    max-width: calc(
+      var(--topic-body-width) + (var(--topic-body-width-padding) * 2) +
+        var(--topic-avatar-width)
+    );
     #edit-title {
-      flex: 1 1 auto;
+      flex: 1 1 100%;
     }
     .category-chooser,
     .mini-tag-chooser {
-      flex: 1 1 49%;
+      flex: 1 1 35%;
       margin: 0 0 9px 0;
       @media all and (max-width: 500px) {
         flex: 1 1 100%;
       }
     }
     .mini-tag-chooser {
-      margin-left: 2%;
+      flex: 1 1 54%;
+      margin: 0 0 9px 0;
+      margin-left: 1%; // category at 40%, tag chooser at 58%
       @media all and (max-width: 500px) {
         margin-left: 0;
       }
+    }
+    .edit-controls {
+      flex: 1 1 100%;
     }
     .select-kit .category-row {
       max-width: unset;
@@ -228,11 +329,6 @@ a.badge-category {
   height: 0.95em;
 }
 
-.private-message-glyph-wrapper {
-  float: left;
-  margin-right: 0.25em;
-}
-
 .private_message {
   #topic-title {
     .edit-topic-title {
@@ -240,7 +336,7 @@ a.badge-category {
       .private-message-glyph {
         position: absolute;
         left: 0.75em;
-        top: 6px;
+        top: 7px;
       }
       #edit-title {
         width: calc(100% - 50px);
@@ -267,7 +363,7 @@ a.badge-category {
   justify-content: space-between;
 
   padding: 0.5em;
-  background-color: var(--highlight-medium);
+  background-color: var(--highlight-bg);
   margin-top: 1em;
   max-width: 757px;
 }
@@ -290,7 +386,7 @@ a.badge-category {
 .suggested-topics h3 .badge-wrapper.bullet span.badge-category {
   // Override vertical-align: text-top from `badges.css.scss`
   vertical-align: baseline;
-  line-height: $line-height-medium;
+  line-height: var(--line-height-medium);
 }
 
 .suggested-topics h3 .badge-wrapper.bullet,
@@ -344,7 +440,7 @@ a.badge-category {
         flex: 0 0 auto;
       }
       .d-icon {
-        font-size: $font-down-2;
+        font-size: var(--font-down-2);
         margin: 0 0.5em 0 0;
       }
     }
@@ -377,8 +473,8 @@ a.topic-featured-link {
 .topic-area {
   .pending-posts {
     max-width: calc(
-      #{$topic-body-width} + #{$topic-avatar-width} + #{$topic-body-width-padding *
-        2}
+      var(--topic-body-width) + (var(--topic-body-width-padding) * 2) +
+        var(--topic-avatar-width)
     );
     .reviewable-item {
       .post-body {
@@ -393,14 +489,14 @@ a.topic-featured-link {
   justify-content: space-between;
   padding-bottom: 1em;
   max-width: calc(
-    #{$topic-body-width} + #{$topic-avatar-width} + #{$topic-body-width-padding *
-      2}
+    var(--topic-body-width) + (var(--topic-body-width-padding) * 2) +
+      var(--topic-avatar-width)
   );
   align-items: center;
 
   .is-public {
     padding: 0.25em 0.5em;
-    font-size: $font-down-2;
+    font-size: var(--font-down-2);
     background: var(--tertiary);
     color: var(--secondary);
     border-radius: 3px;

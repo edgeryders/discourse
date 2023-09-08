@@ -1,4 +1,5 @@
-import { avatarImg, formatUsername } from "discourse/lib/utilities";
+import { formatUsername } from "discourse/lib/utilities";
+import { avatarImg } from "discourse-common/lib/avatar-utils";
 import I18n from "I18n";
 import { get } from "@ember/object";
 import { htmlSafe } from "@ember/template";
@@ -59,7 +60,7 @@ function renderAvatar(user, options) {
         const description = get(user, "description");
         // if a description has been provided
         if (description && description.length > 0) {
-          // preprend the username before the description
+          // prepend the username before the description
           title = I18n.t("user.avatar.name_and_description", {
             name: displayName,
             description,
@@ -72,7 +73,7 @@ function renderAvatar(user, options) {
       size: options.imageSize,
       extraClasses: get(user, "extras") || options.extraClasses,
       title: title || displayName,
-      avatarTemplate: avatarTemplate,
+      avatarTemplate,
     });
   } else {
     return "";

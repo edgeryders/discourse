@@ -1,4 +1,4 @@
-import Controller, { inject } from "@ember/controller";
+import Controller, { inject as controller } from "@ember/controller";
 
 // Just add query params here to have them automatically passed to topic list filters.
 export const queryParams = {
@@ -8,41 +8,48 @@ export const queryParams = {
   state: { replace: true, refreshModel: true },
   search: { replace: true, refreshModel: true },
   max_posts: { replace: true, refreshModel: true },
+  min_posts: { replace: true, refreshModel: true },
   q: { replace: true, refreshModel: true },
-  tags: { replace: true },
   before: { replace: true, refreshModel: true },
   bumped_before: { replace: true, refreshModel: true },
   f: { replace: true, refreshModel: true },
+  period: { replace: true, refreshModel: true },
+  topic_ids: { replace: true, refreshModel: true },
+  group_name: { replace: true, refreshModel: true },
+  tags: { replace: true, refreshModel: true },
+  match_all_tags: { replace: true, refreshModel: true },
+  no_subcategories: { replace: true, refreshModel: true },
+  no_tags: { replace: true, refreshModel: true },
+  exclude_tag: { replace: true, refreshModel: true },
 };
 
 // Basic controller options
 const controllerOpts = {
-  discoveryTopics: inject("discovery/topics"),
+  discoveryTopics: controller("discovery/topics"),
   queryParams: Object.keys(queryParams),
 };
 
-// Default to `null`
+// Default to `undefined`
 controllerOpts.queryParams.forEach((p) => {
   controllerOpts[p] = queryParams[p].default;
 });
 
 export function changeSort(sortBy) {
-  let { controller } = this;
   let model = this.controllerFor("discovery.topics").model;
-  if (sortBy === controller.order) {
-    controller.toggleProperty("ascending");
-    model.updateSortParams(sortBy, controller.ascending);
+
+  if (sortBy === this.controller.order) {
+    this.controller.toggleProperty("ascending");
+    model.updateSortParams(sortBy, this.controller.ascending);
   } else {
-    controller.setProperties({ order: sortBy, ascending: false });
+    this.controller.setProperties({ order: sortBy, ascending: false });
     model.updateSortParams(sortBy, false);
   }
 }
 
 export function resetParams(skipParams = []) {
-  let { controller } = this;
   controllerOpts.queryParams.forEach((p) => {
     if (!skipParams.includes(p)) {
-      controller.set(p, queryParams[p].default);
+      this.controller.set(p, queryParams[p].default);
     }
   });
 }

@@ -1,35 +1,25 @@
+import { action } from "@ember/object";
+import { inject as service } from "@ember/service";
 import { COMPONENTS, THEMES } from "admin/models/theme";
 import I18n from "I18n";
 import Route from "@ember/routing/route";
 import { scrollTop } from "discourse/mixins/scroll-top";
 
-export function showUnassignedComponentWarning(theme, callback) {
-  bootbox.confirm(
-    I18n.t("admin.customize.theme.unsaved_parent_themes"),
-    I18n.t("admin.customize.theme.discard"),
-    I18n.t("admin.customize.theme.stay"),
-    (result) => {
-      if (!result) {
-        theme.set("recentlyInstalled", false);
-      }
-      callback(result);
-    }
-  );
-}
+export default class AdminCustomizeThemesShowRoute extends Route {
+  @service dialog;
 
-export default Route.extend({
   serialize(model) {
     return { theme_id: model.get("id") };
-  },
+  }
 
   model(params) {
     const all = this.modelFor("adminCustomizeThemes");
     const model = all.findBy("id", parseInt(params.theme_id, 10));
     return model ? model : this.replaceWith("adminCustomizeThemes.index");
-  },
+  }
 
   setupController(controller, model) {
-    this._super(...arguments);
+    super.setupController(...arguments);
 
     const parentController = this.controllerFor("adminCustomizeThemes");
 
@@ -39,8 +29,8 @@ export default Route.extend({
     });
 
     controller.setProperties({
-      model: model,
-      parentController: parentController,
+      model,
+      parentController,
       allThemes: parentController.get("model"),
       colorSchemeId: model.get("color_scheme_id"),
       colorSchemes: parentController.get("model.extras.color_schemes"),
@@ -48,11 +38,11 @@ export default Route.extend({
     });
 
     this.handleHighlight(model);
-  },
+  }
 
   deactivate() {
     this.handleHighlight();
-  },
+  }
 
   handleHighlight(theme) {
     this.get("controller.allThemes")
@@ -61,22 +51,27 @@ export default Route.extend({
     if (theme) {
       theme.set("selected", true);
     }
-  },
+  }
 
-  actions: {
-    didTransition() {
-      scrollTop();
-    },
-    willTransition(transition) {
-      const model = this.controller.model;
-      if (model.warnUnassignedComponent) {
-        transition.abort();
-        showUnassignedComponentWarning(model, (result) => {
-          if (!result) {
-            transition.retry();
-          }
-        });
-      }
-    },
-  },
-});
+  @action
+  didTransition() {
+    scrollTop();
+  }
+
+  @action
+  willTransition(transition) {
+    const model = this.controller.model;
+    if (model.warnUnassignedComponent) {
+      transition.abort();
+
+      this.dialog.yesNoConfirm({
+        message: I18n.t("admin.customize.theme.unsaved_parent_themes"),
+        didConfirm: () => {
+          model.set("recentlyInstalled", false);
+          transition.retry();
+        },
+        didCancel: () => model.set("recentlyInstalled", false),
+      });
+    }
+  }
+}

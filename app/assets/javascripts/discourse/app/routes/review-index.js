@@ -1,5 +1,7 @@
 import DiscourseRoute from "discourse/routes/discourse";
 import { isPresent } from "@ember/utils";
+import { action } from "@ember/object";
+import { bind } from "discourse-common/utils/decorators";
 
 export default DiscourseRoute.extend({
   model(params) {
@@ -21,6 +23,12 @@ export default DiscourseRoute.extend({
     if (meta.reviewable_count !== undefined) {
       this.currentUser.set("reviewable_count", meta.reviewable_count);
     }
+    if (meta.unseen_reviewable_count !== undefined) {
+      this.currentUser.set(
+        "unseen_reviewable_count",
+        meta.unseen_reviewable_count
+      );
+    }
 
     controller.setProperties({
       reviewables: model,
@@ -39,31 +47,59 @@ export default DiscourseRoute.extend({
       sort_order: meta.sort_order,
       additionalFilters: meta.additional_filters || {},
     });
+
+    controller.reviewables.setEach("last_performing_username", null);
   },
 
   activate() {
-    this.messageBus.subscribe("/reviewable_claimed", (data) => {
-      const reviewables = this.controller.reviewables;
-      if (reviewables) {
-        const user = data.user
-          ? this.store.createRecord("user", data.user)
-          : null;
-        reviewables.forEach((reviewable) => {
-          if (data.topic_id === reviewable.topic.id) {
-            reviewable.set("claimed_by", user);
-          }
-        });
-      }
-    });
+    this.messageBus.subscribe("/reviewable_claimed", this._updateClaimedBy);
+    this.messageBus.subscribe(
+      this._reviewableCountsChannel,
+      this._updateReviewables
+    );
   },
 
   deactivate() {
-    this.messageBus.unsubscribe("/reviewable_claimed");
+    this.messageBus.unsubscribe("/reviewable_claimed", this._updateClaimedBy);
+    this.messageBus.unsubscribe(
+      this._reviewableCountsChannel,
+      this._updateReviewables
+    );
   },
 
-  actions: {
-    refreshRoute() {
-      this.refresh();
-    },
+  @bind
+  _updateClaimedBy(data) {
+    const reviewables = this.controller.reviewables;
+    if (reviewables) {
+      const user = data.user
+        ? this.store.createRecord("user", data.user)
+        : null;
+      reviewables.forEach((reviewable) => {
+        if (data.topic_id === reviewable.topic.id) {
+          reviewable.set("claimed_by", user);
+        }
+      });
+    }
+  },
+
+  @bind
+  _updateReviewables(data) {
+    if (data.updates) {
+      this.controller.reviewables.forEach((reviewable) => {
+        const updates = data.updates[reviewable.id];
+        if (updates) {
+          reviewable.setProperties(updates);
+        }
+      });
+    }
+  },
+
+  get _reviewableCountsChannel() {
+    return `/reviewable_counts/${this.currentUser.id}`;
+  },
+
+  @action
+  refreshRoute() {
+    this.refresh();
   },
 });

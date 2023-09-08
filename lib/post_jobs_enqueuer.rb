@@ -10,7 +10,7 @@ class PostJobsEnqueuer
 
   def enqueue_jobs
     # We need to enqueue jobs after the transaction.
-    # Otherwise they might begin before the data has been comitted.
+    # Otherwise they might begin before the data has been committed.
     enqueue_post_alerts unless @opts[:import_mode]
     feature_topic_users unless @opts[:import_mode]
     trigger_post_post_process
@@ -20,17 +20,13 @@ class PostJobsEnqueuer
       after_topic_create
       make_visible
     end
-
-    if @topic.private_message?
-      TopicTrackingState.publish_private_message(@topic, post: @post)
-      TopicGroup.new_message_update(@topic.last_poster, @topic.id, @post.post_number)
-    end
   end
 
   private
 
   def enqueue_post_alerts
-    Jobs.enqueue(:post_alert,
+    Jobs.enqueue(
+      :post_alert,
       post_id: @post.id,
       new_record: true,
       options: @opts[:post_alert_options],
@@ -46,23 +42,25 @@ class PostJobsEnqueuer
   end
 
   def make_visible
+    return if @topic.private_message?
     return unless SiteSetting.embed_unlisted?
-    return unless @post.post_number > 1
+    return if @post.post_number == 1
     return if @topic.visible?
     return if @post.post_type != Post.types[:regular]
 
-    if @topic.topic_embed.present?
-      Jobs.enqueue(:make_embedded_topic_visible, topic_id: @topic.id)
-    end
+    Jobs.enqueue(:make_embedded_topic_visible, topic_id: @topic.id) if @topic.topic_embed.present?
   end
 
   def after_post_create
     Jobs.enqueue(:post_update_topic_tracking_state, post_id: @post.id)
 
-    Jobs.enqueue_in(SiteSetting.email_time_window_mins.minutes,
-      :notify_mailing_list_subscribers,
-      post_id: @post.id,
-    )
+    if !@topic.private_message?
+      Jobs.enqueue_in(
+        SiteSetting.email_time_window_mins.minutes,
+        :notify_mailing_list_subscribers,
+        post_id: @post.id,
+      )
+    end
   end
 
   def after_topic_create
@@ -73,13 +71,18 @@ class PostJobsEnqueuer
     @topic.posters = @topic.posters_summary
     @topic.posts_count = 1
 
-    TopicTrackingState.publish_new(@topic)
+    klass =
+      if @topic.private_message?
+        PrivateMessageTopicTrackingState
+      else
+        TopicTrackingState
+      end
+
+    klass.publish_new(@topic)
   end
 
   def skip_after_create?
-    @opts[:import_mode] ||
-      @topic.private_message? ||
-      @post.post_type == Post.types[:moderator_action] ||
+    @opts[:import_mode] || @post.post_type == Post.types[:moderator_action] ||
       @post.post_type == Post.types[:small_action]
   end
 end

@@ -1,9 +1,28 @@
 .alert.alert-info {
-  margin-top: 1em;
-  margin-bottom: 0;
   &.clickable {
     // there are (n) new or updated topics, click to show
-    margin-top: 0;
+    margin: 0;
     padding: 1em;
+  }
+}
+
+.alert-bootstrap-mode {
+  display: flex;
+  flex-direction: column;
+  padding: 10px;
+
+  .col-button {
+    display: flex;
+    flex-direction: row;
+    padding-top: 10px;
+    justify-content: center;
+    .alert--button,
+    .alert--link {
+      align-self: center;
+    }
+    .alert--link {
+      font-weight: bold;
+      padding-left: 10px;
+    }
   }
 }

@@ -1,6 +1,7 @@
 import PrettyText, { buildOptions } from "pretty-text/pretty-text";
 import { module, test } from "qunit";
-import { hrefAllowed } from "pretty-text/sanitizer";
+import { hrefAllowed, sanitize } from "pretty-text/sanitizer";
+import AllowLister from "pretty-text/allow-lister";
 
 module("Unit | Utility | sanitizer", function () {
   test("sanitize", function (assert) {
@@ -13,22 +14,22 @@ module("Unit | Utility | sanitizer", function () {
       })
     );
     const cooked = (input, expected, text) =>
-      assert.equal(pt.cook(input), expected.replace(/\/>/g, ">"), text);
+      assert.strictEqual(pt.cook(input), expected.replace(/\/>/g, ">"), text);
 
-    assert.equal(
+    assert.strictEqual(
       pt.sanitize('<i class="fa-bug fa-spin">bug</i>'),
       "<i>bug</i>"
     );
-    assert.equal(
+    assert.strictEqual(
       pt.sanitize("<div><script>alert('hi');</script></div>"),
       "<div></div>"
     );
-    assert.equal(
+    assert.strictEqual(
       pt.sanitize("<div><p class=\"funky\" wrong='1'>hello</p></div>"),
       "<div><p>hello</p></div>"
     );
-    assert.equal(pt.sanitize("<3 <3"), "&lt;3 &lt;3");
-    assert.equal(pt.sanitize("<_<"), "&lt;_&lt;");
+    assert.strictEqual(pt.sanitize("<3 <3"), "&lt;3 &lt;3");
+    assert.strictEqual(pt.sanitize("<_<"), "&lt;_&lt;");
 
     cooked(
       "hello<script>alert(42)</script>",
@@ -67,10 +68,10 @@ module("Unit | Utility | sanitizer", function () {
       "it allows iframe to OpenStreetMap"
     );
 
-    assert.equal(pt.sanitize("<textarea>hullo</textarea>"), "hullo");
-    assert.equal(pt.sanitize("<button>press me!</button>"), "press me!");
-    assert.equal(pt.sanitize("<canvas>draw me!</canvas>"), "draw me!");
-    assert.equal(pt.sanitize("<progress>hello"), "hello");
+    assert.strictEqual(pt.sanitize("<textarea>hullo</textarea>"), "hullo");
+    assert.strictEqual(pt.sanitize("<button>press me!</button>"), "press me!");
+    assert.strictEqual(pt.sanitize("<canvas>draw me!</canvas>"), "draw me!");
+    assert.strictEqual(pt.sanitize("<progress>hello"), "hello");
 
     cooked(
       "[the answer](javascript:alert(42))",
@@ -145,28 +146,31 @@ module("Unit | Utility | sanitizer", function () {
 
   test("ids on headings", function (assert) {
     const pt = new PrettyText(buildOptions({ siteSettings: {} }));
-    assert.equal(pt.sanitize("<h3>Test Heading</h3>"), "<h3>Test Heading</h3>");
-    assert.equal(
+    assert.strictEqual(
+      pt.sanitize("<h3>Test Heading</h3>"),
+      "<h3>Test Heading</h3>"
+    );
+    assert.strictEqual(
       pt.sanitize(`<h1 id="heading--test">Test Heading</h1>`),
       `<h1 id="heading--test">Test Heading</h1>`
     );
-    assert.equal(
+    assert.strictEqual(
       pt.sanitize(`<h2 id="heading--cool">Test Heading</h2>`),
       `<h2 id="heading--cool">Test Heading</h2>`
     );
-    assert.equal(
+    assert.strictEqual(
       pt.sanitize(`<h3 id="heading--dashed-name">Test Heading</h3>`),
       `<h3 id="heading--dashed-name">Test Heading</h3>`
     );
-    assert.equal(
+    assert.strictEqual(
       pt.sanitize(`<h4 id="heading--underscored_name">Test Heading</h4>`),
       `<h4 id="heading--underscored_name">Test Heading</h4>`
     );
-    assert.equal(
+    assert.strictEqual(
       pt.sanitize(`<h5 id="heading--trout">Test Heading</h5>`),
       `<h5 id="heading--trout">Test Heading</h5>`
     );
-    assert.equal(
+    assert.strictEqual(
       pt.sanitize(`<h6 id="heading--discourse">Test Heading</h6>`),
       `<h6 id="heading--discourse">Test Heading</h6>`
     );
@@ -206,44 +210,108 @@ module("Unit | Utility | sanitizer", function () {
 
   test("poorly formed ids on headings", function (assert) {
     let pt = new PrettyText(buildOptions({ siteSettings: {} }));
-    assert.equal(
+    assert.strictEqual(
       pt.sanitize(`<h1 id="evil-trout">Test Heading</h1>`),
       `<h1>Test Heading</h1>`
     );
-    assert.equal(
+    assert.strictEqual(
       pt.sanitize(`<h1 id="heading--">Test Heading</h1>`),
       `<h1>Test Heading</h1>`
     );
-    assert.equal(
+    assert.strictEqual(
       pt.sanitize(`<h1 id="heading--with space">Test Heading</h1>`),
       `<h1>Test Heading</h1>`
     );
-    assert.equal(
+    assert.strictEqual(
       pt.sanitize(`<h1 id="heading--with*char">Test Heading</h1>`),
       `<h1>Test Heading</h1>`
     );
-    assert.equal(
+    assert.strictEqual(
       pt.sanitize(`<h1 id="heading--">Test Heading</h1>`),
       `<h1>Test Heading</h1>`
     );
-    assert.equal(
+    assert.strictEqual(
       pt.sanitize(`<h1 id="test-heading--cool">Test Heading</h1>`),
       `<h1>Test Heading</h1>`
     );
   });
 
   test("urlAllowed", function (assert) {
-    const allowed = (url, msg) => assert.equal(hrefAllowed(url), url, msg);
+    const allowed = (url, msg) =>
+      assert.strictEqual(hrefAllowed(url), url, msg);
 
     allowed("/foo/bar.html", "allows relative urls");
     allowed("http://eviltrout.com/evil/trout", "allows full urls");
     allowed("https://eviltrout.com/evil/trout", "allows https urls");
     allowed("//eviltrout.com/evil/trout", "allows protocol relative urls");
 
-    assert.equal(
+    assert.strictEqual(
       hrefAllowed("http://google.com/test'onmouseover=alert('XSS!');//.swf"),
       "http://google.com/test%27onmouseover=alert(%27XSS!%27);//.swf",
       "escape single quotes"
+    );
+  });
+
+  test("correctly sanitizes complex data attributes rules", function (assert) {
+    const allowLister = new AllowLister();
+
+    allowLister.allowListFeature("test", [
+      "pre[data-*]",
+      "code[data-custom-*=foo]",
+      "div[data-cat-*]",
+    ]);
+    allowLister.enable("test");
+
+    assert.strictEqual(sanitize("<b data-foo=*></b>", allowLister), "<b></b>");
+    assert.strictEqual(sanitize("<b data-foo=1></b>", allowLister), "<b></b>");
+    assert.strictEqual(sanitize("<b data-=1></b>", allowLister), "<b></b>");
+    assert.strictEqual(sanitize("<b data=1></b>", allowLister), "<b></b>");
+    assert.strictEqual(sanitize("<b data></b>", allowLister), "<b></b>");
+    assert.strictEqual(sanitize("<b data=*></b>", allowLister), "<b></b>");
+
+    assert.strictEqual(
+      sanitize("<pre data-foo=1></pre>", allowLister),
+      '<pre data-foo="1"></pre>'
+    );
+
+    assert.strictEqual(
+      sanitize("<pre data-foo-bar=1></pre>", allowLister),
+      '<pre data-foo-bar="1"></pre>'
+    );
+
+    assert.strictEqual(
+      sanitize("<code data-foo=foo></code>", allowLister),
+      "<code></code>"
+    );
+
+    assert.strictEqual(
+      sanitize("<code data-custom-=foo></code>", allowLister),
+      "<code></code>"
+    );
+
+    assert.strictEqual(
+      sanitize("<code data-custom-*=foo></code>", allowLister),
+      "<code></code>"
+    );
+
+    assert.strictEqual(
+      sanitize("<code data-custom-bar=foo></code>", allowLister),
+      '<code data-custom-bar="foo"></code>'
+    );
+
+    assert.strictEqual(
+      sanitize("<code data-custom-bar=1></code>", allowLister),
+      "<code></code>"
+    );
+
+    assert.strictEqual(
+      sanitize("<div data-cat=1></div>", allowLister),
+      '<div data-cat="1"></div>'
+    );
+
+    assert.strictEqual(
+      sanitize("<div data-cat-dog=1></div>", allowLister),
+      '<div data-cat-dog="1"></div>'
     );
   });
 });

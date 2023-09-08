@@ -1,6 +1,7 @@
 import { acceptance, exists } from "discourse/tests/helpers/qunit-helpers";
 import { click, currentURL, visit } from "@ember/test-helpers";
 import { test } from "qunit";
+import sinon from "sinon";
 
 acceptance("Category 404", function (needs) {
   needs.pretender((server, helper) => {
@@ -12,15 +13,22 @@ acceptance("Category 404", function (needs) {
       });
     });
   });
+
   test("Navigating to a bad category link does not break the router", async function (assert) {
+    // Don't log the XHR error
+    const stub = sinon
+      .stub(console, "error")
+      .withArgs(sinon.match({ status: 404 }));
+
     await visit("/t/internationalization-localization/280");
 
     await click('[data-for-test="category-404"]');
-    assert.equal(currentURL(), "/404");
+    assert.strictEqual(currentURL(), "/404");
+    sinon.assert.calledOnce(stub);
 
     // See that we can navigate away
     await click("#site-logo");
-    assert.equal(currentURL(), "/");
+    assert.strictEqual(currentURL(), "/");
   });
 });
 
@@ -55,11 +63,14 @@ acceptance("Unknown", function (needs) {
 
   test("Permalink URL to a Topic", async function (assert) {
     await visit("/viewtopic.php?f=8&t=280");
-    assert.equal(currentURL(), "/t/internationalization-localization/280");
+    assert.strictEqual(
+      currentURL(),
+      "/t/internationalization-localization/280"
+    );
   });
 
   test("Permalink URL to a static page", async function (assert) {
     await visit("/another-url-for-faq");
-    assert.equal(currentURL(), "/faq");
+    assert.strictEqual(currentURL(), "/faq");
   });
 });

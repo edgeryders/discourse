@@ -1,11 +1,13 @@
+import { helperContext, makeArray } from "discourse-common/lib/helpers";
+import deprecated from "discourse-common/lib/deprecated";
 import I18n from "I18n";
-import { helperContext } from "discourse-common/lib/helpers";
+import jQuery from "jquery";
 
 export function shortDate(date) {
   return moment(date).format(I18n.t("dates.medium.date_year"));
 }
 
-function shortDateNoYear(date) {
+export function shortDateNoYear(date) {
   return moment(date).format(I18n.t("dates.tiny.date_month"));
 }
 
@@ -24,7 +26,7 @@ export function tinyDateYear(date) {
 // TODO: locale support ?
 export function toTitleCase(str) {
   return str.replace(/\w\S*/g, function (txt) {
-    return txt.charAt(0).toUpperCase() + txt.substr(1).toLowerCase();
+    return txt.charAt(0).toUpperCase() + txt.slice(1).toLowerCase();
   });
 }
 
@@ -49,15 +51,24 @@ export function longDateNoYear(dt) {
 }
 
 export function updateRelativeAge(elems) {
-  // jQuery .each
-  elems.each(function () {
-    const $this = $(this);
-    $this.html(
-      relativeAge(new Date($this.data("time")), {
-        format: $this.data("format"),
-        wrapInSpan: false,
-      })
-    );
+  if (elems instanceof jQuery) {
+    elems = elems.toArray();
+    deprecated("updateRelativeAge now expects a DOM NodeList", {
+      since: "2.8.0.beta7",
+      dropFrom: "2.9.0.beta1",
+      id: "discourse.formatter.update-relative-age-node-list",
+    });
+  }
+
+  if (!NodeList.prototype.isPrototypeOf(elems)) {
+    elems = makeArray(elems);
+  }
+
+  elems.forEach((elem) => {
+    elem.innerHTML = relativeAge(new Date(parseInt(elem.dataset.time, 10)), {
+      format: elem.dataset.format,
+      wrapInSpan: false,
+    });
   });
 }
 
@@ -91,6 +102,11 @@ export function autoUpdatingRelativeAge(date, options) {
     append += "' title='" + longDate(date);
   }
 
+  let prefix = "";
+  if (options.prefix) {
+    prefix = options.prefix + " ";
+  }
+
   return (
     "<span class='relative-date" +
     append +
@@ -99,16 +115,36 @@ export function autoUpdatingRelativeAge(date, options) {
     "' data-format='" +
     format +
     "'>" +
+    prefix +
     relAge +
     "</span>"
   );
+}
+
+export function until(untilDate, timezone, locale) {
+  const untilMoment = moment.tz(untilDate, timezone);
+  const now = moment.tz(timezone);
+
+  let untilFormatted;
+  if (now.isSame(untilMoment, "day")) {
+    const localeData = moment.localeData(locale);
+    untilFormatted = untilMoment.format(localeData.longDateFormat("LT"));
+  } else {
+    untilFormatted = untilMoment.format(I18n.t("dates.long_no_year_no_time"));
+  }
+
+  return `${I18n.t("until")} ${untilFormatted}`;
 }
 
 function wrapAgo(dateStr) {
   return I18n.t("dates.wrap_ago", { date: dateStr });
 }
 
-export function durationTiny(distance, ageOpts) {
+function wrapOn(dateStr) {
+  return I18n.t("dates.wrap_on", { date: dateStr });
+}
+
+export function duration(distance, ageOpts) {
   if (typeof distance !== "number") {
     return "&mdash;";
   }
@@ -117,7 +153,8 @@ export function durationTiny(distance, ageOpts) {
   const distanceInMinutes = dividedDistance < 1 ? 1 : dividedDistance;
 
   const t = function (key, opts) {
-    const result = I18n.t("dates.tiny." + key, opts);
+    const format = (ageOpts && ageOpts.format) || "tiny";
+    const result = I18n.t("dates." + format + "." + key, opts);
     return ageOpts && ageOpts.addAgo ? wrapAgo(result) : result;
   };
 
@@ -166,6 +203,10 @@ export function durationTiny(distance, ageOpts) {
   }
 
   return formatted;
+}
+
+export function durationTiny(distance, ageOpts) {
+  return duration(distance, Object.assign({ format: "tiny" }, ageOpts));
 }
 
 function relativeAgeTiny(date, ageOpts) {
@@ -288,6 +329,9 @@ function relativeAgeMedium(date, options) {
     displayDate = I18n.t("now");
   } else if (distance > fiveDaysAgo) {
     displayDate = smartShortDate(date, shortDate);
+    if (options.wrapOn) {
+      displayDate = wrapOn(displayDate);
+    }
   } else {
     displayDate = relativeAgeMediumSpan(distance, leaveAgo);
   }
@@ -317,6 +361,11 @@ export function relativeAge(date, options) {
     return relativeAgeMedium(
       date,
       Object.assign(options, { format: "medium", leaveAgo: true })
+    );
+  } else if (format === "medium-with-ago-and-on") {
+    return relativeAgeMedium(
+      date,
+      Object.assign(options, { format: "medium", leaveAgo: true, wrapOn: true })
     );
   }
 

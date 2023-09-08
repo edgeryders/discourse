@@ -4,23 +4,39 @@ class SiteSetting < ActiveRecord::Base
   extend GlobalPath
   extend SiteSettingExtension
 
+  has_many :upload_references, as: :target, dependent: :destroy
+
   validates_presence_of :name
   validates_presence_of :data_type
 
-  after_save do |site_setting|
-    DiscourseEvent.trigger(:site_setting_saved, site_setting)
-    true
-  end
-
-  def self.load_settings(file, plugin: nil)
-    SiteSettings::YamlLoader.new(file).load do |category, name, default, opts|
-      setting(name, default, opts.merge(category: category, plugin: plugin))
+  after_save do
+    if saved_change_to_value?
+      if self.data_type == SiteSettings::TypeSupervisor.types[:upload]
+        UploadReference.ensure_exist!(upload_ids: [self.value], target: self)
+      elsif self.data_type == SiteSettings::TypeSupervisor.types[:uploaded_image_list]
+        upload_ids = self.value.split("|").compact.uniq
+        UploadReference.ensure_exist!(upload_ids: upload_ids, target: self)
+      end
     end
   end
 
-  load_settings(File.join(Rails.root, 'config', 'site_settings.yml'))
+  load_settings(File.join(Rails.root, "config", "site_settings.yml"))
 
-  unless Rails.env.test? && ENV['LOAD_PLUGINS'] != "1"
+  if Rails.env.test?
+    SAMPLE_TEST_PLUGIN =
+      Plugin::Instance.new(
+        Plugin::Metadata.new.tap { |metadata| metadata.name = "discourse-sample-plugin" },
+      )
+
+    Discourse.plugins_by_name[SAMPLE_TEST_PLUGIN.name] = SAMPLE_TEST_PLUGIN
+
+    load_settings(
+      File.join(Rails.root, "spec", "support", "sample_plugin_site_settings.yml"),
+      plugin: SAMPLE_TEST_PLUGIN.name,
+    )
+  end
+
+  if GlobalSetting.load_plugins?
     Dir[File.join(Rails.root, "plugins", "*", "config", "settings.yml")].each do |file|
       load_settings(file, plugin: file.split("/")[-3])
     end
@@ -54,7 +70,7 @@ class SiteSetting < ActiveRecord::Base
   end
 
   def self.top_menu_items
-    top_menu.split('|').map { |menu_item| TopMenuItem.new(menu_item) }
+    top_menu.split("|").map { |menu_item| TopMenuItem.new(menu_item) }
   end
 
   def self.homepage
@@ -66,7 +82,8 @@ class SiteSetting < ActiveRecord::Base
   end
 
   def self.anonymous_homepage
-    top_menu_items.map { |item| item.name }
+    top_menu_items
+      .map { |item| item.name }
       .select { |item| anonymous_menu_items.include?(item) }
       .first
   end
@@ -90,39 +107,45 @@ class SiteSetting < ActiveRecord::Base
   end
 
   def self.queue_jobs=(val)
-    Discourse.deprecate("queue_jobs is deprecated. Please use Jobs.run_immediately! instead")
+    Discourse.deprecate(
+      "queue_jobs is deprecated. Please use Jobs.run_immediately! instead",
+      drop_from: "2.9.0",
+    )
     val ? Jobs.run_later! : Jobs.run_immediately!
   end
 
   def self.email_polling_enabled?
-    SiteSetting.manual_polling_enabled? || SiteSetting.pop3_polling_enabled?
-  end
-
-  WATCHED_SETTINGS ||= [
-    :default_locale,
-    :blocked_attachment_content_types,
-    :blocked_attachment_filenames,
-    :allowed_unicode_username_characters,
-    :markdown_typographer_quotation_marks
-  ]
-
-  def self.reset_cached_settings!
-    @blocked_attachment_content_types_regex = nil
-    @blocked_attachment_filenames_regex = nil
-    @allowed_unicode_username_regex = nil
+    SiteSetting.manual_polling_enabled? || SiteSetting.pop3_polling_enabled? ||
+      DiscoursePluginRegistry.mail_pollers.any?(&:enabled?)
   end
 
   def self.blocked_attachment_content_types_regex
-    @blocked_attachment_content_types_regex ||= Regexp.union(SiteSetting.blocked_attachment_content_types.split("|"))
+    current_db = RailsMultisite::ConnectionManagement.current_db
+
+    @blocked_attachment_content_types_regex ||= {}
+    @blocked_attachment_content_types_regex[current_db] ||= begin
+      Regexp.union(SiteSetting.blocked_attachment_content_types.split("|"))
+    end
   end
 
   def self.blocked_attachment_filenames_regex
-    @blocked_attachment_filenames_regex ||= Regexp.union(SiteSetting.blocked_attachment_filenames.split("|"))
+    current_db = RailsMultisite::ConnectionManagement.current_db
+
+    @blocked_attachment_filenames_regex ||= {}
+    @blocked_attachment_filenames_regex[current_db] ||= begin
+      Regexp.union(SiteSetting.blocked_attachment_filenames.split("|"))
+    end
   end
 
   def self.allowed_unicode_username_characters_regex
-    @allowed_unicode_username_regex ||= SiteSetting.allowed_unicode_username_characters.present? \
-      ? Regexp.new(SiteSetting.allowed_unicode_username_characters) : nil
+    current_db = RailsMultisite::ConnectionManagement.current_db
+
+    @allowed_unicode_username_regex ||= {}
+    @allowed_unicode_username_regex[current_db] ||= begin
+      if SiteSetting.allowed_unicode_username_characters.present?
+        Regexp.new(SiteSetting.allowed_unicode_username_characters)
+      end
+    end
   end
 
   # helpers for getting s3 settings that fallback to global
@@ -149,12 +172,19 @@ class SiteSetting < ActiveRecord::Base
 
     def self.s3_base_url
       path = self.s3_upload_bucket.split("/", 2)[1]
-      "#{self.absolute_base_url}#{path ? '/' + path : ''}"
+      "#{self.absolute_base_url}#{path ? "/" + path : ""}"
     end
 
     def self.absolute_base_url
-      url_basename = SiteSetting.s3_endpoint.split('/')[-1]
-      bucket = SiteSetting.enable_s3_uploads ? Discourse.store.s3_bucket_name : GlobalSetting.s3_bucket_name
+      url_basename = SiteSetting.s3_endpoint.split("/")[-1]
+      bucket =
+        (
+          if SiteSetting.enable_s3_uploads
+            Discourse.store.s3_bucket_name
+          else
+            GlobalSetting.s3_bucket_name
+          end
+        )
 
       # cf. http://docs.aws.amazon.com/general/latest/gr/rande.html#s3_region
       if SiteSetting.s3_endpoint.blank? || SiteSetting.s3_endpoint.end_with?("amazonaws.com")
@@ -173,12 +203,20 @@ class SiteSetting < ActiveRecord::Base
     SiteSetting::Upload
   end
 
+  def self.whispers_allowed_group_ids
+    if SiteSetting.whispers_allowed_groups.present?
+      SiteSetting.whispers_allowed_groups_map
+    else
+      []
+    end
+  end
+
   def self.require_invite_code
     invite_code.present?
   end
   client_settings << :require_invite_code
 
-  %i{
+  %i[
     site_logo_url
     site_logo_small_url
     site_mobile_logo_url
@@ -186,9 +224,9 @@ class SiteSetting < ActiveRecord::Base
     site_logo_dark_url
     site_logo_small_dark_url
     site_mobile_logo_dark_url
-  }.each { |client_setting| client_settings << client_setting }
+  ].each { |client_setting| client_settings << client_setting }
 
-  %i{
+  %i[
     logo
     logo_small
     digest_logo
@@ -203,14 +241,14 @@ class SiteSetting < ActiveRecord::Base
     twitter_summary_large_image
     opengraph_image
     push_notifications_icon
-  }.each do |setting_name|
+  ].each do |setting_name|
     define_singleton_method("site_#{setting_name}_url") do
       if SiteIconManager.respond_to?("#{setting_name}_url")
         return SiteIconManager.public_send("#{setting_name}_url")
       end
 
       upload = self.public_send(setting_name)
-      upload ? full_cdn_url(upload.url) : ''
+      upload ? full_cdn_url(upload.url) : ""
     end
   end
 
@@ -219,37 +257,18 @@ class SiteSetting < ActiveRecord::Base
     c.present? && c.to_i != SiteSetting.uncategorized_category_id.to_i
   end
 
-  ALLOWLIST_DEPRECATED_SITE_SETTINGS = {
-    'email_domains_blacklist': 'blocked_email_domains',
-    'email_domains_whitelist': 'allowed_email_domains',
-    'unicode_username_character_whitelist': 'allowed_unicode_username_characters',
-    'user_website_domains_whitelist': 'allowed_user_website_domains',
-    'whitelisted_link_domains': 'allowed_link_domains',
-    'embed_whitelist_selector': 'allowed_embed_selectors',
-    'auto_generated_whitelist': 'auto_generated_allowlist',
-    'attachment_content_type_blacklist': 'blocked_attachment_content_types',
-    'attachment_filename_blacklist': 'blocked_attachment_filenames',
-    'use_admin_ip_whitelist': 'use_admin_ip_allowlist',
-    'blacklist_ip_blocks': 'blocked_ip_blocks',
-    'whitelist_internal_hosts': 'allowed_internal_hosts',
-    'whitelisted_crawler_user_agents': 'allowed_crawler_user_agents',
-    'blacklisted_crawler_user_agents': 'blocked_crawler_user_agents',
-    'onebox_domains_blacklist': 'blocked_onebox_domains',
-    'inline_onebox_domains_whitelist': 'allowed_inline_onebox_domains',
-    'white_listed_spam_host_domains': 'allowed_spam_host_domains',
-    'embed_blacklist_selector': 'blocked_embed_selectors',
-    'embed_classname_whitelist': 'allowed_embed_classnames',
-  }
+  def self.legacy_navigation_menu?
+    SiteSetting.navigation_menu == "legacy"
+  end
 
-  ALLOWLIST_DEPRECATED_SITE_SETTINGS.each_pair do |old_method, new_method|
-    self.define_singleton_method(old_method) do
-      Discourse.deprecate("#{old_method.to_s} is deprecated, use the #{new_method.to_s}.", drop_from: "2.6")
-      send(new_method)
-    end
-    self.define_singleton_method("#{old_method}=") do |args|
-      Discourse.deprecate("#{old_method.to_s} is deprecated, use the #{new_method.to_s}.", drop_from: "2.6")
-      send("#{new_method}=", args)
-    end
+  protected
+
+  def self.clear_cache!
+    super
+
+    @blocked_attachment_content_types_regex = nil
+    @blocked_attachment_filenames_regex = nil
+    @allowed_unicode_username_regex = nil
   end
 end
 

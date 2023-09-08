@@ -1,6 +1,6 @@
 import {
   acceptance,
-  queryAll,
+  count,
   visible,
 } from "discourse/tests/helpers/qunit-helpers";
 import { click, visit } from "@ember/test-helpers";
@@ -44,7 +44,7 @@ acceptance("Category Banners", function (needs) {
     await visit("/c/test-read-only-without-banner");
 
     await click("#create-topic");
-    assert.ok(!visible(".bootbox.modal"), "it does not pop up a modal");
+    assert.ok(!visible(".dialog-body"), "it does not pop up a modal");
     assert.ok(
       !visible(".category-read-only-banner"),
       "it does not show a banner"
@@ -55,13 +55,14 @@ acceptance("Category Banners", function (needs) {
     await visit("/c/test-read-only-with-banner");
 
     await click("#create-topic");
-    assert.ok(visible(".bootbox.modal"), "it pops up a modal");
+    assert.ok(visible(".dialog-body"), "it pops up a modal");
 
-    await click(".modal-footer>.btn-primary");
-    assert.ok(!visible(".bootbox.modal"), "it closes the modal");
+    await click(".dialog-footer .btn-primary");
+    assert.ok(!visible(".dialog-body"), "it closes the modal");
     assert.ok(visible(".category-read-only-banner"), "it shows a banner");
-    assert.ok(
-      queryAll(".category-read-only-banner .inner").length === 1,
+    assert.strictEqual(
+      count(".category-read-only-banner .inner"),
+      1,
       "it allows staff to embed html in the message"
     );
   });

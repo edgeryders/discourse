@@ -1,10 +1,9 @@
 # frozen_string_literal: true
 
-require 'benchmark/ips'
-require File.expand_path('../../../../config/environment', __FILE__)
+require "benchmark/ips"
+require File.expand_path("../../../../config/environment", __FILE__)
 
 Benchmark.ips do |x|
-
   x.report("redis setex string") do |times|
     while times > 0
       Discourse.redis.setex("test_key", 60, "test")
@@ -46,7 +45,7 @@ Benchmark.ips do |x|
 
   x.report("redis get string marshal") do |times|
     while times > 0
-      Marshal.load(Discourse.redis.get("test_keym"))
+      Marshal.load(Discourse.redis.get("test_keym")) # rubocop:disable Security/MarshalLoad
       times -= 1
     end
   end

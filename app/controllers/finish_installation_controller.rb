@@ -2,9 +2,9 @@
 
 class FinishInstallationController < ApplicationController
   skip_before_action :check_xhr, :preload_json, :redirect_to_login_if_required
-  layout 'finish_installation'
+  layout "finish_installation"
 
-  before_action :ensure_no_admins, except: ['confirm_email', 'resend_email']
+  before_action :ensure_no_admins, except: %w[confirm_email resend_email]
 
   def index
   end
@@ -33,7 +33,6 @@ class FinishInstallationController < ApplicationController
         send_signup_email
         redirect_confirm(@user.email)
       end
-
     end
   end
 
@@ -50,14 +49,10 @@ class FinishInstallationController < ApplicationController
   protected
 
   def send_signup_email
-    email_token = @user.email_tokens.unconfirmed.active.first
+    return if @user.active && @user.email_confirmed?
 
-    if email_token.present?
-      Jobs.enqueue(:critical_user_email,
-                   type: :signup,
-                   user_id: @user.id,
-                   email_token: email_token.token)
-    end
+    email_token = @user.email_tokens.create!(email: @user.email, scope: EmailToken.scopes[:signup])
+    EmailToken.enqueue_signup_email(email_token)
   end
 
   def redirect_confirm(email)
@@ -66,7 +61,9 @@ class FinishInstallationController < ApplicationController
   end
 
   def find_allowed_emails
-    return [] unless GlobalSetting.respond_to?(:developer_emails) && GlobalSetting.developer_emails.present?
+    unless GlobalSetting.respond_to?(:developer_emails) && GlobalSetting.developer_emails.present?
+      return []
+    end
     GlobalSetting.developer_emails.split(",").map(&:strip)
   end
 

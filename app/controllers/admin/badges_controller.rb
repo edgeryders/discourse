@@ -1,32 +1,38 @@
 # frozen_string_literal: true
 
-require 'csv'
+require "csv"
 
 class Admin::BadgesController < Admin::AdminController
+  MAX_CSV_LINES = 50_000
+  BATCH_SIZE = 200
 
   def index
     data = {
       badge_types: BadgeType.all.order(:id).to_a,
       badge_groupings: BadgeGrouping.all.order(:position).to_a,
-      badges: Badge.includes(:badge_grouping)
-        .includes(:badge_type, :image_upload)
-        .references(:badge_grouping)
-        .order('badge_groupings.position, badge_type_id, badges.name').to_a,
+      badges:
+        Badge
+          .includes(:badge_grouping)
+          .includes(:badge_type, :image_upload)
+          .references(:badge_grouping)
+          .order("enabled DESC", "badge_groupings.position, badge_type_id, badges.name")
+          .to_a,
       protected_system_fields: Badge.protected_system_fields,
-      triggers: Badge.trigger_hash
+      triggers: Badge.trigger_hash,
     }
     render_serialized(OpenStruct.new(data), AdminBadgesSerializer)
   end
 
   def preview
-    unless SiteSetting.enable_badge_sql
-      return render json: "preview not allowed", status: 403
-    end
+    return render json: "preview not allowed", status: 403 unless SiteSetting.enable_badge_sql
 
-    render json: BadgeGranter.preview(params[:sql],
-                                      target_posts: params[:target_posts] == "true",
-                                      explain: params[:explain] == "true",
-                                      trigger: params[:trigger].to_i)
+    render json:
+             BadgeGranter.preview(
+               params[:sql],
+               target_posts: params[:target_posts] == "true",
+               explain: params[:explain] == "true",
+               trigger: params[:trigger].to_i,
+             )
   end
 
   def new
@@ -45,46 +51,71 @@ class Admin::BadgesController < Admin::AdminController
 
     if !badge.enabled?
       render_json_error(
-        I18n.t('badges.mass_award.errors.badge_disabled', badge_name: badge.display_name),
-        status: 422
+        I18n.t("badges.mass_award.errors.badge_disabled", badge_name: badge.display_name),
+        status: 422,
       )
       return
     end
 
-    replace_badge_owners = params[:replace_badge_owners] == 'true'
-    BadgeGranter.revoke_all(badge) if replace_badge_owners
+    replace_badge_owners = params[:replace_badge_owners] == "true"
+    ensure_users_have_badge_once = params[:grant_existing_holders] != "true"
+    if !ensure_users_have_badge_once && !badge.multiple_grant?
+      render_json_error(
+        I18n.t(
+          "badges.mass_award.errors.cant_grant_multiple_times",
+          badge_name: badge.display_name,
+        ),
+        status: 422,
+      )
+      return
+    end
 
-    batch_number = 1
     line_number = 1
-    batch = []
-
+    usernames = []
+    emails = []
     File.open(csv_file) do |csv|
-      mode = Email.is_valid?(CSV.parse_line(csv.first).first) ? 'email' : 'username'
-      csv.rewind
-
-      csv.each_line do |email_line|
-        line = CSV.parse_line(email_line).first
+      csv.each_line do |line|
+        line = CSV.parse_line(line).first&.strip
+        line_number += 1
 
         if line.present?
-          batch << line
-          line_number += 1
+          if line.include?("@")
+            emails << line
+          else
+            usernames << line
+          end
         end
 
-        # Split the emails in batches of 200 elements.
-        full_batch = csv.lineno % (BadgeGranter::MAX_ITEMS_FOR_DELTA * batch_number) == 0
-        last_batch_item = full_batch || csv.eof?
-
-        if last_batch_item
-          Jobs.enqueue(:mass_award_badge, users_batch: batch, badge_id: badge.id, mode: mode)
-          batch = []
-          batch_number += 1
+        if emails.size + usernames.size > MAX_CSV_LINES
+          return(
+            render_json_error I18n.t(
+                                "badges.mass_award.errors.too_many_csv_entries",
+                                count: MAX_CSV_LINES,
+                              ),
+                              status: 400
+          )
         end
       end
     end
+    BadgeGranter.revoke_all(badge) if replace_badge_owners
 
-    head :ok
+    results =
+      BadgeGranter.enqueue_mass_grant_for_users(
+        badge,
+        emails: emails,
+        usernames: usernames,
+        ensure_users_have_badge_once: ensure_users_have_badge_once,
+      )
+
+    render json: {
+             unmatched_entries: results[:unmatched_entries].first(100),
+             matched_users_count: results[:matched_users_count],
+             unmatched_entries_count: results[:unmatched_entries_count],
+           },
+           status: :ok
   rescue CSV::MalformedCSVError
-    render_json_error I18n.t('badges.mass_award.errors.invalid_csv', line_number: line_number), status: 400
+    render_json_error I18n.t("badges.mass_award.errors.invalid_csv", line_number: line_number),
+                      status: 400
   end
 
   def badge_types
@@ -104,9 +135,7 @@ class Admin::BadgesController < Admin::AdminController
       group.save
     end
 
-    badge_groupings.each do |g|
-      g.destroy unless g.system? || ids.include?(g.id)
-    end
+    badge_groupings.each { |g| g.destroy unless g.system? || ids.include?(g.id) }
 
     badge_groupings = BadgeGrouping.all.order(:position).to_a
     render_serialized(badge_groupings, BadgeGroupingSerializer, root: "badge_groupings")
@@ -147,6 +176,7 @@ class Admin::BadgesController < Admin::AdminController
   end
 
   private
+
   def find_badge
     params.require(:id)
     Badge.find(params[:id])
@@ -157,21 +187,23 @@ class Admin::BadgesController < Admin::AdminController
   def update_badge_from_params(badge, opts = {})
     errors = []
     Badge.transaction do
-      allowed  = Badge.column_names.map(&:to_sym)
-      allowed -= [:id, :created_at, :updated_at, :grant_count]
+      allowed = Badge.column_names.map(&:to_sym)
+      allowed -= %i[id created_at updated_at grant_count]
       allowed -= Badge.protected_system_fields if badge.system?
       allowed -= [:query] unless SiteSetting.enable_badge_sql
 
       params.permit(*allowed)
 
-      allowed.each do |key|
-        badge.public_send("#{key}=" , params[key]) if params[key]
-      end
+      allowed.each { |key| badge.public_send("#{key}=", params[key]) if params[key] }
 
       # Badge query contract checks
       begin
         if SiteSetting.enable_badge_sql
-          BadgeGranter.contract_checks!(badge.query, target_posts: badge.target_posts, trigger: badge.trigger)
+          BadgeGranter.contract_checks!(
+            badge.query,
+            target_posts: badge.target_posts,
+            trigger: badge.trigger,
+          )
         end
       rescue => e
         errors << e.message
@@ -187,7 +219,7 @@ class Admin::BadgesController < Admin::AdminController
         :bulk_user_title_update,
         new_title: badge.name,
         granted_badge_id: badge.id,
-        action: Jobs::BulkUserTitleUpdate::UPDATE_ACTION
+        action: Jobs::BulkUserTitleUpdate::UPDATE_ACTION,
       )
     end
 

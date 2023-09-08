@@ -1,138 +1,52 @@
-const OBSERVER_OPTIONS = {
-  rootMargin: "66%", // load images slightly before they're visible
-};
-
-// Min size in pixels for consideration for lazy loading
-const MINIMUM_SIZE = 150;
-
-const hiddenData = new WeakMap();
-
-const LOADING_DATA =
-  "data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==";
-
-// We hide an image by replacing it with a transparent gif
-function hide(image) {
-  image.classList.add("d-lazyload");
-  image.classList.add("d-lazyload-hidden");
-
-  hiddenData.set(image, {
-    src: image.src,
-    srcset: image.srcset,
-    width: image.width,
-    height: image.height,
-    className: image.className,
-  });
-
-  image.src = image.dataset.smallUpload || LOADING_DATA;
-  image.removeAttribute("srcset");
-
-  image.removeAttribute("data-small-upload");
-}
-
-// Restore an image when onscreen
-function show(image) {
-  let imageData = hiddenData.get(image);
-
-  if (imageData) {
-    const copyImg = new Image();
-    copyImg.onload = () => {
-      if (copyImg.srcset) {
-        image.srcset = copyImg.srcset;
-      }
-      image.src = copyImg.src;
-      image.classList.remove("d-lazyload-hidden");
-
-      if (image.onload) {
-        // don't bother fighting with existing handler
-        // this can mean a slight flash on mobile
-        image.parentNode.removeChild(copyImg);
-      } else {
-        image.onload = () => {
-          image.parentNode.removeChild(copyImg);
-          image.onload = null;
-        };
-      }
-
-      copyImg.onload = null;
-    };
-
-    if (imageData.srcset) {
-      copyImg.srcset = imageData.srcset;
-    }
-
-    copyImg.src = imageData.src;
-
-    // width of image may not match, use computed style which
-    // is the actual size of the image
-    const computedStyle = window.getComputedStyle(image);
-    const actualWidth = parseInt(computedStyle.width, 10);
-    const actualHeight = parseInt(computedStyle.height, 10);
-
-    copyImg.style.position = "absolute";
-    copyImg.style.top = `${image.offsetTop}px`;
-    copyImg.style.left = `${image.offsetLeft}px`;
-    copyImg.style.width = `${actualWidth}px`;
-    copyImg.style.height = `${actualHeight}px`;
-
-    copyImg.className = imageData.className;
-
-    // insert after the current element so styling still will
-    // apply to original image firstChild selectors
-    image.parentNode.insertBefore(copyImg, image.nextSibling);
-  } else {
-    image.classList.remove("d-lazyload-hidden");
-  }
-}
-
-function forEachImage(post, callback) {
-  post.querySelectorAll("img").forEach((img) => {
-    if (img.width >= MINIMUM_SIZE && img.height >= MINIMUM_SIZE) {
-      callback(img);
-    }
-  });
-}
-
-export function setupLazyLoading(api) {
-  const observer = new IntersectionObserver((entries) => {
-    entries.forEach((entry) => {
-      const { target } = entry;
-
-      if (entry.isIntersecting) {
-        show(target);
-        observer.unobserve(target);
-      }
-    });
-  }, OBSERVER_OPTIONS);
-
-  api.decorateCookedElement((post) => forEachImage(post, (img) => hide(img)), {
-    onlyStream: true,
-    id: "discourse-lazy-load",
-  });
-
-  // IntersectionObserver.observe must be called after the cooked
-  // content is adopted by the document element in chrome
-  // https://bugs.chromium.org/p/chromium/issues/detail?id=1073469
-  api.decorateCookedElement(
-    (post) => forEachImage(post, (img) => observer.observe(img)),
-    {
-      onlyStream: true,
-      id: "discourse-lazy-load-after-adopt",
-      afterAdopt: true,
-    }
-  );
+function isLoaded(img) {
+  // In Safari, img.complete sometimes returns true even when the image is not loaded.
+  // naturalHeight seems to be a more reliable check
+  return !!img.naturalHeight;
 }
 
 export function nativeLazyLoading(api) {
   api.decorateCookedElement(
     (post) =>
-      forEachImage(post, (img) => {
-        img.loading = "lazy";
-        if (img.dataset.smallUpload) {
-          img.style = `background-image: url(${img.dataset.smallUpload}); background-size: cover;`;
-        }
-      }),
+      post.querySelectorAll("img").forEach((img) => (img.loading = "lazy")),
     {
-      onlyStream: true,
+      id: "discourse-lazy-load",
+    }
+  );
+
+  api.decorateCookedElement(
+    (post) => {
+      const siteSettings = api.container.lookup("service:site-settings");
+
+      post.querySelectorAll("img").forEach((img) => {
+        // Support for smallUpload should be maintained until Post::BAKED_VERSION is bumped higher than 2
+        const { smallUpload, dominantColor } = img.dataset;
+
+        if (siteSettings.secure_uploads && smallUpload) {
+          // Secure uploads requests go through the app. In topics with many images,
+          // this makes it very easy to hit rate limiters. Skipping the low-res
+          // placeholders reduces the chance of this problem occuring.
+          return;
+        }
+
+        if ((smallUpload || dominantColor) && !isLoaded(img)) {
+          if (!img.onload) {
+            img.onload = () => {
+              img.style.removeProperty("background-image");
+              img.style.removeProperty("background-size");
+              img.style.removeProperty("background-color");
+            };
+          }
+
+          if (smallUpload) {
+            img.style.setProperty("background-image", `url(${smallUpload})`);
+            img.style.setProperty("background-size", "cover");
+          } else {
+            img.style.setProperty("background-color", `#${dominantColor}`);
+          }
+        }
+      });
+    },
+    {
       id: "discourse-lazy-load-after-adopt",
       afterAdopt: true,
     }

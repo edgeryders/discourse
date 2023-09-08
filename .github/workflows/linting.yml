@@ -4,18 +4,28 @@ on:
   pull_request:
   push:
     branches:
-      - master
       - main
+
+concurrency:
+  group: linting-${{ format('{0}-{1}', github.head_ref || github.run_number, github.job) }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
 
 jobs:
   build:
+    if: github.event_name == 'pull_request' || github.repository != 'discourse/discourse-private-mirror'
     name: run
     runs-on: ubuntu-latest
-    container: discourse/discourse_test:release
+    container: discourse/discourse_test:slim
     timeout-minutes: 30
 
     steps:
-      - uses: actions/checkout@master
+      - name: Set working directory owner
+        run: chown root:root .
+
+      - uses: actions/checkout@v3
         with:
           fetch-depth: 1
 
@@ -25,15 +35,15 @@ jobs:
           git config --global user.name "Discourse CI"
 
       - name: Bundler cache
-        uses: actions/cache@v2
+        uses: actions/cache@v3
         with:
           path: vendor/bundle
           key: ${{ runner.os }}-gem-${{ hashFiles('**/Gemfile.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-gem-
+          restore-keys: ${{ runner.os }}-gem-
 
       - name: Setup gems
         run: |
+          gem install bundler --conservative -v $(awk '/BUNDLED WITH/ { getline; gsub(/ /,""); print $0 }' Gemfile.lock)
           bundle config --local path vendor/bundle
           bundle config --local deployment true
           bundle config --local without development
@@ -42,53 +52,51 @@ jobs:
 
       - name: Get yarn cache directory
         id: yarn-cache-dir
-        run: echo "::set-output name=dir::$(yarn cache dir)"
+        run: echo "dir=$(yarn cache dir)" >> $GITHUB_OUTPUT
 
       - name: Yarn cache
-        uses: actions/cache@v2
+        uses: actions/cache@v3
         id: yarn-cache
         with:
           path: ${{ steps.yarn-cache-dir.outputs.dir }}
           key: ${{ runner.os }}-yarn-${{ hashFiles('**/yarn.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-yarn-
+          restore-keys: ${{ runner.os }}-yarn-
 
       - name: Yarn install
-        run: yarn install
+        run: yarn install --frozen-lockfile
 
       - name: Rubocop
-        if: ${{ always() }}
-        run: bundle exec rubocop .
+        if: ${{ !cancelled() }}
+        run: bundle exec rubocop --parallel .
+
+      - name: syntax_tree
+        if: ${{ !cancelled() }}
+        run: |
+          set -E
+          bundle exec stree check Gemfile $(git ls-files '*.rb') $(git ls-files '*.rake')
 
       - name: ESLint (core)
-        if: ${{ always() }}
-        run: yarn eslint --ext .js,.js.es6 --no-error-on-unmatched-pattern app/assets/javascripts
+        if: ${{ !cancelled() }}
+        run: yarn lint:js
 
       - name: ESLint (core plugins)
-        if: ${{ always() }}
-        run: yarn eslint --ext .js,.js.es6 --no-error-on-unmatched-pattern plugins/**/{test,assets}/javascripts
+        if: ${{ !cancelled() }}
+        run: yarn lint:js-plugins
 
       - name: Prettier
-        if: ${{ always() }}
+        if: ${{ !cancelled() }}
         run: |
           yarn prettier -v
-          yarn prettier --list-different \
-            "app/assets/stylesheets/**/*.scss" \
-            "app/assets/javascripts/**/*.{js,es6}" \
-            "plugins/**/assets/stylesheets/**/*.scss" \
-            "plugins/**/assets/javascripts/**/*.{js,es6}"
+          yarn lint:prettier
 
       - name: Ember template lint
-        if: ${{ always() }}
-        run: |
-          yarn ember-template-lint \
-            app/assets/javascripts \
-            plugins/**/assets/javascripts
+        if: ${{ !cancelled() }}
+        run: yarn lint:hbs
 
       - name: English locale lint (core)
-        if: ${{ always() }}
+        if: ${{ !cancelled() }}
         run: bundle exec ruby script/i18n_lint.rb "config/**/locales/{client,server}.en.yml"
 
       - name: English locale lint (core plugins)
-        if: ${{ always() }}
+        if: ${{ !cancelled() }}
         run: bundle exec ruby script/i18n_lint.rb "plugins/**/locales/{client,server}.en.yml"

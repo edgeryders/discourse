@@ -27,17 +27,17 @@ acceptance("Topic Notifications button", function (needs) {
     await notificationOptions.expand();
     await notificationOptions.selectRowByValue("3");
 
-    assert.equal(
+    assert.strictEqual(
       notificationOptions.header().label(),
       "Watching",
       "it should display the right notification level"
     );
 
     const timelineNotificationOptions = selectKit(
-      ".topic-timeline .widget-component-connector .topic-notifications-options"
+      ".topic-timeline .topic-notifications-options"
     );
 
-    assert.equal(
+    assert.strictEqual(
       timelineNotificationOptions.header().value(),
       "3",
       "it should display the right notification level"
@@ -46,13 +46,13 @@ acceptance("Topic Notifications button", function (needs) {
     await timelineNotificationOptions.expand();
     await timelineNotificationOptions.selectRowByValue("0");
 
-    assert.equal(
+    assert.strictEqual(
       timelineNotificationOptions.header().value(),
       "0",
       "it should display the right notification level"
     );
 
-    assert.equal(
+    assert.strictEqual(
       notificationOptions.header().label(),
       "Muted",
       "it should display the right notification level"

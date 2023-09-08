@@ -1,75 +1,70 @@
-import Component from "@ember/component";
-import { scheduleOnce } from "@ember/runloop";
-export default Component.extend({
-  classNames: ["modal-body"],
-  fixed: false,
-  dismissable: true,
-  autoFocus: true,
+// Remove when legacy modals are dropped (deprecation: discourse.modal-controllers)
 
-  didInsertElement() {
-    this._super(...arguments);
-    $("#modal-alert").hide();
+import Component from "@glimmer/component";
+import { disableImplicitInjections } from "discourse/lib/implicit-injections";
+import { action } from "@ember/object";
+import { tracked } from "@glimmer/tracking";
+import { inject as service } from "@ember/service";
+import { DEBUG } from "@glimmer/env";
 
-    let fixedParent = $(this.element).closest(".d-modal.fixed-modal");
-    if (fixedParent.length) {
-      this.set("fixed", true);
-      fixedParent.modal("show");
+const LEGACY_ERROR =
+  "d-modal-body should only be used inside a legacy controller-based d-modal. https://meta.discourse.org/t/268057";
+
+function pick(object, keys) {
+  const result = {};
+  for (const key of keys) {
+    if (key in object) {
+      result[key] = object[key];
+    }
+  }
+  return result;
+}
+
+@disableImplicitInjections
+export default class DModalBody extends Component {
+  @service appEvents;
+  @service modal;
+
+  @tracked fixed = false;
+
+  @action
+  didInsert(element) {
+    if (element.closest(".d-modal:not(.d-modal-legacy)")) {
+      // eslint-disable-next-line no-console
+      console.error(LEGACY_ERROR);
+      if (DEBUG) {
+        throw new Error(LEGACY_ERROR);
+      }
     }
 
-    scheduleOnce("afterRender", this, this._afterFirstRender);
-    this.appEvents.on("modal-body:flash", this, "_flash");
-    this.appEvents.on("modal-body:clearFlash", this, "_clearFlash");
-  },
+    this.appEvents.trigger("modal-body:clearFlash");
 
-  willDestroyElement() {
-    this._super(...arguments);
-    this.appEvents.off("modal-body:flash", this, "_flash");
-    this.appEvents.off("modal-body:clearFlash", this, "_clearFlash");
-    this.appEvents.trigger("modal:body-dismissed");
-  },
-
-  _afterFirstRender() {
-    const maxHeight = this.maxHeight;
-    if (maxHeight) {
-      const maxHeightFloat = parseFloat(maxHeight) / 100.0;
-      if (maxHeightFloat > 0) {
-        const viewPortHeight = $(window).height();
-        $(this.element).css(
-          "max-height",
-          Math.floor(maxHeightFloat * viewPortHeight) + "px"
-        );
-      }
+    const fixedParent = element.closest(".d-modal.fixed-modal");
+    if (fixedParent) {
+      this.fixed = true;
+      $(fixedParent).modal("show");
+      this.modal.hidden = false;
     }
 
     this.appEvents.trigger(
       "modal:body-shown",
-      this.getProperties(
+      pick(this.args, [
         "title",
         "rawTitle",
         "fixed",
         "subtitle",
         "rawSubtitle",
+        "submitOnEnter",
         "dismissable",
         "headerClass",
-        "autoFocus"
-      )
+        "modalClass",
+        "titleAriaElementId",
+      ])
     );
-  },
+  }
 
-  _clearFlash() {
-    const modalAlert = document.getElementById("modal-alert");
-    if (modalAlert) {
-      modalAlert.style.display = "none";
-      modalAlert.classList.remove("alert-info", "alert-error", "alert-success");
-    }
-  },
-
-  _flash(msg) {
-    this._clearFlash();
-
-    $("#modal-alert")
-      .addClass(`alert alert-${msg.messageClass || "success"}`)
-      .html(msg.text || "")
-      .fadeIn();
-  },
-});
+  @action
+  willDestroy() {
+    this.appEvents.trigger("modal:body-dismissed");
+  }
+}

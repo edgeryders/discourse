@@ -1,64 +1,63 @@
+import { action } from "@ember/object";
+import { inject as service } from "@ember/service";
+import { or } from "@ember/object/computed";
 import Controller from "@ember/controller";
 import I18n from "I18n";
 import { INPUT_DELAY } from "discourse-common/config/environment";
 import Permalink from "admin/models/permalink";
-import bootbox from "bootbox";
 import discourseDebounce from "discourse-common/lib/debounce";
-import { observes } from "discourse-common/utils/decorators";
+import { observes } from "@ember-decorators/object";
+import { clipboardCopy } from "discourse/lib/utilities";
 
-export default Controller.extend({
-  loading: false,
-  filter: null,
+export default class AdminPermalinksController extends Controller {
+  @service dialog;
+
+  loading = false;
+  filter = null;
+
+  @or("model.length", "filter") showSearch;
 
   _debouncedShow() {
     Permalink.findAll(this.filter).then((result) => {
       this.set("model", result);
       this.set("loading", false);
     });
-  },
+  }
 
   @observes("filter")
   show() {
     discourseDebounce(this, this._debouncedShow, INPUT_DELAY);
-  },
+  }
 
-  actions: {
-    recordAdded(arg) {
-      this.model.unshiftObject(arg);
-    },
+  @action
+  recordAdded(arg) {
+    this.model.unshiftObject(arg);
+  }
 
-    copyUrl(pl) {
-      let linkElement = document.querySelector(`#admin-permalink-${pl.id}`);
-      let textArea = document.createElement("textarea");
-      textArea.value = linkElement.textContent;
-      document.body.appendChild(textArea);
-      textArea.select();
-      document.execCommand("Copy");
-      textArea.remove();
-    },
+  @action
+  copyUrl(pl) {
+    let linkElement = document.querySelector(`#admin-permalink-${pl.id}`);
+    clipboardCopy(linkElement.textContent);
+  }
 
-    destroy: function (record) {
-      return bootbox.confirm(
-        I18n.t("admin.permalink.delete_confirm"),
-        I18n.t("no_value"),
-        I18n.t("yes_value"),
-        (result) => {
-          if (result) {
-            record.destroy().then(
-              (deleted) => {
-                if (deleted) {
-                  this.model.removeObject(record);
-                } else {
-                  bootbox.alert(I18n.t("generic_error"));
-                }
-              },
-              function () {
-                bootbox.alert(I18n.t("generic_error"));
-              }
-            );
+  @action
+  destroyRecord(record) {
+    return this.dialog.yesNoConfirm({
+      message: I18n.t("admin.permalink.delete_confirm"),
+      didConfirm: () => {
+        return record.destroy().then(
+          (deleted) => {
+            if (deleted) {
+              this.model.removeObject(record);
+            } else {
+              this.dialog.alert(I18n.t("generic_error"));
+            }
+          },
+          function () {
+            this.dialog.alert(I18n.t("generic_error"));
           }
-        }
-      );
-    },
-  },
-});
+        );
+      },
+    });
+  }
+}

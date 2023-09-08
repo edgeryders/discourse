@@ -1,10 +1,12 @@
 # frozen_string_literal: true
-require_dependency 'content_security_policy/default'
+require "content_security_policy/default"
 
 class ContentSecurityPolicy
   class Builder
     EXTENDABLE_DIRECTIVES = %i[
       base_uri
+      frame_ancestors
+      manifest_src
       object_src
       script_src
       worker_src
@@ -16,10 +18,8 @@ class ContentSecurityPolicy
       default_src
       font_src
       form_action
-      frame_ancestors
       frame_src
       img_src
-      manifest_src
       media_src
       prefetch_src
       style_src
@@ -27,12 +27,15 @@ class ContentSecurityPolicy
 
     def initialize(base_url:)
       @directives = Default.new(base_url: base_url).directives
+      @base_url = base_url
     end
 
     def <<(extension)
       return unless valid_extension?(extension)
 
-      extension.each { |directive, sources| extend_directive(normalize(directive), sources) }
+      extension.each do |directive, sources|
+        extend_directive(normalize_directive(directive), sources)
+      end
     end
 
     def build
@@ -51,8 +54,18 @@ class ContentSecurityPolicy
 
     private
 
-    def normalize(directive)
-      directive.to_s.gsub('-', '_').to_sym
+    def normalize_directive(directive)
+      directive.to_s.gsub("-", "_").to_sym
+    end
+
+    def normalize_source(source)
+      if source.starts_with?("/")
+        "#{@base_url}#{source}"
+      else
+        source
+      end
+    rescue URI::ParseError
+      source
     end
 
     def extend_directive(directive, sources)
@@ -60,11 +73,8 @@ class ContentSecurityPolicy
 
       @directives[directive] ||= []
 
-      if sources.is_a?(Array)
-        @directives[directive].concat(sources)
-      else
-        @directives[directive] << sources
-      end
+      sources = Array(sources).map { |s| normalize_source(s) }
+      @directives[directive].concat(sources)
 
       @directives[directive].delete(:none) if @directives[directive].count > 1
     end

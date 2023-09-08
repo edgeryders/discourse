@@ -1,10 +1,12 @@
 import DiscourseRoute from "discourse/routes/discourse";
 import I18n from "I18n";
-import { get } from "@ember/object";
+import { action, get } from "@ember/object";
 
 export function buildGroupPage(type) {
   return DiscourseRoute.extend({
     type,
+    templateName: "group-activity-posts",
+    controllerName: "group-activity-posts",
 
     titleToken() {
       return I18n.t(`groups.${type}`);
@@ -17,7 +19,7 @@ export function buildGroupPage(type) {
 
     setupController(controller, model) {
       let loadedAll = model.length < 20;
-      this.controllerFor("group-activity-posts").setProperties({
+      controller.setProperties({
         model,
         type,
         canLoadMore: !loadedAll,
@@ -25,14 +27,9 @@ export function buildGroupPage(type) {
       this.controllerFor("application").set("showFooter", loadedAll);
     },
 
-    renderTemplate() {
-      this.render("group-activity-posts");
-    },
-
-    actions: {
-      didTransition() {
-        return true;
-      },
+    @action
+    didTransition() {
+      return true;
     },
   });
 }

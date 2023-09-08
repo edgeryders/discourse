@@ -21,9 +21,10 @@ export default {
     topic_slug: "test-pm",
     display_username: null,
     primary_group_name: null,
-    primary_group_flair_url: null,
-    primary_group_flair_bg_color: null,
-    primary_group_flair_color: null,
+    flair_name: null,
+    flair_url: null,
+    flair_bg_color: null,
+    flair_color: null,
     version: 1,
     can_edit: true,
     can_delete: false,
@@ -34,20 +35,20 @@ export default {
     actions_summary: [
       {
         id: 3,
-        can_act: true
+        can_act: true,
       },
       {
         id: 4,
-        can_act: true
+        can_act: true,
       },
       {
         id: 8,
-        can_act: true
+        can_act: true,
       },
       {
         id: 7,
-        can_act: true
-      }
+        can_act: true,
+      },
     ],
     moderator: false,
     admin: true,
@@ -59,7 +60,7 @@ export default {
     user_deleted: false,
     edit_reason: null,
     can_view_edit_history: true,
-    wiki: false
+    wiki: false,
   },
 
   "/posts/398": {
@@ -91,8 +92,7 @@ export default {
     can_delete: false,
     can_recover: true,
     user_title: null,
-    raw:
-      "Any plans to support localization of UI elements, so that I (for example) could set up a completely German speaking forum?",
+    raw: "Any plans to support localization of UI elements, so that I (for example) could set up a completely German speaking forum?",
     actions_summary: [
       { id: 2, count: 0, hidden: false, can_act: true },
       { id: 3, count: 0, hidden: false, can_act: true },
@@ -100,7 +100,7 @@ export default {
       { id: 5, count: 0, hidden: true, can_act: true },
       { id: 6, count: 0, hidden: false, can_act: true },
       { id: 7, count: 0, hidden: false, can_act: true },
-      { id: 8, count: 0, hidden: false, can_act: true }
+      { id: 8, count: 0, hidden: false, can_act: true },
     ],
     moderator: false,
     admin: false,
@@ -113,7 +113,7 @@ export default {
     user_deleted: false,
     edit_reason: null,
     can_view_edit_history: true,
-    wiki: false
+    wiki: false,
   },
   "/posts/18": {
     id: 18,
@@ -149,7 +149,7 @@ export default {
       { id: 4, can_act: true },
       { id: 5, hidden: true, can_act: true },
       { id: 7, can_act: true },
-      { id: 8, can_act: true }
+      { id: 8, can_act: true },
     ],
     moderator: false,
     admin: true,
@@ -162,7 +162,7 @@ export default {
     user_deleted: false,
     edit_reason: null,
     can_view_edit_history: true,
-    wiki: false
+    wiki: false,
   },
   "/posts/19": {
     id: 19,
@@ -199,7 +199,7 @@ export default {
       { id: 4, can_act: true },
       { id: 5, hidden: true, can_act: true },
       { id: 7, can_act: true },
-      { id: 8, can_act: true }
+      { id: 8, can_act: true },
     ],
     moderator: false,
     admin: true,
@@ -212,6 +212,6 @@ export default {
     user_deleted: false,
     edit_reason: null,
     can_view_edit_history: true,
-    wiki: false
-  }
+    wiki: false,
+  },
 };

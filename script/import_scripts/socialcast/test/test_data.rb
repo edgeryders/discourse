@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
-USERS = '{
+USERS =
+  '{
     "users": [
         {
             "contact_info": {
@@ -435,7 +436,7 @@ USERS = '{
             "custom_fields": [
                 {
                     "id": "resume",
-                    "value": "I currently assist the VP of Marketing in making sure that all marketing related activites are rolled out properly in the Americas market.",
+                    "value": "I currently assist the VP of Marketing in making sure that all marketing related activities are rolled out properly in the Americas market.",
                     "label": "Job Description"
                 },
                 {
@@ -1082,7 +1083,8 @@ USERS = '{
     ]
 }'
 
-MESSAGES = '{
+MESSAGES =
+  '{
     "messages": [
         {
             "id": 426,
@@ -2531,12 +2533,12 @@ MESSAGES = '{
                         {
                             "id": 108,
                             "url": "https://demo.socialcast.com/attachments/108",
-                            "filename": "108-reverse-a-algorithm-refernece-V7.pdf",
-                            "public_filename": "https://socialcast-demo.s3.amazonaws.com/tenants/5/attachments/108/108-reverse-a-algorithm-refernece-V7.pdf?AWSAccessKeyId=AKIAIV34WIEKJKCLRBBQ&Expires=1465128000&Signature=JP4%2BXB76kk%2BhCcuJQpZDSDx3NU4%3D",
+                            "filename": "108-reverse-a-algorithm-reference-V7.pdf",
+                            "public_filename": "https://socialcast-demo.s3.amazonaws.com/tenants/5/attachments/108/108-reverse-a-algorithm-reference-V7.pdf?AWSAccessKeyId=AKIAIV34WIEKJKCLRBBQ&Expires=1465128000&Signature=JP4%2BXB76kk%2BhCcuJQpZDSDx3NU4%3D",
                             "external_host_type": null,
                             "file_extension": "pdf",
                             "content_type": "application/pdf",
-                            "html_filename": "108-reverse-a-algorithm-refernece-V7.pdf"
+                            "html_filename": "108-reverse-a-algorithm-reference-V7.pdf"
                         }
                     ],
                     "media_files": [],
@@ -5429,7 +5431,8 @@ MESSAGES = '{
     "messages_next_page": 2
 }'
 
-MESSAGES_PG_2 = '{
+MESSAGES_PG_2 =
+  '{
     "messages": [
         {
             "id": 386,
@@ -8166,8 +8169,8 @@ MESSAGES_PG_2 = '{
                         "back_in_office_on": null,
                         "company_login": null
                     },
-                    "text": "After speaking with a number of our younger employees I think tutition reimbursement is really key to retaining them. Many of them are looking to earn advanced degrees. If we can setup a plan that accomplishes this effectively we can really grow our staff\'s ability and knowledge.",
-                    "html_body": "<div class=\"markdown-body\"><p>After speaking with a number of our younger employees I think tutition reimbursement is really key to retaining them. Many of them are looking to earn advanced degrees. If we can setup a plan that accomplishes this effectively we can really grow our staff\'s ability and knowledge.</p></div>",
+                    "text": "After speaking with a number of our younger employees I think tuition reimbursement is really key to retaining them. Many of them are looking to earn advanced degrees. If we can setup a plan that accomplishes this effectively we can really grow our staff\'s ability and knowledge.",
+                    "html_body": "<div class=\"markdown-body\"><p>After speaking with a number of our younger employees I think tuition reimbursement is really key to retaining them. Many of them are looking to earn advanced degrees. If we can setup a plan that accomplishes this effectively we can really grow our staff\'s ability and knowledge.</p></div>",
                     "created_at": "2016-05-21T20:48:41+00:00",
                     "updated_at": "2016-05-21T20:48:41+00:00",
                     "attachments": [],

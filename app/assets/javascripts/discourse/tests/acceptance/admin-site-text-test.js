@@ -1,7 +1,7 @@
 import {
   acceptance,
   exists,
-  queryAll,
+  query,
 } from "discourse/tests/helpers/qunit-helpers";
 import { click, currentURL, fillIn, visit } from "@ember/test-helpers";
 import { test } from "qunit";
@@ -18,26 +18,34 @@ acceptance("Admin - Site Texts", function (needs) {
 
     await fillIn(".site-text-search", "Test");
 
-    assert.equal(currentURL(), "/admin/customize/site_texts?q=Test");
+    assert.strictEqual(currentURL(), "/admin/customize/site_texts?q=Test");
     assert.ok(exists(".site-text"));
     assert.ok(exists(".site-text:not(.overridden)"));
     assert.ok(exists(".site-text.overridden"));
 
     // Only show overridden
-    await click(".search-area .filter-options input");
-    assert.equal(
+    await click(".search-area .filter-options #toggle-overridden");
+    assert.strictEqual(
       currentURL(),
       "/admin/customize/site_texts?overridden=true&q=Test"
     );
 
     assert.ok(!exists(".site-text:not(.overridden)"));
     assert.ok(exists(".site-text.overridden"));
+    await click(".search-area .filter-options #toggle-overridden");
+
+    // Only show outdated
+    await click(".search-area .filter-options #toggle-outdated");
+    assert.strictEqual(
+      currentURL(),
+      "/admin/customize/site_texts?outdated=true&q=Test"
+    );
   });
 
   test("edit and revert a site text by key", async function (assert) {
     await visit("/admin/customize/site_texts/site.test?locale=en");
 
-    assert.equal(queryAll(".title h3").text(), "site.test");
+    assert.strictEqual(query(".title h3").innerText, "site.test");
     assert.ok(!exists(".saved"));
     assert.ok(!exists(".revert-site-text"));
 
@@ -51,9 +59,9 @@ acceptance("Admin - Site Texts", function (needs) {
     // Revert the changes
     await click(".revert-site-text");
 
-    assert.ok(exists(".bootbox.modal"));
+    assert.ok(exists("#dialog-holder .dialog-content"));
 
-    await click(".bootbox.modal .btn-primary");
+    await click("#dialog-holder .btn-primary");
 
     assert.ok(!exists(".saved"));
     assert.ok(!exists(".revert-site-text"));

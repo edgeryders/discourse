@@ -3,30 +3,36 @@
   "properties": {
     "posts": {
       "type": "array",
-      "items": [
+      "items": {
 
-      ]
+      }
     },
     "users": {
       "type": "array",
-      "items": [
+      "items": {
 
-      ]
+      }
     },
     "categories": {
       "type": "array",
-      "items": [
+      "items": {
 
-      ]
+      }
+    },
+    "tags": {
+      "type": "array",
+      "items": {
+
+      }
     },
     "groups": {
       "type": "array",
-      "items": [
+      "items": {
 
-      ]
+      }
     },
     "grouped_search_result": {
-      "type": ["object", "null"],
+      "type": "object",
       "additionalProperties": false,
       "properties": {
         "more_posts": {
@@ -70,27 +76,33 @@
         },
         "post_ids": {
           "type": "array",
-          "items": [
+          "items": {
 
-          ]
+          }
         },
         "user_ids": {
           "type": "array",
-          "items": [
+          "items": {
 
-          ]
+          }
         },
         "category_ids": {
           "type": "array",
-          "items": [
+          "items": {
 
-          ]
+          }
+        },
+        "tag_ids": {
+          "type": "array",
+          "items": {
+
+          }
         },
         "group_ids": {
           "type": "array",
-          "items": [
+          "items": {
 
-          ]
+          }
         }
       },
       "required": [
@@ -105,11 +117,17 @@
         "post_ids",
         "user_ids",
         "category_ids",
+        "tag_ids",
         "group_ids"
       ]
     }
   },
   "required": [
+    "posts",
+    "users",
+    "categories",
+    "tags",
+    "groups",
     "grouped_search_result"
   ]
 }

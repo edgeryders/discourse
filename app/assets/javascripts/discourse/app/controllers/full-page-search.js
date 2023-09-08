@@ -1,10 +1,15 @@
 import Controller, { inject as controller } from "@ember/controller";
-import discourseComputed, { observes } from "discourse-common/utils/decorators";
+import discourseComputed, {
+  bind,
+  observes,
+} from "discourse-common/utils/decorators";
 import {
   getSearchKey,
   isValidSearchTerm,
+  logSearchLinkClick,
   searchContextDescription,
   translateResults,
+  updateRecentSearches,
 } from "discourse/lib/search";
 import Category from "discourse/models/category";
 import Composer from "discourse/models/composer";
@@ -12,9 +17,15 @@ import I18n from "I18n";
 import { ajax } from "discourse/lib/ajax";
 import { escapeExpression } from "discourse/lib/utilities";
 import { isEmpty } from "@ember/utils";
-import { or } from "@ember/object/computed";
+import { action } from "@ember/object";
+import { gt, or } from "@ember/object/computed";
 import { scrollTop } from "discourse/mixins/scroll-top";
 import { setTransient } from "discourse/lib/page-tracker";
+import { Promise } from "rsvp";
+import { search as searchCategoryTag } from "discourse/lib/category-tag-search";
+import userSearch from "discourse/lib/user-search";
+import { inject as service } from "@ember/service";
+import TopicBulkActions from "discourse/components/modal/topic-bulk-actions";
 
 const SortOrders = [
   { name: I18n.t("search.relevance"), id: 0 },
@@ -23,19 +34,41 @@ const SortOrders = [
   { name: I18n.t("search.most_viewed"), id: 3, term: "order:views" },
   { name: I18n.t("search.latest_topic"), id: 4, term: "order:latest_topic" },
 ];
+
+export const SEARCH_TYPE_DEFAULT = "topics_posts";
+export const SEARCH_TYPE_CATS_TAGS = "categories_tags";
+export const SEARCH_TYPE_USERS = "users";
+
 const PAGE_LIMIT = 10;
+
+const customSearchTypes = [];
+
+export function registerFullPageSearchType(
+  translationKey,
+  searchTypeId,
+  searchFunc
+) {
+  customSearchTypes.push({ translationKey, searchTypeId, searchFunc });
+}
 
 export default Controller.extend({
   application: controller(),
-  composer: controller(),
-  bulkSelectEnabled: null,
+  composer: service(),
+  modal: service(),
 
+  bulkSelectEnabled: null,
   loading: false,
-  queryParams: ["q", "expanded", "context_id", "context", "skip_context"],
-  q: null,
-  selected: [],
-  expanded: false,
+  queryParams: [
+    "q",
+    "expanded",
+    "context_id",
+    "context",
+    "skip_context",
+    "search_type",
+  ],
+  q: undefined,
   context_id: null,
+  search_type: SEARCH_TYPE_DEFAULT,
   context: null,
   searching: false,
   sortOrder: 0,
@@ -43,10 +76,42 @@ export default Controller.extend({
   invalidSearch: false,
   page: 1,
   resultCount: null,
+  searchTypes: null,
+  selected: [],
+  error: null,
+
+  init() {
+    this._super(...arguments);
+
+    const searchTypes = [
+      { name: I18n.t("search.type.default"), id: SEARCH_TYPE_DEFAULT },
+      {
+        name: this.siteSettings.tagging_enabled
+          ? I18n.t("search.type.categories_and_tags")
+          : I18n.t("search.type.categories"),
+        id: SEARCH_TYPE_CATS_TAGS,
+      },
+      { name: I18n.t("search.type.users"), id: SEARCH_TYPE_USERS },
+    ];
+
+    customSearchTypes.forEach((type) => {
+      searchTypes.push({
+        name: I18n.t(type.translationKey),
+        id: type.searchTypeId,
+      });
+    });
+
+    this.set("searchTypes", searchTypes);
+  },
 
   @discourseComputed("resultCount")
   hasResults(resultCount) {
     return (resultCount || 0) > 0;
+  },
+
+  @discourseComputed("expanded")
+  expandFilters(expanded) {
+    return expanded === "true";
   },
 
   @discourseComputed("q")
@@ -138,6 +203,14 @@ export default Controller.extend({
     }
   },
 
+  @observes("search_type")
+  triggerSearchOnTypeChange() {
+    if (this.searchActive) {
+      this.set("page", 1);
+      this._search();
+    }
+  },
+
   @observes("model")
   modelChanged() {
     if (this.searchTerm !== this.q) {
@@ -147,7 +220,7 @@ export default Controller.extend({
 
   @discourseComputed("q")
   showLikeCount(q) {
-    return q && q.indexOf("order:likes") > -1;
+    return q?.includes("order:likes");
   },
 
   @observes("q")
@@ -164,10 +237,11 @@ export default Controller.extend({
     return (
       q &&
       this.currentUser &&
-      (q.indexOf("in:personal") > -1 ||
-        q.indexOf(
+      (q.includes("in:messages") ||
+        q.includes("in:personal") ||
+        q.includes(
           `personal_messages:${this.currentUser.get("username_lower")}`
-        ) > -1)
+        ))
     );
   },
 
@@ -182,14 +256,31 @@ export default Controller.extend({
     return I18n.t("search.result_count", { count, plus, term });
   },
 
-  @observes("model.posts.length")
+  @observes("model.[posts,categories,tags,users].length")
   resultCountChanged() {
-    this.set("resultCount", this.get("model.posts.length"));
+    if (!this.model.posts) {
+      return 0;
+    }
+
+    this.set(
+      "resultCount",
+      this.model.posts.length +
+        this.model.categories.length +
+        this.model.tags.length +
+        this.model.users.length
+    );
   },
 
   @discourseComputed("hasResults")
   canBulkSelect(hasResults) {
     return this.currentUser && this.currentUser.staff && hasResults;
+  },
+
+  hasSelection: gt("selected.length", 0),
+
+  @discourseComputed("selected.length", "model.posts.length")
+  hasUnselectedResults(selectionCount, postsCount) {
+    return selectionCount < postsCount;
   },
 
   @discourseComputed("model.grouped_search_result.can_create_topic")
@@ -202,8 +293,28 @@ export default Controller.extend({
     return page === PAGE_LIMIT;
   },
 
+  @discourseComputed("search_type")
+  usingDefaultSearchType(searchType) {
+    return searchType === SEARCH_TYPE_DEFAULT;
+  },
+
+  @discourseComputed("search_type")
+  customSearchType(searchType) {
+    return customSearchTypes.find(
+      (type) => searchType === type["searchTypeId"]
+    );
+  },
+
+  @discourseComputed("bulkSelectEnabled")
+  searchInfoClassNames(bulkSelectEnabled) {
+    return bulkSelectEnabled
+      ? "search-info bulk-select-visible"
+      : "search-info";
+  },
+
   searchButtonDisabled: or("searching", "loading"),
 
+  @bind
   _search() {
     if (this.searching) {
       return;
@@ -220,6 +331,7 @@ export default Controller.extend({
 
     if (args.page === 1) {
       this.set("bulkSelectEnabled", false);
+
       this.selected.clear();
       this.set("searching", true);
       scrollTop();
@@ -244,64 +356,143 @@ export default Controller.extend({
 
     const searchKey = getSearchKey(args);
 
-    ajax("/search", { data: args })
-      .then((results) => {
-        const model = translateResults(results) || {};
+    if (this.customSearchType) {
+      const customSearch = this.customSearchType["searchFunc"];
+      customSearch(this, args, searchKey);
+      return;
+    }
 
-        if (results.grouped_search_result) {
-          this.set("q", results.grouped_search_result.term);
+    switch (this.search_type) {
+      case SEARCH_TYPE_CATS_TAGS:
+        const categoryTagSearch = searchCategoryTag(
+          searchTerm,
+          this.siteSettings
+        );
+        Promise.resolve(categoryTagSearch)
+          .then(async (results) => {
+            const categories = results.filter((c) => Boolean(c.model));
+            const tags = results.filter((c) => !Boolean(c.model));
+            const model = (await translateResults({ categories, tags })) || {};
+            this.set("model", model);
+          })
+          .finally(() => {
+            this.setProperties({
+              searching: false,
+              loading: false,
+            });
+          });
+        break;
+      case SEARCH_TYPE_USERS:
+        userSearch({ term: searchTerm, limit: 20 })
+          .then(async (results) => {
+            const model = (await translateResults({ users: results })) || {};
+            this.set("model", model);
+          })
+          .finally(() => {
+            this.setProperties({
+              searching: false,
+              loading: false,
+            });
+          });
+        break;
+      default:
+        if (this.currentUser) {
+          updateRecentSearches(this.currentUser, searchTerm);
         }
+        ajax("/search", { data: args })
+          .then(async (results) => {
+            const model = (await translateResults(results)) || {};
 
-        if (args.page > 1) {
-          if (model) {
-            this.model.posts.pushObjects(model.posts);
-            this.model.topics.pushObjects(model.topics);
-            this.model.set(
-              "grouped_search_result",
-              results.grouped_search_result
-            );
-          }
-        } else {
-          setTransient("lastSearch", { searchKey, model }, 5);
-          model.grouped_search_result = results.grouped_search_result;
-          this.set("model", model);
-        }
-      })
-      .finally(() => {
-        this.set("searching", false);
-        this.set("loading", false);
-      });
+            if (results.grouped_search_result) {
+              this.set("q", results.grouped_search_result.term);
+            }
+
+            if (args.page > 1) {
+              if (model) {
+                this.model.posts.pushObjects(model.posts);
+                this.model.topics.pushObjects(model.topics);
+                this.model.set(
+                  "grouped_search_result",
+                  results.grouped_search_result
+                );
+              }
+            } else {
+              setTransient("lastSearch", { searchKey, model }, 5);
+              model.grouped_search_result = results.grouped_search_result;
+              this.set("model", model);
+            }
+            this.set("error", null);
+          })
+          .catch((e) => {
+            this.set("error", e.jqXHR.responseJSON?.message);
+          })
+          .finally(() => {
+            this.setProperties({
+              searching: false,
+              loading: false,
+            });
+          });
+        break;
+    }
+  },
+
+  _afterTransition() {
+    this._showFooter();
+    if (Object.keys(this.model).length === 0) {
+      this.reset();
+    }
+  },
+
+  reset() {
+    this.setProperties({
+      searching: false,
+      page: 1,
+      resultCount: null,
+      selected: [],
+    });
+  },
+
+  @action
+  createTopic(searchTerm, event) {
+    event?.preventDefault();
+    let topicCategory;
+    if (searchTerm.includes("category:")) {
+      const match = searchTerm.match(/category:(\S*)/);
+      if (match && match[1]) {
+        topicCategory = match[1];
+      }
+    }
+    this.composer.open({
+      action: Composer.CREATE_TOPIC,
+      draftKey: Composer.NEW_TOPIC_KEY,
+      topicCategory,
+    });
   },
 
   actions: {
-    createTopic(searchTerm) {
-      let topicCategory;
-      if (searchTerm.indexOf("category:") !== -1) {
-        const match = searchTerm.match(/category:(\S*)/);
-        if (match && match[1]) {
-          topicCategory = match[1];
-        }
-      }
-      this.composer.open({
-        action: Composer.CREATE_TOPIC,
-        draftKey: Composer.NEW_TOPIC_KEY,
-        topicCategory,
-      });
-    },
-
     selectAll() {
-      this.selected.addObjects(this.get("model.posts").map((r) => r.topic));
+      this.selected.addObjects(this.get("model.posts").mapBy("topic"));
+
       // Doing this the proper way is a HUGE pain,
       // we can hack this to work by observing each on the array
       // in the component, however, when we select ANYTHING, we would force
       // 50 traversals of the list
       // This hack is cheap and easy
-      $(".fps-result input[type=checkbox]").prop("checked", true);
+      document
+        .querySelectorAll(".fps-result input[type=checkbox]")
+        .forEach((checkbox) => {
+          checkbox.checked = true;
+        });
     },
 
     clearAll() {
       this.selected.clear();
-      $(".fps-result input[type=checkbox]").prop("checked", false);
+
+      document
+        .querySelectorAll(".fps-result input[type=checkbox]")
+        .forEach((checkbox) => {
+          checkbox.checked = false;
+        });
     },
 
     toggleBulkSelect() {
@@ -309,16 +500,23 @@ export default Controller.extend({
       this.selected.clear();
     },
 
-    search() {
-      this.set("page", 1);
-      this._search();
-      if (this.site.mobileView) {
-        this.set("expanded", false);
-      }
+    showBulkActions() {
+      this.modal.show(TopicBulkActions, {
+        model: {
+          topics: this.selected,
+          refreshClosure: this._search,
+        },
+      });
     },
 
-    toggleAdvancedSearch() {
-      this.toggleProperty("expanded");
+    search(options = {}) {
+      if (options.collapseFilters) {
+        document
+          .querySelector("details.advanced-filters")
+          ?.removeAttribute("open");
+      }
+      this.set("page", 1);
+      this._search();
     },
 
     loadMore() {
@@ -335,15 +533,10 @@ export default Controller.extend({
 
     logClick(topicId) {
       if (this.get("model.grouped_search_result.search_log_id") && topicId) {
-        ajax("/search/click", {
-          type: "POST",
-          data: {
-            search_log_id: this.get(
-              "model.grouped_search_result.search_log_id"
-            ),
-            search_result_id: topicId,
-            search_result_type: "topic",
-          },
+        logSearchLinkClick({
+          searchLogId: this.get("model.grouped_search_result.search_log_id"),
+          searchResultId: topicId,
+          searchResultType: "topic",
         });
       }
     },

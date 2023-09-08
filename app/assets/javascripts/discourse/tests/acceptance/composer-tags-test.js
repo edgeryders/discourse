@@ -1,6 +1,7 @@
 import {
   acceptance,
-  queryAll,
+  exists,
+  query,
   updateCurrentUser,
 } from "discourse/tests/helpers/qunit-helpers";
 import I18n from "I18n";
@@ -17,6 +18,7 @@ acceptance("Composer - Tags", function (needs) {
     });
   });
   needs.site({ can_tag_topics: true });
+  needs.settings({ allow_uncategorized_topics: true });
 
   test("staff bypass tag validation rule", async function (assert) {
     await visit("/");
@@ -32,7 +34,7 @@ acceptance("Composer - Tags", function (needs) {
     await categoryChooser.selectRowByValue(2);
 
     await click("#reply-control button.create");
-    assert.notEqual(currentURL(), "/");
+    assert.notStrictEqual(currentURL(), "/");
   });
 
   test("users do not bypass tag validation rule", async function (assert) {
@@ -51,9 +53,9 @@ acceptance("Composer - Tags", function (needs) {
     updateCurrentUser({ moderator: false, admin: false, trust_level: 1 });
 
     await click("#reply-control button.create");
-    assert.equal(currentURL(), "/");
-    assert.equal(
-      queryAll(".popup-tip.bad").text().trim(),
+    assert.strictEqual(currentURL(), "/");
+    assert.strictEqual(
+      query(".popup-tip.bad").innerText.trim(),
       I18n.t("composer.error.tags_missing", { count: 1 }),
       "it should display the right alert"
     );
@@ -63,7 +65,7 @@ acceptance("Composer - Tags", function (needs) {
     await tags.selectRowByValue("monkey");
 
     await click("#reply-control button.create");
-    assert.notEqual(currentURL(), "/");
+    assert.notStrictEqual(currentURL(), "/");
   });
 
   test("users do not bypass min required tags in tag group validation rule", async function (assert) {
@@ -74,8 +76,7 @@ acceptance("Composer - Tags", function (needs) {
     await fillIn(".d-editor-input", "this is the *content* of a post");
 
     Category.findById(2).setProperties({
-      required_tag_groups: ["support tags"],
-      min_tags_from_required_group: 1,
+      required_tag_groups: [{ name: "support tags", min_count: 1 }],
     });
 
     const categoryChooser = selectKit(".category-chooser");
@@ -85,9 +86,9 @@ acceptance("Composer - Tags", function (needs) {
     updateCurrentUser({ moderator: false, admin: false, trust_level: 1 });
 
     await click("#reply-control button.create");
-    assert.equal(currentURL(), "/");
-    assert.equal(
-      queryAll(".popup-tip.bad").text().trim(),
+    assert.strictEqual(currentURL(), "/");
+    assert.strictEqual(
+      query(".popup-tip.bad").innerText.trim(),
       I18n.t("composer.error.tags_missing", { count: 1 }),
       "it should display the right alert"
     );
@@ -97,6 +98,30 @@ acceptance("Composer - Tags", function (needs) {
     await tags.selectRowByValue("monkey");
 
     await click("#reply-control button.create");
-    assert.notEqual(currentURL(), "/");
+    assert.notStrictEqual(currentURL(), "/");
+  });
+
+  test("users who cannot tag PMs do not see the selector", async function (assert) {
+    await visit("/u/charlie");
+    await click("button.compose-pm");
+
+    assert.notOk(exists(".composer-fields .mini-tag-chooser"));
+  });
+});
+
+acceptance("Composer - Tags (PMs)", function (needs) {
+  needs.user();
+  needs.pretender((server, helper) => {
+    server.post("/uploads/lookup-urls", () => {
+      return helper.response([]);
+    });
+  });
+  needs.site({ can_tag_topics: true, can_tag_pms: true });
+
+  test("users who can tag PMs see the selector", async function (assert) {
+    await visit("/u/charlie");
+    await click("button.compose-pm");
+
+    assert.ok(exists(".composer-fields .mini-tag-chooser"));
   });
 });

@@ -1,11 +1,14 @@
+import selectKit from "discourse/tests/helpers/select-kit-helper";
 import {
   acceptance,
+  count,
   exists,
   invisible,
+  query,
   queryAll,
   updateCurrentUser,
 } from "discourse/tests/helpers/qunit-helpers";
-import { click, currentURL, visit } from "@ember/test-helpers";
+import { click, currentURL, fillIn, visit } from "@ember/test-helpers";
 import { test } from "qunit";
 
 acceptance("Tags", function (needs) {
@@ -52,8 +55,7 @@ acceptance("Tags", function (needs) {
               archetype: "regular",
               unseen: false,
               last_read_post_number: 1,
-              unread: 0,
-              new_posts: 1,
+              unread_posts: 1,
               pinned: false,
               unpinned: null,
               visible: true,
@@ -63,6 +65,7 @@ acceptance("Tags", function (needs) {
               bookmarked: false,
               liked: true,
               tags: ["test"],
+              tags_descriptions: { test: "test description" },
               views: 42,
               like_count: 42,
               has_summary: false,
@@ -104,11 +107,11 @@ acceptance("Tags", function (needs) {
   test("list the tags", async function (assert) {
     await visit("/tags");
 
-    assert.ok($("body.tags-page").length, "has the body class");
     assert.ok(
-      $('*[data-tag-name="eviltrout"]').length,
-      "shows the eviltrout tag"
+      document.body.classList.contains("tags-page"),
+      "has the body class"
     );
+    assert.ok(exists(`[data-tag-name="eviltrout"]`), "shows the eviltrout tag");
   });
 
   test("dismiss notifications", async function (assert) {
@@ -190,40 +193,33 @@ acceptance("Tags listed by group", function (needs) {
 
   test("list the tags in groups", async function (assert) {
     await visit("/tags");
-    assert.equal(
-      $(".tag-list").length,
+
+    assert.strictEqual(
+      count(".tag-list"),
       4,
       "shows separate lists for the 3 groups and the ungrouped tags"
     );
     assert.deepEqual(
-      $(".tag-list h3")
-        .toArray()
-        .map((i) => {
-          return $(i).text();
-        }),
+      [...queryAll(".tag-list h3")].map((el) => el.innerText),
       ["Ford Cars", "Honda Cars", "Makes", "Other Tags"],
       "shown in given order and with tags that are not in a group"
     );
     assert.deepEqual(
-      $(".tag-list:nth-of-type(1) .discourse-tag")
-        .toArray()
-        .map((i) => {
-          return $(i).text();
-        }),
+      [...queryAll(".tag-list:nth-of-type(1) .discourse-tag")].map(
+        (el) => el.innerText
+      ),
       ["focus", "Escort"],
       "shows the tags in default sort (by count)"
     );
     assert.deepEqual(
-      $(".tag-list:nth-of-type(1) .discourse-tag")
-        .toArray()
-        .map((i) => {
-          return $(i).attr("href");
-        }),
+      [...queryAll(".tag-list:nth-of-type(1) .discourse-tag")].map((el) =>
+        el.getAttribute("href")
+      ),
       ["/tag/focus", "/tag/escort"],
       "always uses lowercase URLs for mixed case tags"
     );
-    assert.equal(
-      $("a[data-tag-name='private']").attr("href"),
+    assert.strictEqual(
+      query(`a[data-tag-name="private"]`).getAttribute("href"),
       "/u/eviltrout/messages/tags/private",
       "links to private messages"
     );
@@ -233,18 +229,18 @@ acceptance("Tags listed by group", function (needs) {
     updateCurrentUser({ moderator: false, admin: false });
 
     await visit("/tag/regular-tag");
-    assert.ok(queryAll("#create-topic:disabled").length === 0);
+    assert.ok(!exists("#create-topic:disabled"));
 
     await visit("/tag/staff-only-tag");
-    assert.ok(queryAll("#create-topic:disabled").length === 1);
+    assert.strictEqual(count("#create-topic:disabled"), 1);
 
     updateCurrentUser({ moderator: true });
 
     await visit("/tag/regular-tag");
-    assert.ok(queryAll("#create-topic:disabled").length === 0);
+    assert.ok(!exists("#create-topic:disabled"));
 
     await visit("/tag/staff-only-tag");
-    assert.ok(queryAll("#create-topic:disabled").length === 0);
+    assert.ok(!exists("#create-topic:disabled"));
   });
 });
 
@@ -254,13 +250,16 @@ acceptance("Tag info", function (needs) {
     tags_listed_by_group: true,
   });
   needs.pretender((server, helper) => {
-    server.get("/tag/planters/notifications", () => {
+    server.get("/tag/:tag_name/notifications", (request) => {
       return helper.response({
-        tag_notification: { id: "planters", notification_level: 1 },
+        tag_notification: {
+          id: request.params.tag_name,
+          notification_level: 1,
+        },
       });
     });
 
-    server.get("/tag/planters/l/latest.json", () => {
+    server.get("/tag/:tag_name/l/latest.json", (request) => {
       return helper.response({
         users: [],
         primary_groups: [],
@@ -273,7 +272,7 @@ acceptance("Tag info", function (needs) {
           tags: [
             {
               id: 1,
-              name: "planters",
+              name: request.params.tag_name,
               topic_count: 1,
             },
           ],
@@ -282,25 +281,32 @@ acceptance("Tag info", function (needs) {
       });
     });
 
-    server.get("/tags/c/faq/4/planters/l/latest.json", () => {
-      return helper.response({
-        users: [],
-        primary_groups: [],
-        topic_list: {
-          can_create_topic: true,
-          draft: null,
-          draft_key: "new_topic",
-          draft_sequence: 1,
-          per_page: 30,
-          tags: [
-            {
-              id: 1,
-              name: "planters",
-              topic_count: 1,
-            },
-          ],
-          topics: [],
-        },
+    [
+      "/tags/c/faq/4/planters/l/latest.json",
+      "/tags/c/feature/2/planters/l/latest.json",
+      "/tags/c/feature/2/planters/l/top.json",
+      "/tags/c/feature/2/none/planters/l/latest.json",
+    ].forEach((url) => {
+      server.get(url, () => {
+        return helper.response({
+          users: [],
+          primary_groups: [],
+          topic_list: {
+            can_create_topic: true,
+            draft: null,
+            draft_key: "new_topic",
+            draft_sequence: 1,
+            per_page: 30,
+            tags: [
+              {
+                id: 1,
+                name: "planters",
+                topic_count: 1,
+              },
+            ],
+            topics: [],
+          },
+        });
       });
     });
 
@@ -344,9 +350,40 @@ acceptance("Tag info", function (needs) {
         ],
       });
     });
+    server.put("/tag/happy-monkey", (request) => {
+      const data = helper.parsePostData(request.requestBody);
+      return helper.response({ tag: { id: data.tag.id } });
+    });
+
+    server.get("/tag/happy-monkey/info", () => {
+      return helper.response({
+        __rest_serializer: "1",
+        tag_info: {
+          id: 13,
+          name: "happy-monkey",
+          description: "happy monkey description",
+          topic_count: 1,
+          staff: false,
+          synonyms: [],
+          tag_group_names: [],
+          category_ids: [],
+        },
+        categories: [],
+      });
+    });
 
     server.delete("/tag/planters/synonyms/containers", () =>
       helper.response({ success: true })
+    );
+
+    server.get("/tags/filter/search", () =>
+      helper.response({
+        results: [
+          { id: "monkey", name: "monkey", count: 1 },
+          { id: "not-monkey", name: "not-monkey", count: 1 },
+          { id: "happy-monkey", name: "happy-monkey", count: 1 },
+        ],
+      })
     );
   });
 
@@ -354,20 +391,22 @@ acceptance("Tag info", function (needs) {
     updateCurrentUser({ moderator: false, admin: false });
 
     await visit("/tag/planters");
-    assert.ok(queryAll("#show-tag-info").length === 1);
+    assert.strictEqual(count("#show-tag-info"), 1);
 
     await click("#show-tag-info");
     assert.ok(exists(".tag-info .tag-name"), "show tag");
     assert.ok(
-      queryAll(".tag-info .tag-associations").text().indexOf("Gardening") >= 0,
+      query(".tag-info .tag-associations").innerText.includes("Gardening"),
       "show tag group names"
     );
-    assert.ok(
-      queryAll(".tag-info .synonyms-list .tag-box").length === 2,
+    assert.strictEqual(
+      count(".tag-info .synonyms-list .tag-box"),
+      2,
       "shows the synonyms"
     );
-    assert.ok(
-      queryAll(".tag-info .badge-category").length === 1,
+    assert.strictEqual(
+      count(".tag-info .badge-category"),
+      1,
       "show the category"
     );
     assert.ok(!exists("#rename-tag"), "can't rename tag");
@@ -375,39 +414,127 @@ acceptance("Tag info", function (needs) {
     assert.ok(!exists("#delete-tag"), "can't delete tag");
   });
 
+  test("tag info hides only current tag in synonyms dropdown", async function (assert) {
+    updateCurrentUser({ moderator: false, admin: true });
+
+    await visit("/tag/happy-monkey");
+    assert.strictEqual(count("#show-tag-info"), 1);
+
+    await click("#show-tag-info");
+    assert.ok(exists(".tag-info .tag-name"), "show tag");
+
+    await click("#edit-synonyms");
+
+    const addSynonymsDropdown = selectKit("#add-synonyms");
+    await addSynonymsDropdown.expand();
+
+    assert.deepEqual(
+      Array.from(addSynonymsDropdown.rows()).map((r) => {
+        return r.dataset.value;
+      }),
+      ["monkey", "not-monkey"]
+    );
+  });
+
+  test("edit tag is showing input for name and description", async function (assert) {
+    updateCurrentUser({ moderator: false, admin: true });
+
+    await visit("/tag/happy-monkey");
+    assert.strictEqual(count("#show-tag-info"), 1);
+
+    await click("#show-tag-info");
+    assert.ok(exists(".tag-info .tag-name"), "show tag");
+
+    await click(".edit-tag");
+    assert.strictEqual(
+      query("#edit-name").value,
+      "happy-monkey",
+      "it displays original tag name"
+    );
+    assert.strictEqual(
+      query("#edit-description").value,
+      "happy monkey description",
+      "it displays original tag description"
+    );
+
+    await fillIn("#edit-description", "new description");
+    await click(".submit-edit");
+    assert.strictEqual(
+      currentURL(),
+      "/tag/happy-monkey",
+      "it doesn't change URL"
+    );
+
+    await click(".edit-tag");
+    await fillIn("#edit-name", "happy-monkey2");
+    await click(".submit-edit");
+    assert.strictEqual(
+      currentURL(),
+      "/tag/happy-monkey2",
+      "it changes URL to new tag path"
+    );
+  });
+
   test("can filter tags page by category", async function (assert) {
     await visit("/tag/planters");
 
     await click(".category-breadcrumb .category-drop-header");
-    await click('.category-breadcrumb .category-row[data-name="faq"]');
+    await click(`.category-breadcrumb .category-row[data-name="faq"]`);
 
-    assert.equal(currentURL(), "/tags/c/faq/4/planters");
+    assert.strictEqual(currentURL(), "/tags/c/faq/4/planters");
+  });
+
+  test("can switch between all/none subcategories", async function (assert) {
+    await visit("/tag/planters");
+
+    await click(".category-breadcrumb .category-drop-header");
+    await click(`.category-breadcrumb .category-row[data-name="feature"]`);
+    assert.strictEqual(currentURL(), "/tags/c/feature/2/planters");
+
+    await click(".category-breadcrumb li:nth-of-type(2) .category-drop-header");
+    await click(
+      `.category-breadcrumb li:nth-of-type(2) .category-row[data-value="no-categories"]`
+    );
+    assert.strictEqual(currentURL(), "/tags/c/feature/2/none/planters");
+  });
+
+  test("can visit show-category-latest routes", async function (assert) {
+    await visit("/tags/c/feature/2/planters");
+
+    await click(".nav-item_latest a[href]");
+    assert.strictEqual(currentURL(), "/tags/c/feature/2/planters/l/latest");
+
+    await click(".nav-item_top a[href]");
+    assert.strictEqual(currentURL(), "/tags/c/feature/2/planters/l/top");
   });
 
   test("admin can manage tags", async function (assert) {
     updateCurrentUser({ moderator: false, admin: true });
 
     await visit("/tag/planters");
-    assert.ok(queryAll("#show-tag-info").length === 1);
+    assert.strictEqual(count("#show-tag-info"), 1);
 
     await click("#show-tag-info");
-    assert.ok(exists("#rename-tag"), "can rename tag");
+    assert.ok(exists(".edit-tag"), "can rename tag");
     assert.ok(exists("#edit-synonyms"), "can edit synonyms");
     assert.ok(exists("#delete-tag"), "can delete tag");
 
     await click("#edit-synonyms");
-    assert.ok(
-      queryAll(".unlink-synonym:visible").length === 2,
+    assert.strictEqual(
+      count(".unlink-synonym:visible"),
+      2,
       "unlink UI is visible"
     );
-    assert.ok(
-      queryAll(".delete-synonym:visible").length === 2,
+    assert.strictEqual(
+      count(".delete-synonym:visible"),
+      2,
       "delete UI is visible"
     );
 
     await click(".unlink-synonym:nth-of-type(1)");
-    assert.ok(
-      queryAll(".tag-info .synonyms-list .tag-box").length === 1,
+    assert.strictEqual(
+      count(".tag-info .synonyms-list .tag-box"),
+      1,
       "removed a synonym"
     );
   });
@@ -415,7 +542,110 @@ acceptance("Tag info", function (needs) {
   test("composer will not set tags if user cannot create them", async function (assert) {
     await visit("/tag/planters");
     await click("#create-topic");
-    let composer = this.owner.lookup("controller:composer");
-    assert.equal(composer.get("model").tags, null);
+    let composer = this.owner.lookup("service:composer");
+    assert.strictEqual(composer.get("model").tags, undefined);
+  });
+});
+
+acceptance(
+  "Tag show - topic list with `more_topics_url` present",
+  function (needs) {
+    needs.pretender((server, helper) => {
+      server.get("/tag/:tagName/l/latest.json", () =>
+        helper.response({
+          users: [],
+          primary_groups: [],
+          topic_list: {
+            topics: [],
+            more_topics_url: "...",
+          },
+        })
+      );
+      server.put("/topics/bulk", () => helper.response({}));
+    });
+
+    test("load more footer message is present", async function (assert) {
+      await visit("/tag/planters");
+      assert.notOk(exists(".topic-list-bottom .footer-message"));
+    });
+  }
+);
+
+acceptance("Tag show - create topic", function (needs) {
+  needs.user();
+  needs.site({ can_tag_topics: true });
+  needs.settings({
+    tagging_enabled: true,
+    tags_listed_by_group: true,
+  });
+  needs.pretender((server, helper) => {
+    server.get("/tag/:tag_name/notifications", (request) => {
+      return helper.response({
+        tag_notification: {
+          id: request.params.tag_name,
+          notification_level: 1,
+        },
+      });
+    });
+    server.get("/tag/:tag_name/l/latest.json", (request) => {
+      return helper.response({
+        users: [],
+        primary_groups: [],
+        topic_list: {
+          can_create_topic: true,
+          draft: null,
+          draft_key: "new_topic",
+          draft_sequence: 1,
+          per_page: 30,
+          tags: [
+            {
+              id: 1,
+              name: request.params.tag_name,
+              topic_count: 1,
+            },
+          ],
+          topics: [],
+        },
+      });
+    });
+  });
+
+  test("composer will not set tags with all/none tags when creating topic", async function (assert) {
+    const composer = this.owner.lookup("service:composer");
+
+    await visit("/tag/none");
+    await click("#create-topic");
+    assert.deepEqual(composer.model.tags, []);
+
+    await visit("/tag/all");
+    await click("#create-topic");
+    assert.deepEqual(composer.model.tags, []);
+  });
+
+  test("composer will set tags from selected tag", async function (assert) {
+    const composer = this.owner.lookup("service:composer");
+
+    await visit("/tag/planters");
+    await click("#create-topic");
+    assert.deepEqual(composer.model.tags, ["planters"]);
+  });
+});
+
+acceptance("Tag show - topic list without `more_topics_url`", function (needs) {
+  needs.pretender((server, helper) => {
+    server.get("/tag/:tagName/l/latest.json", () =>
+      helper.response({
+        users: [],
+        primary_groups: [],
+        topic_list: {
+          topics: [],
+        },
+      })
+    );
+    server.put("/topics/bulk", () => helper.response({}));
+  });
+  test("load more footer message is not present", async function (assert) {
+    await visit("/tag/planters");
+    assert.ok(exists(".topic-list-bottom .footer-message"));
   });
 });

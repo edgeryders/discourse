@@ -1,7 +1,8 @@
 .caps-lock-warning {
   color: var(--danger);
-  font-size: $font-down-1;
+  font-size: var(--font-down-1);
   font-weight: bold;
+  margin-top: 0.5em;
 }
 
 .discourse-no-touch #login-form {
@@ -31,10 +32,17 @@
   }
 }
 
+body.invite-page {
+  background-color: var(--primary-50);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+    Oxygen-Sans, Ubuntu, Cantarell, Arial, sans-serif;
+}
+
 // Create Account + Login
 .d-modal.create-account,
 .d-modal.login-modal,
-.invites-show {
+.invites-show,
+.admin-invite-page {
   .modal-inner-container {
     position: relative;
   }
@@ -45,8 +53,8 @@
     border-bottom: none;
     padding: 0;
     position: absolute;
-    top: 1em;
-    right: 1em;
+    top: 0.75em;
+    right: 0.75em;
     z-index: z("max");
   }
   #modal-alert {
@@ -60,25 +68,29 @@
     min-height: 35px;
   }
   #modal-alert:empty {
-    display: none;
+    min-height: 0px;
+    padding: 0px;
+    overflow: hidden;
+    display: inline;
   }
   .login-welcome-header {
-    z-index: z("modal", "content");
     display: grid;
     grid-template-columns: auto 1fr;
     grid-template-rows: auto 1fr;
-    background: var(--secondary);
+    max-width: 33em;
+    word-break: break-word;
     .login-title {
       margin-bottom: 0;
     }
     .login-subheader {
       align-self: start;
+      grid-row-start: 2;
       margin: 0;
     }
     .waving-hand {
       width: 35px;
       height: 35px;
-      margin-left: 1em;
+      margin-left: 0.5em;
       align-self: center;
     }
   }
@@ -92,9 +104,6 @@
     }
   }
   .modal-footer {
-    .btn-primary {
-      margin-right: 1.5em;
-    }
     .inline-spinner {
       display: inline-flex;
     }
@@ -117,34 +126,38 @@
 
 // Login Form Styles
 .login-modal:not(.hidden),
-.create-account {
+.create-account,
+.invites-show {
   #login-form,
-  .login-form {
+  .login-form,
+  .invite-form {
     .input-group {
       position: relative;
       display: flex;
       flex-direction: column;
       margin-bottom: 0.8em;
-      &:last-child {
-        margin-bottom: 2em;
-      }
-      input {
+      input,
+      .select-kit-header {
         padding: 0.75em 0.77em;
-        border-radius: 0.25em;
         min-width: 250px;
         box-shadow: none;
         margin-bottom: 0.25em;
+        width: 100%;
       }
       input:focus {
         outline: none;
         border: 1px solid var(--tertiary);
         box-shadow: 0 0 0 2px rgba(var(--tertiary-rgb), 0.25);
       }
-      label.more-info {
+      input:disabled {
+        background-color: var(--primary-low);
+      }
+      span.more-info {
         color: var(--primary-medium);
         min-height: 1.4em; // prevents height increase due to tips
       }
-      label.alt-placeholder {
+      label.alt-placeholder,
+      .user-field.dropdown label.control-label {
         color: var(--primary-medium);
         font-size: 16px;
         font-weight: normal;
@@ -155,14 +168,24 @@
         box-shadow: 0 0 0 0px rgba(var(--tertiary-rgb), 0);
         transition: 0.2s ease all;
       }
+      .user-field.dropdown label.control-label {
+        z-index: 999;
+        top: -8px;
+        left: calc(1em - 0.25em);
+        background-color: var(--secondary);
+        padding: 0 0.25em 0 0.25em;
+        font-size: $font-down-1;
+      }
+      .user-field.dropdown:focus-within {
+        z-index: 1000; // this ensures the active dropdown is always on top of sibling dropdown labels
+      }
       input:focus + label.alt-placeholder,
       input.value-entered + label.alt-placeholder {
         top: -8px;
         left: calc(1em - 0.25em);
         background-color: var(--secondary);
         padding: 0 0.25em 0 0.25em;
-        font-size: $font-down-1;
-        color: var(--primary-medium);
+        font-size: var(--font-down-1);
       }
       input.alt-placeholder:invalid {
         color: var(--primary);
@@ -177,9 +200,11 @@
         }
       }
 
-      #forgot-password-link,
-      #email-login-link {
-        font-size: $font-down-1;
+      #email-login-link,
+      .login__password-links {
+        font-size: var(--font-down-1);
+        display: flex;
+        justify-content: space-between;
       }
 
       .tip:not(:empty) + label.more-info {
@@ -191,7 +216,6 @@
       input {
         width: 100%;
         padding: 0.75em 0.5em;
-        border-radius: 0.25em;
         min-width: 250px;
         box-shadow: none;
         margin-bottom: 2em;
@@ -208,6 +232,14 @@
     .user-fields .input-group {
       .user-field {
         &.text {
+          &.value-entered label.control-label {
+            top: -8px;
+            left: calc(1em - 0.25em);
+            background-color: var(--secondary);
+            padding: 0 0.25em 0 0.25em;
+            font-size: 14px;
+            color: var(--primary-medium);
+          }
           label.control-label {
             color: var(--primary-medium);
             font-size: 16px;
@@ -222,15 +254,17 @@
             overflow: hidden;
             text-overflow: ellipsis;
           }
-          &.value-entered label.control-label,
-          label.control-label.value-entered {
-            top: -8px;
-            left: calc(1em - 0.25em);
-            background-color: var(--secondary);
-            padding: 0 0.25em 0 0.25em;
-            font-size: 14px;
-            color: var(--primary-high);
-          }
+        }
+        span.name {
+          color: var(--primary-medium);
+        }
+        .select-kit-row span.name {
+          color: var(--primary);
+        }
+        .select-kit.combo-box.is-expanded summary {
+          outline: none;
+          border: 1px solid var(--tertiary);
+          box-shadow: 0 0 0 2px rgba(var(--tertiary-rgb), 0.25);
         }
         .controls .checkbox-label {
           input[type="checkbox"].ember-checkbox {
@@ -246,7 +280,6 @@
 #login-link,
 #new-account-link {
   cursor: pointer;
-  padding-left: 0;
   text-align: left;
   // the second button can wrap in some locales, and this helps alignment
 }
@@ -257,10 +290,11 @@
     margin-top: 0.5em;
   }
 
-  .create-account-body {
-    max-width: 40em;
+  @media screen and (min-width: 701px) {
+    .create-account-body {
+      max-width: 40em;
+    }
   }
-
   .user-field {
     input[type="text"] {
       margin-bottom: 0;
@@ -273,7 +307,7 @@
       .instructions {
         margin-top: 0.15em;
         color: var(--primary-medium);
-        line-height: $line-height-medium;
+        line-height: var(--line-height-medium);
       }
     }
   }
@@ -285,13 +319,53 @@
       color: var(--primary-medium);
     }
   }
+  #new-account-password {
+    width: 15em;
+  }
+  .tip {
+    margin: 0 0 0.5em;
+  }
+  .toggle-password-mask {
+    margin-left: 0.25em;
+  }
 }
 
+.toggle-password-mask {
+  align-self: start;
+  line-height: 1.4; // aligns with input description text
+}
+
+// admin invite page
 .invites-show {
+  display: grid;
+  justify-content: center;
   .two-col {
     position: relative;
-    display: flex;
+    display: grid;
     margin-top: 5px;
+  }
+
+  .invite-form,
+  .invite-success {
+    border-radius: 8px;
+    margin-top: 25px;
+    border: 1px solid var(--primary-low);
+    background-color: var(--secondary);
+  }
+
+  .invite-form {
+    margin-bottom: 50px;
+    box-shadow: 0 4px 19px 6px rgba(0, 0, 0, 0.05);
+    max-width: calc(30em);
+    .tip {
+      display: block;
+    }
+    .col-image {
+      display: none;
+    }
+    .disclaimer {
+      margin: 1em 0 0;
+    }
   }
 
   #login-buttons {
@@ -304,19 +378,13 @@
   .col-image {
     position: relative;
     margin-right: 20px;
+    justify-self: center;
     @media screen and (max-width: 600px) {
       display: none;
     }
   }
 
   form {
-    margin-top: 24px;
-    button.btn-primary {
-      margin-top: 10px;
-    }
-    label:not(.checkbox-label) {
-      font-weight: bold;
-    }
     .controls,
     .input {
       margin-bottom: 10px;
@@ -324,12 +392,34 @@
     .instructions {
       color: var(--primary-medium);
       margin: 0;
-      font-size: $font-down-1;
+      font-size: var(--font-down-1);
       font-weight: normal;
-      line-height: $line-height-medium;
+      line-height: var(--line-height-medium);
     }
     .tip {
-      padding-left: 5px;
+      font-size: var(--font-down-1);
+      &:not(:empty) {
+        margin-bottom: 0.25em;
+      }
+    }
+  }
+
+  .invitation-cta {
+    display: flex;
+    align-items: center;
+    margin-top: 2em;
+    &__accept {
+      margin-right: 1em;
+    }
+    &__signed-up {
+      margin-right: 0.5em;
+    }
+    &__sign-in {
+      padding: 0;
+      &.btn-flat.btn-text:not([disabled]):active {
+        background-color: transparent;
+        background-image: none;
+      }
     }
   }
 }
@@ -355,11 +445,54 @@ button#new-account-link {
   align-items: center;
   p {
     margin: 0;
-    font-size: $font-0;
+    font-size: var(--font-0);
   }
   a {
     display: inline-block;
     padding: 1em 0.5em 1em 0;
     color: var(--tertiary);
   }
+  button {
+    margin-right: 1em;
+  }
+}
+
+.invite-error {
+  box-shadow: 0 1px 10px 1px rgba(var(--primary-low-rgb), 1.25);
+  border-radius: 10px;
+  padding: 1em 2.5em 1em 2.5em;
+  .error-image {
+    text-align: center;
+    padding-bottom: 1em;
+  }
+}
+
+.email-login {
+  border-radius: 10px;
+  background-color: var(--secondary);
+  padding: 20px;
+  margin: 0 auto;
+  .content-wrapper {
+    box-shadow: 0 1px 10px 1px rgba(var(--primary-low-rgb), 1.25);
+    border-radius: 10px;
+    padding: 1em 2.5em 1em 2.5em;
+    .image-wrapper {
+      text-align: center;
+      padding-bottom: 1em;
+    }
+    .email-login-form {
+      text-align: center;
+      .btn-primary {
+        margin-top: 10px;
+      }
+      #security-key {
+        justify-content: center;
+      }
+    }
+  }
+}
+
+.create-account__password-info {
+  display: flex;
+  justify-content: space-between;
 }

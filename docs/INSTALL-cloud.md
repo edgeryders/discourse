@@ -1,12 +1,59 @@
-**Set up Discourse in the cloud in under 30 minutes** with zero knowledge of Rails or Linux shell. One example is [DigitalOcean][do], but these steps will work on any **Docker-compatible** cloud provider or local server.
+**Set up Discourse in the cloud in under 30 minutes** with zero knowledge of Rails or Linux shell. One example
+is [DigitalOcean][do], but these steps will work on any **Docker-compatible** cloud provider or local server. This
+walkthrough will go through these in detail:
 
->  🔔 Don't have 30 minutes to set this up? For a flat one-time fee of $150, the community can install Discourse in the cloud for you. [Click here to purchase a self-supported community install](https://www.literatecomputing.com/product/discourse-install/).
+**[Before you start](#before-you-start)**
 
-### Create New Cloud Server
+1. [Preparing your domain name](#1-preparing-your-domain-name)
+2. [Setting up email](#2-setting-up-email)
+
+**[Installation](#installation)**
+
+3. [Create new cloud server](#3-create-new-cloud-server)
+4. [Access new cloud server](#4-access-your-cloud-server)
+5. [Install Discourse](#5-install-discourse)
+6. [Edit Discourse configuration](#6-edit-discourse-configuration)
+7. [Start Discourse](#7-start-discourse)
+8. [Register new account and become admin](#8-register-new-account-and-become-admin)
+9. [Post-install maintenance](#9-post-install-maintenance)
+10. [(Optional) Add more Discourse features](#10-optional-add-more-discourse-features)
+
+> 🔔 Don't have 30 minutes to set this up? For a flat one-time fee of $150, the community can install Discourse in the cloud for you. [Click here to purchase a self-supported community install](https://www.literatecomputing.com/product/discourse-install/).
+
+## Before you start
+
+### 1. Preparing your domain name
+
+> 🔔 Discourse will not work from an IP address, you must own a domain name such as `example.com` to proceed.
+
+- Already own a domain name? Great. Select a subdomain such as `discourse.example.com` or `talk.example.com` or `forum.example.com` for your Discourse instance.
+
+- No domain name? Get one! We can [recommend NameCheap](https://www.namecheap.com/domains/domain-name-search/), or there are many other [great domain name registrars](https://www.google.com/search?q=best+domain+name+registrars) to choose from.
+
+- Your DNS controls should be accessible from the place where you purchased your domain name. This is where you will create a DNS [ `A` record](https://support.dnsimple.com/articles/a-record/) for the `discourse.example.com` hostname once you know the IP address of the cloud server where you are installing Discourse, as well as enter your [SPF and DKIM records](https://www.google.com/search?q=what+is+spf+dkim) for your email.
+
+### 2. Setting Up Email
+
+> ⚠️ **Email is CRITICAL for account creation and notifications in Discourse.** If you do not properly configure email before bootstrapping YOU WILL HAVE A BROKEN SITE!
+
+> 💡 Email here refers to [Transactional Email](https://www.google.com/search?q=what+is+transactional+email) not the usual email service like Gmail, Outlook and/or Yahoo.
+
+- No existing mail server? Check out our [**Recommended Email Providers for Discourse**][mailconfig].
+
+- Already have a mail server? Great. Use your existing mail server credentials. (Free email services like Gmail/Outlook/Yahoo do not support transactional emails.)
+
+- To ensure mail deliverability, you must add valid [SPF and DKIM records](https://www.google.com/search?q=what+is+spf+dkim) in your DNS. You'll need SMTP credentials from your email provider, which include an SMTP username and password. Log in to your email provider's account, go to SMTP settings or Email API section, and locate/generate your unique SMTP credentials. Keep them secure, as you'll use them during the Discourse configuration. See your mail provider instructions for specifics.
+
+- If you're having trouble getting emails to work, follow our [Email Troubleshooting Guide](https://meta.discourse.org/t/troubleshooting-email-on-a-new-discourse-install/16326)
+
+## Installation
+
+### 3. Create New Cloud Server
 
 Create your new cloud server, for example [on DigitalOcean][do]:
 
-- The default of **the current supported LTS release of Ubuntu Server** works fine. At minimum, a 64-bit Linux OS with a modern kernel version is required.
+- The default of **the current supported LTS release of Ubuntu Server** works fine. At minimum, a 64-bit Linux OS with a
+  modern kernel version is required.
 
 - The default of **1 GB** RAM works fine for small Discourse communities. We recommend 2 GB RAM for larger communities.
 
@@ -16,7 +63,9 @@ Create your new cloud server, for example [on DigitalOcean][do]:
 
 Create your new Droplet. You may receive an email with the root password, however, [you should set up SSH keys](https://www.google.com/search?q=digitalocean+ssh+keys), as they are more secure.
 
-### Access Your Cloud Server
+> ⚠️ Now you have created your cloud server! Go back to your DNS controls and use the IP address to set up an `A record` for your `discourse.example.com` hostname.
+
+### 4. Access Your Cloud Server
 
 Connect to your server via its IP address using SSH, or [Putty][put] on Windows:
 
@@ -24,41 +73,18 @@ Connect to your server via its IP address using SSH, or [Putty][put] on Windows:
 
 Either use the root password from the email DigitalOcean sent you when the server was set up, or have a valid SSH key configured on your local machine.
 
-### Install Docker / Git (Optional)
-
-If you have reason to install your own version of Docker, you may do so. If docker is not installed, `discourse-setup` will automatically install it from get.docker.com.
-
-### Install Discourse
+### 5. Install Discourse
 
 Clone the [Official Discourse Docker Image][dd] into `/var/discourse`.
 
     sudo -s
     git clone https://github.com/discourse/discourse_docker.git /var/discourse
     cd /var/discourse
+    chmod 700 containers
 
 You will need to be root through the rest of the setup and bootstrap process.
 
-### Email
-
-> ⚠️ **Email is CRITICAL for account creation and notifications in Discourse.** If you do not properly configure email before bootstrapping YOU WILL HAVE A BROKEN SITE!
-
-- Already have a mail server? Great. Use your existing mail server credentials.
-
-- No existing mail server? Check out our [**Recommended Email Providers for Discourse**][mailconfig].
-
-- To ensure mail deliverability, you must add valid [SPF and DKIM records](https://www.google.com/search?q=spf+dkim) in your DNS. See your mail provider instructions for specifics.
-
-### Domain Name
-
-> 🔔 Discourse will not work from an IP address, you must own a domain name such as `example.com` to proceed.
-
-- Already own a domain name? Great. Select a subdomain such as `discourse.example.com` or `talk.example.com` or `forum.example.com` for your Discourse instance.
-
-- No domain name? We can [recommend NameCheap](https://www.namecheap.com/domains/domain-name-search/), or there are many other [great domain name registrars](https://www.google.com/search?q=best+domain+name+registrars) to choose from.
-
-- Your DNS controls should be accessible from the place where you purchased your domain name. Create a DNS [`A` record](https://support.dnsimple.com/articles/a-record/) for the `discourse.example.com` hostname in your DNS control panel, pointing to the IP address of your cloud instance where you are installing Discourse.
-
-### Edit Discourse Configuration
+### 6. Edit Discourse Configuration
 
 Launch the setup tool at
 
@@ -73,16 +99,21 @@ Answer the following questions when prompted:
     SMTP user name? [user@example.com]: 
     SMTP password? [pa$$word]: 
     Let's Encrypt account email? (ENTER to skip) [me@example.com]: 
+    Optional Maxmind License key () [xxxxxxxxxxxxxxxx]:
+
+You'll get the SMTP details from your [email](#email) setup, be sure to complete that section.
+
+Let's Encrypt account setup is to give you a free HTTPS certificate for your site, be sure to set that up if you want your site secure.
 
 This will generate an `app.yml` configuration file on your behalf, and then kicks off bootstrap. Bootstrapping takes between **2-8 minutes** to set up your Discourse. If you need to change these settings after bootstrapping, you can run `./discourse-setup` again (it will re-use your previous values from the file) or edit `/containers/app.yml` manually with `nano` and then `./launcher rebuild app`, otherwise your changes will not take effect.
 
-### Start Discourse
+### 7. Start Discourse
 
  Once bootstrapping is complete, your Discourse should be accessible in your web browser via the domain name `discourse.example.com` you entered earlier.
 
 <img src="https://www.discourse.org/images/install/17/discourse-congrats.png" width="650">
 
-### Register New Account and Become Admin
+### 8. Register New Account and Become Admin
 
 Register a new admin account using one of the email addresses you entered before bootstrapping.
 
@@ -100,15 +131,25 @@ After completing the setup wizard, you should see Staff topics and **READ ME FIR
 
 <img src="https://www.discourse.org/images/install/17/discourse-homepage.png">
 
-### Post-Install Maintenance
+### 9. Post-Install Maintenance
 
-- We strongly suggest you turn on automatic security updates for your OS. In Ubuntu use the `dpkg-reconfigure -plow unattended-upgrades` command. In CentOS/RHEL, use the [`yum-cron`](https://www.cyberciti.biz/faq/fedora-automatic-update-retrieval-installation-with-cron/) package.
-- If you are using a password and not a SSH key, be sure to enforce a strong root password. In Ubuntu use the `apt-get install libpam-cracklib` package. We also recommend `fail2ban` which blocks any IP addresses for 10 minutes that attempt more than 3 password retries.
-  - **Ubuntu**: `apt-get install fail2ban`
-  - **CentOS/RHEL**: `sudo yum install fail2ban` (requires [EPEL](https://support.rackspace.com/how-to/install-epel-and-additional-repositories-on-centos-and-red-hat/))
-- If you need or want a default firewall, [turn on ufw](https://meta.discourse.org/t/configure-a-firewall-for-discourse/20584) for Ubuntu or use `firewalld` for CentOS/RHEL 7 or later.
+- We strongly suggest you turn on automatic security updates for your OS. In Ubuntu use the `dpkg-reconfigure -plow unattended-upgrades` command. In CentOS/RHEL, use the [`yum-cron`](https://www.redhat.com/sysadmin/using-yum-cron) package.
+- If you are using a password and not a SSH key, be sure to enforce a strong root password. In Ubuntu use the `apt install libpam-cracklib` package. We also recommend `fail2ban` which blocks any IP addresses for 10 minutes that attempt more than 3 password retries.
+  - **Ubuntu**: `apt install fail2ban`
+  - **CentOS/RHEL**: `sudo dnf install fail2ban`
+- If you need or want a default firewall, [turn on ufw](https://meta.discourse.org/t/configure-a-firewall-for-discourse/20584) for Ubuntu or use `firewalld` for CentOS/RHEL.
 
-You will get email reminders as new versions of Discourse are released. Please stay current to get the latest features and security fixes. To **upgrade Discourse to the latest version**, visit `/admin/upgrade` in your browser and click the Upgrade button.
+> 💡 Discourse will send you an email notification when new versions of Discourse are released. Please stay current to get the latest features and security fixes. 
+
+To **upgrade Discourse to the latest version**, visit `https://discourse.example.com/admin/upgrade` in your browser and click the Upgrade button.
+
+Alternatively, you can ssh into your server and rebuild using:
+
+```
+cd /var/discourse
+git pull
+./launcher rebuild app
+```
 
 The `launcher` command in the `/var/discourse` folder can be used for various kinds of maintenance:
 
@@ -130,7 +171,7 @@ Options:
     --docker-args              Extra arguments to pass when running docker
 ```
 
-### Add More Discourse Features
+### 10. (Optional) Add More Discourse Features
 
 Do you want...
 
@@ -142,7 +183,9 @@ Do you want...
 
 - Automatic daily backups? [Configure backups](https://meta.discourse.org/t/configure-automatic-backups-for-discourse/14855).
  
-- Free HTTPS / SSL support? [Configure Let's Encrypt](https://meta.discourse.org/t/setting-up-lets-encrypt-cert-with-discourse-docker/40709). Paid HTTPS / SSL support? [Configure SSL](https://meta.discourse.org/t/allowing-ssl-for-your-discourse-docker-setup/13847).
+- HTTPS / SSL support?
+  - Free HTTPS / SSL support with Let's Encrypt is enabled [during standard installation](https://github.com/discourse/discourse/blob/main/docs/INSTALL-cloud.md#6-edit-discourse-configuration).  If you skipped this step, [Configure Let's Encrypt](https://meta.discourse.org/t/setting-up-lets-encrypt-cert-with-discourse-docker/40709).
+  - Paid HTTPS / SSL support? [Configure SSL](https://meta.discourse.org/t/allowing-ssl-for-your-discourse-docker-setup/13847). 
 
 - Use a plugin [from Discourse](https://github.com/discourse) or a third party? [Configure plugins](https://meta.discourse.org/t/install-a-plugin/19157) 
 
@@ -152,7 +195,7 @@ Do you want...
 
 - A Content Delivery Network to speed up worldwide access? [Configure a CDN](https://meta.discourse.org/t/enable-a-cdn-for-your-discourse/14857). We recommend [Fastly](http://www.fastly.com/).
 
-- Import old content from vBulletin, PHPbb, Vanilla, Drupal, BBPress, etc? [See our open source importers](https://github.com/discourse/discourse/tree/master/script/import_scripts).
+- Import/migrate old content from vBulletin, PHPbb, Vanilla, Drupal, BBPress, etc? [See our open source importers](https://github.com/discourse/discourse/tree/main/script/import_scripts) and our [migration guide](https://meta.discourse.org/t/how-to-migrate-from-one-platform-forum-to-discourse/197236).
 
 - A user friendly [offline page when rebuilding or upgrading?](https://meta.discourse.org/t/adding-an-offline-page-when-rebuilding/45238)
 
@@ -165,4 +208,4 @@ Help us improve this guide! Feel free to ask about it on [meta.discourse.org][me
  [meta]: https://meta.discourse.org
    [do]: https://www.digitalocean.com/?refcode=5fa48ac82415
   [put]: http://www.chiark.greenend.org.uk/~sgtatham/putty/download.html
-  [mailconfig]: https://github.com/discourse/discourse/blob/master/docs/INSTALL-email.md
+  [mailconfig]: https://github.com/discourse/discourse/blob/main/docs/INSTALL-email.md

@@ -2,24 +2,23 @@ import Controller from "@ember/controller";
 import { INPUT_DELAY } from "discourse-common/config/environment";
 import discourseComputed from "discourse-common/utils/decorators";
 import discourseDebounce from "discourse-common/lib/debounce";
+import { action, get } from "@ember/object";
 
-const { get } = Ember;
-
-export default Controller.extend({
-  filter: null,
+export default class AdminDashboardReportsController extends Controller {
+  filter = null;
 
   @discourseComputed(
     "model.[]",
     "filter",
     "siteSettings.dashboard_hidden_reports"
   )
-  filterReports(reports, filter) {
+  filteredReports(reports, filter) {
     if (filter) {
       filter = filter.toLowerCase();
       reports = reports.filter((report) => {
         return (
-          (get(report, "title") || "").toLowerCase().indexOf(filter) > -1 ||
-          (get(report, "description") || "").toLowerCase().indexOf(filter) > -1
+          (get(report, "title") || "").toLowerCase().includes(filter) ||
+          (get(report, "description") || "").toLowerCase().includes(filter)
         );
       });
     }
@@ -30,15 +29,14 @@ export default Controller.extend({
     reports = reports.filter((report) => !hiddenReports.includes(report.type));
 
     return reports;
-  },
+  }
 
-  actions: {
-    filterReports(filter) {
-      discourseDebounce(this, this._performFiltering, filter, INPUT_DELAY);
-    },
-  },
+  @action
+  filterReports(filter) {
+    discourseDebounce(this, this._performFiltering, filter, INPUT_DELAY);
+  }
 
   _performFiltering(filter) {
     this.set("filter", filter);
-  },
-});
+  }
+}

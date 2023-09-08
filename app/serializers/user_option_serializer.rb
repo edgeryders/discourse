@@ -31,15 +31,23 @@ class UserOptionSerializer < ApplicationSerializer
              :text_size,
              :text_size_seq,
              :title_count_mode,
+             :bookmark_auto_delete_preference,
              :timezone,
-             :skip_new_user_tips
+             :skip_new_user_tips,
+             :default_calendar,
+             :oldest_search_log_date,
+             :seen_popups,
+             :sidebar_link_to_filtered_list,
+             :sidebar_show_count_of_new_items,
+             :watched_precedence_over_muted
 
   def auto_track_topics_after_msecs
     object.auto_track_topics_after_msecs || SiteSetting.default_other_auto_track_topics_after_msecs
   end
 
   def notification_level_when_replying
-    object.notification_level_when_replying || SiteSetting.default_other_notification_level_when_replying
+    object.notification_level_when_replying ||
+      SiteSetting.default_other_notification_level_when_replying
   end
 
   def new_topic_duration_minutes
@@ -49,5 +57,4 @@ class UserOptionSerializer < ApplicationSerializer
   def theme_ids
     object.theme_ids.presence || [SiteSetting.default_theme_id]
   end
-
 end

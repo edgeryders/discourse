@@ -1,0 +1,67 @@
+# WARNING: Never edit this file.
+# It will be overwritten when translations are pulled from Crowdin.
+#
+# To work with us on translations, join this project:
+# https://translate.discourse.org/
+
+sk:
+  system_messages:
+    chat_channel_archive_failed_no_topic:
+      title: "Archív kanálov chatu zlyhal"
+      subject_template: "Archív kanálov chatu zlyhal"
+  chat:
+    deleted_chat_username: vymazané
+    errors:
+      channel_new_message_disallowed:
+        archived: "Kanál je archivovaný, nie je možné posielať nové správy"
+        closed: "Kanál je uzavretý, nie je možné posielať nové správy"
+        read_only: "Kanál je len na čítanie, nie je možné odosielať nové správy"
+      channel_modify_message_disallowed:
+        archived: "Kanál je archivovaný, správy nie je možné upravovať ani vymazávať"
+        closed: "Kanál je uzavretý, správy nie je možné upravovať ani odstraňovať"
+        read_only: "Kanál je len na čítanie, správy nie je možné upravovať ani vymazávať"
+      minimum_length_not_met:
+        one: "Správa je príliš krátka, musí mať minimálne %{count} znakov."
+        few: "Správa je príliš krátka, musí mať minimálne %{count} znakov."
+        many: "Správa je príliš krátka, musí mať minimálne %{count} znakov."
+        other: "Správa je príliš krátka, musí mať minimálne %{count} znakov."
+      draft_too_long: "Koncept je príliš dlhý."
+      over_chat_max_direct_message_users_allow_self: "Súkromnú správu môžete vytvoriť len sami so sebou."
+      over_chat_max_direct_message_users:
+        one: "Nemôžete vytvoriť súkromnú správu s viac ako %{count} používateľom."
+        few: "Nemôžete vytvoriť súkromnú správu s viac ako %{count} používateľmi."
+        many: "Nemôžete vytvoriť súkromnú správu s viac ako %{count} používateľmi."
+        other: "Nemôžete vytvoriť súkromnú správu s viac ako %{count} používateľmi."
+      thread_invalid_for_channel: "Vlákno nie je súčasťou zvoleného kanála."
+      thread_does_not_match_parent: "Vlákno nezodpovedá nadradenej správe."
+    reviewables:
+      actions:
+        agree_and_suspend:
+          title: "Suspendovaný užívateľ"
+        agree_and_silence:
+          title: "Tichý užívateľ"
+        disagree:
+          title: "Nesúhlasiť"
+    channel:
+      dm_title:
+        single_user: "%{username}"
+        multi_user: "%{comma_separated_usernames}"
+        multi_user_truncated:
+          one: "%{comma_separated_usernames} a %{count} ďalší"
+          few: "%{comma_separated_usernames} a %{count} ďalších"
+          many: "%{comma_separated_usernames} a %{count} ďalších"
+          other: "%{comma_separated_usernames} a %{count} ďalších"
+    summaries:
+      no_targets: "Počas vybraného obdobia neboli zaznamenané žiadne správy."
+  discourse_push_notifications:
+    popup:
+      chat_mention:
+        direct: '%{username} Vás zmienil v "%{channel}"'
+  reviewable_score_types:
+    notify_user:
+      chat_pm_body: "%{link}\n\n%{message}"
+    notify_moderators:
+      chat_pm_body: "%{link}\n\n%{message}"
+  unsubscribe:
+    chat_summary:
+      never: Nikdy

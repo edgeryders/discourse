@@ -1,49 +1,56 @@
-import * as Utilities from "discourse/lib/utilities";
 import {
   allowsAttachments,
   allowsImages,
   authorizedExtensions,
+  dialog,
+  displayErrorForUpload,
   getUploadMarkdown,
   isImage,
   validateUploadedFiles,
 } from "discourse/lib/uploads";
 import I18n from "I18n";
 import User from "discourse/models/user";
-import bootbox from "bootbox";
-import { discourseModule } from "discourse/tests/helpers/qunit-helpers";
 import sinon from "sinon";
-import { test } from "qunit";
+import { module, test } from "qunit";
+import { setupTest } from "ember-qunit";
+import { getOwner } from "discourse-common/lib/get-owner";
 
-discourseModule("Unit | Utility | uploads", function () {
+module("Unit | Utility | uploads", function (hooks) {
+  setupTest(hooks);
+
+  hooks.beforeEach(function () {
+    this.siteSettings = getOwner(this).lookup("service:site-settings");
+  });
+
   test("validateUploadedFiles", function (assert) {
-    assert.not(
+    assert.notOk(
       validateUploadedFiles(null, { siteSettings: this.siteSettings }),
       "no files are invalid"
     );
-    assert.not(
+    assert.notOk(
       validateUploadedFiles(undefined, { siteSettings: this.siteSettings }),
       "undefined files are invalid"
     );
-    assert.not(
+    assert.notOk(
       validateUploadedFiles([], { siteSettings: this.siteSettings }),
       "empty array of files is invalid"
     );
   });
 
   test("uploading one file", function (assert) {
-    sinon.stub(bootbox, "alert");
+    sinon.stub(dialog, "alert");
 
-    assert.not(
+    assert.notOk(
       validateUploadedFiles([1, 2], { siteSettings: this.siteSettings })
     );
-    assert.ok(bootbox.alert.calledWith(I18n.t("post.errors.too_many_uploads")));
+    assert.ok(dialog.alert.calledWith(I18n.t("post.errors.too_many_uploads")));
   });
 
   test("new user cannot upload images", function (assert) {
     this.siteSettings.newuser_max_embedded_media = 0;
-    sinon.stub(bootbox, "alert");
+    sinon.stub(dialog, "alert");
 
-    assert.not(
+    assert.notOk(
       validateUploadedFiles([{ name: "image.png" }], {
         user: User.create(),
         siteSettings: this.siteSettings,
@@ -51,7 +58,7 @@ discourseModule("Unit | Utility | uploads", function () {
       "the upload is not valid"
     );
     assert.ok(
-      bootbox.alert.calledWith(
+      dialog.alert.calledWith(
         I18n.t("post.errors.image_upload_not_allowed_for_new_user")
       ),
       "the alert is called"
@@ -61,7 +68,7 @@ discourseModule("Unit | Utility | uploads", function () {
   test("new user can upload images if allowed", function (assert) {
     this.siteSettings.newuser_max_embedded_media = 1;
     this.siteSettings.default_trust_level = 0;
-    sinon.stub(bootbox, "alert");
+    sinon.stub(dialog, "alert");
 
     assert.ok(
       validateUploadedFiles([{ name: "image.png" }], {
@@ -73,7 +80,7 @@ discourseModule("Unit | Utility | uploads", function () {
 
   test("TL1 can upload images", function (assert) {
     this.siteSettings.newuser_max_embedded_media = 0;
-    sinon.stub(bootbox, "alert");
+    sinon.stub(dialog, "alert");
 
     assert.ok(
       validateUploadedFiles([{ name: "image.png" }], {
@@ -85,32 +92,35 @@ discourseModule("Unit | Utility | uploads", function () {
 
   test("new user cannot upload attachments", function (assert) {
     this.siteSettings.newuser_max_attachments = 0;
-    sinon.stub(bootbox, "alert");
+    sinon.stub(dialog, "alert");
 
-    assert.not(
+    assert.notOk(
       validateUploadedFiles([{ name: "roman.txt" }], {
         user: User.create(),
         siteSettings: this.siteSettings,
       })
     );
     assert.ok(
-      bootbox.alert.calledWith(
+      dialog.alert.calledWith(
         I18n.t("post.errors.attachment_upload_not_allowed_for_new_user")
       )
     );
   });
 
   test("ensures an authorized upload", function (assert) {
-    sinon.stub(bootbox, "alert");
-    assert.not(
+    sinon.stub(dialog, "alert");
+    assert.notOk(
       validateUploadedFiles([{ name: "unauthorized.html" }], {
         siteSettings: this.siteSettings,
       })
     );
     assert.ok(
-      bootbox.alert.calledWith(
+      dialog.alert.calledWith(
         I18n.t("post.errors.upload_not_authorized", {
-          authorized_extensions: authorizedExtensions(false, this.siteSettings),
+          authorized_extensions: authorizedExtensions(
+            false,
+            this.siteSettings
+          ).join(", "),
         })
       )
     );
@@ -118,9 +128,9 @@ discourseModule("Unit | Utility | uploads", function () {
 
   test("skipping validation works", function (assert) {
     const files = [{ name: "backup.tar.gz" }];
-    sinon.stub(bootbox, "alert");
+    sinon.stub(dialog, "alert");
 
-    assert.not(
+    assert.notOk(
       validateUploadedFiles(files, {
         skipValidation: false,
         siteSettings: this.siteSettings,
@@ -134,13 +144,45 @@ discourseModule("Unit | Utility | uploads", function () {
     );
   });
 
+  test("shows error message when no extensions are authorized", function (assert) {
+    this.siteSettings.authorized_extensions = "";
+    this.siteSettings.authorized_extensions_for_staff = "";
+
+    sinon.stub(dialog, "alert");
+    assert.notOk(
+      validateUploadedFiles([{ name: "test.jpg" }], {
+        user: User.create(),
+        siteSettings: this.siteSettings,
+      })
+    );
+    assert.ok(
+      dialog.alert.calledWith(I18n.t("post.errors.no_uploads_authorized"))
+    );
+  });
+
+  test("shows error message when no extensions are authorized for staff", function (assert) {
+    this.siteSettings.authorized_extensions = "";
+    this.siteSettings.authorized_extensions_for_staff = "";
+
+    sinon.stub(dialog, "alert");
+    assert.notOk(
+      validateUploadedFiles([{ name: "test.jpg" }], {
+        user: User.create({ staff: true }),
+        siteSettings: this.siteSettings,
+      })
+    );
+    assert.ok(
+      dialog.alert.calledWith(I18n.t("post.errors.no_uploads_authorized"))
+    );
+  });
+
   test("staff can upload anything in PM", function (assert) {
     const files = [{ name: "some.docx" }];
     this.siteSettings.authorized_extensions = "jpeg";
-    sinon.stub(bootbox, "alert");
+    sinon.stub(dialog, "alert");
 
     let user = User.create({ moderator: true });
-    assert.not(
+    assert.notOk(
       validateUploadedFiles(files, { user, siteSettings: this.siteSettings })
     );
     assert.ok(
@@ -171,7 +213,7 @@ discourseModule("Unit | Utility | uploads", function () {
   };
 
   test("allows valid uploads to go through", function (assert) {
-    sinon.stub(bootbox, "alert");
+    sinon.stub(dialog, "alert");
 
     let user = User.create({ trust_level: 1 });
 
@@ -189,21 +231,23 @@ discourseModule("Unit | Utility | uploads", function () {
       })
     );
 
-    assert.not(bootbox.alert.calledOnce);
+    assert.notOk(dialog.alert.calledOnce);
   });
 
   test("isImage", function (assert) {
-    ["png", "webp", "jpg", "jpeg", "gif", "ico"].forEach((extension) => {
-      let image = "image." + extension;
-      assert.ok(isImage(image), image + " is recognized as an image");
-      assert.ok(
-        isImage("http://foo.bar/path/to/" + image),
-        image + " is recognized as an image"
-      );
-    });
-    assert.not(isImage("file.txt"));
-    assert.not(isImage("http://foo.bar/path/to/file.txt"));
-    assert.not(isImage(""));
+    ["png", "webp", "jpg", "jpeg", "gif", "ico", "avif"].forEach(
+      (extension) => {
+        let image = "image." + extension;
+        assert.ok(isImage(image), image + " is recognized as an image");
+        assert.ok(
+          isImage("http://foo.bar/path/to/" + image),
+          image + " is recognized as an image"
+        );
+      }
+    );
+    assert.notOk(isImage("file.txt"));
+    assert.notOk(isImage("http://foo.bar/path/to/file.txt"));
+    assert.notOk(isImage(""));
   });
 
   test("allowsImages", function (assert) {
@@ -231,7 +275,7 @@ discourseModule("Unit | Utility | uploads", function () {
 
   test("allowsAttachments", function (assert) {
     this.siteSettings.authorized_extensions = "jpg|jpeg|gif";
-    assert.not(
+    assert.notOk(
       allowsAttachments(false, this.siteSettings),
       "no attachments allowed by default"
     );
@@ -271,42 +315,96 @@ discourseModule("Unit | Utility | uploads", function () {
   }
 
   test("getUploadMarkdown", function (assert) {
-    assert.equal(
+    assert.strictEqual(
       testUploadMarkdown("lolcat.gif"),
       "![lolcat|100x200](/uploads/123/abcdef.ext)"
     );
-    assert.equal(
+    assert.strictEqual(
       testUploadMarkdown("[foo|bar].png"),
       "![foobar|100x200](/uploads/123/abcdef.ext)"
     );
-    assert.equal(
+    assert.strictEqual(
       testUploadMarkdown("file name with space.png"),
       "![file name with space|100x200](/uploads/123/abcdef.ext)"
     );
 
-    assert.equal(
+    assert.strictEqual(
       testUploadMarkdown("image.file.name.with.dots.png"),
       "![image.file.name.with.dots|100x200](/uploads/123/abcdef.ext)"
     );
 
     const short_url = "uploads://asdaasd.ext";
 
-    assert.equal(
+    assert.strictEqual(
       testUploadMarkdown("important.txt", { short_url }),
       `[important.txt|attachment](${short_url}) (42 Bytes)`
     );
   });
 
   test("getUploadMarkdown - replaces GUID in image alt text on iOS", function (assert) {
-    assert.equal(
+    assert.strictEqual(
       testUploadMarkdown("8F2B469B-6B2C-4213-BC68-57B4876365A0.jpeg"),
       "![8F2B469B-6B2C-4213-BC68-57B4876365A0|100x200](/uploads/123/abcdef.ext)"
     );
 
-    sinon.stub(Utilities, "isAppleDevice").returns(true);
-    assert.equal(
+    const capabilities = getOwner(this).lookup("service:capabilities");
+    sinon.stub(capabilities, "isIOS").get(() => true);
+    assert.strictEqual(
       testUploadMarkdown("8F2B469B-6B2C-4213-BC68-57B4876365A0.jpeg"),
       "![image|100x200](/uploads/123/abcdef.ext)"
     );
+  });
+
+  test("displayErrorForUpload - jquery file upload - jqXHR present", function (assert) {
+    sinon.stub(dialog, "alert");
+    displayErrorForUpload(
+      {
+        jqXHR: { status: 422, responseJSON: { message: "upload failed" } },
+      },
+      { max_attachment_size_kb: 1024, max_image_size_kb: 1024 },
+      "test.png"
+    );
+    assert.ok(dialog.alert.calledWith("upload failed"), "the alert is called");
+  });
+
+  test("displayErrorForUpload - jquery file upload - jqXHR missing, errors present", function (assert) {
+    sinon.stub(dialog, "alert");
+    displayErrorForUpload(
+      {
+        errors: ["upload failed"],
+      },
+      { max_attachment_size_kb: 1024, max_image_size_kb: 1024 },
+      "test.png"
+    );
+    assert.ok(dialog.alert.calledWith("upload failed"), "the alert is called");
+  });
+
+  test("displayErrorForUpload - jquery file upload - no errors", function (assert) {
+    sinon.stub(dialog, "alert");
+    displayErrorForUpload(
+      {},
+      {
+        max_attachment_size_kb: 1024,
+        max_image_size_kb: 1024,
+      },
+      "test.png"
+    );
+    assert.ok(
+      dialog.alert.calledWith(I18n.t("post.errors.upload")),
+      "the alert is called"
+    );
+  });
+
+  test("displayErrorForUpload - uppy - with response status and body", function (assert) {
+    sinon.stub(dialog, "alert");
+    displayErrorForUpload(
+      {
+        status: 422,
+        body: { message: "upload failed" },
+      },
+      "test.png",
+      { max_attachment_size_kb: 1024, max_image_size_kb: 1024 }
+    );
+    assert.ok(dialog.alert.calledWith("upload failed"), "the alert is called");
   });
 });

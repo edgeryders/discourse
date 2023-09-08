@@ -1,35 +1,47 @@
 import {
-  avatarImg,
-  avatarUrl,
   caretRowCol,
+  clipboardCopyAsync,
   defaultHomepage,
   emailValid,
   escapeExpression,
   extractDomainFromUrl,
   fillMissingDates,
-  getRawSize,
   inCodeBlock,
   initializeDefaultHomepage,
+  mergeSortedLists,
+  modKeysPressed,
   setCaretPosition,
   setDefaultHomepage,
   slugify,
   toAsciiPrintable,
 } from "discourse/lib/utilities";
-import { skip, test } from "qunit";
+import sinon from "sinon";
+import { module, test } from "qunit";
 import Handlebars from "handlebars";
-import { discourseModule } from "discourse/tests/helpers/qunit-helpers";
+import { chromeTest } from "discourse/tests/helpers/qunit-helpers";
+import { setupRenderingTest } from "discourse/tests/helpers/component-test";
+import { click, render } from "@ember/test-helpers";
+import { hbs } from "ember-cli-htmlbars";
+import { setupTest } from "ember-qunit";
+import { getOwner } from "discourse-common/lib/get-owner";
 
-discourseModule("Unit | Utilities", function () {
+module("Unit | Utilities", function (hooks) {
+  setupTest(hooks);
+
   test("escapeExpression", function (assert) {
-    assert.equal(escapeExpression(">"), "&gt;", "escapes unsafe characters");
+    assert.strictEqual(
+      escapeExpression(">"),
+      "&gt;",
+      "escapes unsafe characters"
+    );
 
-    assert.equal(
+    assert.strictEqual(
       escapeExpression(new Handlebars.SafeString("&gt;")),
       "&gt;",
       "does not double-escape safe strings"
     );
 
-    assert.equal(
+    assert.strictEqual(
       escapeExpression(undefined),
       "",
       "returns a falsy string when given a falsy value"
@@ -48,88 +60,26 @@ discourseModule("Unit | Utilities", function () {
   });
 
   test("extractDomainFromUrl", function (assert) {
-    assert.equal(
+    assert.strictEqual(
       extractDomainFromUrl("http://meta.discourse.org:443/random"),
       "meta.discourse.org",
       "extract domain name from url"
     );
-    assert.equal(
+    assert.strictEqual(
       extractDomainFromUrl("meta.discourse.org:443/random"),
       "meta.discourse.org",
       "extract domain regardless of scheme presence"
     );
-    assert.equal(
+    assert.strictEqual(
       extractDomainFromUrl("http://192.168.0.1:443/random"),
       "192.168.0.1",
       "works for IP address"
     );
-    assert.equal(
+    assert.strictEqual(
       extractDomainFromUrl("http://localhost:443/random"),
       "localhost",
       "works for localhost"
     );
-  });
-
-  test("avatarUrl", function (assert) {
-    let rawSize = getRawSize;
-    assert.blank(avatarUrl("", "tiny"), "no template returns blank");
-    assert.equal(
-      avatarUrl("/fake/template/{size}.png", "tiny"),
-      "/fake/template/" + rawSize(20) + ".png",
-      "simple avatar url"
-    );
-    assert.equal(
-      avatarUrl("/fake/template/{size}.png", "large"),
-      "/fake/template/" + rawSize(45) + ".png",
-      "different size"
-    );
-  });
-
-  let setDevicePixelRatio = function (value) {
-    if (Object.defineProperty && !window.hasOwnProperty("devicePixelRatio")) {
-      Object.defineProperty(window, "devicePixelRatio", { value: 2 });
-    } else {
-      window.devicePixelRatio = value;
-    }
-  };
-
-  test("avatarImg", function (assert) {
-    let oldRatio = window.devicePixelRatio;
-    setDevicePixelRatio(2);
-
-    let avatarTemplate = "/path/to/avatar/{size}.png";
-    assert.equal(
-      avatarImg({ avatarTemplate: avatarTemplate, size: "tiny" }),
-      "<img alt='' width='20' height='20' src='/path/to/avatar/40.png' class='avatar'>",
-      "it returns the avatar html"
-    );
-
-    assert.equal(
-      avatarImg({
-        avatarTemplate: avatarTemplate,
-        size: "tiny",
-        title: "evilest trout",
-      }),
-      "<img alt='' width='20' height='20' src='/path/to/avatar/40.png' class='avatar' title='evilest trout' aria-label='evilest trout'>",
-      "it adds a title if supplied"
-    );
-
-    assert.equal(
-      avatarImg({
-        avatarTemplate: avatarTemplate,
-        size: "tiny",
-        extraClasses: "evil fish",
-      }),
-      "<img alt='' width='20' height='20' src='/path/to/avatar/40.png' class='avatar evil fish'>",
-      "it adds extra classes if supplied"
-    );
-
-    assert.blank(
-      avatarImg({ avatarTemplate: "", size: "tiny" }),
-      "it doesn't render avatars for invalid avatar template"
-    );
-
-    setDevicePixelRatio(oldRatio);
   });
 
   test("defaultHomepage via meta tag", function (assert) {
@@ -137,8 +87,11 @@ discourseModule("Unit | Utilities", function () {
     meta.name = "discourse_current_homepage";
     meta.content = "hot";
     document.body.appendChild(meta);
-    initializeDefaultHomepage(this.siteSettings);
-    assert.equal(
+
+    const siteSettings = getOwner(this).lookup("service:site-settings");
+    initializeDefaultHomepage(siteSettings);
+
+    assert.strictEqual(
       defaultHomepage(),
       "hot",
       "default homepage is pulled from <meta name=discourse_current_homepage>"
@@ -147,9 +100,11 @@ discourseModule("Unit | Utilities", function () {
   });
 
   test("defaultHomepage via site settings", function (assert) {
-    this.siteSettings.top_menu = "top|latest|hot";
-    initializeDefaultHomepage(this.siteSettings);
-    assert.equal(
+    const siteSettings = getOwner(this).lookup("service:site-settings");
+    siteSettings.top_menu = "top|latest|hot";
+    initializeDefaultHomepage(siteSettings);
+
+    assert.strictEqual(
       defaultHomepage(),
       "top",
       "default homepage is the first item in the top_menu site setting"
@@ -157,10 +112,13 @@ discourseModule("Unit | Utilities", function () {
   });
 
   test("setDefaultHomepage", function (assert) {
-    initializeDefaultHomepage(this.siteSettings);
-    assert.equal(defaultHomepage(), "latest");
+    const siteSettings = getOwner(this).lookup("service:site-settings");
+    initializeDefaultHomepage(siteSettings);
+
+    assert.strictEqual(defaultHomepage(), "latest");
+
     setDefaultHomepage("top");
-    assert.equal(defaultHomepage(), "top");
+    assert.strictEqual(defaultHomepage(), "top");
   });
 
   test("caretRowCol", function (assert) {
@@ -173,12 +131,12 @@ discourseModule("Unit | Utilities", function () {
       setCaretPosition(textarea, setCaretPos);
 
       const result = caretRowCol(textarea);
-      assert.equal(
+      assert.strictEqual(
         result.rowNum,
         expectedRowNum,
         "returns the right row of the caret"
       );
-      assert.equal(
+      assert.strictEqual(
         result.colNum,
         expectedColNum,
         "returns the right col of the caret"
@@ -198,13 +156,13 @@ discourseModule("Unit | Utilities", function () {
     const accentedString = "Créme_Brûlée!";
     const unicodeString = "談話";
 
-    assert.equal(
+    assert.strictEqual(
       toAsciiPrintable(accentedString, "discourse"),
       "Creme_Brulee!",
       "it replaces accented characters with the appropriate ASCII equivalent"
     );
 
-    assert.equal(
+    assert.strictEqual(
       toAsciiPrintable(unicodeString, "discourse"),
       "discourse",
       "it uses the fallback string when unable to convert"
@@ -222,19 +180,23 @@ discourseModule("Unit | Utilities", function () {
     const accentedString = "Créme_Brûlée!";
     const unicodeString = "談話";
 
-    assert.equal(
+    assert.strictEqual(
       slugify(asciiString),
       "0-some-cool-discourse-site-0",
       "it properly slugifies an ASCII string"
     );
 
-    assert.equal(
+    assert.strictEqual(
       slugify(accentedString),
       "crme-brle",
       "it removes accented characters"
     );
 
-    assert.equal(slugify(unicodeString), "", "it removes unicode characters");
+    assert.strictEqual(
+      slugify(unicodeString),
+      "",
+      "it removes unicode characters"
+    );
   });
 
   test("fillMissingDates", function (assert) {
@@ -243,7 +205,7 @@ discourseModule("Unit | Utilities", function () {
     const data =
       '[{"x":"2017-11-12","y":3},{"x":"2017-11-27","y":2},{"x":"2017-12-06","y":9},{"x":"2017-12-11","y":2}]';
 
-    assert.equal(
+    assert.strictEqual(
       fillMissingDates(JSON.parse(data), startDate, endDate).length,
       31,
       "it returns a JSON array with 31 dates"
@@ -251,34 +213,163 @@ discourseModule("Unit | Utilities", function () {
   });
 
   test("inCodeBlock", function (assert) {
-    const text =
-      "000\n\n```\n111\n```\n\n000\n\n`111 111`\n\n000\n\n[code]\n111\n[/code]\n\n    111\n\t111\n\n000`000";
-    for (let i = 0; i < text.length; ++i) {
-      if (text[i] === "0") {
-        assert.notOk(
-          inCodeBlock(text, i),
-          `position ${i} is not in code block`
-        );
-      } else if (text[i] === "1") {
-        assert.ok(inCodeBlock(text, i), `position ${i} is in code block`);
+    const texts = [
+      // CLOSED CODE BLOCKS:
+      "000\n\n    111\n\n000",
+      "000 `111` 000",
+      "000\n```\n111\n```\n000",
+      "000\n[code]111[/code]\n000",
+      // OPEN CODE BLOCKS:
+      "000\n\n    111",
+      "000 `111",
+      "000\n```\n111",
+      "000\n[code]111",
+      // COMPLEX TEST:
+      "000\n\n```\n111\n```\n\n000\n\n`111 111`\n\n000\n\n[code]\n111\n[/code]\n\n    111\n\t111\n\n000`111",
+      // INDENTED OPEN CODE BLOCKS:
+      // - Using tab
+      "000\n\t```111\n\t111\n\t111```\n000",
+      // - Using spaces
+      `000\n  \`\`\`111\n  111\n  111\`\`\`\n000`,
+    ];
+
+    texts.forEach((text) => {
+      for (let i = 0; i < text.length; ++i) {
+        if (text[i] === "0" || text[i] === "1") {
+          assert.strictEqual(inCodeBlock(text, i), text[i] === "1");
+        }
       }
-    }
+    });
   });
 
-  skip("inCodeBlock - runs fast", function (assert) {
-    const phrase = "Lorem ipsum dolor sit amet, consectetur adipiscing elit.";
-    const text = `${phrase}\n\n\`\`\`\n${phrase}\n\`\`\`\n\n${phrase}\n\n\`${phrase}\n${phrase}\n\n${phrase}\n\n[code]\n${phrase}\n[/code]\n\n${phrase}\n\n    ${phrase}\n\n\`${phrase}\`\n\n${phrase}`;
+  test("mergeSortedLists", function (assert) {
+    const comparator = (a, b) => b > a;
+    assert.deepEqual(
+      mergeSortedLists([], [1, 2, 3], comparator),
+      [1, 2, 3],
+      "it doesn't error when the first list is blank"
+    );
+    assert.deepEqual(
+      mergeSortedLists([3, 2, 1], [], comparator),
+      [3, 2, 1],
+      "it doesn't error when the second list is blank"
+    );
+    assert.deepEqual(
+      mergeSortedLists([], [], comparator),
+      [],
+      "it doesn't error when the both lists are blank"
+    );
+    assert.deepEqual(
+      mergeSortedLists([5, 4, 0, -1], [1], comparator),
+      [5, 4, 1, 0, -1],
+      "it correctly merges lists when one list has 1 item only"
+    );
+    assert.deepEqual(
+      mergeSortedLists([2], [1], comparator),
+      [2, 1],
+      "it correctly merges lists when both lists has 1 item each"
+    );
+    assert.deepEqual(
+      mergeSortedLists([1], [1], comparator),
+      [1, 1],
+      "it correctly merges lists when both lists has 1 item and their items are identical"
+    );
+    assert.deepEqual(
+      mergeSortedLists([5, 4, 3, 2, 1], [6, 2, 1], comparator),
+      [6, 5, 4, 3, 2, 2, 1, 1],
+      "it correctly merges lists that share common items"
+    );
+  });
+});
 
-    let time = Number.MAX_VALUE;
-    for (let i = 0; i < 10; ++i) {
-      const start = performance.now();
-      inCodeBlock(text, text.length);
-      const end = performance.now();
-      time = Math.min(time, end - start);
+module("Unit | Utilities | modKeysPressed", function (hooks) {
+  setupRenderingTest(hooks);
+
+  test("returns an array of modifier keys pressed during keyboard or mouse event", async function (assert) {
+    let i = 0;
+
+    this.handleClick = (event) => {
+      if (i === 0) {
+        assert.deepEqual(modKeysPressed(event), []);
+      } else if (i === 1) {
+        assert.deepEqual(modKeysPressed(event), ["alt"]);
+      } else if (i === 2) {
+        assert.deepEqual(modKeysPressed(event), ["shift"]);
+      } else if (i === 3) {
+        assert.deepEqual(modKeysPressed(event), ["meta"]);
+      } else if (i === 4) {
+        assert.deepEqual(modKeysPressed(event), ["ctrl"]);
+      } else if (i === 5) {
+        assert.deepEqual(modKeysPressed(event), [
+          "alt",
+          "shift",
+          "meta",
+          "ctrl",
+        ]);
+      }
+    };
+
+    await render(hbs`<button id="btn" {{on "click" this.handleClick}} />`);
+
+    await click("#btn");
+    i++;
+    await click("#btn", { altKey: true });
+    i++;
+    await click("#btn", { shiftKey: true });
+    i++;
+    await click("#btn", { metaKey: true });
+    i++;
+    await click("#btn", { ctrlKey: true });
+    i++;
+    await click("#btn", {
+      altKey: true,
+      shiftKey: true,
+      metaKey: true,
+      ctrlKey: true,
+    });
+  });
+});
+
+module("Unit | Utilities | clipboard", function (hooks) {
+  setupTest(hooks);
+
+  hooks.beforeEach(function () {
+    this.mockClipboard = {
+      writeText: sinon.stub().resolves(true),
+      write: sinon.stub().resolves(true),
+    };
+    sinon.stub(window.navigator, "clipboard").get(() => this.mockClipboard);
+  });
+
+  async function asyncFunction() {
+    return new Blob(["some text to copy"], {
+      type: "text/plain",
+    });
+  }
+
+  test("clipboardCopyAsync - browser does not support window.ClipboardItem", async function (assert) {
+    // without this check the stubbing will fail on Firefox
+    if (window.ClipboardItem) {
+      sinon.stub(window, "ClipboardItem").value(null);
     }
 
-    // This runs in 'keyUp' event handler so it should run as fast as
-    // possible. It should take less than 1ms for the test text.
-    assert.ok(time < 10);
+    await clipboardCopyAsync(asyncFunction);
+    assert.strictEqual(
+      this.mockClipboard.writeText.calledWith("some text to copy"),
+      true,
+      "it writes to the clipboard using writeText instead of write"
+    );
   });
+
+  chromeTest(
+    "clipboardCopyAsync - browser does support window.ClipboardItem",
+    async function (assert) {
+      await clipboardCopyAsync(asyncFunction);
+      assert.strictEqual(
+        this.mockClipboard.write.called,
+        true,
+        "it writes to the clipboard using write"
+      );
+    }
+  );
 });

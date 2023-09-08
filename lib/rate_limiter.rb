@@ -2,8 +2,7 @@
 
 # A redis backed rate limiter.
 class RateLimiter
-
-  attr_reader :max, :secs, :user, :key
+  attr_reader :max, :secs, :user, :key, :error_code
 
   def self.key_prefix
     "l-rate-limit3:"
@@ -17,27 +16,36 @@ class RateLimiter
     @disabled = false
   end
 
+  disable if Rails.env.profile?
+
   # We don't observe rate limits in test mode
   def self.disabled?
     @disabled
   end
 
-  # Only used in test, only clears current namespace, does not clear globals
-  def self.clear_all!
-    Discourse.redis.delete_prefixed(RateLimiter.key_prefix)
-  end
-
   def self.clear_all_global!
-    Discourse.redis.without_namespace.keys("GLOBAL::#{key_prefix}*").each do |k|
-      Discourse.redis.without_namespace.del k
-    end
+    Discourse
+      .redis
+      .without_namespace
+      .keys("GLOBAL::#{key_prefix}*")
+      .each { |k| Discourse.redis.without_namespace.del k }
   end
 
   def build_key(type)
     "#{RateLimiter.key_prefix}:#{@user && @user.id}:#{type}"
   end
 
-  def initialize(user, type, max, secs, global: false, aggressive: false)
+  def initialize(
+    user,
+    type,
+    max,
+    secs,
+    global: false,
+    aggressive: false,
+    error_code: nil,
+    apply_limit_to_staff: false,
+    staff_limit: { max: nil, secs: nil }
+  )
     @user = user
     @type = type
     @key = build_key(type)
@@ -45,6 +53,15 @@ class RateLimiter
     @secs = secs
     @global = global
     @aggressive = aggressive
+    @error_code = error_code
+    @apply_limit_to_staff = apply_limit_to_staff
+    @staff_limit = staff_limit
+
+    # override the default values if staff user, and staff specific max is passed
+    if @user&.staff? && !@apply_limit_to_staff && @staff_limit[:max].present?
+      @max = @staff_limit[:max]
+      @secs = @staff_limit[:secs]
+    end
   end
 
   def clear!
@@ -55,13 +72,12 @@ class RateLimiter
     rate_unlimited? || is_under_limit?
   end
 
-  def seconds_to_wait(now)
+  def seconds_to_wait(now = Time.now.to_i)
     @secs - age_of_oldest(now)
   end
 
   # reloader friendly
-  unless defined? PERFORM_LUA
-    PERFORM_LUA = <<~LUA
+  PERFORM_LUA = DiscourseRedis::EvalHelper.new <<~LUA unless defined?(PERFORM_LUA)
       local now = tonumber(ARGV[1])
       local secs = tonumber(ARGV[2])
       local max = tonumber(ARGV[3])
@@ -81,11 +97,8 @@ class RateLimiter
       end
     LUA
 
-    PERFORM_LUA_SHA = Digest::SHA1.hexdigest(PERFORM_LUA)
-  end
-
-  unless defined? PERFORM_LUA_AGGRESSIVE
-    PERFORM_LUA_AGGRESSIVE = <<~LUA
+  unless defined?(PERFORM_LUA_AGGRESSIVE)
+    PERFORM_LUA_AGGRESSIVE = DiscourseRedis::EvalHelper.new <<~LUA
       local now = tonumber(ARGV[1])
       local secs = tonumber(ARGV[2])
       local max = tonumber(ARGV[3])
@@ -107,16 +120,13 @@ class RateLimiter
 
       return return_val
     LUA
-
-    PERFORM_LUA_AGGRESSIVE_SHA = Digest::SHA1.hexdigest(PERFORM_LUA_AGGRESSIVE)
   end
 
   def performed!(raise_error: true)
     return true if rate_unlimited?
     now = Time.now.to_i
-
-    if ((max || 0) <= 0) || rate_limiter_allowed?(now)
-      raise RateLimiter::LimitExceeded.new(seconds_to_wait(now), @type) if raise_error
+    if ((@max || 0) <= 0) || rate_limiter_allowed?(now)
+      raise RateLimiter::LimitExceeded.new(seconds_to_wait(now), @type, @error_code) if raise_error
       false
     else
       true
@@ -152,17 +162,10 @@ class RateLimiter
   private
 
   def rate_limiter_allowed?(now)
-
     lua, lua_sha = nil
-    if @aggressive
-      lua = PERFORM_LUA_AGGRESSIVE
-      lua_sha = PERFORM_LUA_AGGRESSIVE_SHA
-    else
-      lua = PERFORM_LUA
-      lua_sha = PERFORM_LUA_SHA
-    end
+    eval_helper = @aggressive ? PERFORM_LUA_AGGRESSIVE : PERFORM_LUA
 
-    eval_lua(lua, lua_sha, [prefixed_key], [now, @secs, @max]) == 0
+    eval_helper.eval(redis, [prefixed_key], [now, @secs, @max]) == 0
   end
 
   def prefixed_key
@@ -187,21 +190,13 @@ class RateLimiter
 
     # number of events in buffer less than max allowed? OR
     (redis.llen(prefixed_key) < @max) ||
-    # age bigger than silding window size?
-    (age_of_oldest(now) >= @secs)
+      # age bigger than sliding window size?
+      (age_of_oldest(now) >= @secs)
   end
 
   def rate_unlimited?
-    !!(RateLimiter.disabled? || (@user && @user.staff?))
-  end
-
-  def eval_lua(lua, sha, keys, args)
-    redis.evalsha(sha, keys, args)
-  rescue Redis::CommandError => e
-    if e.to_s =~ /^NOSCRIPT/
-      redis.eval(lua, keys, args)
-    else
-      raise
-    end
+    !!(
+      RateLimiter.disabled? || (@user&.staff? && !@apply_limit_to_staff && @staff_limit[:max].nil?)
+    )
   end
 end

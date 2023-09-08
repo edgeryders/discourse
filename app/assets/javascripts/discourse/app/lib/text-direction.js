@@ -13,23 +13,39 @@ export function isLTR(text) {
   return ltrDirCheck.test(text);
 }
 
-export function setTextDirections($elem) {
-  $elem.find("*").each((i, e) => {
-    let $e = $(e),
-      textContent = $e.text();
-    if (textContent) {
-      isRTL(textContent) ? $e.attr("dir", "rtl") : $e.attr("dir", "ltr");
+export function setTextDirections(elem) {
+  for (let e of elem.children) {
+    if (e.textContent) {
+      if (e.tagName === "ASIDE" && e.classList.contains("quote")) {
+        setTextDirectionsForQuote(e);
+      } else {
+        e.setAttribute("dir", isRTL(e.textContent) ? "rtl" : "ltr");
+      }
     }
-  });
+  }
 }
 
 export function siteDir() {
   if (!_siteDir) {
-    _siteDir = $("html").hasClass("rtl") ? "rtl" : "ltr";
+    _siteDir = document.documentElement.classList.contains("rtl")
+      ? "rtl"
+      : "ltr";
   }
   return _siteDir;
 }
 
 export function isDocumentRTL() {
   return siteDir() === "rtl";
+}
+
+function setTextDirectionsForQuote(quoteElem) {
+  for (let titleElem of quoteElem.querySelectorAll(".title")) {
+    titleElem.setAttribute("dir", siteDir());
+  }
+  for (let quoteParagraphElem of quoteElem.querySelectorAll("blockquote > p")) {
+    quoteParagraphElem.setAttribute(
+      "dir",
+      isRTL(quoteParagraphElem.textContent) ? "rtl" : "ltr"
+    );
+  }
 }

@@ -12,6 +12,26 @@ class ShrinkUploadedImage
   end
 
   def perform
+    # Neither #dup or #clone provide a complete copy
+    original_upload = Upload.find_by(id: upload.id)
+    unless original_upload
+      log "Upload is missing"
+      return false
+    end
+
+    posts =
+      Post
+        .unscoped
+        .joins(:upload_references)
+        .where(upload_references: { upload_id: original_upload.id })
+        .uniq
+        .sort_by(&:created_at)
+
+    if posts.empty?
+      log "Upload not used in any posts"
+      return false
+    end
+
     OptimizedImage.downsize(path, path, "#{@max_pixels}@", filename: upload.original_filename)
     sha1 = Upload.generate_digest(path)
 
@@ -27,13 +47,6 @@ class ShrinkUploadedImage
       return false
     end
 
-    # Neither #dup or #clone provide a complete copy
-    original_upload = Upload.find_by(id: upload.id)
-    unless original_upload
-      log "Upload is missing"
-      return false
-    end
-
     ww, hh = ImageSizer.resize(w, h)
 
     # A different upload record that matches the sha1 of the downsized image
@@ -46,10 +59,10 @@ class ShrinkUploadedImage
       height: h,
       thumbnail_width: ww,
       thumbnail_height: hh,
-      filesize: File.size(path)
+      filesize: File.size(path),
     }
 
-    if upload.filesize > upload.filesize_was
+    if upload.filesize >= upload.filesize_was
       log "No filesize reduction"
       return false
     end
@@ -67,21 +80,16 @@ class ShrinkUploadedImage
 
     log "base62: #{original_upload.base62_sha1} -> #{Upload.base62_sha1(sha1)}"
     log "sha: #{original_upload.sha1} -> #{sha1}"
-    log "(an exisiting upload)" if existing_upload
+    log "(an existing upload)" if existing_upload
 
     success = true
-    posts = Post.unscoped.joins(:post_uploads).where(post_uploads: { upload_id: original_upload.id }).uniq.sort_by(&:created_at)
 
     posts.each do |post|
       transform_post(post, original_upload, upload)
 
-      if post.custom_fields[Post::DOWNLOADED_IMAGES].present?
-        downloaded_images = JSON.parse(post.custom_fields[Post::DOWNLOADED_IMAGES])
-      end
-
       if post.raw_changed?
         log "Updating post"
-      elsif downloaded_images&.has_value?(original_upload.id)
+      elsif post.post_hotlinked_media.exists?(upload_id: original_upload.id)
         log "A hotlinked, unreferenced image"
       elsif post.raw.include?(upload.short_url)
         log "Already processed"
@@ -90,7 +98,7 @@ class ShrinkUploadedImage
       elsif !post.topic || post.topic.trashed?
         log "A deleted topic"
       elsif post.cooked.include?(original_upload.sha1)
-        if post.raw.include?("#{Discourse.base_url.sub(/^https?:\/\//i, "")}/t/")
+        if post.raw.include?("#{Discourse.base_url.sub(%r{\Ahttps?://}i, "")}/t/")
           log "Updating a topic onebox"
         else
           log "Updating an external onebox"
@@ -101,32 +109,6 @@ class ShrinkUploadedImage
       end
 
       log "#{Discourse.base_url}/p/#{post.id}"
-    end
-
-    if posts.empty?
-      log "Upload not used in any posts"
-
-      if User.where(uploaded_avatar_id: original_upload.id).exists?
-        log "Used as a User avatar"
-      elsif UserAvatar.where(gravatar_upload_id: original_upload.id).exists?
-        log "Used as a UserAvatar gravatar"
-      elsif UserAvatar.where(custom_upload_id: original_upload.id).exists?
-        log "Used as a UserAvatar custom upload"
-      elsif UserProfile.where(profile_background_upload_id: original_upload.id).exists?
-        log "Used as a UserProfile profile background"
-      elsif UserProfile.where(card_background_upload_id: original_upload.id).exists?
-        log "Used as a UserProfile card background"
-      elsif Category.where(uploaded_logo_id: original_upload.id).exists?
-        log "Used as a Category logo"
-      elsif Category.where(uploaded_background_id: original_upload.id).exists?
-        log "Used as a Category background"
-      elsif CustomEmoji.where(upload_id: original_upload.id).exists?
-        log "Used as a CustomEmoji"
-      elsif ThemeField.where(upload_id: original_upload.id).exists?
-        log "Used as a ThemeField"
-      else
-        success = false
-      end
     end
 
     unless success
@@ -158,19 +140,12 @@ class ShrinkUploadedImage
 
     if existing_upload
       begin
-        PostUpload.where(upload_id: original_upload.id).update_all(upload_id: upload.id)
+        UploadReference
+          .where(target_type: "Post")
+          .where(upload_id: original_upload.id)
+          .update_all(upload_id: upload.id)
       rescue ActiveRecord::RecordNotUnique, PG::UniqueViolation
       end
-
-      User.where(uploaded_avatar_id: original_upload.id).update_all(uploaded_avatar_id: upload.id)
-      UserAvatar.where(gravatar_upload_id: original_upload.id).update_all(gravatar_upload_id: upload.id)
-      UserAvatar.where(custom_upload_id: original_upload.id).update_all(custom_upload_id: upload.id)
-      UserProfile.where(profile_background_upload_id: original_upload.id).update_all(profile_background_upload_id: upload.id)
-      UserProfile.where(card_background_upload_id: original_upload.id).update_all(card_background_upload_id: upload.id)
-      Category.where(uploaded_logo_id: original_upload.id).update_all(uploaded_logo_id: upload.id)
-      Category.where(uploaded_background_id: original_upload.id).update_all(uploaded_background_id: upload.id)
-      CustomEmoji.where(upload_id: original_upload.id).update_all(upload_id: upload.id)
-      ThemeField.where(upload_id: original_upload.id).update_all(upload_id: upload.id)
     else
       upload.optimized_images.each(&:destroy!)
     end
@@ -185,22 +160,13 @@ class ShrinkUploadedImage
           post = current_post
         end
 
-        if post.raw_changed?
-          post.update_columns(
-            raw: post.raw,
-            updated_at: Time.zone.now
-          )
-        end
+        post.update_columns(raw: post.raw, updated_at: Time.zone.now) if post.raw_changed?
 
-        if existing_upload && post.custom_fields[Post::DOWNLOADED_IMAGES].present?
-          downloaded_images = JSON.parse(post.custom_fields[Post::DOWNLOADED_IMAGES])
-
-          downloaded_images.transform_values! do |upload_id|
-            upload_id == original_upload.id ? upload.id : upload_id
-          end
-
-          post.custom_fields[Post::DOWNLOADED_IMAGES] = downloaded_images.to_json if downloaded_images.present?
-          post.save_custom_fields
+        if existing_upload
+          post
+            .post_hotlinked_media
+            .where(upload_id: original_upload.id)
+            .update_all(upload_id: upload.id)
         end
 
         post.rebake!
@@ -219,20 +185,34 @@ class ShrinkUploadedImage
   private
 
   def transform_post(post, upload_before, upload_after)
-    post.raw.gsub!(/upload:\/\/#{upload_before.base62_sha1}(\.#{upload_before.extension})?/i, upload_after.short_url)
-    post.raw.gsub!(Discourse.store.cdn_url(upload_before.url), Discourse.store.cdn_url(upload_after.url))
-    post.raw.gsub!("#{Discourse.base_url}#{upload_before.short_path}", "#{Discourse.base_url}#{upload_after.short_path}")
+    post.raw.gsub!(
+      %r{upload://#{upload_before.base62_sha1}(\.#{upload_before.extension})?}i,
+      upload_after.short_url,
+    )
+    post.raw.gsub!(
+      Discourse.store.cdn_url(upload_before.url),
+      Discourse.store.cdn_url(upload_after.url),
+    )
+    post.raw.gsub!(
+      "#{Discourse.base_url}#{upload_before.short_path}",
+      "#{Discourse.base_url}#{upload_after.short_path}",
+    )
 
     if SiteSetting.enable_s3_uploads
       post.raw.gsub!(Discourse.store.url_for(upload_before), Discourse.store.url_for(upload_after))
 
       path = SiteSetting.Upload.s3_upload_bucket.split("/", 2)[1]
-      post.raw.gsub!(/<img src=\"https:\/\/.+?\/#{path}\/uploads\/default\/optimized\/.+?\/#{upload_before.sha1}_\d_(?<width>\d+)x(?<height>\d+).*?\" alt=\"(?<alt>.*?)\"\/?>/i) do
-        "![#{$~[:alt]}|#{$~[:width]}x#{$~[:height]}](#{upload_after.short_url})"
-      end
+      post
+        .raw
+        .gsub!(
+          %r{<img src=\"https://.+?/#{path}/uploads/default/optimized/.+?/#{upload_before.sha1}_\d_(?<width>\d+)x(?<height>\d+).*?\" alt=\"(?<alt>.*?)\"/?>}i,
+        ) { "![#{$~[:alt]}|#{$~[:width]}x#{$~[:height]}](#{upload_after.short_url})" }
     end
 
-    post.raw.gsub!(/!\[(.*?)\]\(\/uploads\/.+?\/#{upload_before.sha1}(\.#{upload_before.extension})?\)/i, "![\\1](#{upload_after.short_url})")
+    post.raw.gsub!(
+      %r{!\[(.*?)\]\(/uploads/.+?/#{upload_before.sha1}(\.#{upload_before.extension})?\)}i,
+      "![\\1](#{upload_after.short_url})",
+    )
   end
 
   def log(*args)

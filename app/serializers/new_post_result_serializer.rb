@@ -1,19 +1,12 @@
 # frozen_string_literal: true
 
 class NewPostResultSerializer < ApplicationSerializer
-  attributes :action,
-             :post,
-             :errors,
-             :success,
-             :pending_count,
-             :reason,
-             :message,
-             :route_to
+  attributes :action, :post, :errors, :success, :pending_count, :reason, :message, :route_to
 
   has_one :pending_post, serializer: TopicPendingPostSerializer, root: false, embed: :objects
 
   def post
-    post_serializer = PostSerializer.new(object.post, scope: scope, root: false)
+    post_serializer = PostSerializer.new(object.post, scope: scope, root: false, add_raw: true)
     post_serializer.draft_sequence = DraftSequence.current(scope.user, object.post.topic.draft_key)
     post_serializer.as_json
   end
@@ -81,5 +74,4 @@ class NewPostResultSerializer < ApplicationSerializer
   def include_message?
     object.message.present?
   end
-
 end
