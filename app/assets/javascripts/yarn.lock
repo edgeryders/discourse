@@ -1940,10 +1940,10 @@
   resolved "https://registry.yarnpkg.com/@yarnpkg/lockfile/-/lockfile-1.1.0.tgz#e77a97fbd345b76d83245edcd17d393b1b41fb31"
   integrity sha512-GpSwvyXOcOOlV70vbnzjj4fW5xW/FdUF6nQEt1ENy7m4ZCczi1+/buVUPAqmGfqznsORNFzUMjctTIp8a9tuCQ==
 
-a11y-dialog@8.0.0:
-  version "8.0.0"
-  resolved "https://registry.yarnpkg.com/a11y-dialog/-/a11y-dialog-8.0.0.tgz#e080be9b0bca2a3c22a526da3f4bca00c0e221ed"
-  integrity sha512-O0u7j+5bWik8B0SEmAJYZBgiVerGP3bvgtLeYVwv03Y2x5j/nqcRpZSibSjUWwmJ3rouo1M51Ly5i1didwLMgA==
+a11y-dialog@8.0.2:
+  version "8.0.2"
+  resolved "https://registry.yarnpkg.com/a11y-dialog/-/a11y-dialog-8.0.2.tgz#08b8315d500b7f8c4200ec37d3a0fd15ccd54738"
+  integrity sha512-EaEsUqgZuQBV5stIz/p/gFYDtFHZSElkCDF0zUEcr3GIaPMydDOdjhsi8Gn3CkdUPJNHXK8BR6OGg6NkuubkGw==
   dependencies:
     focusable-selectors "^0.8.0"
 
