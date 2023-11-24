@@ -1,0 +1,4 @@
+plugins:
+  discourse_edgeryders_enabled:
+    default: false
+    client: true

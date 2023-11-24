@@ -8,6 +8,9 @@ register_asset 'javascripts/quiz.js'
 register_asset 'javascripts/quizlib.1.0.1.js'
 
 
+enabled_site_setting :discourse_edgeryders_enabled
+
+
 after_initialize do
 
   register_editable_user_custom_field :edgeryders_consent if defined? register_editable_user_custom_field
