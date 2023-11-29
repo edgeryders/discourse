@@ -100,3 +100,5 @@ copyright
 
 # Ignore RubyMine settings which are individual for every developer.
 .idea/**/*
+
+.DS_Store
