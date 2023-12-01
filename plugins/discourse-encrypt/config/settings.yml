@@ -1,0 +1,17 @@
+plugins:
+  encrypt_enabled:
+    default: true
+    client: true
+    refresh: true
+    validator: "EncryptEnabledValidator"
+  auto_enable_encrypt:
+    client: true
+    default: false
+    refresh: true
+  encrypt_groups:
+    default: ""
+    type: list
+    list_type: simple
+  encrypt_pms_default:
+    client: true
+    default: false

@@ -1,0 +1,192 @@
+.user-preferences-security-outlet.encrypt {
+  .select-kit {
+    vertical-align: bottom;
+  }
+
+  .btn {
+    margin: 2px 0;
+  }
+
+  input#passphrase {
+    width: 100%;
+  }
+
+  .select-kit-row[data-value="reset"] {
+    .name {
+      color: var(--danger);
+    }
+
+    .d-icon {
+      color: var(--danger-medium);
+    }
+  }
+
+  .select-kit-row.is-highlighted[data-value="reset"] {
+    background-color: var(--danger-low);
+  }
+}
+
+pre.exported-key-pair,
+textarea.imported-key-pair {
+  font-family: Consolas, Menlo, Monaco, "Lucida Console", "Liberation Mono",
+    "DejaVu Sans Mono", "Bitstream Vera Sans Mono", "Courier New", monospace,
+    serif;
+  font-size: 0.75rem;
+  max-height: 300px;
+}
+
+pre.exported-key-pair {
+  margin: 0 auto;
+  max-width: 80ch;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+.modal.activate-encrypt-modal {
+  input#passphrase {
+    width: 100%;
+  }
+}
+
+.modal .modal-body .paper-key {
+  font-family: Consolas, Menlo, Monaco, "Lucida Console", "Liberation Mono",
+    "DejaVu Sans Mono", "Bitstream Vera Sans Mono", "Courier New", monospace,
+    serif;
+  text-align: center;
+  font-size: 1.5em;
+}
+
+.modal .modal-body table.paper-keys {
+  width: 100%;
+
+  tr {
+    height: 3em;
+    td:first-child {
+      padding-left: 5px;
+    }
+    td:last-child {
+      padding-right: 5px;
+    }
+
+    &:hover {
+      background-color: rgba(var(--primary-rgb), 0.05);
+    }
+
+    &:last-child {
+      border-bottom: none;
+    }
+  }
+
+  span.paper-key {
+    background-color: rgba(var(--primary-rgb), 0.08);
+    border-radius: 5px;
+    font-size: 1em;
+    margin: 0 0.5em;
+    padding: 0.3em;
+  }
+
+  span.passphrase {
+    margin: 0 0.5em;
+  }
+}
+
+.post-info {
+  &.integrity-pass {
+    color: var(--success);
+    margin: 0 0 0 0.5em;
+  }
+
+  &.integrity-warn {
+    color: var(--encrypt-warn, mix($danger, #ffff00));
+    margin: 0 0 0 0.5em;
+  }
+
+  &.integrity-fail {
+    color: var(--danger);
+    margin: 0 0 0 0.5em;
+  }
+}
+
+.encrypt-controls {
+  margin-left: 0.25em;
+  display: flex;
+  align-items: center;
+}
+
+.composer-action-divider {
+  height: 1em;
+  width: 1px;
+  margin: 0 0.25em;
+  display: inline-block;
+  background: var(--primary-low-mid);
+}
+
+.encrypt-toggle,
+.encrypted-post-timer-dropdown .btn {
+  padding: 0.3em 0.4em;
+  box-sizing: border-box;
+  background: transparent;
+  min-height: unset;
+  vertical-align: middle;
+  .discourse-no-touch & {
+    &:hover {
+      background: transparent;
+    }
+  }
+  &:focus {
+    background: var(--primary-low);
+  }
+}
+
+.encrypted-post-timer-dropdown {
+  margin-right: 0.15em;
+  .btn {
+    // minor visual alignment because the trash clock icon feels slightly lopsided
+    padding-right: 0.4em;
+  }
+  .d-icon {
+    margin: 0;
+  }
+}
+
+.encrypted-post-timer-counter {
+  margin-left: 0.75em;
+  color: var(--danger);
+  flex: 0 0 auto;
+  .d-icon {
+    margin-right: 0.25em;
+  }
+}
+
+#reply-control .reply-to {
+  // needs to be a little extra-specific due to core styles
+  .encrypted-post-timer-dropdown {
+    .discourse-no-touch & {
+      .btn:hover .d-icon {
+        color: var(--primary);
+      }
+    }
+  }
+  .btn.encrypt-toggle {
+    &.enabled {
+      .d-icon {
+        color: var(--success);
+      }
+    }
+
+    &:not(.disabled) {
+      .discourse-no-touch & &:hover {
+        .d-icon {
+          color: var(--primary-very-low);
+        }
+      }
+    }
+  }
+}
+
+.private_message.encrypted {
+  .move-to-topic,
+  .topic-admin-convert {
+    display: none;
+  }
+}

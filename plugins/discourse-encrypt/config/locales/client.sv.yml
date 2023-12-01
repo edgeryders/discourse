@@ -1,0 +1,106 @@
+# WARNING: Never edit this file.
+# It will be overwritten when translations are pulled from Crowdin.
+#
+# To work with us on translations, join this project:
+# https://translate.discourse.org/
+
+sv:
+  js:
+    encrypt:
+      title: "Krypterade meddelanden"
+      decrypting: "Avkrypterar..."
+      missing_topic_key: "Det här meddelandet kunde inte avkrypteras eftersom du inte har någon ämnesnyckel för det här meddelandet. Har du bjudits in till det här ämnet?"
+      invalid_ciphertext: "Meddelandet kunde inte avkrypteras eftersom chiffertexten i detta meddelande är ogiltig."
+      invalid_topic_key: "Meddelandet kunde inte avkrypteras eftersom din ämnesnyckel är ogiltig."
+      invalid_identity: "Meddelandet kunde inte avkrypteras eftersom användaridentiteten är ogiltig."
+      no_backup_warn: "Kryptering är aktiverad på ditt konto, men du har ännu inte genererat några pappersnycklar. Utan pappersnycklar riskerar du att förlora tillgången till dina krypterade meddelanden. För att generera en pappersnyckel navigerar du till <a href='%{basePath}/my/preferences/security'>din sida med säkerhetsinställningar</a>, trycker på knappen <kbd>Generera pappersnyckel</kbd> och följer instruktionerna."
+      integrity_check_pass: "Integritetskontrollen för detta inlägg har godkänts."
+      integrity_check_skip: "Integritetskontrollen för det här inlägget hoppades över eftersom inlägget inte har någon signatur."
+      integrity_check_fail: "Integritetskontrollen för detta inlägg har misslyckats (%{fields} är felaktigt)."
+      integrity_check_warn_updated_at: "Inläggets metadata uppdaterades utan att signering utfördes igen."
+      encrypted_title: "Ett hemligt meddelande"
+      encrypted_post: "Detta är ett hemligt meddelande som krypterats från början till slut. För att visa det måste du vara inbjuden till detta ämne."
+      encrypted_post_email: "Detta är ett hemligt meddelande som krypterats från början till slut. Du måste gå till ämnet för att visa det."
+      encrypted_post_email_timer_annotation: "Detta meddelande raderas permanent efter %{delete_at}"
+      encrypted_icon_title: "Detta meddelande är krypterat från början till slut."
+      encrypted_uploads: "Uppladdningar kan inte krypteras för tillfället."
+      cannot_encrypt: "Du kan inte kryptera meddelanden i detta samtal."
+      cannot_invite: "Du kan inte bjuda in till detta samtal."
+      cannot_invite_group: "Du kan inte bjuda in grupper till krypterade meddelanden."
+      checkbox:
+        checked: "Detta meddelande kommer att vara krypterat från början till slut."
+        unchecked: "Klicka på låssymbolen för att kryptera detta meddelande."
+      post:
+        delete:
+          confirm: "Innehållet kommer att raderas helt, och det finns sedan inte något sätt att återställa det."
+      composer:
+        no_topic_key: "Du kan inte kryptera meddelanden i detta ämne."
+        user_has_no_key: "%{username} aktiverade inte krypterade meddelanden."
+        group_not_allowed: "Du är inte behörig att skicka krypterade meddelanden till grupper."
+        confirm:
+          message: "%{error} Vill du fortsätta?"
+          no_value: "Nej, gå tillbaka"
+          yes_value: "Ja, skicka okrypterat"
+      preferences:
+        ie11: "Den nödvändiga chiffer-uppsättningen är inte tillgänglig i Internet Explorer 11."
+        insecure_context: "Kryptering kan inte användas i en osäker miljö (utan HTTPS)."
+        status_enabled: "Du har aktiverat kryptering och den är aktiv för denna enhet."
+        status_enabled_other: "Denna användare har aktiverat kryptering och kan ta emot krypterade meddelanden."
+        status_enabled_but_inactive: "Du har aktiverat kryptering men den är inte aktiverad för denna enhet."
+        status_disabled: "Du har inte aktiverat kryptering för detta konto."
+        status_disabled_other: "Denna användare har inte aktiverat kryptering och kan inte ta emot krypterade meddelanden."
+        paper_key_label: "Pappersnyckel:"
+        paper_key_placeholder: "TOLV ORD..."
+        paper_key_invalid: "Den pappersnyckel som du angav är felaktig."
+        key_pair_invalid: "Nyckelparet som du har angett är felaktigt."
+        notice_active: |
+          <p>Skriv in en pappersnyckel eller använd en annan enhet för att aktivera denna. Glöm inte mellanslag mellan ord.</p>
+        notice_import: |
+          <p>Klistra in krypteringsnyckeln som du tidigare exporterade.</p>
+        activate: "Aktivera krypterade meddelanden"
+        deactivate: "Inaktivera den här enheten"
+        enable: "Aktivera krypterade meddelanden"
+        import: "Importera nyckelpar för kryptering"
+        use_paper_key: "Använd pappersnyckel"
+        generate_key: "Generera nytt nyckelpar"
+        save: "Spara ändringar"
+      generate_paper_key:
+        title: "Generera pappersnyckel"
+        title_device: "Aktivera en annan enhet"
+        instructions: "Här är din unika anteckningsnyckel, som kan användas för att aktivera framtida krypterade enheter. Detta är det enda tillfället då du kommer se denna, så se till att du skriver ner den och sparar den på ett säkert ställe."
+        instructions_device: "På din andra enhet, gå till inställningar och använda följande pappersnyckel för att aktivera kryptering:"
+      manage_paper_keys:
+        title: "Hantera pappersnycklar"
+        instructions: "Nedanför kan du radera vilken som helst av de tidigare genererade anteckningsnycklarna. När den väl raderats kan anteckningsnyckeln inte återställas, så var säker på att du har åtminstone en anteckningsnyckel eller en annan aktiv enhet."
+        delete: "Radera"
+        no_key: "Du har inga anteckningsnycklar. Se till att du har åtminstone en anteckningsnyckel eller en annan aktiv enhet."
+        passphrase: "lösenordsfras-baserad"
+        not_recommended: "(rekommenderas inte)"
+      export:
+        title: "Exportera nyckelpar för kryptering"
+        instructions: "Att exportera ditt nyckelpar är en annan reservåtgärd. Notera att det exporterade nyckelparet är oskyddat och kan avkryptera alla dina privata samtal."
+        copy_to_clipboard: "Kopiera till urklipp"
+        copied_to_clipboard: "Kopierad till urklipp"
+      rotate:
+        title: "Rotera nyckelpar för kryptering"
+        instructions: "Är du säker på att du vill rotera din krypteringsnyckel? Detta kommer att generera ett nytt nyckelpar och alla pappersnycklar kommer att förstöras. Du kommer inte att förlora åtkomst till krypterade meddelanden, men du måste återaktivera kryptering på andra enheter."
+        loading_states:
+          finished: "Klart!"
+      reset:
+        title: "Inaktivera krypterade meddelanden"
+        instructions: "Är du säker på att du vill inaktivera krypterade meddelanden och återställa din krypteringsnyckel? Den här åtgärden raderar din krypteringsnyckel för alltid och du kommer inte att kunna komma åt några av dina krypterade privata meddelanden längre."
+        instructions_lost_pms:
+          one: "Du kommer <strong>permanent</strong> att förlora åtkomst till %{count} krypterat meddelande."
+          other: "Du kommer <strong>permanent</strong> att förlora åtkomst till %{count} krypterade meddelanden."
+        instructions_safe: "Är du säker på att du vill inaktivera krypterade meddelanden och återställa din krypteringsnyckel? Du kan aktivera krypterade meddelanden igen genom att generera ett nytt nyckelpar."
+        confirm_instructions: "Ange <code>%{username}</code> för att bekräfta:"
+      time_bomb:
+        title: "Detta meddelande raderas permanent efter %{after}"
+        never: "Aldrig"
+        3_minutes: "3 minuter"
+        1_hour: "1 timme"
+        3_hours: "3 timmar"
+        12_hours: "12 timmar"
+        24_hours: "24 timmar"
+        3_days: "3 dagar"
+        7_days: "7 dagar"

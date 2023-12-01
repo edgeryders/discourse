@@ -1,0 +1,113 @@
+# WARNING: Never edit this file.
+# It will be overwritten when translations are pulled from Crowdin.
+#
+# To work with us on translations, join this project:
+# https://translate.discourse.org/
+
+fr:
+  js:
+    encrypt:
+      title: "Messages chiffrés"
+      decrypting: "Déchiffrement en cours…"
+      missing_topic_key: "Ce message n'a pas pu être déchiffré car vous n'avez pas de clé de sujet pour ce message. Avez-vous reçu une invitation pour rejoindre ce sujet ?"
+      invalid_ciphertext: "Le message n'a pas pu être déchiffré car le texte chiffré de ce message est invalide."
+      invalid_topic_key: "Le message n'a pas pu être déchiffré car votre clé de sujet est invalide."
+      invalid_identity: "Le message n'a pas pu être déchiffré car l'identité de l'utilisateur est invalide."
+      no_backup_warn: "Le chiffrement est activé sur votre compte, mais vous n'avez pas encore généré de clés papier. Sans clé papier, vous risquez de perdre l'accès à vos messages chiffrés. Pour générer une clé papier, accédez à la page <a href='%{basePath}/my/preferences/security'>de vos préférences de sécurité</a>, appuyez sur le bouton <kbd>Générer la clé papier</kbd> et suivez les instructions."
+      integrity_check_pass: "La vérification d'intégrité pour ce message a réussi."
+      integrity_check_skip: "La vérification de l'intégrité de ce message a été ignorée, car le message n'a pas de signature."
+      integrity_check_fail: "La vérification d'intégrité pour ce message a échoué (le ou les champs %{fields} ne correspondent pas)."
+      integrity_check_warn_updated_at: "Les métadonnées du message ont été mises à jour sans avoir été signées à nouveau."
+      integrity_check_warn_signed_by: "Ce message a été signé pour la dernière fois par %{actual}, et non par %{expected}. Il a probablement été édité par le premier utilisateur."
+      encrypted_title: "Un message secret"
+      encrypted_post: "Ceci est un message secret avec un chiffrement de bout en bout. Pour le visualiser, vous devez être invité(e) à participer à ce sujet."
+      encrypted_post_email: "Ceci est un message secret avec un chiffrement de bout en bout. Vous devez visiter le sujet pour le visualiser."
+      encrypted_post_email_timer_annotation: "Ce message sera définitivement supprimé le %{delete_at}"
+      encrypted_icon_title: "Ce message est chiffré de bout en bout."
+      encrypted_uploads: "Les téléversements ne peuvent pas être chiffrés pour le moment."
+      cannot_encrypt: "Vous ne pouvez pas chiffrer les messages de cette conversation."
+      cannot_invite: "Vous ne pouvez inviter personne dans cette conversation."
+      cannot_invite_group: "Vous ne pouvez pas inviter des groupes à accéder à des messages chiffrés."
+      checkbox:
+        checked: "Ce message sera chiffré de bout en bout."
+        unchecked: "Cliquez sur le symbole du cadenas pour chiffrer ce message."
+      post:
+        delete:
+          title: "Êtes-vous sûr(e) ?"
+          confirm: "Le contenu sera complètement supprimé et il n'y aura aucun moyen de le restaurer."
+      composer:
+        no_topic_key: "Vous ne pouvez pas chiffrer les messages dans ce sujet."
+        user_has_no_key: "%{username} n'a pas activé les messages chiffrés."
+        group_not_allowed: "Vous n'avez pas l'autorisation d'envoyer des messages chiffrés aux groupes."
+        confirm:
+          message: "%{error} Voulez-vous continuer ?"
+          no_value: "Non, revenir en arrière"
+          yes_value: "Oui, envoyer sans chiffrement"
+      preferences:
+        ie11: "La suite de chiffrement requise n'est pas disponible dans Internet Explorer 11."
+        insecure_context: "Le chiffrement ne peut pas être utilisé dans un contexte non sécurisé (sans HTTPS)."
+        status_enabled: "Vous avez activé le chiffrement et l'avez activé sur cet appareil."
+        status_enabled_other: "Cet utilisateur a activé le chiffrement et peut recevoir des messages chiffrés."
+        status_enabled_but_inactive: "Vous avez activé le chiffrement, mais vous ne l'avez pas activé sur cet appareil."
+        status_disabled: "Vous n'avez pas activé le chiffrement sur ce compte."
+        status_disabled_other: "Cet utilisateur n'a pas activé le chiffrement et ne peut pas recevoir de messages chiffrés."
+        paper_key_label: "Clé papier :"
+        paper_key_placeholder: "DOUZE MOTS…"
+        paper_key_invalid: "La clé papier que vous avez saisie est incorrecte."
+        key_pair_invalid: "La paire de clés que vous avez saisie est incorrecte."
+        notice_active: |
+          <p>Saisissez une clé papier ou utilisez un autre appareil pour l'activer. N'oubliez pas les espaces entre les mots.</p>
+        notice_import: |
+          <p>Veuillez coller la clé de chiffrement que vous avez exportée précédemment.</p>
+        activate: "Activer les messages chiffrés"
+        deactivate: "Désactiver cet appareil"
+        enable: "Activer les messages chiffrés"
+        import: "Importer une paire de clés de chiffrement"
+        use_paper_key: "Utiliser une clé papier"
+        generate_key: "Générer une nouvelle paire de clés"
+        encrypt_pms_default: "Chiffrez tous les nouveaux messages personnels par défaut"
+        save: "Enregistrer les modifications"
+      generate_paper_key:
+        title: "Générer une clé papier"
+        title_device: "Activer un autre appareil"
+        instructions: "Voici votre clé papier unique, elle vous permettra d'activer le chiffrement sur d'autres appareils. Ceci est l'unique vue que vous en aurez, assurez-vous donc de la recopier et de la conserver en lieu sûr."
+        instructions_device: "Sur votre autre appareil, accédez aux préférences et utilisez la clé papier suivante pour activer le chiffrement :"
+      manage_paper_keys:
+        title: "Gérer les clés papier"
+        instructions: "Vous pouvez supprimer ci-dessous des clés papier existantes. Une fois supprimées, les clés papier ne peuvent pas être récupérées. Veillez donc à toujours conserver au moins une clé papier ou d'autres appareils actifs."
+        delete: "Supprimer"
+        no_key: "Vous n'avez aucune clé papier. Assurez-vous d'avoir au moins une clé papier ou d'autres appareils actifs."
+        passphrase: "basé sur une phrase secrète"
+        not_recommended: "(non recommandé)"
+      export:
+        title: "Exporter la paire de clés de chiffrement"
+        instructions: "L'exportation de votre paire de clés constitue un autre mécanisme de sauvegarde. Veuillez noter que la paire de clés exportée n'est pas protégée et qu'elle peut déchiffrer toutes vos conversations privées."
+        copy_to_clipboard: "Copier dans le presse-papier"
+        copied_to_clipboard: "Copié dans le presse-papier"
+      rotate:
+        title: "Remplacer la paire de clés de chiffrement"
+        instructions: "Voulez-vous vraiment remplacer votre clé de chiffrement ? Cette opération générera une nouvelle paire de clés et toutes les clés papier seront détruites. Vous ne perdrez pas l'accès aux messages chiffrés, mais vous devrez réactiver le chiffrement sur vos autres appareils."
+        loading_states:
+          fetching: "Chargement des anciennes clés de sujet…"
+          rotating: "Remplacement des clés…"
+          saving: "Enregistrement des nouvelles clés de sujet…"
+          updating: "Mise à jour de la clé…"
+          finished: "Terminé !"
+      reset:
+        title: "Désactiver les messages chiffrés"
+        instructions: "Voulez-vous vraiment désactiver les messages chiffrés et réinitialiser votre clé de chiffrement ? Cette opération supprimera définitivement votre clé de chiffrement et vous ne pourrez plus accéder à aucun de vos messages privés chiffrés."
+        instructions_lost_pms:
+          one: "Vous perdrez <strong>définitivement</strong> l'accès à %{count} message chiffré."
+          other: "Vous perdrez <strong>définitivement</strong> l'accès à %{count} messages chiffrés."
+        instructions_safe: "Voulez-vous vraiment désactiver les messages chiffrés et réinitialiser votre clé de chiffrement ? Vous pouvez réactiver les messages chiffrés en générant une nouvelle paire de clés."
+        confirm_instructions: "Veuillez saisir <code>%{username}</code> pour confirmer :"
+      time_bomb:
+        title: "Ce message sera définitivement supprimé après %{after}"
+        never: "Jamais"
+        3_minutes: "3 minutes"
+        1_hour: "1 heure"
+        3_hours: "3 heures"
+        12_hours: "12 heures"
+        24_hours: "24 heures"
+        3_days: "3 jours"
+        7_days: "7 jours"

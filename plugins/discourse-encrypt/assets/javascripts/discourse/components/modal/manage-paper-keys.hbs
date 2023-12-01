@@ -1,0 +1,51 @@
+<DModal
+  @title={{i18n "encrypt.manage_paper_keys.title"}}
+  @closeModal={{@closeModal}}
+>
+  <:body>
+    {{#if this.keys}}
+      <p>{{i18n "encrypt.manage_paper_keys.instructions"}}</p>
+
+      <table class="paper-keys">
+        <tbody>
+          {{#each this.keys as |key|}}
+            <tr>
+              <td>
+                {{d-icon "key"}}
+
+                {{#if key.isPaper}}
+                  <span class="paper-key">{{key.name}}</span>
+                  ...
+                {{else if key.isPassphrase}}
+                  <span class="passphrase">
+                    {{i18n "encrypt.manage_paper_keys.passphrase"}}
+                    <i>{{i18n "encrypt.manage_paper_keys.not_recommended"}}</i>
+                  </span>
+                {{/if}}
+              </td>
+
+              <td>
+                <DButton
+                  @icon="far-trash-alt"
+                  @action={{fn this.delete key.label}}
+                  @title="encrypt.manage_paper_keys.delete"
+                  class="btn-danger pull-right"
+                />
+              </td>
+            </tr>
+          {{/each}}
+        </tbody>
+      </table>
+    {{else}}
+      <p>{{i18n "encrypt.manage_paper_keys.no_key"}}</p>
+    {{/if}}
+  </:body>
+
+  <:footer>
+    <DButton
+      @icon="ticket-alt"
+      @action={{this.generatePaperKey}}
+      @label="encrypt.generate_paper_key.title"
+    />
+  </:footer>
+</DModal>

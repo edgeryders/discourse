@@ -1,0 +1,21 @@
+# WARNING: Never edit this file.
+# It will be overwritten when translations are pulled from Crowdin.
+#
+# To work with us on translations, join this project:
+# https://translate.discourse.org/
+
+ca:
+  js:
+    encrypt:
+      preferences:
+        save: "Desa els canvis"
+      manage_paper_keys:
+        delete: "Suprimeix"
+      export:
+        copy_to_clipboard: "Copia al porta-retalls"
+        copied_to_clipboard: "Copiat al porta-retalls."
+      rotate:
+        loading_states:
+          finished: "Fet!"
+      time_bomb:
+        never: "Mai"

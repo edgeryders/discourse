@@ -1,0 +1,19 @@
+# WARNING: Never edit this file.
+# It will be overwritten when translations are pulled from Crowdin.
+#
+# To work with us on translations, join this project:
+# https://translate.discourse.org/
+
+he:
+  encrypt:
+    encrypted_excerpt: "הודעה זו מוצפנת. נא לקרוא אותה בדפדפן."
+    enabled_already: "כבר הפעלת הודעות מוצפנות."
+    only_pms: "ניתן להצפין הודעות פרטיות בלבד."
+    no_encrypt_keys: "משהו השתבש. לא נמצאו מפתחות הצפנה במטען."
+  site_settings:
+    encrypt_enabled: "הפעלת הודעות פרטיות מוצפנות."
+    auto_enable_encrypt: "להפעיל הצפנה אוטומטית לכל המשתמשים שנכנסו למערכת."
+    encrypt_groups: "שמות הקבוצות שיכולים להשתמש בהצפנה (ריק כלומר כולן יכולות)."
+    encrypt_pms_default: "להצפין את כל ההודעות הפרטיות החדשות כבררת מחדל."
+    errors:
+      encrypt_unsafe_csp: "אי אפשר להשתמש בהנחיות CSP מפוקפקות כגון ‚unsafe-eval’ ו־‚unsafe-inline’ כאשר התוסף Encrypt של Discourse פעיל. "

@@ -1,0 +1,19 @@
+# WARNING: Never edit this file.
+# It will be overwritten when translations are pulled from Crowdin.
+#
+# To work with us on translations, join this project:
+# https://translate.discourse.org/
+
+zh_CN:
+  encrypt:
+    encrypted_excerpt: "此消息已加密，请在浏览器中阅读。"
+    enabled_already: "您已启用加密消息。"
+    only_pms: "只能加密私信。"
+    no_encrypt_keys: "出了点问题。有效负载中未包含加密密钥。"
+  site_settings:
+    encrypt_enabled: "启用加密私信。"
+    auto_enable_encrypt: "自动为所有登录用户启用加密。"
+    encrypt_groups: "能够使用加密的群组的名称（留空表示所有人都可以使用）。"
+    encrypt_pms_default: "默认情况下加密所有新的私信。"
+    errors:
+      encrypt_unsafe_csp: "启用 Discourse Encrypt 插件后，将无法使用诸如 'unsafe-eval' 和 'unsafe-inline' 等不安全的 CSP 指令。"

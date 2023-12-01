@@ -1,0 +1,26 @@
+# WARNING: Never edit this file.
+# It will be overwritten when translations are pulled from Crowdin.
+#
+# To work with us on translations, join this project:
+# https://translate.discourse.org/
+
+vi:
+  js:
+    encrypt:
+      preferences:
+        save: "Lưu thay đổi"
+      manage_paper_keys:
+        delete: "Xóa"
+      export:
+        copy_to_clipboard: "Sao chép vào clipboard"
+        copied_to_clipboard: "Sao chép vào Clipboard"
+      rotate:
+        loading_states:
+          finished: "Hoàn tất!"
+      time_bomb:
+        never: "Không bao giờ"
+        3_minutes: "3 phút"
+        1_hour: "1 tiếng"
+        3_hours: "3 tiếng"
+        12_hours: "12 tiếng"
+        24_hours: "24 tiếng"

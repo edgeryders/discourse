@@ -1,0 +1,19 @@
+# WARNING: Never edit this file.
+# It will be overwritten when translations are pulled from Crowdin.
+#
+# To work with us on translations, join this project:
+# https://translate.discourse.org/
+
+sv:
+  encrypt:
+    encrypted_excerpt: "Detta meddelande är krypterat, läs det i webbläsaren."
+    enabled_already: "Du har redan aktiverat krypterade meddelanden."
+    only_pms: "Enbart privata meddelanden kan krypteras."
+    no_encrypt_keys: "Något gick fel. Inga krypteringsnycklar inkluderades i innehållet."
+  site_settings:
+    encrypt_enabled: "Aktivera krypterade privata meddelanden."
+    auto_enable_encrypt: "Aktivera automatiskt kryptering för alla inloggade användare."
+    encrypt_groups: "Namnen på grupper som ska vara tillåtna att använda kryptering (tomt innebär samtliga)"
+    encrypt_pms_default: "Kryptera alla nya privata meddelanden som standard."
+    errors:
+      encrypt_unsafe_csp: "Osäkra CSP-direktiv som 'unsafe-eval' och 'unsafe-inline' kan inte användas när insticksprogrammet Discourse Encrypt är aktiverad. "

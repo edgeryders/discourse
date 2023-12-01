@@ -1,0 +1,26 @@
+# WARNING: Never edit this file.
+# It will be overwritten when translations are pulled from Crowdin.
+#
+# To work with us on translations, join this project:
+# https://translate.discourse.org/
+
+gl:
+  js:
+    encrypt:
+      preferences:
+        save: "Gardar os cambios"
+      manage_paper_keys:
+        delete: "Eliminar"
+      export:
+        copy_to_clipboard: "Copiar ao portapapeis"
+        copied_to_clipboard: "Copiado ao portapapeis"
+      rotate:
+        loading_states:
+          finished: "Feito!"
+      time_bomb:
+        never: "Nunca"
+        3_minutes: "3 minutos"
+        1_hour: "1 hora"
+        3_hours: "3 horas"
+        12_hours: "12 horas"
+        24_hours: "24 horas"

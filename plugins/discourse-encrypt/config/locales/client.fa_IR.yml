@@ -1,0 +1,41 @@
+# WARNING: Never edit this file.
+# It will be overwritten when translations are pulled from Crowdin.
+#
+# To work with us on translations, join this project:
+# https://translate.discourse.org/
+
+fa_IR:
+  js:
+    encrypt:
+      title: "پیام‌های رمزگذاری شده"
+      decrypting: "در حال رمزگشایی..."
+      missing_topic_key: "رمزگشایی این پیام امکان پذیر نیست، زیرا شما کلید موضوعی این پیام را ندارید. آیا شما به این موضوع دعوت شده‌اید؟"
+      invalid_ciphertext: "پیام قابل رمزگشایی نیست، زیرا متن رمز این پیام معتبر نیست."
+      invalid_topic_key: "پیام قابل رمزگشایی نیست، زیرا کلید موضوع شما معتبر نیست."
+      invalid_identity: "پیام قابل رمزگشایی نیست، زیرا هویت کاربر معتبر نیست."
+      post:
+        delete:
+          title: "مطمئنی؟"
+          confirm: "محتوا به طور کامل حذف خواهد شد، هیچ راهی برای بازیابی آن وجود نخواهد داشت."
+      preferences:
+        paper_key_label: "کلید مقاله:"
+        paper_key_placeholder: "دوازده کلمه..."
+        paper_key_invalid: "کلید مقاله‌ای که وارد کردید درست نیست."
+        encrypt_pms_default: "تمام پیا‌م‌های شخصی جدید را به طور پیش‌فرض رمزگذاری کنید"
+        save: "ذخیره تغییرات"
+      manage_paper_keys:
+        delete: "حذف"
+      export:
+        copy_to_clipboard: "کپی در clipboard"
+        copied_to_clipboard: "کپی شد"
+      rotate:
+        loading_states:
+          finished: "انجام شد!"
+      time_bomb:
+        never: "هرگز"
+        3_minutes: "۳ دقیقه"
+        1_hour: "۱ ساعت"
+        12_hours: "۱۲ ساعت"
+        24_hours: "۲۴ ساعت"
+        3_days: "۳ روز"
+        7_days: "۷ روز"

@@ -1,0 +1,22 @@
+# WARNING: Never edit this file.
+# It will be overwritten when translations are pulled from Crowdin.
+#
+# To work with us on translations, join this project:
+# https://translate.discourse.org/
+
+sk:
+  js:
+    encrypt:
+      decrypting: "Dešifrujem..."
+      encrypted_title: "Tajná správa"
+      preferences:
+        save: "Uložiť zmeny"
+      manage_paper_keys:
+        delete: "Odstrániť"
+      export:
+        copied_to_clipboard: "Skopírované do schránky"
+      rotate:
+        loading_states:
+          finished: "Hotovo!"
+      time_bomb:
+        never: "Nikdy"

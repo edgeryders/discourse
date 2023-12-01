@@ -1,0 +1,112 @@
+# WARNING: Never edit this file.
+# It will be overwritten when translations are pulled from Crowdin.
+#
+# To work with us on translations, join this project:
+# https://translate.discourse.org/
+
+zh_CN:
+  js:
+    encrypt:
+      title: "加密消息"
+      decrypting: "正在解密…"
+      missing_topic_key: "无法解密此消息，因为您没有此消息的话题密钥。您受邀参与过此话题吗？"
+      invalid_ciphertext: "无法解密消息，因为此消息的加密文本无效。"
+      invalid_topic_key: "无法解密消息，因为您的话题密钥无效。"
+      invalid_identity: "无法解密消息，因为用户身份无效。"
+      no_backup_warn: "您的帐户已启用加密，但尚未生成任何纸质密钥。如果没有任何纸质密钥，您可能会失去对您的加密消息的访问权限。要生成纸质密钥，请导航到<a href='%{basePath}/my/preferences/security'>安全偏好设置页面</a>，按<kbd>生成纸质密钥</kbd>按钮并按照说明进行操作。"
+      integrity_check_pass: "此帖子的完整性检查已通过。"
+      integrity_check_skip: "由于帖子没有签名，跳过了此帖子的完整性检查。"
+      integrity_check_fail: "此帖子的完整性检查失败（%{fields}不匹配）。"
+      integrity_check_warn_updated_at: "帖子元数据已更新，无需再次签名。"
+      integrity_check_warn_signed_by: "此帖子最后由 %{actual} 而不是 %{expected} 签名。它很可能是由前者编辑的。"
+      encrypted_title: "一条私密消息"
+      encrypted_post: "这是一条采用端到端加密的私密消息。您必须受邀加入此话题才能查看。"
+      encrypted_post_email: "这是一条采用端到端加密的私密消息。您必须受邀加入此话题才能查看。"
+      encrypted_post_email_timer_annotation: "此消息将在 %{delete_at} 被永久删除"
+      encrypted_icon_title: "此消息采用端到端加密。"
+      encrypted_uploads: "目前无法加密上传的内容。"
+      cannot_encrypt: "您无法加密此对话中的消息。"
+      cannot_invite: "您无法邀请加入此对话。"
+      cannot_invite_group: "您无法邀请群组加入加密消息。"
+      checkbox:
+        checked: "此消息将进行端到端加密。"
+        unchecked: "点击锁符号来加密此消息。"
+      post:
+        delete:
+          title: "您确定吗？"
+          confirm: "内容将被彻底删除，将无法恢复。"
+      composer:
+        no_topic_key: "您无法加密此话题中的消息。"
+        user_has_no_key: "%{username} 未启用加密消息。"
+        group_not_allowed: "您未被允许向群组发送加密消息。"
+        confirm:
+          message: "%{error} 是否要继续？"
+          no_value: "不，返回"
+          yes_value: "是，发送未加密消息"
+      preferences:
+        ie11: "所需密码套件在 Internet Explorer 11 中不可用。"
+        insecure_context: "不能在不安全的上下文（非 HTTPS）中使用加密。"
+        status_enabled: "您已启用加密并在此设备上激活。"
+        status_enabled_other: "此用户已启用加密并可接收加密消息。"
+        status_enabled_but_inactive: "您已启用加密，但未在此设备上激活。"
+        status_disabled: "您尚未对此帐户启用加密。"
+        status_disabled_other: "此用户未启用加密，无法接收加密消息。"
+        paper_key_label: "纸质密钥："
+        paper_key_placeholder: "十二个字词…"
+        paper_key_invalid: "您输入的纸质密钥不正确。"
+        key_pair_invalid: "您输入的密钥对不正确。"
+        notice_active: |
+          <p>键入纸质密钥或使用其他设备激活此设备。不要忘记字词之间的空格。</p>
+        notice_import: |
+          <p>请粘贴您之前导出的加密密钥。</p>
+        activate: "激活加密消息"
+        deactivate: "停用此设备"
+        enable: "启用加密消息"
+        import: "导入加密密钥对"
+        use_paper_key: "使用纸质密钥"
+        generate_key: "生成新的密钥对"
+        encrypt_pms_default: "默认加密所有新的个人消息"
+        save: "保存变更"
+      generate_paper_key:
+        title: "生成纸质密钥"
+        title_device: "激活其他设备"
+        instructions: "这是您的唯一纸质密钥，它让您可以激活未来的加密设备。这是您唯一一次看到此密钥的机会，因此请务必将其写下来并将其存放在安全的地方。"
+        instructions_device: "在您的其他设备上，转到偏好设置并使用以下纸质密钥激活加密："
+      manage_paper_keys:
+        title: "管理纸质密钥"
+        instructions: "您可以在下面删除任何以前生成的纸质密钥。纸质钥匙一经删除将无法恢复，因此请确保您至少拥有一个纸质密钥或其他有效设备。"
+        delete: "删除"
+        no_key: "您没有纸质密钥。请确保您至少拥有一个纸质密钥或其他有效设备。"
+        passphrase: "基于密码短语"
+        not_recommended: "（不推荐）"
+      export:
+        title: "导出加密密钥对"
+        instructions: "导出您的密钥对是另一种备份机制。请注意，导出的密钥对不受保护，它可以解密您的所有私人对话。"
+        copy_to_clipboard: "复制到剪贴板"
+        copied_to_clipboard: "已复制到剪贴板"
+      rotate:
+        title: "轮换加密密钥对"
+        instructions: "确定要轮换您的加密密钥吗？此操作将生成一个新的密钥对，并且所有纸质密钥都将被销毁。您不会失去对任何加密消息的访问权限，但您必须在其他设备上重新激活加密。"
+        loading_states:
+          fetching: "正在加载旧的话题密钥…"
+          rotating: "正在轮换密钥…"
+          saving: "正在保存新的话题密钥…"
+          updating: "正在更新密钥…"
+          finished: "完成！"
+      reset:
+        title: "禁用加密消息"
+        instructions: "确定要禁用加密消息并重置您的加密密钥吗？此操作将永久删除您的加密密钥，且您将无法再访问您的任何加密私信。"
+        instructions_lost_pms:
+          other: "您将<strong>永久</strong>失去对 %{count} 条加密消息的访问权限。"
+        instructions_safe: "确定要禁用加密消息并重置您的加密密钥吗？您可以通过生成新的密钥对来再次启用加密消息。"
+        confirm_instructions: "请输入 <code>%{username}</code> 确认："
+      time_bomb:
+        title: "此消息将在 %{after}后被永久删除"
+        never: "永不"
+        3_minutes: "3 分钟"
+        1_hour: "1 小时"
+        3_hours: "3 小时"
+        12_hours: "12 小时"
+        24_hours: "24 小时"
+        3_days: "3 天"
+        7_days: "7 天"

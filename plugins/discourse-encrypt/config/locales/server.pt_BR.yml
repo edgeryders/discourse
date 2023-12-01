@@ -1,0 +1,19 @@
+# WARNING: Never edit this file.
+# It will be overwritten when translations are pulled from Crowdin.
+#
+# To work with us on translations, join this project:
+# https://translate.discourse.org/
+
+pt_BR:
+  encrypt:
+    encrypted_excerpt: "Esta mensagem está criptografada, leia-a no navegador."
+    enabled_already: "Você já ativou mensagens criptografadas."
+    only_pms: "É possível criptografar apenas mensagens privadas"
+    no_encrypt_keys: "Algo deu errado. Nenhuma chave de criptografia foi inclusa no conteúdo."
+  site_settings:
+    encrypt_enabled: "Ative mensagens privadas criptografadas."
+    auto_enable_encrypt: "Ative criptografia automaticamente para todos(as) os(as) usuários(as) que entraram."
+    encrypt_groups: "O nome dos grupos que podem usar criptografia (vazio quer dizer todas as pessoas)."
+    encrypt_pms_default: "Criptografe todas as mensagens privadas por padrão."
+    errors:
+      encrypt_unsafe_csp: "Diretivas CSP não seguras, como \"unsafe-eval\" e \"unsafe-inline\", não podem ser usadas quando o plugin Discourse Encrypt estiver ativado. "

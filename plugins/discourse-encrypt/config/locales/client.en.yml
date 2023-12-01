@@ -1,0 +1,127 @@
+en:
+  js:
+    encrypt:
+      title: "Encrypted Messages"
+      decrypting: "Decrypting..."
+
+      missing_topic_key: "This message could not be decrypted because you have no topic key for this message. Were you invited to this topic?"
+      invalid_ciphertext: "The message could not be decrypted because the ciphertext of this message is invalid."
+      invalid_topic_key: "The message could not be decrypted because your topic key is invalid."
+      invalid_identity: "The message could not be decrypted because the user identity is invalid."
+
+      no_backup_warn: "Encryption is enabled on your account, but you have not yet generated any paper keys. Without any paper keys, you risk losing access to your encrypted messages. To generate a paper key, navigate to <a href='%{basePath}/my/preferences/security'>your security preferences page</a>, press the <kbd>Generate paper key</kbd> button and follow the instructions."
+
+      integrity_check_pass: "The integrity check for this post has passed."
+      integrity_check_skip: "The integrity check for this post was skipped because post has no signature."
+      integrity_check_fail: "The integrity check for this post has failed (%{fields} mismatch)."
+      integrity_check_warn_updated_at: "Post metadata was updated without being signed again."
+      integrity_check_warn_signed_by: "This post was last signed by %{actual}, not %{expected}. It was likely edited by the former."
+
+      encrypted_title: "A secret message"
+      encrypted_post: "This is a secret message with end to end encryption. To view it, you must be invited to this topic."
+      encrypted_post_email: "This is a secret message with end to end encryption. You must visit the topic to view it."
+      encrypted_post_email_timer_annotation: "This message will be permanently deleted at %{delete_at}"
+      encrypted_icon_title: "This message is end-to-end encrypted."
+
+      encrypted_uploads: "Uploads cannot be encrypted at this time."
+
+      cannot_encrypt: "You cannot encrypt messages in this conversation."
+      cannot_invite: "You cannot invite to this conversation."
+      cannot_invite_group: "You cannot invite groups to encrypted messages."
+
+      checkbox:
+        checked: "This message will be end-to-end encrypted."
+        unchecked: "Click the lock symbol to encrypt this message."
+
+      post:
+        delete:
+          title: "Are you sure?"
+          confirm: "The content will be completely deleted, there will be no way to restore it."
+      composer:
+        no_topic_key: "You cannot encrypt messages in this topic."
+        user_has_no_key: "%{username} did not enable encrypted messages."
+        group_not_allowed: "You are not allowed to send encrypted messages to groups."
+
+        confirm:
+          message: "%{error} Do you want to continue?"
+          no_value: "No, go back"
+          yes_value: "Yes, send unencrypted"
+
+      preferences:
+        ie11: "The required cipher suite is unavailable in Internet Explorer 11."
+        insecure_context: "Encryption cannot be used in an insecure context (not HTTPS)."
+
+        status_enabled: "You have enabled encryption and activated it on this device."
+        status_enabled_other: "This user has enabled encryption and can receive encrypted messages."
+        status_enabled_but_inactive: "You have enabled encryption, but did not activate it on this device."
+        status_disabled: "You have not enabled encryption on this account."
+        status_disabled_other: "This user did not enable encryption and cannot receive encrypted messages."
+
+        paper_key_label: "Paper key:"
+        paper_key_placeholder: "TWELVE WORDS ..."
+        paper_key_invalid: "The paper key you entered is incorrect."
+        key_pair_invalid: "The key pair you entered is incorrect."
+
+        notice_active: |
+          <p>Type in a paper key or use another device to activate this one. Do not forget about the spaces between words.</p>
+        notice_import: |
+          <p>Please paste the encryption key you previously exported.</p>
+
+        activate: "Activate Encrypted Messages"
+        deactivate: "Deactivate This Device"
+        enable: "Enable Encrypted Messages"
+        import: "Import Encryption Key Pair"
+        use_paper_key: "Use Paper Key"
+        generate_key: "Generate New Key Pair"
+        encrypt_pms_default: "Encrypt all new personal messages by default"
+        save: "Save Changes"
+
+      generate_paper_key:
+        title: "Generate Paper Key"
+        title_device: "Activate Another Device"
+        instructions: "Here is your unique paper key, it can allow you to activate future encrypted devices. This is the only time you'll see this so make sure to write it down and store it somewhere safe."
+        instructions_device: "On your other device, go to preferences and use the following paper key to activate encryption:"
+
+      manage_paper_keys:
+        title: "Manage Paper Keys"
+        instructions: "Below you can delete any of the previously generated paper keys. Once deleted, the paper key cannot be recovered, so please make sure you have at least one paper key or other active devices."
+        delete: "Delete"
+        no_key: "You have no paper keys. Make sure you have at least one paper key or other active devices."
+        passphrase: "passphrase-based"
+        not_recommended: "(not recommended)"
+
+      export:
+        title: "Export Encryption Key Pair"
+        instructions: "Exporting your key pair is another backup mechanism. Please note that the exported key pair is unprotected and it can decrypt all your private conversations."
+        copy_to_clipboard: "Copy to Clipboard"
+        copied_to_clipboard: "Copied to Clipboard"
+
+      rotate:
+        title: "Rotate Encryption Key Pair"
+        instructions: "Are you sure you want to rotate your encryption key? This will generate a new key pair and all paper keys will be destroyed. You will not lose access to any encrypted messages, but you will have to reactivate encryption on other devices."
+        loading_states:
+          fetching: "Loading old topic keys…"
+          rotating: "Rotating keys…"
+          saving: "Saving new topic keys…"
+          updating: "Updating key…"
+          finished: "Done!"
+
+      reset:
+        title: "Disable Encrypted Messages"
+        instructions: "Are you sure you want to disable encrypted messages and reset your encryption key? This operation deletes your encryption key forever and you will not be able to access any of your encrypted private messages anymore."
+        instructions_lost_pms:
+          one: "You will <strong>permanently</strong> lose access to %{count} encrypted message."
+          other: "You will <strong>permanently</strong> lose access to %{count} encrypted messages."
+        instructions_safe: "Are you sure you want to disable encrypted messages and reset your encryption key? You can enable encrypted messages again by generating a new key pair."
+        confirm_instructions: "Please type <code>%{username}</code> to confirm:"
+
+      time_bomb:
+        title: "This message will be permanently deleted after %{after}"
+        never: "Never"
+        3_minutes: "3 minutes"
+        1_hour: "1 hour"
+        3_hours: "3 hours"
+        12_hours: "12 hours"
+        24_hours: "24 hours"
+        3_days: "3 days"
+        7_days: "7 days"

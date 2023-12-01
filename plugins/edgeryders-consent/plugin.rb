@@ -1,0 +1,92 @@
+# name: edgeryders-consent
+# about: Edgeryders consent funnel
+# version: 0.0.1
+
+enabled_site_setting :edgeryders_consent_enabled
+
+register_asset 'stylesheets/consent.scss'
+
+
+after_initialize do
+  register_editable_user_custom_field :edgeryders_consent if defined? register_editable_user_custom_field
+  User.register_custom_field_type('edgeryders_consent', :string)
+  DiscoursePluginRegistry.serialized_current_user_fields << 'edgeryders_consent'
+
+
+  require_dependency 'user_serializer'
+  class ::UserSerializer
+    attributes :consent_given
+
+    def consent_given
+      object.consent_given?
+    end
+  end
+
+
+  require_dependency 'topics_controller'
+  module TopicsControllerPatch
+    def self.included(base)
+      base.send(:include, InstanceMethods)
+      base.class_eval do
+        before_action :ensure_consent_given, only: [:update], if: -> { SiteSetting.edgeryders_consent_enabled }
+      end
+    end
+
+    module InstanceMethods
+      def ensure_consent_given
+        raise Discourse::InvalidAccess.new unless current_user&.consent_given?
+      end
+    end
+  end
+  TopicsController.send :include, TopicsControllerPatch
+
+
+  require_dependency 'posts_controller'
+  module PostsControllerPatch
+    def self.included(base)
+      base.send(:include, InstanceMethods)
+      base.class_eval do
+        before_action :ensure_consent_given, only: [:create, :update], if: -> { SiteSetting.edgeryders_consent_enabled }
+      end
+    end
+
+    module InstanceMethods
+      def ensure_consent_given
+        raise Discourse::InvalidAccess.new unless current_user&.consent_given?
+      end
+
+    end
+  end
+  PostsController.send :include, PostsControllerPatch
+
+
+  class ::User
+    # NOTE: A corresponding 'edgeryders_consent' field must be created in: Admin -> Customize -> User Fields.
+    def consent_given?
+      UserCustomField.exists?(user_id: id, name: 'edgeryders_consent', value: '1')
+    end
+  end
+end
+
+
+# This is the API for the ethical consent funnel
+# https://edgeryders.eu/t/using-the-edgeryders-eu-apis/7904#heading--3
+# Accessible as: /admin/consent.json
+after_initialize do
+  Discourse::Application.routes.append do
+    get 'admin/consent.json', to: 'admin/user_consent#index', constraints: StaffConstraint.new
+  end
+
+  class Admin::UserConsentController < Admin::AdminController
+    def index
+      users = User.where(active: true).
+        joins("LEFT JOIN user_custom_fields ON user_custom_fields.user_id = users.id AND user_custom_fields.name = 'edgeryders_consent'").
+        select('users.id, users.username, user_custom_fields.value as edgeryders_consent').
+        order('users.id ASC')
+      user_data = users.map {|u| {id: u.id, username: u.username, edgeryders_consent: u.edgeryders_consent}}
+      respond_to do |format|
+        format.json {render json: JSON.pretty_generate(user_data)}
+      end
+    end
+  end
+end

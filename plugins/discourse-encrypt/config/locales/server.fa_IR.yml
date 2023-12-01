@@ -1,0 +1,10 @@
+# WARNING: Never edit this file.
+# It will be overwritten when translations are pulled from Crowdin.
+#
+# To work with us on translations, join this project:
+# https://translate.discourse.org/
+
+fa_IR:
+  site_settings:
+    auto_enable_encrypt: "به طور خودکار رمزگذاری را برای همه کاربران وارد شده در سیستم فعال کنید."
+    encrypt_pms_default: "تمام پیام‌های خصوصی جدید را به طور پیش‌فرض رمزگذاری کنید."

@@ -1,0 +1,19 @@
+# WARNING: Never edit this file.
+# It will be overwritten when translations are pulled from Crowdin.
+#
+# To work with us on translations, join this project:
+# https://translate.discourse.org/
+
+nl:
+  encrypt:
+    encrypted_excerpt: "Dit bericht is versleuteld; lees het in de browser."
+    enabled_already: "Je hebt versleutelde berichten al ingeschakeld."
+    only_pms: "Alleen privéberichten kunnen worden versleuteld."
+    no_encrypt_keys: "Er is iets misgegaan. Er waren geen sleutels opgenomen in de payload."
+  site_settings:
+    encrypt_enabled: "Versleutelde privéberichten inschakelen."
+    auto_enable_encrypt: "Automatisch versleuteling inschakelen voor alle aangemelde gebruikers."
+    encrypt_groups: "De naam van groepen die versleuteling kunnen gebruiken (leeg betekent iedereen)."
+    encrypt_pms_default: "Alle nieuwe privéberichten standaard versleutelen."
+    errors:
+      encrypt_unsafe_csp: "Onveilige CSP-richtlijnen zoals 'unsafe-eval' en 'unsafe-inline' kunnen niet worden gebruikt als de Discourse Encrypt-plug-in is ingeschakeld. "

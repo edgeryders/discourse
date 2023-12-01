@@ -1,0 +1,19 @@
+# WARNING: Never edit this file.
+# It will be overwritten when translations are pulled from Crowdin.
+#
+# To work with us on translations, join this project:
+# https://translate.discourse.org/
+
+de:
+  encrypt:
+    encrypted_excerpt: "Diese Nachricht ist verschlüsselt, lies sie bitte im Browser."
+    enabled_already: "Du hast bereits verschlüsselte Nachrichten aktiviert."
+    only_pms: "Nur private Nachrichten können verschlüsselt werden."
+    no_encrypt_keys: "Etwas ist schiefgelaufen. Es sind keine Verschlüsselungsschlüssel im Payload enthalten."
+  site_settings:
+    encrypt_enabled: "Aktiviere verschlüsselte private Nachrichten."
+    auto_enable_encrypt: "Verschlüsselung für alle angemeldeten Benutzer automatisch aktivieren."
+    encrypt_groups: "Der Name der Gruppen, die die Verschlüsselung nutzen können (leer bedeutet alle)."
+    encrypt_pms_default: "Neue private Nachrichten standardmäßig verschlüsseln."
+    errors:
+      encrypt_unsafe_csp: "Unsichere CSP-Direktiven wie „unsafe-eval“ und „unsafe-inline“ können nicht verwendet werden, wenn das Discourse-Encrypt-Plug-in aktiviert ist. "

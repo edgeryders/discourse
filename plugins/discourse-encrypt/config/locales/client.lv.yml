@@ -1,0 +1,21 @@
+# WARNING: Never edit this file.
+# It will be overwritten when translations are pulled from Crowdin.
+#
+# To work with us on translations, join this project:
+# https://translate.discourse.org/
+
+lv:
+  js:
+    encrypt:
+      preferences:
+        save: "Saglabāt izmaiņas"
+      manage_paper_keys:
+        delete: "Dzēst"
+      export:
+        copy_to_clipboard: "Kopēt uz starpliktuvi (clipboard)"
+        copied_to_clipboard: "Nokopēts uz starpliktuvi (clipboard)"
+      rotate:
+        loading_states:
+          finished: "Pabeigt!"
+      time_bomb:
+        never: "Nekad"

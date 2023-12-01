@@ -1,0 +1,113 @@
+# WARNING: Never edit this file.
+# It will be overwritten when translations are pulled from Crowdin.
+#
+# To work with us on translations, join this project:
+# https://translate.discourse.org/
+
+pt_BR:
+  js:
+    encrypt:
+      title: "Mensagens criptografadas"
+      decrypting: "Descriptografando..."
+      missing_topic_key: "Não foi possível descriptografar esta mensagem porque você não tem chave de tópico. Você recebeu convite para este tópico?"
+      invalid_ciphertext: "Não foi possível descriptografar esta mensagem porque o texto cifrado desta mensagem é inválido."
+      invalid_topic_key: "Não foi possível descriptografar esta mensagem porque sua chave de tópico é inválida."
+      invalid_identity: "A mensagem não pode ser descriptografada porque sua identidade de usuário(a) é inválida."
+      no_backup_warn: "A criptografia está habilitada em sua conta, mas você ainda não gerou nenhuma chave de papel. Sem chaves de papel, você corre o risco de perder o acesso às suas mensagens criptografadas. Para gerar uma chave de papel, navegue até <a href='%{basePath}/my/preferences/security'>sua página de preferências de segurança</a>, pressione o botão <kbd>Gerar chave de papel</kbd> e siga as instruções."
+      integrity_check_pass: "A verificação de integridade para esta postagem passou."
+      integrity_check_skip: "A verificação de integridade para esta postagem foi ignorada porque a postagem não tem assinatura."
+      integrity_check_fail: "A verificação de integridade para esta postagem fracassou (incompatibilidade de %{fields})"
+      integrity_check_warn_updated_at: "Os metadados da publicação foram atualizados sem ser assinados novamente."
+      integrity_check_warn_signed_by: "Esta postagem foi assinada pela última vez por %{actual}, não %{expected}. Provavelmente foi editada por essa pessoa."
+      encrypted_title: "Uma mensagem secreta"
+      encrypted_post: "Esta é uma mensagem secreta com criptografia ponta a ponta. Para visualizar, você deve receber convite para este tópico."
+      encrypted_post_email: "Esta é uma mensagem secreta com criptografia ponta a ponta. Você deve acessar o tópico para visualizá-la."
+      encrypted_post_email_timer_annotation: "Esta mensagem será excluída permanentemente em %{delete_at}"
+      encrypted_icon_title: "Esta mensagem usa criptografia ponta a ponta."
+      encrypted_uploads: "Desta vez, envios não podem ser criptografados."
+      cannot_encrypt: "Não é possível criptografar mensagens nesta conversa."
+      cannot_invite: "Não é possível convidar para esta conversa."
+      cannot_invite_group: "Não é possível convidar grupos para mensagens criptografadas."
+      checkbox:
+        checked: "Esta mensagem usará criptografia ponta a ponta."
+        unchecked: "Clique no símbolo de cadeado para criptografar esta mensagem."
+      post:
+        delete:
+          title: "Você tem certeza?"
+          confirm: "O conteúdo será excluído completamente, não terá como restaurá-lo."
+      composer:
+        no_topic_key: "Não é possível criptografar mensagens neste tópico."
+        user_has_no_key: "%{username} não ativou mensagens criptografadas."
+        group_not_allowed: "Você não tem permissão para enviar mensagens criptografadas a grupos."
+        confirm:
+          message: "%{error} Quer continuar?"
+          no_value: "Não, voltar"
+          yes_value: "Sim, enviar em criptografia"
+      preferences:
+        ie11: "O pacote de codificação necessário não está disponível no Internet Explorer 11."
+        insecure_context: "A criptografia não pode ser usada em um contexto de insegurança (não HTTPS)."
+        status_enabled: "Você ativou a criptografia neste dispositivo."
+        status_enabled_other: "Este(a) usuário(a) ativou criptografia e pode receber mensagens criptografadas."
+        status_enabled_but_inactive: "Você ativou a criptografia, mas não neste dispositivo."
+        status_disabled: "Você não ativou criptografia nesta conta."
+        status_disabled_other: "Este(a) usuário(a) não ativou criptografia e não pode receber mensagens criptografadas."
+        paper_key_label: "Chave de papel:"
+        paper_key_placeholder: "DOZE PALAVRAS..."
+        paper_key_invalid: "A chave de papel inserida está incorreta."
+        key_pair_invalid: "O par de chaves inserido não está correto."
+        notice_active: |
+          <p>Insira uma chave de papel ou use outro dispositivo para ativar esta chave. Não se esqueça dos espaços entre as palavras.</p>
+        notice_import: |
+          <p>Cole a chave de criptografia exportada anteriormente.</p>
+        activate: "Ativar mensagens criptografadas"
+        deactivate: "Desativar este dispositivo"
+        enable: "Ativar mensagens criptografadas"
+        import: "Importar par de chaves de criptografia"
+        use_paper_key: "Usar chave de papel"
+        generate_key: "Gerar novo par de chaves"
+        encrypt_pms_default: "Criptografe todas as novas mensagens pessoais por padrão"
+        save: "Salvar alterações"
+      generate_paper_key:
+        title: "Gerar chave de papel"
+        title_device: "Ativar outro dispositivo"
+        instructions: "Esta é a sua chave de papel exclusiva, que permite ativar dispositivos criptografados futuros. Esta é a única vez que você verá isto para garantir que anote e armazene em um local seguro."
+        instructions_device: "Em seu outro dispositivo, vá para preferências e use a seguinte chave de papel para ativar a criptografia:"
+      manage_paper_keys:
+        title: "Gerenciar chaves de papel"
+        instructions: "Abaixo você pode excluir chaves de papel geradas. Após excluir, a chave de papel não pode ser recuperada, então não se esqueça de ter pelo menos uma chave de papel ou outros dispositivos ativados."
+        delete: "Excluir"
+        no_key: "Você não tem chaves de papel. Verifique se você tem pelo menos uma chave de papel ou outros dispositivos ativados."
+        passphrase: "com base em frase secreta"
+        not_recommended: "(não recomendado)"
+      export:
+        title: "Exportar par de chaves de criptografia"
+        instructions: "Exportar seu par de chaves é outro mecanismo de backup. Observe que o par de chaves exportadas não está protegido e pode descriptografar todas as suas conversas privadas."
+        copy_to_clipboard: "Copiar para área de transferência"
+        copied_to_clipboard: "Copiou para área de transferência"
+      rotate:
+        title: "Girar par de chaves de criptografia"
+        instructions: "Tem certeza de que deseja girar sua chave de criptografia? Isso irá gerar um novo par de chaves e todas as chaves de papel serão destruídas. Você não perderá acesso às mensagens criptografadas, mas precisará reativar a criptografia em outros dispositivos."
+        loading_states:
+          fetching: "Carregando chaves de tópico antigas…"
+          rotating: "Girando chaves…"
+          saving: "Salvando novas chaves de tópico…"
+          updating: "Atualizando chave…"
+          finished: "Pronto!"
+      reset:
+        title: "Desativar mensagens criptografadas"
+        instructions: "Tem certeza de que desativar as mensagens criptografadas e redefinir sua chave de criptografia? Esta operação exclui sua chave de criptografia para sempre e não poderá acessar mais mensagens privadas."
+        instructions_lost_pms:
+          one: "Você perderá <strong>permanentemente</strong> acesso a %{count} mensagem criptografada."
+          other: "Você perderá <strong>permanentemente</strong> acesso a %{count} mensagens criptografadas."
+        instructions_safe: "Tem certeza de que deseja desativar mensagens criptografadas e redefinir sua chave de criptografia? Você pode ativar mensagens criptografadas novamente ao gerar um novo par de chaves."
+        confirm_instructions: "Insira <code>%{username}</code> para confirmar:"
+      time_bomb:
+        title: "Esta mensagem será excluída permanentemente após %{after}"
+        never: "Nunca"
+        3_minutes: "3 minutos"
+        1_hour: "1 hora"
+        3_hours: "3 horas"
+        12_hours: "12 horas"
+        24_hours: "24 horas"
+        3_days: "3 dias"
+        7_days: "7 dias"

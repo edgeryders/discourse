@@ -1,0 +1,26 @@
+# WARNING: Never edit this file.
+# It will be overwritten when translations are pulled from Crowdin.
+#
+# To work with us on translations, join this project:
+# https://translate.discourse.org/
+
+ro:
+  js:
+    encrypt:
+      preferences:
+        save: "Salvează schimbările"
+      manage_paper_keys:
+        delete: "Șterge"
+      export:
+        copy_to_clipboard: "Copiază în clipboard"
+        copied_to_clipboard: "Copiat în clipboard"
+      rotate:
+        loading_states:
+          finished: "Terminat!"
+      time_bomb:
+        never: "Niciodată"
+        3_minutes: "3 de minute"
+        1_hour: "1 oră"
+        3_hours: "3 ore"
+        12_hours: "12 ore"
+        24_hours: "24 ore"

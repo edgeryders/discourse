@@ -85,7 +85,7 @@ copyright
 
 !/plugins/discourse-data-explorer
 !/plugins/discourse-migratepassword
-!/plugins/discourse-edgeryders
+!/plugins/edgeryders-consent
 !/plugins/discourse-text-direction
 !/plugins/discourse-topic-previews
 !/plugins/discourse-events
@@ -95,6 +95,7 @@ copyright
 !/plugins/edgeryders-shared
 !/plugins/edgeryders-permit-api-cors
 !/plugins/discourse-webkit-components
+!/plugins/discourse-encrypt
 
 .powenv
 
