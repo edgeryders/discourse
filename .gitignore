@@ -103,3 +103,5 @@ copyright
 .idea/**/*
 
 .DS_Store
+
+/public/.well-known/
