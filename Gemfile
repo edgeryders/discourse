@@ -310,3 +310,12 @@ gem 'discourse-annotator', git: 'https://github.com/edgeryders/discourse-annotat
 gem 'administrate', git: 'https://github.com/edgeryders/administrate'
 gem "administrate-field-nested_has_many", git: 'https://github.com/edgeryders/administrate-field-nested_has_many', branch: 'master'
 gem "administrate-field-belongs_to_search", git: 'https://github.com/edgeryders/administrate-field-belongs_to_search', branch: 'master'
+
+
+# --- edgeryders-api ---
+# Required by the edgeryders-api plugin.
+# Added here to avoid that all of the discourse_api dependencies
+# must be listed in the plugin.rb. See: https://meta.discourse.org/t/plugin-using-own-gem/50007/6
+gem 'discourse_api' # https://github.com/discourse/discourse_api
+
+

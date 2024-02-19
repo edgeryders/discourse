@@ -95,6 +95,7 @@ copyright
 !/plugins/edgeryders-shared
 !/plugins/edgeryders-permit-api-cors
 !/plugins/discourse-webkit-components
+!/plugins/edgeryders-api
 !/plugins/discourse-encrypt
 
 .powenv
@@ -105,3 +106,5 @@ copyright
 .DS_Store
 
 /public/.well-known/
+
+/config/secrets.yml
