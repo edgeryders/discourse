@@ -33,10 +33,6 @@ after_initialize do
         username: args[:username],
         password: args[:password]
       }
-      if args[:edgeryders_research_consent].present?
-        attributes[:custom_fields] = { edgeryders_consent: '1' }
-      end
-
       client.create_user(attributes)
     end
 
@@ -89,7 +85,7 @@ after_initialize do
       if params[:requested_api_keys].blank?
         return render_json_error("requested_api_keys: At least one domain name is required. Separate multiple domain names by whitespace.")
       end
-      if params[:edgeryders_research_consent].present? && params[:edgeryders_research_consent] != 'true'
+      unless params[:edgeryders_research_consent] == 'true'
         return render_json_error("edgeryders_research_consent: Edgeryders research consent is required.")
       end
 
@@ -101,6 +97,9 @@ after_initialize do
       return render json: response, status: :unprocessable_entity unless response['success']
 
       user = User.find(response['user_id'])
+      user.custom_fields['edgeryders_consent'] = '1'
+      user.save!
+
       key = EdgerydersApi.create_user_api_key(user.username)
 
       respond_to do |format|
@@ -120,14 +119,6 @@ after_initialize do
           }.to_json
         end
       end
-    end
-
-    # @return The current users API key
-    def get_api_key
-      render json: {
-        site: 'edgeryders.eu',
-        key: EdgerydersApi.get_community_account_api_key(user: current_user, hostname: 'edgeryders.eu')
-      }.to_json
     end
 
   end
