@@ -14,6 +14,12 @@ enabled_site_setting :edgeryders_api_enabled
 PLUGIN_NAME ||= "EdgerydersApi".freeze
 
 after_initialize do
+  %w(
+    ../app/jobs/edgeryders_api/regular/account_created_email.rb
+    ../app/mailers/edgeryders_api/user_mailer.rb
+  ).each do |path|
+    load File.expand_path(path, __FILE__)
+  end
 
   module ::EdgerydersApi
     class Engine < ::Rails::Engine
@@ -34,6 +40,10 @@ after_initialize do
         password: args[:password]
       }
       client.create_user(attributes)
+      Jobs.enqueue(:edgeryders_api_account_created_email, {
+        to_address: args[:email],
+        username: args[:username]
+      })
     end
 
     def self.protocol
