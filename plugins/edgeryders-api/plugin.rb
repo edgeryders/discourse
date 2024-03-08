@@ -39,11 +39,15 @@ after_initialize do
         username: args[:username],
         password: args[:password]
       }
-      client.create_user(attributes)
-      Jobs.enqueue(:edgeryders_api_account_created_email, {
-        to_address: args[:email],
-        username: args[:username]
-      })
+      response = client.create_user(attributes)
+      if response['success']
+        Jobs.enqueue(:edgeryders_api_account_created_email, {
+          to_address: args[:email],
+          username: args[:username]
+        })
+      end
+
+      response
     end
 
     def self.protocol
