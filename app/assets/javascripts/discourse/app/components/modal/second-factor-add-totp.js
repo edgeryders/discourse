@@ -1,7 +1,8 @@
 import Component from "@glimmer/component";
-import { action } from "@ember/object";
 import { tracked } from "@glimmer/tracking";
-import I18n from "I18n";
+import { action } from "@ember/object";
+import { MAX_SECOND_FACTOR_NAME_LENGTH } from "discourse/models/user";
+import I18n from "discourse-i18n";
 
 export default class SecondFactorAddTotp extends Component {
   @tracked loading = false;
@@ -10,6 +11,8 @@ export default class SecondFactorAddTotp extends Component {
   @tracked showSecondFactorKey = false;
   @tracked errorMessage;
   @tracked secondFactorToken;
+
+  maxSecondFactorNameLength = MAX_SECOND_FACTOR_NAME_LENGTH;
 
   @action
   totpRequested() {
@@ -58,6 +61,9 @@ export default class SecondFactorAddTotp extends Component {
         this.args.model.markDirty();
         this.errorMessage = null;
         this.args.closeModal();
+        if (this.args.model.enforcedSecondFactor) {
+          window.location.reload();
+        }
       })
       .catch((error) => this.args.model.onError(error))
       .finally(() => (this.loading = false));

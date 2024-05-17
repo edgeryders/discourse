@@ -57,7 +57,7 @@ class BookmarkQuery
 
           # this is purely to make the query easy to read and debug, otherwise it's
           # all mashed up into a massive ball in MiniProfiler :)
-          "---- #{bookmarkable.model.to_s} bookmarkable ---\n\n #{interim_results.to_sql}"
+          "---- #{bookmarkable.model} bookmarkable ---\n\n #{interim_results.to_sql}"
         end
         .compact
 
@@ -87,5 +87,29 @@ class BookmarkQuery
 
     BookmarkQuery.preload(results, self)
     results
+  end
+
+  def unread_notifications(limit: 20)
+    reminder_notifications =
+      Notification
+        .for_user_menu(@user.id, limit: [limit, 100].min)
+        .unread
+        .where(notification_type: Notification.types[:bookmark_reminder])
+
+    # We preload associations like we do above for the list to avoid
+    # N1s in the can_see? guardian calls for each bookmark.
+    bookmarks =
+      Bookmark.where(
+        id: reminder_notifications.map { |n| n.data_hash[:bookmark_id] }.compact,
+        user: @user,
+      )
+    BookmarkQuery.preload(bookmarks, self)
+
+    reminder_notifications.select do |n|
+      bookmark = bookmarks.find { |bm| bm.id == n.data_hash[:bookmark_id] }
+      next if bookmark.blank?
+      bookmarkable = Bookmark.registered_bookmarkable_from_type(bookmark.bookmarkable_type)
+      bookmarkable.can_see?(@guardian, bookmark)
+    end
   end
 end

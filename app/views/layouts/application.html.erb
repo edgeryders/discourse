@@ -32,14 +32,15 @@
     <%- end %>  
     <%= preload_script 'browser-detect' %>
 
-    <%= preload_script "locales/#{I18n.locale}" %>
-    <%- if ExtraLocalesController.client_overrides_exist? %>
-      <%= preload_script_url ExtraLocalesController.url('overrides') %>
-    <%- end %>
     <%= preload_script "vendor" %>
     <%= preload_script "discourse" %>
     <%- Discourse.find_plugin_js_assets(include_official: allow_plugins?, include_unofficial: allow_third_party_plugins?, request: request).each do |file| %>
       <%= preload_script file %>
+    <%- end %>
+
+    <%= preload_script "locales/#{I18n.locale}" %>
+    <%- if ExtraLocalesController.client_overrides_exist? %>
+      <%= preload_script_url ExtraLocalesController.url('overrides') %>
     <%- end %>
 
     <%- if staff? %>
@@ -49,7 +50,6 @@
 
     <%- if admin? %>
       <%= preload_script_url ExtraLocalesController.url("wizard") %>
-      <%= preload_script "wizard" %>
     <%- end %>
 
     <%- unless customization_disabled? %>
@@ -99,15 +99,17 @@
 
     <%= render_google_tag_manager_body_code %>
     <noscript data-path="<%= request.env['PATH_INFO'] %>">
-      <%= render partial: "layouts/noscript_header" %>
+      <%= escape_noscript do %>
+        <%= render partial: "layouts/noscript_header" %>
 
-      <div id="main-outlet" class="wrap" role="main">
-        <!-- preload-content: -->
-        <%= yield %>
-        <!-- :preload-content -->
-      </div>
+        <div id="main-outlet" class="wrap" role="main">
+          <!-- preload-content: -->
+          <%= yield %>
+          <!-- :preload-content -->
+        </div>
 
-      <%= render partial: "layouts/noscript_footer" %>
+        <%= render partial: "layouts/noscript_footer" %>
+      <% end %>
     </noscript>
 
     <%- unless customization_disabled? %>
@@ -143,5 +145,7 @@
     <%- if allow_plugins? %>
       <%= build_plugin_html 'server:before-body-close' %>
     <%- end %>
+
+    <%= DeferScriptHelper.safari_workaround_script %>
   </body>
 </html>

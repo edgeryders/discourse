@@ -1,7 +1,8 @@
 # frozen_string_literal: true
 
 RSpec.describe StaffActionLogger do
-  fab!(:admin) { Fabricate(:admin) }
+  let(:long_string) { "Na " * 100_000 + "Batman!" }
+  fab!(:admin)
   let(:logger) { described_class.new(admin) }
 
   describe "new" do
@@ -69,10 +70,17 @@ RSpec.describe StaffActionLogger do
         log_post_deletion
       }.to change { UserHistory.count }.by(1)
     end
+
+    it "truncates overly long values" do
+      deleted_post.update!(raw: long_string, skip_validation: true)
+      expect { log_post_deletion }.to change { UserHistory.count }.by(1)
+      log = UserHistory.last
+      expect(log.details.size).to be_between(50_000, 110_000)
+    end
   end
 
   describe "log_topic_delete_recover" do
-    fab!(:topic) { Fabricate(:topic) }
+    fab!(:topic)
 
     context "when deleting topic" do
       subject(:log_topic_delete_recover) do
@@ -89,6 +97,13 @@ RSpec.describe StaffActionLogger do
 
       it "creates a new UserHistory record" do
         expect { log_topic_delete_recover }.to change { UserHistory.count }.by(1)
+      end
+
+      it "truncates overly long values" do
+        Fabricate(:post, topic: topic, skip_validation: true, raw: long_string)
+        expect { log_topic_delete_recover }.to change { UserHistory.count }.by(1)
+        log = UserHistory.last
+        expect(log.details.size).to be_between(50_000, 110_000)
       end
     end
 
@@ -112,6 +127,13 @@ RSpec.describe StaffActionLogger do
       it "creates a new UserHistory record" do
         expect { log_topic_delete_recover }.to change { UserHistory.count }.by(1)
       end
+
+      it "truncates overly long values" do
+        Fabricate(:post, topic: topic, skip_validation: true, raw: long_string)
+        expect { log_topic_delete_recover }.to change { UserHistory.count }.by(1)
+        log = UserHistory.last
+        expect(log.details.size).to be_between(50_000, 110_000)
+      end
     end
   end
 
@@ -120,7 +142,7 @@ RSpec.describe StaffActionLogger do
       described_class.new(admin).log_trust_level_change(user, old_trust_level, new_trust_level)
     end
 
-    fab!(:user) { Fabricate(:user) }
+    fab!(:user)
 
     let(:old_trust_level) { TrustLevel[0] }
     let(:new_trust_level) { TrustLevel[1] }
@@ -187,12 +209,10 @@ RSpec.describe StaffActionLogger do
   end
 
   describe "log_theme_change" do
+    fab!(:theme)
+
     it "raises an error when params are invalid" do
       expect { logger.log_theme_change(nil, nil) }.to raise_error(Discourse::InvalidParameters)
-    end
-
-    let! :theme do
-      Fabricate(:theme)
     end
 
     it "logs new site customizations" do
@@ -226,15 +246,28 @@ RSpec.describe StaffActionLogger do
         ],
       )
     end
+
+    it "doesn't log values when the json is too large" do
+      old_json = ThemeSerializer.new(theme, root: false).to_json
+
+      theme.set_field(target: :common, name: :scss, value: long_string)
+
+      log_record = logger.log_theme_change(old_json, theme)
+
+      expect(log_record.previous_value).not_to be_present
+      expect(log_record.new_value).not_to be_present
+      expect(log_record.context).to be_present
+    end
   end
 
   describe "log_theme_destroy" do
+    fab!(:theme)
+
     it "raises an error when params are invalid" do
       expect { logger.log_theme_destroy(nil) }.to raise_error(Discourse::InvalidParameters)
     end
 
     it "creates a new UserHistory record" do
-      theme = Fabricate(:theme)
       theme.set_field(target: :common, name: :scss, value: "body{margin: 10px;}")
 
       log_record = logger.log_theme_destroy(theme)
@@ -252,6 +285,15 @@ RSpec.describe StaffActionLogger do
           },
         ],
       )
+    end
+
+    it "doesn't log values when the json is too large" do
+      theme.set_field(target: :common, name: :scss, value: long_string)
+      log_record = logger.log_theme_destroy(theme)
+
+      expect(log_record.previous_value).not_to be_present
+      expect(log_record.new_value).not_to be_present
+      expect(log_record.context).to be_present
     end
   end
 
@@ -355,8 +397,8 @@ RSpec.describe StaffActionLogger do
   end
 
   describe "log_badge_revoke" do
-    fab!(:user) { Fabricate(:user) }
-    fab!(:badge) { Fabricate(:badge) }
+    fab!(:user)
+    fab!(:badge)
     let(:user_badge) { BadgeGranter.grant(badge, user) }
 
     it "raises an error when argument is missing" do
@@ -397,6 +439,12 @@ RSpec.describe StaffActionLogger do
       expect(logged.action).to eq(UserHistory.actions[:custom_staff])
       expect(logged.custom_type).to eq("clicked_something")
       expect(logged.topic_id).to be === 1234
+    end
+
+    it "truncates overly long values" do
+      logged = logger.log_custom(:shower_thought, lyrics: long_string)
+      expect(logged).to be_valid
+      expect(logged.details.size).to be_between(50_000, 110_000)
     end
   end
 
@@ -510,7 +558,7 @@ RSpec.describe StaffActionLogger do
   end
 
   describe "log_category_creation" do
-    fab!(:category) { Fabricate(:category) }
+    fab!(:category)
 
     it "raises an error when category is missing" do
       expect { logger.log_category_deletion(nil) }.to raise_error(Discourse::InvalidParameters)
@@ -529,7 +577,7 @@ RSpec.describe StaffActionLogger do
   end
 
   describe "log_lock_trust_level" do
-    fab!(:user) { Fabricate(:user) }
+    fab!(:user)
 
     it "raises an error when argument is missing" do
       expect { logger.log_lock_trust_level(nil) }.to raise_error(Discourse::InvalidParameters)
@@ -549,7 +597,7 @@ RSpec.describe StaffActionLogger do
   end
 
   describe "log_user_activate" do
-    fab!(:user) { Fabricate(:user) }
+    fab!(:user)
 
     it "raises an error when argument is missing" do
       expect { logger.log_user_activate(nil, nil) }.to raise_error(Discourse::InvalidParameters)
@@ -654,10 +702,19 @@ RSpec.describe StaffActionLogger do
       expect(user_history.action).to eq(UserHistory.actions[:post_rejected])
       expect(user_history.details).to include(reviewable.payload["raw"])
     end
+
+    it "truncates overly long values" do
+      reviewable.payload["raw"] = long_string
+      reviewable.save!
+
+      expect { log_post_rejected }.to change { UserHistory.count }.by(1)
+      log = UserHistory.last
+      expect(log.details.size).to be_between(50_000, 110_000)
+    end
   end
 
   describe "log_topic_closed" do
-    fab!(:topic) { Fabricate(:topic) }
+    fab!(:topic)
 
     it "raises an error when argument is missing" do
       expect { logger.log_topic_closed(nil) }.to raise_error(Discourse::InvalidParameters)
@@ -674,7 +731,7 @@ RSpec.describe StaffActionLogger do
   end
 
   describe "log_topic_archived" do
-    fab!(:topic) { Fabricate(:topic) }
+    fab!(:topic)
 
     it "raises an error when argument is missing" do
       expect { logger.log_topic_archived(nil) }.to raise_error(Discourse::InvalidParameters)
@@ -691,33 +748,7 @@ RSpec.describe StaffActionLogger do
   end
 
   describe "log_post_staff_note" do
-    fab!(:post) { Fabricate(:post) }
-
-    it "raises an error when argument is missing" do
-      expect { logger.log_topic_archived(nil) }.to raise_error(Discourse::InvalidParameters)
-    end
-
-    it "creates a new UserHistory record" do
-      expect {
-        logger.log_post_staff_note(post, { new_value: "my note", old_value: nil })
-      }.to change { UserHistory.count }.by(1)
-      user_history = UserHistory.last
-      expect(user_history.action).to eq(UserHistory.actions[:post_staff_note_create])
-      expect(user_history.new_value).to eq("my note")
-      expect(user_history.previous_value).to eq(nil)
-
-      expect {
-        logger.log_post_staff_note(post, { new_value: "", old_value: "my note" })
-      }.to change { UserHistory.count }.by(1)
-      user_history = UserHistory.last
-      expect(user_history.action).to eq(UserHistory.actions[:post_staff_note_destroy])
-      expect(user_history.new_value).to eq(nil)
-      expect(user_history.previous_value).to eq("my note")
-    end
-  end
-
-  describe "log_post_staff_note" do
-    fab!(:post) { Fabricate(:post) }
+    fab!(:post)
 
     it "raises an error when argument is missing" do
       expect { logger.log_topic_archived(nil) }.to raise_error(Discourse::InvalidParameters)

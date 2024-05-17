@@ -16,6 +16,9 @@ RSpec.describe SeedData::Topics do
 
   describe "#create" do
     it "creates a missing topic" do
+      staff_category = Fabricate(:category, name: "Feedback")
+      SiteSetting.meta_category_id = staff_category.id
+
       expect { create_topic }.to change { Topic.count }.by(1).and change { Post.count }.by(1)
 
       topic = Topic.last
@@ -29,6 +32,7 @@ RSpec.describe SeedData::Topics do
           site_title: SiteSetting.title,
           site_description: SiteSetting.site_description,
           site_info_quote: "",
+          feedback_category: "#feedback",
         ).rstrip,
       )
       expect(topic.category_id).to eq(SiteSetting.general_category_id)
@@ -106,6 +110,18 @@ RSpec.describe SeedData::Topics do
 
       expect(SiteSetting.tos_topic_id).to_not eq(-1)
     end
+
+    it "creates FAQ topic" do
+      meta_category = Fabricate(:category, name: "Meta")
+      staff_category = Fabricate(:category, name: "Feedback")
+      SiteSetting.meta_category_id = meta_category.id
+      SiteSetting.staff_category_id = staff_category.id
+      create_topic("guidelines_topic_id")
+      topic = Topic.find(SiteSetting.guidelines_topic_id)
+      post = Post.find_by(topic_id: SiteSetting.guidelines_topic_id, post_number: 1)
+      expect(topic.title).to_not include("Translation missing")
+      expect(post.raw).to_not include("Translation missing")
+    end
   end
 
   describe "#update" do
@@ -133,6 +149,7 @@ RSpec.describe SeedData::Topics do
           site_title: SiteSetting.title,
           site_description: SiteSetting.site_description,
           site_info_quote: "",
+          feedback_category: "#site-feedback",
         ).rstrip,
       )
     end
