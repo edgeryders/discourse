@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 # name: discourse-events
 # about: Allows you to manage events in Discourse
-# version: 0.2.5
+# version: 0.3.1
 # authors: Angus McLeod
 # contact_emails: development@pavilion.tech
 # url: https://github.com/paviliondev/discourse-events
@@ -12,6 +12,7 @@ register_asset 'stylesheets/common/events.scss'
 register_asset 'stylesheets/common/admin.scss'
 register_asset 'stylesheets/desktop/events.scss', :desktop
 register_asset 'stylesheets/mobile/events.scss', :mobile
+register_asset 'lib/jquery-3.7.1.min.js'
 register_asset 'lib/jquery.timepicker.min.js'
 register_asset 'lib/jquery.timepicker.scss'
 
@@ -20,9 +21,9 @@ gem "iso-639", "0.3.5"
 gem "ice_cube", "0.16.4"
 gem "icalendar", "2.8.0"
 gem "icalendar-recurrence", "1.1.3"
-gem "date", "3.3.3"
+gem "date", "3.3.4"
 gem "time", "0.2.0"
-gem "stringio", "3.0.2"
+gem "stringio", "3.1.0" # 2024-05-20 by @damingo: Changed from `3.0.2` to fix "stringio.c:343:24: error: variable has incomplete type 'struct rb_io_enc_t' struct rb_io_enc_t convconfig;"
 gem "omnievent", "0.1.0.pre3", require_name: "omnievent"
 gem "omnievent-icalendar", "0.1.0.pre5", require_name: "omnievent/icalendar"
 gem "omnievent-api", "0.1.0.pre2", require_name: "omnievent/api"
@@ -115,6 +116,7 @@ after_initialize do
     "events_min_trust_to_create",
     "events_required"
   ].each do |key|
+    CategoryList.preloaded_category_custom_fields << key if CategoryList.respond_to? :preloaded_category_custom_fields
     Site.preloaded_category_custom_fields << key if Site.respond_to? :preloaded_category_custom_fields
     add_to_class(:category, key.to_sym) { self.custom_fields[key] }
     add_to_serializer(:basic_category, key.to_sym) { object.send(key) }
@@ -198,28 +200,28 @@ after_initialize do
     event
   end
 
-  add_to_serializer(:topic_view, :event, false) do
+  add_to_serializer(
+    :topic_view,
+    :event,
+    include_condition: -> { object.topic.has_event? }
+  ) do
     object.topic.event
   end
 
-  add_to_serializer(:topic_view, :include_event?, false) do
-    object.topic.has_event?
-  end
-
-  add_to_serializer(:topic_list_item, :event, false) do
+  add_to_serializer(
+    :topic_list_item,
+    :event,
+    include_condition: -> { object.has_event? }
+  ) do
     object.event
   end
 
-  add_to_serializer(:topic_list_item, :include_event?, false) do
-    object.has_event?
-  end
-
-  add_to_serializer(:topic_list_item, :event_going_total) do
+  add_to_serializer(
+    :topic_list_item,
+    :event_going_total,
+    include_condition: -> { object.has_event? }
+  ) do
     object.event_going ? object.event_going.length : 0
-  end
-
-  add_to_serializer(:topic_list_item, :include_event_going_total?) do
-    include_event?
   end
 
   register_user_custom_field_type('calendar_first_day_week', :integer)
@@ -390,11 +392,12 @@ after_initialize do
   end
 
   # The discourse-calendar plugin uses "event" on the post model
-  add_to_serializer(:post, :connected_event) do
+  add_to_serializer(
+    :post,
+    :connected_event,
+    include_condition: -> { SiteSetting.events_enabled && object.event_connection.present? }
+  ) do
     DiscourseEvents::PostEventSerializer.new(object.event_connection.event, scope: scope, root: false).as_json
-  end
-  add_to_serializer(:post, :include_connected_event?) do
-    SiteSetting.events_enabled && object.event_connection.present?
   end
 
   add_to_class(:guardian, :can_manage_events?) do
