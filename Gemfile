@@ -55,7 +55,8 @@ gem "message_bus"
 
 gem "rails_multisite"
 
-gem "fast_xs", platform: :ruby
+# https://github.com/discourse/discourse/pull/26442
+# gem "fast_xs", platform: :ruby
 
 gem "fastimage"
 
@@ -199,7 +200,8 @@ gem "puma", require: false
 
 gem "rbtrace", require: false, platform: :mri
 
-gem "gc_tracer", require: false, platform: :mri
+# https://github.com/discourse/discourse/pull/26441
+# gem "gc_tracer", require: false, platform: :mri
 
 # required for feed importing and embedding
 gem "ruby-readability", require: false
@@ -299,7 +301,7 @@ end
 # --- discourse-annotator ---
 # damingo (Github ID), 2019-09, #annotator
 gem 'discourse-annotator', git: 'https://github.com/edgeryders/discourse-annotator', branch: 'master'
-# gem 'discourse-annotator', path: '~/Projects/discourse-annotator'
+# gem 'discourse-annotator', path: '~/Projects/Edgeryders/discourse-annotator'
 # Must be included here as dependencies that are still in development cannot be added in the gems gemspec.
 gem 'administrate', git: 'https://github.com/edgeryders/administrate'
 gem "administrate-field-nested_has_many", git: 'https://github.com/edgeryders/administrate-field-nested_has_many', branch: 'master'

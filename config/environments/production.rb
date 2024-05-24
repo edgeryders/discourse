@@ -1,6 +1,3 @@
-# damingo (Github ID), 2018-11-30, See: https://github.com/lautis/uglifier/issues/127
-require 'uglifier'
-
 # frozen_string_literal: true
 
 Discourse::Application.configure do
@@ -17,8 +14,7 @@ Discourse::Application.configure do
   # Disable Rails's static asset server (Apache or nginx will already do this)
   config.public_file_server.enabled = GlobalSetting.serve_static_assets || false
 
-  # damingo (Github ID), 2019-02-27, See: https://github.com/lautis/uglifier/issues/127
-  config.assets.js_compressor = Uglifier.new(harmony: true)
+  config.assets.js_compressor = :uglifier
 
   # stuff should be pre-compiled
   config.assets.compile = false
