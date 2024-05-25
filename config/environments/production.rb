@@ -18,7 +18,7 @@ Discourse::Application.configure do
 
   # damingo (Github ID), 2019-02-27, See: https://github.com/lautis/uglifier/issues/127
   config.assets.js_compressor = Uglifier.new(harmony: true)
-  
+
   # stuff should be pre-compiled
   config.assets.compile = false
 
