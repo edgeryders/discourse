@@ -272,31 +272,12 @@ gem "cgi", ">= 0.3.6", require: false
 
 gem "tzinfo-data"
 
-
-
 # damingo (Github ID), 2017-08-22, #password_migration
 gem 'bcrypt', '3.1.3'
 gem 'unix-crypt', '1.3.0' #, :require_name => 'unix_crypt'
 
-
-# damingo (Github ID), 2018-11-27
-group :development do
-  # https://github.com/capistrano/capistrano
-  gem "capistrano", "~> 3.14", require: false
-  # https://github.com/capistrano/rails
-  gem "capistrano-rails", "~> 1.5", require: false
-  # https://github.com/capistrano/chruby
-  gem 'capistrano-chruby' #, require: false
-  # https://github.com/seuros/capistrano-puma
-  gem 'capistrano3-puma', git: 'https://github.com/edgeryders/capistrano-puma.git'
-  # https://github.com/seuros/capistrano-sidekiq
-  gem 'capistrano-sidekiq', '2.0.0.beta4' #, require: false
-  # https://github.com/capistrano/bundler
-  gem 'capistrano-bundler', '~> 1.6'
-  # https://github.com/fphilipe/i18n-debug
-  gem 'i18n-debug'
-end
-
+# damingo (Github ID), 2024-05-25, required in production to precompile assets.
+gem "uglifier"
 
 # --- discourse-annotator ---
 # damingo (Github ID), 2019-09, #annotator
@@ -306,7 +287,6 @@ gem 'discourse-annotator', git: 'https://github.com/edgeryders/discourse-annotat
 gem 'administrate', git: 'https://github.com/edgeryders/administrate'
 gem "administrate-field-nested_has_many", git: 'https://github.com/edgeryders/administrate-field-nested_has_many', branch: 'master'
 gem "administrate-field-belongs_to_search", git: 'https://github.com/edgeryders/administrate-field-belongs_to_search', branch: 'master'
-
 
 # --- edgeryders-api ---
 # Required by the edgeryders-api plugin.
