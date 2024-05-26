@@ -448,6 +448,10 @@ function handleAnswers(quiz, question, no, correct) {
 }
 
 
+import User from 'discourse/models/user';
+
+
+
 export default {
   actions: {
     submit() {
@@ -455,7 +459,7 @@ export default {
       if (correct) {
         const component = this
         $.ajax({
-          url: '/u/' + Discourse.User.currentProp('username') + '.json',
+          url: '/u/' + User.currentProp('username') + '.json',
           type: 'PUT',
           data: "custom_fields[edgeryders_consent]=1",
           success: function (data) {
@@ -469,7 +473,7 @@ export default {
   },
   setupComponent(attrs, component) {
     $.ajax({
-      url: '/users/' + Discourse.User.currentProp('username'),
+      url: '/users/' + User.currentProp('username'),
       dataType: 'json',
       success: function (data) {
         // alert(JSON.stringify(data['user']['consent_given']));
