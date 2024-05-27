@@ -1,4 +1,4 @@
-# name: EdgerydersSignupNotification
+# name: edgeryders-signup-notification
 # about:
 # version: 0.1
 # authors: damingo

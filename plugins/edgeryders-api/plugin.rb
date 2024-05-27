@@ -1,4 +1,4 @@
-# name: EdgerydersApi
+# name: edgeryders-api
 # about:
 # version: 0.1
 # authors: damingo
