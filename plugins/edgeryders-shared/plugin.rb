@@ -1,4 +1,4 @@
-# name: EdgerydersShared
+# name: edgeryders-shared
 # about:
 # version: 0.1
 # authors: damingo
@@ -36,9 +36,9 @@ after_initialize do
     end
   end
 
-  
 
-  
+
+
   require_dependency "application_controller"
   class EdgerydersShared::ActionsController < ::ApplicationController
     requires_plugin PLUGIN_NAME
@@ -57,5 +57,5 @@ after_initialize do
   Discourse::Application.routes.append do
     mount ::EdgerydersShared::Engine, at: "/edgeryders-shared"
   end
-  
+
 end
