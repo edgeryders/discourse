@@ -1,6 +1,6 @@
 # name: edgeryders-consent
 # about: Edgeryders consent funnel
-# authors: damingo
+# authors: Edgeryders
 # version: 0.0.1
 
 enabled_site_setting :edgeryders_consent_enabled

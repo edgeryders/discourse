@@ -1,8 +1,8 @@
 # name: edgeryders-signup-notification
 # about:
 # version: 0.1
-# authors: damingo
-# url: https://github.com/damingo
+# authors: Edgeryders
+# url: https://github.com/edgeryders
 
 
 register_asset "stylesheets/common/edgeryders-signup-notification.scss"
