@@ -282,10 +282,13 @@ gem "uglifier"
 # damingo (Github ID), 2019-09, #annotator
 gem 'discourse-annotator', git: 'https://github.com/edgeryders/discourse-annotator', branch: 'master'
 # gem 'discourse-annotator', path: '~/Projects/Edgeryders/discourse-annotator'
+# gem 'discourse-annotator', source: 'https://gem.fury.io/webmaster/'
+
 # Must be included here as dependencies that are still in development cannot be added in the gems gemspec.
 gem 'administrate', git: 'https://github.com/edgeryders/administrate'
 gem "administrate-field-nested_has_many", git: 'https://github.com/edgeryders/administrate-field-nested_has_many', branch: 'master'
 gem "administrate-field-belongs_to_search", git: 'https://github.com/edgeryders/administrate-field-belongs_to_search', branch: 'master'
+
 
 # --- edgeryders-api ---
 # Required by the edgeryders-api plugin.

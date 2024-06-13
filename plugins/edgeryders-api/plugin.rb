@@ -1,8 +1,8 @@
 # name: edgeryders-api
 # about:
 # version: 0.1
-# authors: damingo
-# url: https://github.com/damingo
+# authors: Edgeryders
+# url: https://github.com/edgeryders
 
 require 'discourse_api'
 require 'securerandom'
