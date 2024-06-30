@@ -457,11 +457,17 @@ export default {
     submit() {
       const correct = submitQuiz();
       if (correct) {
-        const component = this
+        const component = this;
+
+        const csrfToken = $('meta[name="csrf-token"]').attr('content');
+
         $.ajax({
           url: '/u/' + User.currentProp('username') + '.json',
           type: 'PUT',
           data: "custom_fields[edgeryders_consent]=1",
+          headers: {
+            'X-CSRF-Token': csrfToken
+          },
           success: function (data) {
             jQuery('#check-button').prop('disabled', true);
             component.set("showQuiz", false);
