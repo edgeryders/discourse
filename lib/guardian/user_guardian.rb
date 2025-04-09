@@ -122,6 +122,10 @@ module UserGuardian
     true
   end
 
+  def public_can_see_profiles?
+    !SiteSetting.hide_user_profiles_from_public || !anonymous?
+  end
+
   def can_see_profile?(user)
     return false if user.blank?
     return true if !SiteSetting.allow_users_to_hide_profile?
@@ -184,10 +188,8 @@ module UserGuardian
   end
 
   def can_upload_user_card_background?(user)
-    (
-      is_me?(user) &&
-        user.has_trust_level?(SiteSetting.min_trust_level_to_allow_user_card_background.to_i)
-    ) || is_staff?
+    (is_me?(user) && user.in_any_groups?(SiteSetting.user_card_background_allowed_groups_map)) ||
+      is_staff?
   end
 
   def can_upload_external?

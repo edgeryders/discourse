@@ -40,7 +40,6 @@ test:
   database: <%= test_db %>
   min_messages: warning
   pool: 5
-  timeout: 5000
   host_names:
     - test.localhost
 
@@ -51,7 +50,6 @@ profile:
   database: discourse_profile
   min_messages: warning
   pool: 5
-  timeout: 5000
   host_names:
     - "localhost"
 # You may be surprised production is not here, it is sourced from application.rb using a monkey patch

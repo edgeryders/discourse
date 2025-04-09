@@ -49,7 +49,7 @@ RSpec.shared_examples "finding and showing post" do
     end
 
     context "with category group moderator" do
-      fab!(:group_user) { Fabricate(:group_user) }
+      fab!(:group_user)
       let(:user_gm) { group_user.user }
       let(:group) { group_user.group }
 
@@ -80,13 +80,13 @@ RSpec.shared_examples "action requires login" do |method, url, params = {}|
 end
 
 RSpec.describe PostsController do
-  fab!(:admin) { Fabricate(:admin) }
-  fab!(:moderator) { Fabricate(:moderator) }
-  fab!(:user) { Fabricate(:user) }
+  fab!(:admin)
+  fab!(:moderator) { Fabricate(:moderator, refresh_auto_groups: true) }
+  fab!(:user) { Fabricate(:user, refresh_auto_groups: true) }
   fab!(:user_trust_level_0) { Fabricate(:trust_level_0) }
   fab!(:user_trust_level_1) { Fabricate(:trust_level_1) }
-  fab!(:category) { Fabricate(:category) }
-  fab!(:topic) { Fabricate(:topic) }
+  fab!(:category)
+  fab!(:topic)
   fab!(:post_by_user) { Fabricate(:post, user: user) }
   let(:public_post) { Fabricate(:post, user: user, topic: topic) }
   let(:topicless_post) { Fabricate(:post, user: user, raw: "<p>Car 54, where are you?</p>") }
@@ -575,7 +575,7 @@ RSpec.describe PostsController do
     describe "when logged in as group moderator" do
       fab!(:topic) { Fabricate(:topic, category: category) }
       fab!(:post) { Fabricate(:post, user: user, topic: topic) }
-      fab!(:group_user) { Fabricate(:group_user) }
+      fab!(:group_user)
       let(:user_gm) { group_user.user }
       let(:group) { group_user.group }
 
@@ -628,7 +628,7 @@ RSpec.describe PostsController do
       sign_in(post.user)
 
       category = Fabricate(:category)
-      category.custom_fields[Category::REQUIRE_TOPIC_APPROVAL] = true
+      category.require_topic_approval = true
       category.save!
 
       put "/posts/#{post.id}.json",
@@ -672,7 +672,7 @@ RSpec.describe PostsController do
   end
 
   describe "#destroy_bookmark" do
-    fab!(:post) { Fabricate(:post) }
+    fab!(:post)
     fab!(:bookmark) { Fabricate(:bookmark, user: user, bookmarkable: post) }
 
     before { sign_in(user) }
@@ -866,7 +866,7 @@ RSpec.describe PostsController do
       end
 
       it "returns a valid JSON response when the post is enqueued" do
-        SiteSetting.approve_unless_trust_level = 4
+        SiteSetting.approve_unless_allowed_groups = Group::AUTO_GROUPS[:trust_level_4]
 
         master_key = Fabricate(:api_key).key
 
@@ -1077,7 +1077,7 @@ RSpec.describe PostsController do
     end
 
     describe "when logged in" do
-      fab!(:user) { Fabricate(:user) }
+      fab!(:user) { Fabricate(:user, refresh_auto_groups: true) }
 
       before { sign_in(user) }
 
@@ -1231,7 +1231,6 @@ RSpec.describe PostsController do
       end
 
       it "can send a message to a group" do
-        Group.refresh_automatic_groups!
         group = Group.create(name: "test_group", messageable_level: Group::ALIAS_LEVELS[:nobody])
         user1 = user
         group.add(user1)
@@ -1267,7 +1266,6 @@ RSpec.describe PostsController do
       end
 
       it "can send a message to a group with caps" do
-        Group.refresh_automatic_groups!
         group = Group.create(name: "Test_group", messageable_level: Group::ALIAS_LEVELS[:nobody])
         user1 = user
         group.add(user1)
@@ -1333,9 +1331,6 @@ RSpec.describe PostsController do
                raw: "this is the test content",
                title: "this is the test title for the topic",
                category: category.id,
-               meta_data: {
-                 xyz: "abc",
-               },
              }
 
         expect(response.status).to eq(403)
@@ -1377,7 +1372,7 @@ RSpec.describe PostsController do
 
       it "cannot create a post with a tag without tagging permission" do
         SiteSetting.tagging_enabled = true
-        SiteSetting.min_trust_level_to_tag_topics = 4
+        SiteSetting.tag_topic_allowed_groups = Group::AUTO_GROUPS[:trust_level_4]
         tag = Fabricate(:tag)
 
         post "/posts.json",
@@ -1407,15 +1402,12 @@ RSpec.describe PostsController do
         expect(Post.last.topic.tags.count).to eq(1)
       end
 
-      it "creates the post" do
+      it "creates the topic and post with the right attributes" do
         post "/posts.json",
              params: {
                raw: "this is the test content",
                title: "this is the test title for the topic",
                category: category.id,
-               meta_data: {
-                 xyz: "abc",
-               },
              }
 
         expect(response.status).to eq(200)
@@ -1427,8 +1419,105 @@ RSpec.describe PostsController do
         expect(new_post.raw).to eq("this is the test content")
         expect(topic.title).to eq("This is the test title for the topic")
         expect(topic.category).to eq(category)
-        expect(topic.meta_data).to eq("xyz" => "abc")
         expect(topic.visible).to eq(true)
+      end
+
+      context "when adding custom fields to topic via the `topic_custom_fields` param" do
+        it "should return a 400 response code when no custom fields has been permitted" do
+          sign_in(user)
+
+          post "/posts.json",
+               params: {
+                 raw: "this is the test content",
+                 title: "this is the test title for the topic",
+                 category: category.id,
+                 topic_custom_fields: {
+                   xyz: "abc",
+                   abc: "xyz",
+                 },
+               }
+
+          expect(response.status).to eq(400)
+          expect(Topic.last.custom_fields).to eq({})
+        end
+
+        context "when custom fields has been permitted" do
+          fab!(:plugin) do
+            plugin = Plugin::Instance.new
+            plugin.register_editable_topic_custom_field(:xyz)
+            plugin.register_editable_topic_custom_field(:abc, staff_only: true)
+            plugin
+          end
+
+          it "should return a 400 response when trying to add a staff ony custom field for a non-staff user" do
+            sign_in(user)
+
+            post "/posts.json",
+                 params: {
+                   raw: "this is the test content",
+                   title: "this is the test title for the topic",
+                   category: category.id,
+                   topic_custom_fields: {
+                     abc: "xyz",
+                   },
+                 }
+
+            expect(response.status).to eq(400)
+            expect(Topic.last.custom_fields).to eq({})
+          end
+
+          it "should add custom fields to topic that is permitted for a non-staff user" do
+            sign_in(user)
+
+            post "/posts.json",
+                 params: {
+                   raw: "this is the test content",
+                   title: "this is the test title for the topic",
+                   category: category.id,
+                   topic_custom_fields: {
+                     xyz: "abc",
+                   },
+                 }
+
+            expect(response.status).to eq(200)
+            expect(Topic.last.custom_fields).to eq({ "xyz" => "abc" })
+          end
+
+          it "should add custom fields to topic that is permitted for a non-staff user via the deprecated `meta_data` param" do
+            sign_in(user)
+
+            post "/posts.json",
+                 params: {
+                   raw: "this is the test content",
+                   title: "this is the test title for the topic",
+                   category: category.id,
+                   meta_data: {
+                     xyz: "abc",
+                   },
+                 }
+
+            expect(response.status).to eq(200)
+            expect(Topic.last.custom_fields).to eq({ "xyz" => "abc" })
+          end
+
+          it "should add custom fields to topic that is permitted for a staff user and public user" do
+            sign_in(Fabricate(:admin))
+
+            post "/posts.json",
+                 params: {
+                   raw: "this is the test content",
+                   title: "this is the test title for the topic",
+                   category: category.id,
+                   topic_custom_fields: {
+                     xyz: "abc",
+                     abc: "xyz",
+                   },
+                 }
+
+            expect(response.status).to eq(200)
+            expect(Topic.last.custom_fields).to eq({ "xyz" => "abc", "abc" => "xyz" })
+          end
+        end
       end
 
       it "can create an uncategorized topic" do
@@ -1489,7 +1578,6 @@ RSpec.describe PostsController do
         user_4 = Fabricate(:user, username: "Iyi_Iyi")
         user_4.update_attribute(:username, "İyi_İyi")
         user_4.update_attribute(:username_lower, "İyi_İyi".downcase)
-        Group.refresh_automatic_groups!
 
         post "/posts.json",
              params: {
@@ -1527,7 +1615,7 @@ RSpec.describe PostsController do
       end
 
       context "when topic_id is set" do
-        fab!(:topic) { Fabricate(:topic) }
+        fab!(:topic)
 
         it "errors when creating a private post" do
           user_2 = Fabricate(:user)
@@ -1555,16 +1643,13 @@ RSpec.describe PostsController do
 
         it "it triggers flag_linked_posts_as_spam when the post creator returns spam" do
           SiteSetting.newuser_spam_host_threshold = 1
-          sign_in(Fabricate(:user, trust_level: 0))
+          sign_in(Fabricate(:user, trust_level: TrustLevel[0]))
 
           post "/posts.json",
                params: {
                  raw:
                    "this is the test content http://fakespamwebsite.com http://fakespamwebsite.com/spam http://fakespamwebsite.com/spammy",
                  title: "this is the test title for the topic",
-                 meta_data: {
-                   xyz: "abc",
-                 },
                }
 
           expect(response.parsed_body["errors"]).to include(I18n.t(:spamming_host))
@@ -1749,9 +1834,7 @@ RSpec.describe PostsController do
     end
 
     describe "warnings" do
-      fab!(:user_2) { Fabricate(:user) }
-
-      before { Group.refresh_automatic_groups! }
+      fab!(:user_2) { Fabricate(:user, refresh_auto_groups: true) }
 
       context "as a staff user" do
         before { sign_in(admin) }
@@ -1853,7 +1936,7 @@ RSpec.describe PostsController do
       end
 
       context "with TL4 users" do
-        fab!(:trust_level_4) { Fabricate(:trust_level_4) }
+        fab!(:trust_level_4)
 
         before { sign_in(trust_level_4) }
 
@@ -1861,7 +1944,7 @@ RSpec.describe PostsController do
       end
 
       context "with users" do
-        fab!(:topic) { Fabricate(:topic) }
+        fab!(:topic)
 
         [:user].each do |user|
           it "will raise an error for #{user}" do
@@ -2226,7 +2309,7 @@ RSpec.describe PostsController do
   describe "#expand_embed" do
     before { sign_in(user) }
 
-    fab!(:post) { Fabricate(:post) }
+    fab!(:post)
 
     it "raises an error when you can't see the post" do
       post = Fabricate(:private_message_post)
@@ -2246,8 +2329,6 @@ RSpec.describe PostsController do
     include_examples "action requires login", :get, "/posts/system/deleted.json"
 
     describe "when logged in" do
-      before { Group.refresh_automatic_groups! }
-
       it "raises an error if the user doesn't have permission to see the deleted posts" do
         sign_in(user)
         get "/posts/system/deleted.json"
@@ -2368,7 +2449,7 @@ RSpec.describe PostsController do
   end
 
   describe "#short_link" do
-    fab!(:topic) { Fabricate(:topic) }
+    fab!(:topic)
     fab!(:post) { Fabricate(:post, topic: topic) }
 
     it "redirects to the topic" do
@@ -2673,7 +2754,7 @@ RSpec.describe PostsController do
     end
 
     describe "group moderators" do
-      fab!(:group_user) { Fabricate(:group_user) }
+      fab!(:group_user)
       let(:user) { group_user.user }
       let(:group) { group_user.group }
 
@@ -2820,7 +2901,7 @@ RSpec.describe PostsController do
 
   describe Plugin::Instance do
     describe "#add_permitted_post_create_param" do
-      fab!(:user) { Fabricate(:user) }
+      fab!(:user)
       let(:instance) { Plugin::Instance.new }
       let(:request) do
         Proc.new do

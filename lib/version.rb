@@ -7,7 +7,7 @@ module Discourse
   # work around reloader
   unless defined?(::Discourse::VERSION)
     module VERSION #:nodoc:
-      STRING = "3.1.0"
+      STRING = "3.2.2"
 
       PARTS = STRING.split(".")
       private_constant :PARTS
@@ -69,7 +69,7 @@ module Discourse
                 "Invalid version specifier operator for '#{req_operator} #{req_version}'. Operator must be one of <= or <"
         end
 
-        resolved_requirement = Gem::Requirement.new("#{req_operator} #{req_version.to_s}")
+        resolved_requirement = Gem::Requirement.new("#{req_operator} #{req_version}")
         resolved_requirement.satisfied_by?(parsed_target_version)
       end
 
@@ -92,12 +92,37 @@ module Discourse
   # Find a compatible resource from a git repo
   def self.find_compatible_git_resource(path)
     return unless File.directory?("#{path}/.git")
-    compat_resource, std_error, s =
-      Open3.capture3(
-        "git -C '#{path}' show HEAD@{upstream}:#{Discourse::VERSION_COMPATIBILITY_FILENAME}",
+
+    tree_info =
+      Discourse::Utils.execute_command(
+        "git",
+        "-C",
+        path,
+        "ls-tree",
+        "-l",
+        "HEAD",
+        Discourse::VERSION_COMPATIBILITY_FILENAME,
       )
-    Discourse.find_compatible_resource(compat_resource) if s.success?
+    blob_size = tree_info.split[3].to_i
+
+    if blob_size > Discourse::MAX_METADATA_FILE_SIZE
+      $stderr.puts "#{Discourse::VERSION_COMPATIBILITY_FILENAME} file in #{path} too big"
+      return
+    end
+
+    compat_resource =
+      Discourse::Utils.execute_command(
+        "git",
+        "-C",
+        path,
+        "show",
+        "HEAD@{upstream}:#{Discourse::VERSION_COMPATIBILITY_FILENAME}",
+      )
+
+    Discourse.find_compatible_resource(compat_resource)
   rescue InvalidVersionListError => e
     $stderr.puts "Invalid version list in #{path}"
+  rescue Discourse::Utils::CommandError => e
+    nil
   end
 end
