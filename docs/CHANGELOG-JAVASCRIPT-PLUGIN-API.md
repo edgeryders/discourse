@@ -7,6 +7,98 @@ in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.1] - 2025-01-29
+
+- Added `registerReportModeComponent`. This allows plugins to register different report display modes in addition to the built-in core ones like `chart`, `table`, and so on defined in `Report::MODES`.
+
+## [2.0.0] - 2025-01-07
+
+- Removed `decorateTopicTitle`. This has been deprecated for more than a year, and we are not aware of any remaining uses in the ecosystem.
+
+## [1.39.2] - 2024-12-19
+
+- Removed the deprecation of `includePostAttributes` for now.
+
+## [1.39.1] - 2024-12-18
+
+- Renamed `addTrackedPostProperty` to `addTrackedPostProperties` to allow plugins/TCs to add multiple new tracked properties to the post model.
+- Deprecated `includePostAttributes` in favor of `addTrackedPostProperties`.
+
+## [1.39.0] - 2024-11-27
+
+- Added `addTrackedPostProperty` which allows plugins/TCs to add a new tracked property to the post model.
+
+## [1.38.0] - 2024-10-30
+
+- Added `registerMoreTopicsTab` and "more-topics-tabs" value transformer that allows to add or remove new tabs to the "more topics" (suggested/related) area.
+
+## [1.37.3] - 2024-10-24
+
+- Added `disableDefaultKeyboardShortcuts` which allows plugins/TCs to disable default keyboard shortcuts.
+
+## [1.37.2] - 2024-10-02
+
+- Fixed comments and text references to Font Awesome 5 in favor of the more generic Font Awesome due to core now having the latest version and no longer needing to specify version 5.
+
+## [1.37.1] - 2024-08-21
+
+- Added support for `shortcut` in `addComposerToolbarPopupMenuOption` which allows to add a keyboard shortcut to the popup menu option.
+
+## [1.37.0] - 2024-08-19
+
+- Added `addAboutPageActivity` which allows plugins/TCs to register a custom site activity item in the new /about page. Requires the server-side `register_stat` plugin API.
+
+## [1.36.0] - 2024-08-06
+
+- Added `addLogSearchLinkClickedCallbacks` which allows plugins/TCs to register a callback when a search link is clicked and before a search log is created
+
+## [1.35.0] - 2024-07-30
+
+- Added `registerBehaviorTransformer` which allows registering a transformer callback to override behavior defined in Discourse modules
+- Added `addBehaviorTransformerName` which allows plugins/TCs to register a new transformer to override behavior defined in their modules
+
+## [1.34.0] - 2024-06-06
+
+- Added `registerValueTransformer` which allows registering a transformer callback to override values defined in Discourse modules
+- Added `addValueTransformerName` which allows plugins/TCs to register a new transformer to override values defined in their modules
+
+## [1.33.0] - 2024-06-06
+
+- Added `addCustomUserFieldValidationCallback` which allows to set a callback to change the validation and user facing message when attempting to save the signup form.
+
+## [1.32.0] - 2024-05-16
+
+- Added `registerHomeLogoHrefCallback` which allows to set a callback to change the home logo URL.
+
+## [1.31.0] - 2024-04-22
+
+- Added `addTopicAdminMenuButton` which allows to register a new button in the topic admin menu.
+
+## [1.30.0] - 2024-03-20
+
+- Added `addAdminPluginConfigurationNav`, which defines a list of links used in the adminPlugins.show page for a specific plugin, and displays them either in an inner sidebar or in a top horizontal nav.
+
+## [1.29.0] - 2024-03-05
+
+- Added `headerButtons` which allows for manipulation of the header buttons. This includes, adding, removing, or modifying the order of buttons.
+
+## [1.28.0] - 2024-02-21
+
+- Added `headerIcons` which allows for manipulation of the header icons. This includes, adding, removing, or modifying the order of icons.
+
+## [1.27.0] - 2024-02-21
+
+- Deprecated `addToHeaderIcons` in favor of `headerIcons`
+
+## [1.26.0] - 2024-02-21
+
+- Added `renderBeforeWrapperOutlet` which is used for rendering components before the content of wrapper plugin outlets
+- Added `renderAfterWrapperOutlet` which is used for rendering components after the content of wrapper plugin outlets
+
+## [1.25.0] - 2024-02-05
+
+- Added `addComposerImageWrapperButton` which is used to add a custom button to the composer preview's image wrapper that appears on hover of an uploaded image.
+
 ## [1.24.0] - 2024-01-08
 
 - Added `addAdminSidebarSectionLink` which is used to add a link to a specific admin sidebar section, as a replacement for the `admin-menu` plugin outlet. This only has an effect if the `admin_sidebar_enabled_groups` site setting is in use, which enables the new admin nav sidebar.

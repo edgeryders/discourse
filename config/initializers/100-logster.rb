@@ -2,7 +2,7 @@
 
 if GlobalSetting.skip_redis?
   Rails.application.reloader.to_prepare do
-    Rails.logger = Rails.logger.chained.first if Rails.logger.respond_to? :chained
+    Rails.logger.stop_broadcasting_to(Logster.logger) if defined?(Logster::Logger) && Logster.logger
   end
   return
 end
@@ -10,12 +10,12 @@ end
 if Rails.env.development? && !Sidekiq.server? && ENV["RAILS_LOGS_STDOUT"] == "1"
   Rails.application.config.after_initialize do
     console = ActiveSupport::Logger.new(STDOUT)
-    original_logger = Rails.logger.chained.first
+    original_logger = Rails.logger.broadcasts.first
     console.formatter = original_logger.formatter
     console.level = original_logger.level
 
     unless ActiveSupport::Logger.logger_outputs_to?(original_logger, STDOUT)
-      original_logger.extend(ActiveSupport::Logger.broadcast(console))
+      Rails.logger.broadcast_to(console)
     end
   end
 end
@@ -60,6 +60,11 @@ if Rails.env.production?
   Logster.config.env_expandable_keys.push(:hostname, :problem_db)
 end
 
+Rails.application.config.after_initialize do
+  Logster.config.back_to_site_link_path = "#{Discourse.base_path}/admin"
+  Logster.config.back_to_site_link_text = I18n.t("dashboard.back_from_logster_text")
+end
+
 Logster.store.max_backlog = GlobalSetting.max_logster_logs
 
 # TODO logster should be able to do this automatically
@@ -76,7 +81,7 @@ store.redis_prefix = Proc.new { redis.namespace }
 store.redis_raw_connection = redis.without_namespace
 severities = [Logger::WARN, Logger::ERROR, Logger::FATAL, Logger::UNKNOWN]
 
-RailsMultisite::ConnectionManagement.each_connection do
+RailsMultisite::ConnectionManagement.safe_each_connection do
   error_rate_per_minute =
     begin
       SiteSetting.alert_admins_if_errors_per_minute
@@ -113,10 +118,7 @@ RailsMultisite::ConnectionManagement.each_connection do
 end
 
 if Rails.configuration.multisite
-  if Rails.logger.respond_to? :chained
-    chained = Rails.logger.chained
-    chained && chained.first.formatter = RailsMultisite::Formatter.new
-  end
+  Rails.logger.broadcasts.first.formatter = RailsMultisite::Formatter.new
 end
 
 Logster.config.project_directories = [

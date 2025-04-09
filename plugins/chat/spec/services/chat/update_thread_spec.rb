@@ -1,13 +1,13 @@
 # frozen_string_literal: true
 
 RSpec.describe Chat::UpdateThread do
-  describe Chat::UpdateThread::Contract, type: :model do
-    it { is_expected.to validate_presence_of :channel_id }
+  describe described_class::Contract, type: :model do
     it { is_expected.to validate_presence_of :thread_id }
+    it { is_expected.to validate_length_of(:title).is_at_most(Chat::Thread::MAX_TITLE_LENGTH) }
   end
 
   describe ".call" do
-    subject(:result) { described_class.call(params) }
+    subject(:result) { described_class.call(params:, **dependencies) }
 
     fab!(:current_user) { Fabricate(:user) }
     fab!(:channel) { Fabricate(:chat_channel, threading_enabled: true) }
@@ -17,14 +17,11 @@ RSpec.describe Chat::UpdateThread do
 
     let(:guardian) { Guardian.new(current_user) }
     let(:title) { "some new title :D" }
-    let(:params) do
-      { guardian: guardian, thread_id: thread.id, channel_id: thread.channel_id, title: title }
-    end
+    let(:params) { { thread_id: thread.id, title: } }
+    let(:dependencies) { { guardian: } }
 
     context "when all steps pass" do
-      it "sets the service result as successful" do
-        expect(result).to be_a_success
-      end
+      it { is_expected.to run_successfully }
 
       it "updates the title of the thread" do
         result
@@ -45,18 +42,6 @@ RSpec.describe Chat::UpdateThread do
       before { params.delete(:thread_id) }
 
       it { is_expected.to fail_a_contract }
-    end
-
-    context "when title is too long" do
-      let(:title) { "a" * Chat::Thread::MAX_TITLE_LENGTH + "a" }
-
-      it { is_expected.to fail_a_contract }
-    end
-
-    context "when thread is not found because the channel ID differs" do
-      before { params[:thread_id] = other_thread.id }
-
-      it { is_expected.to fail_to_find_a_model(:thread) }
     end
 
     context "when thread is not found" do

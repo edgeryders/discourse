@@ -1,4 +1,4 @@
-import Service, { inject as service } from "@ember/service";
+import Service, { service } from "@ember/service";
 
 export default class ChatGuardian extends Service {
   @service currentUser;
@@ -18,8 +18,6 @@ export default class ChatGuardian extends Service {
   }
 
   canUseChat() {
-    return (
-      this.currentUser?.has_chat_enabled && this.siteSettings?.chat_enabled
-    );
+    return this.currentUser?.has_chat_enabled && this.siteSettings.chat_enabled;
   }
 }

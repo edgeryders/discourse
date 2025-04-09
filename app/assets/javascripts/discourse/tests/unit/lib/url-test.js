@@ -1,6 +1,7 @@
 import { setupTest } from "ember-qunit";
 import { module, test } from "qunit";
 import sinon from "sinon";
+import { setPrefix } from "discourse/lib/get-url";
 import DiscourseURL, {
   getCanonicalUrl,
   getCategoryAndTagUrl,
@@ -8,60 +9,82 @@ import DiscourseURL, {
   userPath,
 } from "discourse/lib/url";
 import { logIn } from "discourse/tests/helpers/qunit-helpers";
-import { setPrefix } from "discourse-common/lib/get-url";
 
 module("Unit | Utility | url", function (hooks) {
   setupTest(hooks);
 
   test("isInternal with a HTTP url", function (assert) {
-    sinon.stub(DiscourseURL, "origin").returns("http://eviltrout.com");
+    sinon.stub(DiscourseURL, "origin").get(() => "http://eviltrout.com");
 
-    assert.notOk(DiscourseURL.isInternal(null), "a blank URL is not internal");
-    assert.ok(DiscourseURL.isInternal("/test"), "relative URLs are internal");
-    assert.ok(
+    assert.false(DiscourseURL.isInternal(null), "a blank URL is not internal");
+    assert.true(DiscourseURL.isInternal("/test"), "relative URLs are internal");
+    assert.true(
+      DiscourseURL.isInternal("docs"),
+      "non-prefixed relative URLs are internal"
+    );
+    assert.true(DiscourseURL.isInternal("#foo"), "anchor URLs are internal");
+    assert.true(
       DiscourseURL.isInternal("//eviltrout.com"),
       "a url on the same host is internal (protocol-less)"
     );
-    assert.ok(
+    assert.true(
       DiscourseURL.isInternal("http://eviltrout.com/tophat"),
       "a url on the same host is internal"
     );
-    assert.ok(
+    assert.true(
       DiscourseURL.isInternal("https://eviltrout.com/moustache"),
       "a url on a HTTPS of the same host is internal"
     );
-    assert.notOk(
+    assert.false(
       DiscourseURL.isInternal("//twitter.com.com"),
       "a different host is not internal (protocol-less)"
     );
-    assert.notOk(
+    assert.false(
       DiscourseURL.isInternal("http://twitter.com"),
       "a different host is not internal"
+    );
+    assert.false(
+      DiscourseURL.isInternal("ftp://eviltrout.com"),
+      "a different protocol is not internal"
+    );
+    assert.false(
+      DiscourseURL.isInternal("ftp::/eviltrout.com"),
+      "an invalid URL is not internal"
     );
   });
 
   test("isInternal with a HTTPS url", function (assert) {
-    sinon.stub(DiscourseURL, "origin").returns("https://eviltrout.com");
-    assert.ok(
+    sinon.stub(DiscourseURL, "origin").get(() => "https://eviltrout.com");
+    assert.true(
       DiscourseURL.isInternal("http://eviltrout.com/monocle"),
       "HTTPS urls match HTTP urls"
+    );
+    assert.true(
+      DiscourseURL.isInternal("https://eviltrout.com/monocle"),
+      "HTTPS urls match HTTPS urls"
     );
   });
 
   test("isInternal on subfolder install", function (assert) {
-    sinon.stub(DiscourseURL, "origin").returns("http://eviltrout.com/forum");
-    assert.notOk(
+    sinon.stub(DiscourseURL, "origin").get(() => "http://eviltrout.com/forum");
+    assert.false(
       DiscourseURL.isInternal("http://eviltrout.com"),
       "the host root is not internal"
     );
-    assert.notOk(
+    assert.false(
       DiscourseURL.isInternal("http://eviltrout.com/tophat"),
       "a url on the same host but on a different folder is not internal"
     );
-    assert.ok(
+    assert.true(
       DiscourseURL.isInternal("http://eviltrout.com/forum/moustache"),
       "a url on the same host and on the same folder is internal"
     );
+    assert.true(DiscourseURL.isInternal("/test"), "relative URLs are internal");
+    assert.true(
+      DiscourseURL.isInternal("docs"),
+      "non-prefixed relative URLs are internal"
+    );
+    assert.true(DiscourseURL.isInternal("#foo"), "anchor URLs are internal");
   });
 
   test("userPath", function (assert) {
@@ -85,22 +108,62 @@ module("Unit | Utility | url", function (hooks) {
     });
     sinon.stub(DiscourseURL, "handleURL");
     DiscourseURL.routeTo("/my/messages");
-    assert.ok(
+    assert.true(
       DiscourseURL.handleURL.calledWith(`/my/messages`),
-      "it should navigate to the messages page"
+      "navigates to the messages page"
+    );
+  });
+
+  test("routeTo protocol/domain stripping", async function (assert) {
+    sinon.stub(DiscourseURL, "origin").get(() => "http://example.com");
+    sinon.stub(DiscourseURL, "handleURL");
+    sinon.stub(DiscourseURL, "router").get(() => {
+      return {
+        currentURL: "/bar",
+      };
+    });
+
+    DiscourseURL.routeTo("http://example.com/foo1");
+    assert.true(
+      DiscourseURL.handleURL.calledWith(`/foo1`),
+      "strips the protocol and domain when http"
+    );
+
+    DiscourseURL.routeTo("https://example.com/foo2");
+    assert.true(
+      DiscourseURL.handleURL.calledWith(`/foo2`),
+      "strips the protocol and domain when https"
+    );
+
+    DiscourseURL.routeTo("//example.com/foo3");
+    assert.true(
+      DiscourseURL.handleURL.calledWith(`/foo3`),
+      "strips the protocol and domain when protocol-less"
+    );
+
+    DiscourseURL.routeTo("https://example.com/t//1");
+    assert.true(
+      DiscourseURL.handleURL.calledWith(`/t//1`),
+      "does not strip double-slash in the middle of urls"
+    );
+
+    DiscourseURL.routeTo("/t//2");
+    assert.true(
+      DiscourseURL.handleURL.calledWith(`/t//2`),
+      "does not strip double-slash in the middle of urls, even without a domain"
     );
   });
 
   test("routeTo does not rewrite routes started with /my", async function (assert) {
-    logIn();
+    logIn(this.owner);
     sinon.stub(DiscourseURL, "router").get(() => {
       return { currentURL: "/" };
     });
     sinon.stub(DiscourseURL, "handleURL");
     DiscourseURL.routeTo("/myfeed");
-    assert.ok(
+    assert.true(
       DiscourseURL.handleURL.calledWith(`/myfeed`),
-      "it should navigate to the unmodified route"
+      "navigates to the unmodified route"
     );
   });
 
@@ -121,6 +184,15 @@ module("Unit | Utility | url", function (hooks) {
       prefixProtocol("www.discourse.org/mailto:foo"),
       "https://www.discourse.org/mailto:foo"
     );
+    assert.strictEqual(
+      prefixProtocol("http://www.discourse.org"),
+      "http://www.discourse.org"
+    );
+    assert.strictEqual(
+      prefixProtocol("ftp://www.discourse.org"),
+      "ftp://www.discourse.org"
+    );
+    assert.strictEqual(prefixProtocol("/my/preferences"), "/my/preferences");
   });
 
   test("getCategoryAndTagUrl", function (assert) {
@@ -161,7 +233,7 @@ module("Unit | Utility | url", function (hooks) {
     sinon.stub(DiscourseURL, "redirectTo");
     sinon.stub(DiscourseURL, "handleURL");
     DiscourseURL.routeTo("/secure-uploads/original/1X/test.pdf");
-    assert.ok(
+    assert.true(
       DiscourseURL.redirectTo.calledWith("/secure-uploads/original/1X/test.pdf")
     );
   });
@@ -170,11 +242,11 @@ module("Unit | Utility | url", function (hooks) {
     sinon.stub(DiscourseURL, "jumpToElement");
     sinon.stub(DiscourseURL, "replaceState");
     DiscourseURL.routeTo("#heading1");
-    assert.ok(
+    assert.true(
       DiscourseURL.jumpToElement.calledWith("heading1"),
       "in-page anchors call jumpToElement"
     );
-    assert.ok(
+    assert.true(
       DiscourseURL.replaceState.calledWith("#heading1"),
       "in-page anchors call replaceState with the url fragment"
     );

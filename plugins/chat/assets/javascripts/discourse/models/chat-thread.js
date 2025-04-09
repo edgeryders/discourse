@@ -1,6 +1,6 @@
 import { tracked } from "@glimmer/tracking";
 import guid from "pretty-text/guid";
-import { getOwnerWithFallback } from "discourse-common/lib/get-owner";
+import { getOwnerWithFallback } from "discourse/lib/get-owner";
 import ChatMessagesManager from "discourse/plugins/chat/discourse/lib/chat-messages-manager";
 import ChatMessage from "discourse/plugins/chat/discourse/models/chat-message";
 import ChatThreadPreview from "discourse/plugins/chat/discourse/models/chat-thread-preview";
@@ -26,11 +26,13 @@ export default class ChatThread {
   @tracked staged;
   @tracked channel;
   @tracked originalMessage;
+  @tracked lastMessageId;
   @tracked threadMessageBusLastId;
   @tracked replyCount;
   @tracked tracking;
   @tracked currentUserMembership;
   @tracked preview;
+  @tracked force;
 
   messagesManager = new ChatMessagesManager(getOwnerWithFallback(this));
 
@@ -40,6 +42,7 @@ export default class ChatThread {
     this.status = args.status;
     this.staged = args.staged;
     this.replyCount = args.reply_count;
+    this.force = args.force;
 
     this.originalMessage = args.original_message
       ? ChatMessage.create(channel, args.original_message)
@@ -48,6 +51,8 @@ export default class ChatThread {
     if (this.originalMessage) {
       this.originalMessage.thread = this;
     }
+
+    this.lastMessageId = args.last_message_id;
 
     this.title = args.title;
 

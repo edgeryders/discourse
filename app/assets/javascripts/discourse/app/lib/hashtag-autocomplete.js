@@ -2,108 +2,13 @@ import { cancel } from "@ember/runloop";
 import { htmlSafe } from "@ember/template";
 import { ajax } from "discourse/lib/ajax";
 import { CANCELLED_STATUS } from "discourse/lib/autocomplete";
-import {
-  decorateHashtags as decorateHashtagsNew,
-  fetchUnseenHashtagsInContext as fetchUnseenHashtagsInContextNew,
-  generatePlaceholderHashtagHTML as generatePlaceholderHashtagHTMLNew,
-  linkSeenHashtagsInContext as linkSeenHashtagsInContextNew,
-} from "discourse/lib/hashtag-decorator";
-import {
-  cleanUpHashtagTypeClasses as cleanUpHashtagTypeClassesNew,
-  getHashtagTypeClasses as getHashtagTypeClassesNew,
-  registerHashtagType as registerHashtagTypeNew,
-} from "discourse/lib/hashtag-type-registry";
+import discourseDebounce from "discourse/lib/debounce";
+import { INPUT_DELAY, isTesting } from "discourse/lib/environment";
+import { getHashtagTypeClasses as getHashtagTypeClassesNew } from "discourse/lib/hashtag-type-registry";
+import discourseLater from "discourse/lib/later";
+import { findRawTemplate } from "discourse/lib/raw-templates";
 import { emojiUnescape } from "discourse/lib/text";
-import {
-  caretPosition,
-  escapeExpression,
-  inCodeBlock,
-} from "discourse/lib/utilities";
-import { INPUT_DELAY, isTesting } from "discourse-common/config/environment";
-import discourseDebounce from "discourse-common/lib/debounce";
-import deprecated from "discourse-common/lib/deprecated";
-import discourseLater from "discourse-common/lib/later";
-import { findRawTemplate } from "discourse-common/lib/raw-templates";
-
-// TODO (martin) Remove this once plugins have changed to use hashtag-decorator and
-// hashtag-type-registry imports
-export function fetchUnseenHashtagsInContext() {
-  deprecated(
-    `fetchUnseenHashtagsInContext is has been moved to the module 'discourse/lib/hashtag-decorator'`,
-    {
-      id: "discourse.hashtag.fetchUnseenHashtagsInContext",
-      since: "3.2.0.beta5-dev",
-      dropFrom: "3.2.1",
-    }
-  );
-  return fetchUnseenHashtagsInContextNew(...arguments);
-}
-export function linkSeenHashtagsInContext() {
-  deprecated(
-    `linkSeenHashtagsInContext is has been moved to the module 'discourse/lib/hashtag-decorator'`,
-    {
-      id: "discourse.hashtag.linkSeenHashtagsInContext",
-      since: "3.2.0.beta5-dev",
-      dropFrom: "3.2.1",
-    }
-  );
-  return linkSeenHashtagsInContextNew(...arguments);
-}
-export function generatePlaceholderHashtagHTML() {
-  deprecated(
-    `generatePlaceholderHashtagHTML is has been moved to the module 'discourse/lib/hashtag-decorator'`,
-    {
-      id: "discourse.hashtag.generatePlaceholderHashtagHTML",
-      since: "3.2.0.beta5-dev",
-      dropFrom: "3.2.1",
-    }
-  );
-  return generatePlaceholderHashtagHTMLNew(...arguments);
-}
-export function decorateHashtags() {
-  deprecated(
-    `decorateHashtags is has been moved to the module 'discourse/lib/hashtag-decorator'`,
-    {
-      id: "discourse.hashtag.decorateHashtags",
-      since: "3.2.0.beta5-dev",
-      dropFrom: "3.2.1",
-    }
-  );
-  return decorateHashtagsNew(...arguments);
-}
-export function getHashtagTypeClasses() {
-  deprecated(
-    `getHashtagTypeClasses is has been moved to the module 'discourse/lib/hashtag-type-registry'`,
-    {
-      id: "discourse.hashtag.getHashtagTypeClasses",
-      since: "3.2.0.beta5-dev",
-      dropFrom: "3.2.1",
-    }
-  );
-  return getHashtagTypeClassesNew(...arguments);
-}
-export function registerHashtagType() {
-  deprecated(
-    `registerHashtagType is has been moved to the module 'discourse/lib/hashtag-type-registry'`,
-    {
-      id: "discourse.hashtag.registerHashtagType",
-      since: "3.2.0.beta5-dev",
-      dropFrom: "3.2.1",
-    }
-  );
-  return registerHashtagTypeNew(...arguments);
-}
-export function cleanUpHashtagTypeClasses() {
-  deprecated(
-    `cleanUpHashtagTypeClasses is has been moved to the module 'discourse/lib/hashtag-type-registry'`,
-    {
-      id: "discourse.hashtag.cleanUpHashtagTypeClasses",
-      since: "3.2.0.beta5-dev",
-      dropFrom: "3.2.1",
-    }
-  );
-  return cleanUpHashtagTypeClassesNew(...arguments);
-}
+import { escapeExpression } from "discourse/lib/utilities";
 
 /**
  * Sets up a textarea using the jQuery autocomplete plugin, specifically
@@ -128,37 +33,31 @@ export function cleanUpHashtagTypeClasses() {
  **/
 export function setupHashtagAutocomplete(
   contextualHashtagConfiguration,
-  $textArea,
+  $textarea,
   siteSettings,
   autocompleteOptions = {}
 ) {
-  _setup(
-    contextualHashtagConfiguration,
-    $textArea,
-    siteSettings,
-    autocompleteOptions
+  $textarea.autocomplete(
+    hashtagAutocompleteOptions(
+      contextualHashtagConfiguration,
+      siteSettings,
+      autocompleteOptions
+    )
   );
 }
 
-export function hashtagTriggerRule(textarea) {
-  if (inCodeBlock(textarea.value, caretPosition(textarea))) {
-    return false;
-  }
-
-  return true;
+export async function hashtagTriggerRule(textarea, { inCodeBlock }) {
+  return !(await inCodeBlock());
 }
 
-function _setup(
+export function hashtagAutocompleteOptions(
   contextualHashtagConfiguration,
-  $textArea,
   siteSettings,
   autocompleteOptions
 ) {
-  $textArea.autocomplete({
+  return {
     template: findRawTemplate("hashtag-autocomplete"),
     key: "#",
-    afterComplete: autocompleteOptions.afterComplete,
-    treatAsTextarea: autocompleteOptions.treatAsTextarea,
     scrollElementSelector: ".hashtag-autocomplete__fadeout",
     autoSelectFirstSuggestion: true,
     transformComplete: (obj) => obj.ref,
@@ -168,8 +67,10 @@ function _setup(
       }
       return _searchGeneric(term, siteSettings, contextualHashtagConfiguration);
     },
-    triggerRule: (textarea, opts) => hashtagTriggerRule(textarea, opts),
-  });
+    triggerRule: async (textarea, opts) =>
+      await hashtagTriggerRule(textarea, opts),
+    ...autocompleteOptions,
+  };
 }
 
 let searchCache = {};
@@ -228,6 +129,8 @@ function _searchRequest(term, contextualHashtagConfiguration, resultFunc) {
 
         const hashtagType = getHashtagTypeClassesNew()[result.type];
         result.icon = hashtagType.generateIconHTML({
+          preloaded: true,
+          colors: result.colors,
           icon: result.icon,
           id: result.id,
         });

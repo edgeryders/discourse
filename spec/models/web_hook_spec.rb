@@ -57,7 +57,7 @@ RSpec.describe WebHook do
       assign_event_types = WebHookEventType.active.where(group: "assign").pluck(:name)
       expect(assign_event_types).to eq(%w[assigned unassigned])
 
-      SiteSetting.stubs(:voting_enabled).returns(true)
+      SiteSetting.stubs(:topic_voting_enabled).returns(true)
       voting_event_types = WebHookEventType.active.where(group: "voting").pluck(:name)
       expect(voting_event_types).to eq(%w[topic_upvote topic_unvote])
       #
@@ -361,6 +361,27 @@ RSpec.describe WebHook do
       expect(job_args["event_name"]).to eq("topic_recovered")
       payload = JSON.parse(job_args["payload"])
       expect(payload["id"]).to eq(post.topic.id)
+    end
+
+    it "should serialize the right topic posts counts when a post is deleted" do
+      Fabricate(:web_hook)
+
+      Jobs::EmitWebHookEvent.jobs.clear
+
+      post2 =
+        PostCreator.create!(
+          user,
+          raw: "post",
+          topic_id: topic.id,
+          reply_to_post_number: post.post_number,
+          skip_validations: true,
+        )
+      PostDestroyer.new(user, post2).destroy
+
+      job_args = Jobs::EmitWebHookEvent.jobs.last["args"].first
+      payload = JSON.parse(job_args["payload"])
+      expect(payload["topic_posts_count"]).to eq(1)
+      expect(payload["topic_filtered_posts_count"]).to eq(1)
     end
 
     it "should enqueue the destroyed hooks with tag filter for post events" do

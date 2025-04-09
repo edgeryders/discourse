@@ -1,9 +1,10 @@
 import { DEBUG } from "@glimmer/env";
-import Service, { inject as service } from "@ember/service";
+import { cached } from "@glimmer/tracking";
+import Service, { service } from "@ember/service";
 import { TrackedMap } from "@ember-compat/tracked-built-ins";
+import { bind } from "discourse/lib/decorators";
+import { isTesting } from "discourse/lib/environment";
 import { disableImplicitInjections } from "discourse/lib/implicit-injections";
-import { isTesting } from "discourse-common/config/environment";
-import { bind } from "discourse-common/utils/decorators";
 
 const HISTORY_SIZE = 100;
 const HISTORIC_KEY = Symbol("historic");
@@ -18,16 +19,12 @@ const HANDLED_TRANSITIONS = new WeakSet();
 export default class HistoryStore extends Service {
   @service router;
 
-  #routeData = new Map();
+  #routeData = new TrackedMap();
   #uuid;
-  #pendingStore;
+  #pendingStore = DEBUG && isTesting() ? new TrackedMap() : null;
 
   get #currentStore() {
-    if (this.#pendingStore) {
-      return this.#pendingStore;
-    }
-
-    return this.#dataFor(this.#uuid);
+    return this.#pendingStore || this.#dataFor(this.#uuid);
   }
 
   /**
@@ -58,6 +55,33 @@ export default class HistoryStore extends Service {
    */
   delete(key) {
     return this.#currentStore.delete(key);
+  }
+
+  @cached
+  get hasFutureEntries() {
+    // Keys will be returned in insertion order. Return true if there is any key **after** the current one
+    let foundCurrent = false;
+    for (const key of this.#routeData.keys()) {
+      if (foundCurrent) {
+        return true;
+      }
+
+      if (key === this.#uuid) {
+        foundCurrent = true;
+      }
+    }
+    return false;
+  }
+
+  @cached
+  get hasPastEntries() {
+    // Keys will be returned in insertion order. Return false if we find the current uuid before any other
+    for (const key of this.#routeData.keys()) {
+      if (key === undefined) {
+        continue;
+      }
+      return key !== this.#uuid;
+    }
   }
 
   #pruneOldData() {
@@ -95,7 +119,6 @@ export default class HistoryStore extends Service {
 
     if (DEBUG && isTesting()) {
       // Can't use window.history in tests
-      this.#pendingStore = new TrackedMap();
       return;
     }
 

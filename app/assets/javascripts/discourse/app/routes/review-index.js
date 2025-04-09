@@ -1,9 +1,9 @@
 import { action } from "@ember/object";
 import { isPresent } from "@ember/utils";
+import { bind } from "discourse/lib/decorators";
 import DiscourseRoute from "discourse/routes/discourse";
-import { bind } from "discourse-common/utils/decorators";
 
-export default DiscourseRoute.extend({
+export default class ReviewIndex extends DiscourseRoute {
   model(params) {
     if (params.sort_order === null) {
       if (params.status === "reviewed" || params.status === "all") {
@@ -14,7 +14,7 @@ export default DiscourseRoute.extend({
     }
 
     return this.store.findAll("reviewable", params);
-  },
+  }
 
   setupController(controller, model) {
     let meta = model.resultSetMeta;
@@ -39,8 +39,10 @@ export default DiscourseRoute.extend({
       filterCategoryId: meta.category_id,
       filterPriority: meta.priority,
       reviewableTypes: meta.reviewable_types,
+      scoreTypes: meta.score_types,
       filterUsername: meta.username,
       filterReviewedBy: meta.reviewed_by,
+      filterFlaggedBy: meta.flagged_by,
       filterFromDate: isPresent(meta.from_date) ? moment(meta.from_date) : null,
       filterToDate: isPresent(meta.to_date) ? moment(meta.to_date) : null,
       filterSortOrder: meta.sort_order,
@@ -49,7 +51,7 @@ export default DiscourseRoute.extend({
     });
 
     controller.reviewables.setEach("last_performing_username", null);
-  },
+  }
 
   activate() {
     this.messageBus.subscribe("/reviewable_claimed", this._updateClaimedBy);
@@ -57,7 +59,7 @@ export default DiscourseRoute.extend({
       this._reviewableCountsChannel,
       this._updateReviewables
     );
-  },
+  }
 
   deactivate() {
     this.messageBus.unsubscribe("/reviewable_claimed", this._updateClaimedBy);
@@ -65,7 +67,7 @@ export default DiscourseRoute.extend({
       this._reviewableCountsChannel,
       this._updateReviewables
     );
-  },
+  }
 
   @bind
   _updateClaimedBy(data) {
@@ -80,7 +82,7 @@ export default DiscourseRoute.extend({
         }
       });
     }
-  },
+  }
 
   @bind
   _updateReviewables(data) {
@@ -92,14 +94,14 @@ export default DiscourseRoute.extend({
         }
       });
     }
-  },
+  }
 
   get _reviewableCountsChannel() {
     return `/reviewable_counts/${this.currentUser.id}`;
-  },
+  }
 
   @action
   refreshRoute() {
     this.refresh();
-  },
-});
+  }
+}

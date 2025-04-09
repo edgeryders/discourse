@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
 class StaticController < ApplicationController
-  skip_before_action :check_xhr, :redirect_to_login_if_required
+  skip_before_action :check_xhr, :redirect_to_login_if_required, :redirect_to_profile_if_required
   skip_before_action :verify_authenticity_token,
                      only: %i[cdn_asset enter favicon service_worker_asset]
   skip_before_action :preload_json, only: %i[cdn_asset enter favicon service_worker_asset]
@@ -36,6 +36,14 @@ class StaticController < ApplicationController
       return redirect_to path("/login")
     end
 
+    rename_faq = SiteSetting.experimental_rename_faq_to_guidelines
+
+    if rename_faq
+      redirect_paths = %w[/rules /conduct]
+      redirect_paths << "/faq" if SiteSetting.faq_url.blank?
+      return redirect_to(path("/guidelines")) if redirect_paths.include?(request.path)
+    end
+
     map = DEFAULT_PAGES.deep_merge(CUSTOM_PAGES)
     @page = params[:id]
 
@@ -58,15 +66,23 @@ class StaticController < ApplicationController
       @topic = Topic.find_by_id(SiteSetting.get(topic_id))
       raise Discourse::NotFound unless @topic
 
+      page_name =
+        if @page == "faq"
+          rename_faq ? "guidelines" : "faq"
+        else
+          @page
+        end
+
       title_prefix =
-        if I18n.exists?("js.#{@page}")
-          I18n.t("js.#{@page}")
+        if I18n.exists?("js.#{page_name}")
+          I18n.t("js.#{page_name}")
         else
           @topic.title
         end
       @title = "#{title_prefix} - #{SiteSetting.title}"
       @body = @topic.posts.first.cooked
       @faq_overridden = !SiteSetting.faq_url.blank?
+      @experimental_rename_faq_to_guidelines = rename_faq
 
       render :show, layout: !request.xhr?, formats: [:html]
       return
@@ -112,23 +128,25 @@ class StaticController < ApplicationController
     redirect_location = params[:redirect]
     if redirect_location.present? && !redirect_location.is_a?(String)
       raise Discourse::InvalidParameters.new(:redirect)
-    elsif redirect_location.present? && !redirect_location.match(login_path)
-      begin
-        forum_uri = URI(Discourse.base_url)
-        uri = URI(redirect_location)
+    elsif redirect_location.present? &&
+          begin
+            forum_uri = URI(Discourse.base_url)
+            uri = URI(redirect_location)
 
-        if uri.path.present? && (uri.host.blank? || uri.host == forum_uri.host) && uri.path !~ /\./
-          destination = "#{uri.path}#{uri.query ? "?#{uri.query}" : ""}"
-        end
-      rescue URI::Error
-        # Do nothing if the URI is invalid
-      end
+            if uri.path.present? && !uri.path.starts_with?(login_path) &&
+                 (uri.host.blank? || uri.host == forum_uri.host) &&
+                 uri.path =~ %r{\A\/{1}[^\.\s]*\z}
+              destination = "#{uri.path}#{uri.query ? "?#{uri.query}" : ""}"
+            end
+          rescue URI::Error
+            # Do nothing if the URI is invalid
+          end
     end
 
-    redirect_to destination
+    redirect_to(destination, allow_other_host: false)
   end
 
-  FAVICON ||= -"favicon"
+  FAVICON = -"favicon"
 
   # We need to be able to draw our favicon on a canvas, this happens when you enable the feature
   # that draws the notification count on top of favicon (per user default off)
@@ -162,7 +180,7 @@ class StaticController < ApplicationController
 
               file&.read || ""
             rescue => e
-              AdminDashboardData.add_problem_message("dashboard.bad_favicon_url", 1800)
+              ProblemCheckTracker[:bad_favicon_url].problem!
               Rails.logger.debug("Failed to fetch favicon #{favicon.url}: #{e}\n#{e.backtrace}")
               ""
             ensure

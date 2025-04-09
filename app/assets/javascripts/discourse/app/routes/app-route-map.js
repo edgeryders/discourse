@@ -9,6 +9,7 @@ export default function () {
   this.route("about", { resetNamespace: true });
 
   this.route("post", { path: "/p/:id" });
+  this.route("posts");
 
   // Topic routes
   this.route(
@@ -16,7 +17,6 @@ export default function () {
     { path: "/t/:slug/:id", resetNamespace: true },
     function () {
       this.route("fromParams", { path: "/" });
-      // eslint-disable-next-line ember/routes-segments-snake-case
       this.route("fromParamsNear", { path: "/:nearPost" });
     }
   );
@@ -62,7 +62,12 @@ export default function () {
     // default filter for a category
     this.route("categoryNone", { path: "/c/*category_slug_path_with_id/none" });
     this.route("categoryAll", { path: "/c/*category_slug_path_with_id/all" });
+    this.route("subcategories", {
+      path: "/c/*category_slug_path_with_id/subcategories",
+    });
     this.route("category", { path: "/c/*category_slug_path_with_id" });
+
+    this.route("custom");
   });
 
   this.route("groups", { resetNamespace: true, path: "/g" }, function () {
@@ -105,6 +110,7 @@ export default function () {
     this.route("resent");
     this.route("edit-email");
   });
+  this.route("activate-account", { path: "/u/activate-account/:token" });
   this.route("confirm-new-email", { path: "/u/confirm-new-email/:token" });
   this.route("confirm-old-email", { path: "/u/confirm-old-email/:token" });
   this.route(
@@ -138,6 +144,7 @@ export default function () {
           this.route("likesReceived", { path: "likes-received" });
           this.route("mentions");
           this.route("edits");
+          this.route("links");
         }
       );
 
@@ -175,7 +182,6 @@ export default function () {
         this.route("emails");
         this.route("notifications");
         this.route("tracking");
-        this.route("categories");
         this.route("users");
         this.route("tags");
         this.route("interface");
@@ -219,6 +225,7 @@ export default function () {
 
   this.route("new-topic");
   this.route("new-message");
+  this.route("new-invite");
 
   this.route("badges", { resetNamespace: true }, function () {
     this.route("show", { path: "/:id/:slug" });

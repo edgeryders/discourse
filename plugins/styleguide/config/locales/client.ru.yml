@@ -34,8 +34,8 @@ ru:
         icons:
           title: "Значки"
           full_list: "См. полный список значков Font Awesome"
-        input_fields:
-          title: "Поля ввода"
+        forms:
+          title: "Формы"
         buttons:
           title: "Кнопки"
         dropdowns:
@@ -74,6 +74,10 @@ ru:
           title: "Уведомления темы"
         post:
           title: "Сообщение"
+        post_list:
+          title: "Список публикаций"
+          empty_example: "Пустое состояние <PostList />"
+          populated_example: "Заполненное состояние <PostList />"
         topic_map:
           title: "Карта темы"
         site_header:

@@ -1,9 +1,9 @@
 import { render } from "@ember/test-helpers";
 import { setupRenderingTest as emberSetupRenderingTest } from "ember-qunit";
-import $ from "jquery";
 import QUnit, { test } from "qunit";
 import { autoLoadModules } from "discourse/instance-initializers/auto-load-modules";
 import { AUTO_GROUPS } from "discourse/lib/constants";
+import deprecated from "discourse/lib/deprecated";
 import Session from "discourse/models/session";
 import Site from "discourse/models/site";
 import TopicTrackingState from "discourse/models/topic-tracking-state";
@@ -48,12 +48,18 @@ export function setupRenderingTest(hooks) {
 
     autoLoadModules(this.owner, this.registry);
     this.owner.lookup("service:store");
-
-    $.fn.autocomplete = function () {};
   });
 }
 
 export default function (name, hooks, opts) {
+  deprecated(
+    `\`componentTest\` is deprecated. Use QUnit's \`test\` and \`setupRenderingTest\` from "discourse/tests/helpers/component-test" instead.`,
+    {
+      id: "discourse.component-test",
+      since: "3.4.0.beta3-dev",
+    }
+  );
+
   if (opts === undefined) {
     opts = hooks;
   }

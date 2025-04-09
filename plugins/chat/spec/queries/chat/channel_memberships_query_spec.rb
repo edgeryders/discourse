@@ -1,7 +1,5 @@
 # frozen_string_literal: true
 
-require "rails_helper"
-
 describe Chat::ChannelMembershipsQuery do
   fab!(:user_1) { Fabricate(:user, username: "Aline", name: "Boetie") }
   fab!(:user_2) { Fabricate(:user, username: "Bertrand", name: "Arlan") }
@@ -80,8 +78,10 @@ describe Chat::ChannelMembershipsQuery do
           end
 
           it "returns the membership if the user still has access through a staff group" do
-            chatters_group.remove(user_1)
+            user_1.update!(admin: true)
             Group.find_by(id: Group::AUTO_GROUPS[:staff]).add(user_1)
+
+            chatters_group.remove(user_1)
 
             memberships = described_class.call(channel: channel_1)
 
@@ -288,6 +288,24 @@ describe Chat::ChannelMembershipsQuery do
     end
 
     it "doesn’t list suspended users" do
+      memberships = described_class.call(channel: channel_1)
+      expect(memberships).to be_blank
+    end
+  end
+
+  context "when user is silenced" do
+    fab!(:channel_1) { Fabricate(:category_channel) }
+    fab!(:silenced_user) { Fabricate(:user, silenced_till: 5.days.from_now) }
+
+    before do
+      Chat::UserChatChannelMembership.create(
+        user: silenced_user,
+        chat_channel: channel_1,
+        following: true,
+      )
+    end
+
+    it "doesn’t list silenced users" do
       memberships = described_class.call(channel: channel_1)
       expect(memberships).to be_blank
     end

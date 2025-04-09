@@ -5,7 +5,7 @@
       <label class="radio checkbox-label">
         <input
           id="radio_{{this.flag.name_key}}"
-          {{on "click" (action "changePostActionType" this.flag)}}
+          {{on "click" (fn this.changePostActionType this.flag)}}
           type="radio"
           name="post_action_type_index"
         />
@@ -41,7 +41,8 @@
       <label class="radio checkbox-label">
         <input
           id="radio_{{this.flag.name_key}}"
-          {{on "click" (action "changePostActionType" this.flag)}}
+          {{on "click" (fn this.changePostActionType this.flag)}}
+          checked={{this.selected}}
           type="radio"
           name="post_action_type_index"
         />
@@ -69,6 +70,16 @@
           {{/if}}
         </div>
       </label>
+      {{#if this.showConfirmation}}
+        <label class="checkbox-label flag-confirmation">
+          <Input
+            name="confirmation"
+            @type="checkbox"
+            @checked={{this.isConfirmed}}
+          />
+          <span>{{i18n "flagging.confirmation_illegal"}}</span>
+        </label>
+      {{/if}}
     </div>
   {{/if}}
 </div>

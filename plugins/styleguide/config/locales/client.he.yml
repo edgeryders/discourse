@@ -34,8 +34,8 @@ he:
         icons:
           title: "סמלים"
           full_list: "הצגת רשימת הסמלים המלאה של Font Awesome"
-        input_fields:
-          title: "שדות קלט"
+        forms:
+          title: "טפסים"
         buttons:
           title: "כפתורים"
         dropdowns:
@@ -74,6 +74,10 @@ he:
           title: "התראות על נושאים"
         post:
           title: "פוסט"
+        post_list:
+          title: "רשימת פוסטים"
+          empty_example: "<PostList /> מצב ריק"
+          populated_example: "<PostList /> מצב מאוכלס"
         topic_map:
           title: "מפת נושאים"
         site_header:

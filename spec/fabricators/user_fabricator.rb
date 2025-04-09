@@ -5,6 +5,7 @@ Fabricator(:user_stat) {}
 Fabricator(:user, class_name: :user) do
   transient refresh_auto_groups: false
   transient trust_level: nil
+  transient search_index: false
 
   name "Bruce Wayne"
   username { sequence(:username) { |i| "bruce#{i}" } }
@@ -19,7 +20,10 @@ Fabricator(:user, class_name: :user) do
     if transients[:refresh_auto_groups] || transients[:trust_level]
       Group.user_trust_level_change!(user.id, user.trust_level)
     end
+    SearchIndexer.disable if transients[:search_index]
   end
+
+  before_create { |user, transients| SearchIndexer.enable if transients[:search_index] }
 end
 
 Fabricator(:user_with_secondary_email, from: :user) do
@@ -72,6 +76,7 @@ Fabricator(:admin, from: :user) do
   username { sequence(:username) { |i| "anne#{i}" } }
   email { sequence(:email) { |i| "anne#{i}@discourse.org" } }
   admin true
+  trust_level TrustLevel[4]
 
   after_create do |user|
     user.group_users << Fabricate(:group_user, user: user, group: Group[:admins])

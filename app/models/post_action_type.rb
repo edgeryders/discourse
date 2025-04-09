@@ -1,105 +1,71 @@
 # frozen_string_literal: true
 
 class PostActionType < ActiveRecord::Base
-  after_save :expire_cache
-  after_destroy :expire_cache
+  POST_ACTION_TYPE_ALL_FLAGS_KEY = "post_action_type_all_flags"
+  POST_ACTION_TYPE_PUBLIC_TYPE_IDS_KEY = "post_action_public_type_ids"
+  LIKE_POST_ACTION_ID = 2
+
+  after_save { expire_cache if !skip_expire_cache_callback }
+  after_destroy { expire_cache if !skip_expire_cache_callback }
+
+  attr_accessor :skip_expire_cache_callback
 
   include AnonCacheInvalidator
 
   def expire_cache
-    ApplicationSerializer.expire_cache_fragment!(/\Apost_action_types_/)
-    ApplicationSerializer.expire_cache_fragment!(/\Apost_action_flag_types_/)
+    Discourse.cache.redis.del(
+      *I18n.available_locales.map do |locale|
+        Discourse.cache.normalize_key("post_action_types_#{locale}")
+      end,
+      *I18n.available_locales.map do |locale|
+        Discourse.cache.normalize_key("post_action_flag_types_#{locale}")
+      end,
+      Discourse.cache.normalize_key(POST_ACTION_TYPE_ALL_FLAGS_KEY),
+      Discourse.cache.normalize_key(POST_ACTION_TYPE_PUBLIC_TYPE_IDS_KEY),
+    )
   end
 
   class << self
     attr_reader :flag_settings
 
-    def replace_flag_settings(settings)
-      if settings
-        @flag_settings = settings
-      else
-        initialize_flag_settings
-      end
-      @types = nil
-    end
-
-    def ordered
-      order("position asc")
-    end
-
-    def types
-      unless @types
-        # NOTE: Previously bookmark was type 1 but that has been superseded
-        # by the separate Bookmark model and functionality
-        @types = Enum.new(like: 2)
-        @types.merge!(flag_settings.flag_types)
-      end
-
-      @types
-    end
-
-    def auto_action_flag_types
-      flag_settings.auto_action_types
-    end
-
-    def public_types
-      @public_types ||= types.except(*flag_types.keys << :notify_user)
-    end
-
-    def public_type_ids
-      @public_type_ids ||= public_types.values
-    end
-
-    def flag_types_without_custom
-      flag_settings.without_custom_types
-    end
-
-    def flag_types
-      flag_settings.flag_types
-    end
-
-    # flags resulting in mod notifications
-    def notify_flag_type_ids
-      notify_flag_types.values
-    end
-
-    def notify_flag_types
-      flag_settings.notify_types
-    end
-
-    def topic_flag_types
-      flag_settings.topic_flag_types
-    end
-
-    def custom_types
-      flag_settings.custom_types
-    end
-
-    def is_flag?(sym)
-      flag_types.valid?(sym)
-    end
-
-    private
-
     def initialize_flag_settings
       @flag_settings = FlagSettings.new
-      @flag_settings.add(3, :off_topic, notify_type: true, auto_action_type: true)
-      @flag_settings.add(
-        4,
-        :inappropriate,
-        topic_type: true,
-        notify_type: true,
-        auto_action_type: true,
-      )
-      @flag_settings.add(8, :spam, topic_type: true, notify_type: true, auto_action_type: true)
-      @flag_settings.add(6, :notify_user, topic_type: false, notify_type: false, custom_type: true)
-      @flag_settings.add(
-        7,
-        :notify_moderators,
-        topic_type: true,
-        notify_type: true,
-        custom_type: true,
-      )
+    end
+
+    def replace_flag_settings(settings)
+      Discourse.deprecate("Flags should not be replaced. Insert custom flags as database records.")
+      @flag_settings = settings || FlagSettings.new
+    end
+
+    def reload_types
+      @flag_settings = FlagSettings.new
+      PostActionType.new.expire_cache
+      ReviewableScore.reload_types
+    end
+
+    %i[
+      expire_cache
+      all_flags
+      types
+      overridden_by_plugin_or_skipped_db?
+      auto_action_flag_types
+      public_types
+      public_type_ids
+      flag_types_without_additional_message
+      flags
+      flag_types
+      score_types
+      notify_flag_type_ids
+      notify_flag_types
+      topic_flag_types
+      disabled_flag_types
+      additional_message_types
+      names
+      descriptions
+      applies_to
+      is_flag?
+    ].each do |method_name|
+      define_method(method_name) { |*args| PostActionTypeView.new.send(method_name, *args) }
     end
   end
 

@@ -1,8 +1,8 @@
 import { action } from "@ember/object";
 import Route from "@ember/routing/route";
 import { next } from "@ember/runloop";
-import { inject as service } from "@ember/service";
-import I18n from "discourse-i18n";
+import { service } from "@ember/service";
+import { i18n } from "discourse-i18n";
 import InstallThemeModal from "../components/modal/install-theme";
 
 export default class AdminCustomizeThemesRoute extends Route {
@@ -13,23 +13,20 @@ export default class AdminCustomizeThemesRoute extends Route {
   queryParams = {
     repoUrl: null,
     repoName: null,
-    tab: null,
   };
 
-  model() {
+  model(params) {
+    this.currentTab = params.type;
     return this.store.findAll("theme");
   }
 
   setupController(controller, model) {
     super.setupController(controller, model);
 
-    if (controller.tab) {
+    if (this.currentTab) {
       controller.setProperties({
         editingTheme: false,
-        currentTab: controller.tab,
-
-        // this is to get rid of the queryString since we don't want it hanging around
-        tab: undefined,
+        currentTab: this.currentTab,
       });
     }
 
@@ -69,7 +66,7 @@ export default class AdminCustomizeThemesRoute extends Route {
     const currentTheme = this.modelFor("adminCustomizeThemes");
     if (this.currentModel?.warnUnassignedComponent) {
       this.dialog.yesNoConfirm({
-        message: I18n.t("admin.customize.theme.unsaved_parent_themes"),
+        message: i18n("admin.customize.theme.unsaved_parent_themes"),
         didConfirm: () => {
           currentTheme.set("recentlyInstalled", false);
           this.modal.show(InstallThemeModal, {

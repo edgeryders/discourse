@@ -10,10 +10,10 @@ RSpec.describe Admin::PermalinksController do
       before { sign_in(admin) }
 
       it "filters url" do
-        Fabricate(:permalink, url: "/forum/23")
-        Fabricate(:permalink, url: "/forum/98")
-        Fabricate(:permalink, url: "/discuss/topic/45")
-        Fabricate(:permalink, url: "/discuss/topic/76")
+        Fabricate(:permalink, url: "/forum/23", topic_id: 1)
+        Fabricate(:permalink, url: "/forum/98", topic_id: 1)
+        Fabricate(:permalink, url: "/discuss/topic/45", topic_id: 1)
+        Fabricate(:permalink, url: "/discuss/topic/76", topic_id: 1)
 
         get "/admin/permalinks.json", params: { filter: "topic" }
 
@@ -80,9 +80,11 @@ RSpec.describe Admin::PermalinksController do
 
         post "/admin/permalinks.json",
              params: {
-               url: "/topics/771",
-               permalink_type: "topic_id",
-               permalink_type_value: topic.id,
+               permalink: {
+                 url: "/topics/771",
+                 permalink_type: "topic",
+                 permalink_type_value: topic.id,
+               },
              }
 
         expect(response.status).to eq(200)
@@ -92,6 +94,8 @@ RSpec.describe Admin::PermalinksController do
           post_id: nil,
           category_id: nil,
           tag_id: nil,
+          external_url: nil,
+          user_id: nil,
         )
       end
 
@@ -100,9 +104,11 @@ RSpec.describe Admin::PermalinksController do
 
         post "/admin/permalinks.json",
              params: {
-               url: "/topics/771/8291",
-               permalink_type: "post_id",
-               permalink_type_value: some_post.id,
+               permalink: {
+                 url: "/topics/771/8291",
+                 permalink_type: "post",
+                 permalink_type_value: some_post.id,
+               },
              }
 
         expect(response.status).to eq(200)
@@ -112,6 +118,8 @@ RSpec.describe Admin::PermalinksController do
           post_id: some_post.id,
           category_id: nil,
           tag_id: nil,
+          external_url: nil,
+          user_id: nil,
         )
       end
 
@@ -120,9 +128,11 @@ RSpec.describe Admin::PermalinksController do
 
         post "/admin/permalinks.json",
              params: {
-               url: "/forums/11",
-               permalink_type: "category_id",
-               permalink_type_value: category.id,
+               permalink: {
+                 url: "/forums/11",
+                 permalink_type: "category",
+                 permalink_type_value: category.id,
+               },
              }
 
         expect(response.status).to eq(200)
@@ -132,6 +142,8 @@ RSpec.describe Admin::PermalinksController do
           post_id: nil,
           category_id: category.id,
           tag_id: nil,
+          external_url: nil,
+          user_id: nil,
         )
       end
 
@@ -140,9 +152,11 @@ RSpec.describe Admin::PermalinksController do
 
         post "/admin/permalinks.json",
              params: {
-               url: "/forums/12",
-               permalink_type: "tag_name",
-               permalink_type_value: tag.name,
+               permalink: {
+                 url: "/forums/12",
+                 permalink_type: "tag",
+                 permalink_type_value: tag.name,
+               },
              }
 
         expect(response.status).to eq(200)
@@ -152,6 +166,32 @@ RSpec.describe Admin::PermalinksController do
           post_id: nil,
           category_id: nil,
           tag_id: tag.id,
+          external_url: nil,
+          user_id: nil,
+        )
+      end
+
+      it "works for users" do
+        user = Fabricate(:user)
+
+        post "/admin/permalinks.json",
+             params: {
+               permalink: {
+                 url: "/people/42",
+                 permalink_type: "user",
+                 permalink_type_value: user.id,
+               },
+             }
+
+        expect(response.status).to eq(200)
+        expect(Permalink.last).to have_attributes(
+          url: "people/42",
+          topic_id: nil,
+          post_id: nil,
+          category_id: nil,
+          tag_id: nil,
+          external_url: nil,
+          user_id: user.id,
         )
       end
     end
@@ -163,9 +203,11 @@ RSpec.describe Admin::PermalinksController do
         expect do
           post "/admin/permalinks.json",
                params: {
-                 url: "/topics/771",
-                 permalink_type: "topic_id",
-                 permalink_type_value: topic.id,
+                 permalink: {
+                   url: "/topics/771",
+                   permalink_type: "topic",
+                   permalink_type_value: topic.id,
+                 },
                }
         end.not_to change { Permalink.count }
 

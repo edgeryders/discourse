@@ -5,6 +5,8 @@ describe "Reviewables", type: :system do
   fab!(:admin)
   fab!(:theme)
   fab!(:long_post) { Fabricate(:post_with_very_long_raw_content) }
+  fab!(:post)
+  let(:composer) { PageObjects::Components::Composer.new }
 
   before { sign_in(admin) }
 
@@ -23,12 +25,50 @@ describe "Reviewables", type: :system do
   end
 
   describe "when there is a flagged post reviewable with a short post" do
-    fab!(:short_reviewable) { Fabricate(:reviewable_flagged_post) }
+    fab!(:short_reviewable) { Fabricate(:reviewable_flagged_post, target: post) }
 
     it "should not show a button to expand/collapse the post content" do
       visit("/review")
       expect(review_page).to have_no_post_body_collapsed
       expect(review_page).to have_no_post_body_toggle
+    end
+
+    describe "reviewable actions" do
+      it "should have agree_and_edit action" do
+        visit("/review")
+        select_kit =
+          PageObjects::Components::SelectKit.new(".dropdown-select-box.post-agree-and-hide")
+        select_kit.expand
+
+        expect(select_kit).to have_option_value("post-agree_and_edit")
+      end
+
+      it "agree_and_edit should open the composer" do
+        visit("/review")
+        select_kit =
+          PageObjects::Components::SelectKit.new(".dropdown-select-box.post-agree-and-hide")
+        select_kit.expand
+
+        find("[data-value='post-agree_and_edit']").click
+
+        expect(composer).to be_opened
+        expect(composer.composer_input.value).to eq(post.raw)
+      end
+
+      it "should open a modal when suspending a user" do
+        visit("/review")
+
+        select_kit =
+          PageObjects::Components::SelectKit.new(".dropdown-select-box.post-agree-and-hide")
+        select_kit.expand
+
+        select_kit.select_row_by_value("post-agree_and_suspend")
+
+        expect(review_page).to have_css(
+          "#discourse-modal-title",
+          text: I18n.t("js.flagging.take_action_options.suspend.title"),
+        )
+      end
     end
   end
 
@@ -90,6 +130,14 @@ describe "Reviewables", type: :system do
   end
 
   context "when performing a review action from the show route" do
+    fab!(:contact_group) { Fabricate(:group) }
+    fab!(:contact_user) { Fabricate(:user) }
+
+    before do
+      SiteSetting.site_contact_group_name = contact_group.name
+      SiteSetting.site_contact_username = contact_user.username
+    end
+
     context "with a ReviewableQueuedPost" do
       fab!(:queued_post_reviewable) { Fabricate(:reviewable_queued_post) }
 
@@ -130,7 +178,11 @@ describe "Reviewables", type: :system do
 
         expect(review_page).to have_reviewable_with_rejected_status(queued_post_reviewable)
         expect(queued_post_reviewable.reload).to be_rejected
-        expect(Topic.where(archetype: Archetype.private_message).last.title).to eq(
+
+        topic = Topic.where(archetype: Archetype.private_message).last
+        expect(topic.topic_allowed_users.pluck(:user_id)).to include(contact_user.id)
+        expect(topic.topic_allowed_groups.pluck(:group_id)).to include(contact_group.id)
+        expect(topic.title).to eq(
           I18n.t(
             "system_messages.reviewable_queued_post_revise_and_reject.subject_template",
             topic_title: queued_post_reviewable.topic.title,

@@ -1,13 +1,13 @@
 import Component from "@glimmer/component";
 import { tracked } from "@glimmer/tracking";
 import { action } from "@ember/object";
-import { inject as service } from "@ember/service";
+import { service } from "@ember/service";
 import { categoryBadgeHTML } from "discourse/helpers/category-link";
+import { iconHTML } from "discourse/lib/icon-library";
 import { sanitizeAsync } from "discourse/lib/text";
 import Category from "discourse/models/category";
 import Post from "discourse/models/post";
-import { iconHTML } from "discourse-common/lib/icon-library";
-import I18n from "discourse-i18n";
+import { i18n } from "discourse-i18n";
 
 function customTagArray(val) {
   if (!val) {
@@ -24,10 +24,11 @@ export default class History extends Component {
   @service site;
   @service currentUser;
   @service siteSettings;
+  @service appEvents;
 
   @tracked loading;
   @tracked postRevision;
-  @tracked viewMode = this.site?.mobileView ? "inline" : "side_by_side";
+  @tracked viewMode = this.site.mobileView ? "inline" : "side_by_side";
   @tracked bodyDiff;
   @tracked initialLoad = true;
 
@@ -84,11 +85,11 @@ export default class History extends Component {
   }
 
   get revisionsText() {
-    return I18n.t(
+    return i18n(
       "post.revisions.controls.comparing_previous_to_current_out_of_total",
       {
         previous: this.previousVersion,
-        icon: iconHTML("arrows-alt-h"),
+        icon: iconHTML("left-right"),
         current: this.postRevision?.current_version,
         total: this.postRevision?.version_count,
       }
@@ -163,19 +164,35 @@ export default class History extends Component {
 
   get revertToRevisionText() {
     if (this.previousVersion) {
-      return I18n.t("post.revisions.controls.revert", {
+      return i18n("post.revisions.controls.revert", {
         revision: this.previousVersion,
       });
     }
   }
 
-  refresh(postId, postVersion) {
+  async refresh(postId, postVersion) {
     this.loading = true;
-    Post.loadRevision(postId, postVersion).then((result) => {
+    try {
+      const result = await Post.loadRevision(postId, postVersion);
       this.postRevision = result;
+    } catch (error) {
+      this.args.closeModal();
+      this.dialog.alert(error.jqXHR.responseJSON.errors[0]);
+
+      const postStream = this.args.model.post?.topic?.postStream;
+      if (!postStream) {
+        return;
+      }
+
+      postStream
+        .triggerChangedPost(postId, this.args.model)
+        .then(() =>
+          this.appEvents.trigger("post-stream:refresh", { id: postId })
+        );
+    } finally {
       this.loading = false;
       this.initialLoad = false;
-    });
+    }
   }
 
   hide(postId, postVersion) {
@@ -190,26 +207,27 @@ export default class History extends Component {
     );
   }
 
-  revert(post, postVersion) {
-    post
-      .revertToRevision(postVersion)
-      .then((result) => {
-        this.refresh(post.id, postVersion);
-        if (result.topic) {
-          post.set("topic.slug", result.topic.slug);
-          post.set("topic.title", result.topic.title);
-          post.set("topic.fancy_title", result.topic.fancy_title);
-        }
-        if (result.category_id) {
-          post.set("topic.category", Category.findById(result.category_id));
-        }
-        this.args.closeModal();
-      })
-      .catch((e) => {
-        if (e.jqXHR.responseJSON?.errors?.[0]) {
-          this.dialog.alert(e.jqXHR.responseJSON.errors[0]);
-        }
-      });
+  async revert(post, postVersion) {
+    try {
+      const result = await post.revertToRevision(postVersion);
+      this.refresh(post.id, postVersion);
+      if (result.topic) {
+        post.set("topic.slug", result.topic.slug);
+        post.set("topic.title", result.topic.title);
+        post.set("topic.fancy_title", result.topic.fancy_title);
+      }
+      if (result.category_id) {
+        post.set(
+          "topic.category",
+          await Category.asyncFindById(result.category_id)
+        );
+      }
+      this.args.closeModal();
+    } catch (e) {
+      if (e.jqXHR.responseJSON?.errors?.[0]) {
+        this.dialog.alert(e.jqXHR.responseJSON.errors[0]);
+      }
+    }
   }
 
   get editButtonLabel() {
@@ -237,32 +255,27 @@ export default class History extends Component {
   }
 
   get previousCategory() {
-    if (this.postRevision?.category_id_changes) {
+    if (this.postRevision?.category_id_changes?.previous) {
       let category = Category.findById(
         this.postRevision.category_id_changes.previous
       );
-      return categoryBadgeHTML(category, { allowUncategorized: true });
+      return categoryBadgeHTML(category, {
+        allowUncategorized: true,
+        extraClasses: "diff-del",
+      });
     }
   }
 
   get currentCategory() {
-    if (this.postRevision?.category_id_changes) {
+    if (this.postRevision?.category_id_changes?.current) {
       let category = Category.findById(
         this.postRevision.category_id_changes.current
       );
-      return categoryBadgeHTML(category, { allowUncategorized: true });
+      return categoryBadgeHTML(category, {
+        allowUncategorized: true,
+        extraClasses: "diff-ins",
+      });
     }
-  }
-
-  get wikiDisabled() {
-    return !this.postRevision.wiki_changes?.current;
-  }
-
-  get postTypeDisabled() {
-    return (
-      this.postRevision?.post_type_changes?.current !==
-      this.site.post_types.moderator_action
-    );
   }
 
   @action
@@ -317,7 +330,7 @@ export default class History extends Component {
   @action
   permanentlyDeleteVersions() {
     this.dialog.yesNoConfirm({
-      message: I18n.t("post.revisions.controls.destroy_confirm"),
+      message: i18n("post.revisions.controls.destroy_confirm"),
       didConfirm: () => {
         Post.permanentlyDeleteRevisions(this.postRevision.post_id).then(() => {
           this.args.closeModal();

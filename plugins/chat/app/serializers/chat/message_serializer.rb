@@ -12,11 +12,13 @@ module Chat
       deleted_by_id
       thread_id
       chat_channel_id
+      streaming
     ]
     attributes(
       *(
         BASIC_ATTRIBUTES +
           %i[
+            user
             mentioned_users
             reactions
             bookmark
@@ -25,11 +27,11 @@ module Chat
             reviewable_id
             edited
             thread
+            blocks
           ]
       ),
     )
 
-    has_one :user, serializer: Chat::MessageUserSerializer, embed: :objects
     has_one :chat_webhook_event, serializer: Chat::WebhookEventSerializer, embed: :objects
     has_one :in_reply_to, serializer: Chat::InReplyToSerializer, embed: :objects
     has_many :uploads, serializer: ::UploadSerializer, embed: :objects
@@ -37,11 +39,12 @@ module Chat
     def mentioned_users
       object
         .user_mentions
+        .includes(user: :user_option)
         .limit(SiteSetting.max_mentions_per_chat_message)
         .map(&:user)
         .compact
         .sort_by(&:id)
-        .map { |user| BasicUserWithStatusSerializer.new(user, root: false) }
+        .map { |user| BasicUserSerializer.new(user, root: false, include_status: true) }
         .as_json
     end
 
@@ -50,16 +53,18 @@ module Chat
     end
 
     def user
-      object.user || Chat::NullUser.new
+      user = object.user || Chat::NullUser.new
+      MessageUserSerializer.new(user, root: false, include_status: true).as_json
     end
 
     def excerpt
-      object.censored_excerpt
+      object.excerpt || object.build_excerpt
     end
 
     def reactions
       object
         .reactions
+        .includes(user: :user_option)
         .group_by(&:emoji)
         .map do |emoji, reactions|
           next unless Emoji.exists?(emoji)
@@ -159,6 +164,15 @@ module Chat
       user_flag_status.present?
     end
 
+    def blocks
+      ActiveModel::ArraySerializer.new(
+        object.blocks || [],
+        each_serializer: Chat::BlockSerializer,
+        scope:,
+        root: false,
+      ).as_json
+    end
+
     def available_flags
       return [] if !scope.can_flag_chat_message?(object)
       return [] if reviewable_id.present? && user_flag_status == ReviewableScore.statuses[:pending]
@@ -168,7 +182,7 @@ module Chat
 
         if sym == :notify_user &&
              (
-               scope.current_user == user || user.bot? ||
+               scope.current_user == user || object.user.bot? ||
                  !scope.current_user.in_any_groups?(SiteSetting.personal_message_enabled_groups_map)
              )
           next
@@ -178,20 +192,20 @@ module Chat
       end
     end
 
-    def include_thread?
-      include_thread_id? && object.thread_om? && object.thread.present?
+    def include_thread_id?
+      channel.threading_enabled || object.thread&.force
     end
 
-    def include_thread_id?
-      channel.threading_enabled
+    def include_thread?
+      include_thread_id? && object.thread_om? && object.thread.present?
     end
 
     def thread
       Chat::ThreadSerializer.new(
         object.thread,
         scope: scope,
-        membership: @options[:thread_memberships]&.find { |m| m.thread_id == object.thread.id },
-        participants: @options[:thread_participants]&.dig(object.thread.id),
+        membership: @options[:thread_memberships]&.find { |m| m.thread_id == object.thread&.id },
+        participants: @options[:thread_participants]&.dig(object.thread&.id),
         include_thread_preview: true,
         include_thread_original_message: @options[:include_thread_original_message],
         root: false,

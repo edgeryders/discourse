@@ -2,21 +2,14 @@ import { cached, tracked } from "@glimmer/tracking";
 import { A } from "@ember/array";
 import Component from "@ember/component";
 import { action } from "@ember/object";
-import { inject as service } from "@ember/service";
+import { service } from "@ember/service";
 import { isEmpty } from "@ember/utils";
 import { ajax } from "discourse/lib/ajax";
 import { extractError } from "discourse/lib/ajax-error";
 import { SIDEBAR_SECTION, SIDEBAR_URL } from "discourse/lib/constants";
-import RouteInfoHelper from "discourse/lib/sidebar/route-info-helper";
+import { afterRender, bind } from "discourse/lib/decorators";
 import { sanitize } from "discourse/lib/text";
-import { bind } from "discourse-common/utils/decorators";
-import I18n from "discourse-i18n";
-
-const FULL_RELOAD_LINKS_REGEX = [
-  /^\/my\/[a-z_\-\/]+$/,
-  /^\/pub\/[a-z_\-\/]+$/,
-  /^\/safe-mode$/,
-];
+import { i18n } from "discourse-i18n";
 
 class Section {
   @tracked title;
@@ -59,10 +52,10 @@ class Section {
       return;
     }
     if (this.#blankTitle) {
-      return I18n.t("sidebar.sections.custom.title.validation.blank");
+      return i18n("sidebar.sections.custom.title.validation.blank");
     }
     if (this.#tooLongTitle) {
-      return I18n.t("sidebar.sections.custom.title.validation.maximum", {
+      return i18n("sidebar.sections.custom.title.validation.maximum", {
         count: SIDEBAR_SECTION.max_title_length,
       });
     }
@@ -121,10 +114,10 @@ class SectionLink {
 
   get invalidIconMessage() {
     if (this.#blankIcon) {
-      return I18n.t("sidebar.sections.custom.links.icon.validation.blank");
+      return i18n("sidebar.sections.custom.links.icon.validation.blank");
     }
     if (this.#tooLongIcon) {
-      return I18n.t("sidebar.sections.custom.links.icon.validation.maximum", {
+      return i18n("sidebar.sections.custom.links.icon.validation.maximum", {
         count: SIDEBAR_URL.max_icon_length,
       });
     }
@@ -135,10 +128,10 @@ class SectionLink {
       return;
     }
     if (this.#blankName) {
-      return I18n.t("sidebar.sections.custom.links.name.validation.blank");
+      return i18n("sidebar.sections.custom.links.name.validation.blank");
     }
     if (this.#tooLongName) {
-      return I18n.t("sidebar.sections.custom.links.name.validation.maximum", {
+      return i18n("sidebar.sections.custom.links.name.validation.maximum", {
         count: SIDEBAR_URL.max_name_length,
       });
     }
@@ -149,15 +142,15 @@ class SectionLink {
       return;
     }
     if (this.#blankValue) {
-      return I18n.t("sidebar.sections.custom.links.value.validation.blank");
+      return i18n("sidebar.sections.custom.links.value.validation.blank");
     }
     if (this.#tooLongValue) {
-      return I18n.t("sidebar.sections.custom.links.value.validation.maximum", {
+      return i18n("sidebar.sections.custom.links.value.validation.maximum", {
         count: SIDEBAR_URL.max_value_length,
       });
     }
     if (this.#invalidValue) {
-      return I18n.t("sidebar.sections.custom.links.value.validation.invalid");
+      return i18n("sidebar.sections.custom.links.value.validation.invalid");
     }
   }
 
@@ -171,17 +164,6 @@ class SectionLink {
 
   get valueCssClass() {
     return this.value === undefined || this.validValue ? "" : "warning";
-  }
-
-  get external() {
-    return (
-      this.value &&
-      !(
-        this.value.startsWith(this.httpHost) ||
-        this.value.startsWith(this.httpsHost) ||
-        this.value.startsWith("/")
-      )
-    );
   }
 
   get isPrimary() {
@@ -213,27 +195,15 @@ class SectionLink {
   }
 
   get #invalidValue() {
-    return (
-      this.path &&
-      (this.external ? !this.#validExternal() : !this.#validInternal())
-    );
+    return this.path && !this.#validLink();
   }
 
-  #validExternal() {
+  #validLink() {
     try {
-      return new URL(this.value);
+      return new URL(this.value, document.location.origin);
     } catch {
       return false;
     }
-  }
-
-  #validInternal() {
-    const routeInfoHelper = new RouteInfoHelper(this.router, this.path);
-
-    return (
-      routeInfoHelper.route !== "unknown" ||
-      FULL_RELOAD_LINKS_REGEX.some((regex) => this.path.match(regex))
-    );
   }
 }
 
@@ -328,6 +298,23 @@ export default class SidebarSectionForm extends Component {
   }
 
   update() {
+    this.wasPublic || this.isPublic
+      ? this.#updateWithConfirm()
+      : this.#updateCall();
+  }
+
+  #updateWithConfirm() {
+    return this.dialog.yesNoConfirm({
+      message: this.isPublic
+        ? i18n("sidebar.sections.custom.update_public_confirm")
+        : i18n("sidebar.sections.custom.mark_as_private_confirm"),
+      didConfirm: () => {
+        return this.#updateCall();
+      },
+    });
+  }
+
+  #updateCall() {
     return ajax(`/sidebar_sections/${this.transformedModel.id}`, {
       type: "PUT",
       contentType: "application/json",
@@ -381,6 +368,21 @@ export default class SidebarSectionForm extends Component {
     return this.transformedModel.id
       ? "sidebar.sections.custom.edit"
       : "sidebar.sections.custom.add";
+  }
+
+  get isPublic() {
+    return this.transformedModel.public;
+  }
+
+  get wasPublic() {
+    return this.model?.section?.public;
+  }
+
+  @afterRender
+  focusNewRowInput(id) {
+    document
+      .querySelector(`[data-row-id="${id}"] .icon-picker summary`)
+      .focus();
   }
 
   @bind
@@ -445,6 +447,8 @@ export default class SidebarSectionForm extends Component {
         segment: "primary",
       })
     );
+
+    this.focusNewRowInput(this.nextObjectId);
   }
 
   @action
@@ -457,12 +461,14 @@ export default class SidebarSectionForm extends Component {
         segment: "secondary",
       })
     );
+
+    this.focusNewRowInput(this.nextObjectId);
   }
 
   @action
   resetToDefault() {
     return this.dialog.yesNoConfirm({
-      message: I18n.t("sidebar.sections.custom.reset_confirm"),
+      message: i18n("sidebar.sections.custom.reset_confirm"),
       didConfirm: () => {
         return ajax(`/sidebar_sections/reset/${this.transformedModel.id}`, {
           type: "PUT",
@@ -479,6 +485,9 @@ export default class SidebarSectionForm extends Component {
             this.flashType = "error";
           });
       },
+      didCancel: () => {
+        this.closeModal();
+      },
     });
   }
 
@@ -490,7 +499,9 @@ export default class SidebarSectionForm extends Component {
   @action
   delete() {
     return this.dialog.yesNoConfirm({
-      message: I18n.t("sidebar.sections.custom.delete_confirm"),
+      message: this.model.section.public
+        ? i18n("sidebar.sections.custom.delete_public_confirm")
+        : i18n("sidebar.sections.custom.delete_confirm"),
       didConfirm: () => {
         return ajax(`/sidebar_sections/${this.transformedModel.id}`, {
           type: "DELETE",

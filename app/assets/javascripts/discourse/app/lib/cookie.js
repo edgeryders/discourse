@@ -1,4 +1,4 @@
-import deprecated from "discourse-common/lib/deprecated";
+import deprecated from "discourse/lib/deprecated";
 
 const pluses = /\+/g;
 
@@ -14,7 +14,7 @@ function parseCookieValue(s) {
     // If we can't parse the cookie, ignore it, it's unusable.
     s = decodeURIComponent(s.replace(pluses, " "));
     return s;
-  } catch (e) {}
+  } catch {}
 }
 
 function cookie(key, value, options) {
@@ -36,6 +36,7 @@ function cookie(key, value, options) {
       options.path ? "; path=" + options.path : "",
       options.domain ? "; domain=" + options.domain : "",
       options.secure ? "; secure" : "",
+      ";samesite=Lax",
     ].join(""));
   }
 

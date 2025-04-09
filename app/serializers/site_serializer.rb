@@ -39,7 +39,6 @@ class SiteSerializer < ApplicationSerializer
     :markdown_additional_options,
     :hashtag_configurations,
     :hashtag_icons,
-    :displayed_about_plugin_stat_groups,
     :anonymous_default_navigation_menu_tags,
     :anonymous_sidebar_sections,
     :whispers_allowed_groups_names,
@@ -48,11 +47,15 @@ class SiteSerializer < ApplicationSerializer
     :privacy_policy_url,
     :system_user_avatar_template,
     :lazy_load_categories,
+    :valid_flag_applies_to_types,
+    :full_name_required_for_signup,
+    :full_name_visible_in_signup,
   )
 
   has_many :archetypes, embed: :objects, serializer: ArchetypeSerializer
   has_many :user_fields, embed: :objects, serializer: UserFieldSerializer
   has_many :auth_providers, embed: :objects, serializer: AuthProviderSerializer
+  has_many :anonymous_sidebar_sections, embed: :objects, serializer: SidebarSectionSerializer
 
   def user_themes
     cache_fragment("user_themes") do
@@ -83,7 +86,10 @@ class SiteSerializer < ApplicationSerializer
   end
 
   def default_dark_color_scheme
-    ColorScheme.find_by_id(SiteSetting.default_dark_mode_color_scheme_id).as_json
+    ColorSchemeSerializer.new(
+      ColorScheme.find_by_id(SiteSetting.default_dark_mode_color_scheme_id),
+      root: false,
+    ).as_json
   end
 
   def groups
@@ -106,17 +112,44 @@ class SiteSerializer < ApplicationSerializer
   end
 
   def post_action_types
-    cache_fragment("post_action_types_#{I18n.locale}") do
-      types = ordered_flags(PostActionType.types.values)
-      ActiveModel::ArraySerializer.new(types).as_json
-    end
+    Discourse
+      .cache
+      .fetch("post_action_types_#{I18n.locale}") do
+        if PostActionType.overridden_by_plugin_or_skipped_db?
+          types = ordered_flags(PostActionType.types.values)
+          ActiveModel::ArraySerializer.new(types).as_json
+        else
+          ActiveModel::ArraySerializer.new(
+            Flag.unscoped.order(:position).where(score_type: false).all,
+            each_serializer: FlagSerializer,
+            target: :post_action,
+            used_flag_ids: Flag.used_flag_ids,
+          ).as_json
+        end
+      end
   end
 
   def topic_flag_types
-    cache_fragment("post_action_flag_types_#{I18n.locale}") do
-      types = ordered_flags(PostActionType.topic_flag_types.values)
-      ActiveModel::ArraySerializer.new(types, each_serializer: TopicFlagTypeSerializer).as_json
-    end
+    Discourse
+      .cache
+      .fetch("post_action_flag_types_#{I18n.locale}") do
+        if PostActionType.overridden_by_plugin_or_skipped_db?
+          types = ordered_flags(PostActionType.topic_flag_types.values)
+          ActiveModel::ArraySerializer.new(types, each_serializer: TopicFlagTypeSerializer).as_json
+        else
+          ActiveModel::ArraySerializer.new(
+            Flag
+              .unscoped
+              .where("'Topic' = ANY(applies_to)")
+              .where(score_type: false)
+              .order(:position)
+              .all,
+            each_serializer: FlagSerializer,
+            target: :topic_flag,
+            used_flag_ids: Flag.used_flag_ids,
+          ).as_json
+        end
+      end
   end
 
   def default_archetype
@@ -240,7 +273,7 @@ class SiteSerializer < ApplicationSerializer
   end
 
   def include_categories?
-    !scope.can_lazy_load_categories?
+    object.categories.present?
   end
 
   def markdown_additional_options
@@ -253,10 +286,6 @@ class SiteSerializer < ApplicationSerializer
 
   def hashtag_icons
     HashtagAutocompleteService.data_source_icon_map
-  end
-
-  def displayed_about_plugin_stat_groups
-    About.displayed_plugin_stat_groups
   end
 
   SIDEBAR_TOP_TAGS_TO_SHOW = 5
@@ -292,14 +321,6 @@ class SiteSerializer < ApplicationSerializer
     scope.anonymous? && SiteSetting.tagging_enabled &&
       SiteSetting.default_navigation_menu_tags.present? &&
       anonymous_default_navigation_menu_tags.present?
-  end
-
-  def anonymous_sidebar_sections
-    SidebarSection
-      .public_sections
-      .includes(:sidebar_urls)
-      .order("(section_type IS NOT NULL) DESC, (public IS TRUE) DESC")
-      .map { |section| SidebarSectionSerializer.new(section, root: false) }
   end
 
   def include_anonymous_sidebar_sections?
@@ -354,16 +375,25 @@ class SiteSerializer < ApplicationSerializer
     scope.can_lazy_load_categories?
   end
 
+  def valid_flag_applies_to_types
+    Flag.valid_applies_to_types
+  end
+
+  def include_valid_flag_applies_to_types?
+    scope.is_admin?
+  end
+
+  def full_name_required_for_signup
+    Site.full_name_required_for_signup
+  end
+
+  def full_name_visible_in_signup
+    Site.full_name_visible_in_signup
+  end
+
   private
 
   def ordered_flags(flags)
-    notify_moderators_type = PostActionType.flag_types[:notify_moderators]
-    types = flags
-
-    if notify_moderators_flag = types.index(notify_moderators_type)
-      types.insert(types.length, types.delete_at(notify_moderators_flag))
-    end
-
-    types.map { |id| PostActionType.new(id: id) }
+    flags.map { |id| PostActionType.new(id: id) }
   end
 end

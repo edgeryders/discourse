@@ -13,6 +13,9 @@ it:
       total_votes:
         one: "voto totale"
         other: "voti totali"
+      votes:
+        one: "%{count} voto"
+        other: "%{count} voti"
       average_rating: "Voto medio: <strong>%{average}</strong>."
       public:
         title: "I voti sono <strong>pubblici</strong>."
@@ -25,6 +28,9 @@ it:
           title: "I risultati saranno mostrati a sondaggio <strong>chiuso</strong>."
         staff:
           title: "I risultati saranno mostrati solo ai membri dello <strong>staff</strong>"
+        tabs:
+          votes: "Voti"
+          outcome: "Esito"
       multiple:
         help:
           at_least_min_options:
@@ -43,6 +49,12 @@ it:
       show-results:
         title: "Visualizza i risultati del sondaggio"
         label: "Risultati"
+      show-tally:
+        title: "Mostra i risultati delle votazioni in base al numero di voti"
+        label: "Mostra conteggio"
+      show-percentage:
+        title: "Mostra i risultati del voto in percentuale"
+        label: "Visualizza come percentuale"
       remove-vote:
         title: "Annulla il tuo voto"
         label: "Annulla il voto"
@@ -72,8 +84,27 @@ it:
         breakdown: "Ripartizione"
         percentage: "Percentuale"
         count: "Conteggio"
+      ranked_choice:
+        title:
+          rounds: "Turni"
+          outcome: "Risultato"
+        none: "Nessuna"
+        majority: "Maggioranza"
+        eliminated: "Eliminato"
+        round: "Turno"
+        winner:
+          one: "Ha vinto %{winner} dopo un turno."
+          other: "Ha vinto %{winner} dopo %{count} turni."
+        tied:
+          one: "Pareggio dopo un turno tra i seguenti candidati:"
+          other: "Pareggio dopo %{count} turni tra i seguenti candidati:"
       options:
         label: "Opzioni"
+        ranked_choice:
+          abstain: "Astieniti"
+          highest_priority: "(massima priorità)"
+          lowest_priority: "(minima priorità)"
+          login: "Accedi per votare!"
       error_while_toggling_status: "Spiacenti, si è verificato un errore nel cambiamento di stato di questo sondaggio."
       error_while_casting_votes: "Spiacenti, si è verificato un errore nella votazione."
       error_while_fetching_voters: "Spiacenti, si è verificato un errore nel visualizzare i votanti."
@@ -92,6 +123,7 @@ it:
           label: Tipo
           regular: Scelta Singola
           multiple: Scelta Multipla
+          ranked_choice: Scelta classificata
           number: Votazione Numerica
         poll_result:
           label: Mostra i risultati...

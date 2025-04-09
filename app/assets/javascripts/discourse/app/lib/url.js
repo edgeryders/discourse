@@ -1,16 +1,16 @@
 /* eslint-disable ember/no-private-routing-service */
-import { setOwner } from "@ember/application";
 import EmberObject from "@ember/object";
+import { setOwner } from "@ember/owner";
 import { next, schedule } from "@ember/runloop";
 import { isEmpty } from "@ember/utils";
 import $ from "jquery";
+import { isTesting } from "discourse/lib/environment";
+import getURL, { withoutPrefix } from "discourse/lib/get-url";
 import LockOn from "discourse/lib/lock-on";
 import offsetCalculator from "discourse/lib/offset-calculator";
 import { defaultHomepage } from "discourse/lib/utilities";
 import Category from "discourse/models/category";
 import Session from "discourse/models/session";
-import { isTesting } from "discourse-common/config/environment";
-import getURL, { withoutPrefix } from "discourse-common/lib/get-url";
 
 const rewrites = [];
 export const TOPIC_URL_REGEXP = /\/t\/([^\/]*[^\d\/][^\/]*)\/(\d+)\/?(\d+)?/;
@@ -77,10 +77,10 @@ let _jumpScheduled = false;
 let _transitioning = false;
 let lockOn = null;
 
-const DiscourseURL = EmberObject.extend({
+class DiscourseURL extends EmberObject {
   isJumpScheduled() {
     return _transitioning || _jumpScheduled;
-  },
+  }
 
   // Jumps to a particular post in the stream
   jumpToPost(postNumber, opts) {
@@ -156,7 +156,7 @@ const DiscourseURL = EmberObject.extend({
         return;
       }
     });
-  },
+  }
 
   replaceState(path) {
     if (path.startsWith("#")) {
@@ -175,7 +175,12 @@ const DiscourseURL = EmberObject.extend({
         this.router._routerMicrolib.replaceURL(path);
       });
     }
-  },
+  }
+
+  pushState(path) {
+    path = withoutPrefix(path);
+    this.router._routerMicrolib.updateURL(path);
+  }
 
   routeToTag(a) {
     // skip when we are provided nowhere to route to
@@ -189,7 +194,7 @@ const DiscourseURL = EmberObject.extend({
     }
 
     return this.routeTo(a.href);
-  },
+  }
 
   /**
     Our custom routeTo method is used to intelligently overwrite default routing
@@ -209,7 +214,7 @@ const DiscourseURL = EmberObject.extend({
       return this.redirectTo(path);
     }
 
-    const pathname = path.replace(/(https?\:)?\/\/[^\/]+/, "");
+    const pathname = path.replace(/^(https?\:)?\/\/[^\/]+/, "");
 
     if (!this.isInternal(path)) {
       return this.redirectTo(path);
@@ -230,7 +235,7 @@ const DiscourseURL = EmberObject.extend({
 
     const oldPath = this.routerService.currentURL;
 
-    path = path.replace(/(https?\:)?\/\/[^\/]+/, "");
+    path = path.replace(/^(https?\:)?\/\/[^\/]+/, "");
 
     // handle prefixes
     if (path.startsWith("/")) {
@@ -256,15 +261,15 @@ const DiscourseURL = EmberObject.extend({
     }
 
     return this.handleURL(path, opts);
-  },
+  }
 
   routeToUrl(url, opts = {}) {
     this.routeTo(getURL(url), opts);
-  },
+  }
 
   rewrite(regexp, replacement, opts) {
     rewrites.push({ regexp, replacement, opts: opts || {} });
-  },
+  }
 
   redirectAbsolute(url) {
     // Redirects will kill a test runner
@@ -273,36 +278,41 @@ const DiscourseURL = EmberObject.extend({
     }
     window.location = url;
     return true;
-  },
+  }
 
   redirectTo(url) {
     return this.redirectAbsolute(getURL(url));
-  },
+  }
 
   // Determines whether a URL is internal or not
   isInternal(url) {
-    if (url && url.length) {
-      if (url.startsWith("//")) {
-        url = "http:" + url;
-      }
-      if (url.startsWith("#")) {
-        return true;
-      }
-      if (url.startsWith("/")) {
-        return true;
-      }
-      if (url.startsWith(this.origin())) {
-        return true;
-      }
-      if (url.replace(/^http/, "https").startsWith(this.origin())) {
-        return true;
-      }
-      if (url.replace(/^https/, "http").startsWith(this.origin())) {
-        return true;
-      }
+    if (!url?.length) {
+      return false;
     }
-    return false;
-  },
+
+    if (url.startsWith("//")) {
+      url = "http:" + url;
+    }
+
+    if (url.startsWith("http://") || url.startsWith("https://")) {
+      return (
+        url.startsWith(this.origin) ||
+        url.replace(/^http/, "https").startsWith(this.origin) ||
+        url.replace(/^https/, "http").startsWith(this.origin)
+      );
+    }
+
+    try {
+      const parsedUrl = new URL(url, this.origin);
+      if (parsedUrl.protocol !== "http:" && parsedUrl.protocol !== "https:") {
+        return false;
+      }
+    } catch {
+      return false;
+    }
+
+    return true;
+  }
 
   /**
     If the URL is in the topic form, /t/something/:topic_id/:post_number
@@ -363,7 +373,7 @@ const DiscourseURL = EmberObject.extend({
     }
 
     return false;
-  },
+  }
 
   /**
     @private
@@ -380,33 +390,33 @@ const DiscourseURL = EmberObject.extend({
       (path === "/" || path === "/" + homepage) &&
       (oldPath === "/" || oldPath === "/" + homepage)
     );
-  },
+  }
 
   // This has been extracted so it can be tested.
-  origin() {
-    let prefix = getURL("/");
+  get origin() {
+    const prefix = getURL("/");
     return window.location.origin + (prefix === "/" ? "" : prefix);
-  },
+  }
 
   get isComposerOpen() {
     return this.container.lookup("service:composer")?.visible;
-  },
+  }
 
   get router() {
     return this.container.lookup("router:main");
-  },
+  }
 
   get routerService() {
     return this.container.lookup("service:router");
-  },
+  }
 
   get appEvents() {
     return this.container.lookup("service:app-events");
-  },
+  }
 
   controllerFor(name) {
     return this.container.lookup("controller:" + name);
-  },
+  }
 
   /**
     Be wary of looking up the router. In this case, we have links in our
@@ -427,6 +437,10 @@ const DiscourseURL = EmberObject.extend({
       elementId = split[1];
     }
 
+    // Remove multiple consecutive slashes from path. Same as Ember does on initial page load:
+    // https://github.com/emberjs/ember.js/blob/8abcd000ee/packages/%40ember/routing/history-location.ts#L146
+    path = path.replaceAll(/\/\/+/g, "/");
+
     const transition = this.routerService.transitionTo(path);
 
     transition._discourse_intercepted = true;
@@ -435,7 +449,7 @@ const DiscourseURL = EmberObject.extend({
 
     const promise = transition.promise || transition;
     return promise.then(() => this.jumpToElement(elementId));
-  },
+  }
 
   jumpToElement(elementId) {
     if (_jumpScheduled || isEmpty(elementId)) {
@@ -458,8 +472,8 @@ const DiscourseURL = EmberObject.extend({
       });
       lockOn.lock();
     });
-  },
-});
+  }
+}
 
 let _urlInstance = DiscourseURL.create();
 
@@ -469,9 +483,21 @@ export function setURLContainer(container) {
 }
 
 export function prefixProtocol(url) {
-  return !url.includes("://") && !url.startsWith("mailto:")
-    ? "https://" + url
-    : url;
+  if (!url || typeof url !== "string") {
+    return url;
+  }
+
+  url = url.trim();
+
+  if (url.startsWith("//")) {
+    return `https:${url}`;
+  }
+
+  if (url.startsWith("/") || url.includes("://") || url.startsWith("mailto:")) {
+    return url;
+  }
+
+  return `https://${url}`;
 }
 
 export function getCategoryAndTagUrl(category, subcategories, tag) {

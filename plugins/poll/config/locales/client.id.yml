@@ -11,6 +11,8 @@ id:
         other: "pemilih"
       total_votes:
         other: "jumlah suara"
+      votes:
+        other: "%{count} suara"
       average_rating: "Rata-rata rating: <strong>%{average}</strong>."
       results:
         groups:
@@ -59,6 +61,8 @@ id:
         votes: "%{count} suara"
         percentage: "Persentase"
         count: "Jumlah"
+      ranked_choice:
+        none: "Tidak ada"
       options:
         label: "Opsi"
       error_while_toggling_status: "Maaf, telah terjadi kesalahan pengalihan status dari pemilihan ini."

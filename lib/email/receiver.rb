@@ -95,7 +95,7 @@ module Email
     attr_reader :mail
     attr_reader :message_id
 
-    COMMON_ENCODINGS ||= [-"utf-8", -"windows-1252", -"iso-8859-1"]
+    COMMON_ENCODINGS = [-"utf-8", -"windows-1252", -"iso-8859-1"]
 
     def self.formats
       @formats ||= Enum.new(plaintext: 1, markdown: 2)
@@ -445,7 +445,7 @@ module Email
         text_content_type = @mail.content_type
       end
 
-      return unless text.present? || html.present?
+      return if text.blank? && html.blank?
 
       if text.present?
         text = trim_discourse_markers(text)
@@ -461,6 +461,10 @@ module Email
           elided_text = PlainTextToMarkdown.new(elided_text, converter_opts).to_markdown
         end
       end
+
+      # keep track of inlined images in html version
+      # so we can later check if they were elided
+      @cids = (html.presence || "").scan(/src\s*=\s*['"](cid:.+?)["']/).flatten
 
       markdown, elided_markdown =
         if html.present?
@@ -513,7 +517,12 @@ module Email
             .join
       end
 
-      [text, elided_text, text_format]
+      [strip_unsubscribe_links(text), strip_unsubscribe_links(elided_text), text_format]
+    end
+
+    def strip_unsubscribe_links(text)
+      @unsubscribe_regex ||= %r|#{Discourse.base_url}/email/unsubscribe/\h{64}|
+      (text.presence || "").gsub(@unsubscribe_regex, "")
     end
 
     def to_markdown(html, elided_html)
@@ -523,7 +532,7 @@ module Email
       [EmailReplyTrimmer.trim(markdown), elided_markdown]
     end
 
-    HTML_EXTRACTERS ||= [
+    HTML_EXTRACTERS = [
       [:gmail, /class="gmail_(signature|extra)/],
       [:outlook, /id="(divRplyFwdMsg|Signature)"/],
       [:word, /class="WordSection1"/],
@@ -560,10 +569,21 @@ module Email
     end
 
     def extract_from_exchange(doc)
-      # Exchange is using the 'messageReplySection' class for forwarded emails
-      # And 'messageBodySection' for the actual email
-      elided = doc.css("div[name='messageReplySection']").remove
-      to_markdown(doc.css("div[name='messageReplySection']").to_html, elided.to_html)
+      # Exchange is using 'messageReplySection' for forwarded emails and 'messageBodySection' for the actual email
+      reply = doc.css("div[name='messageReplySection']")
+      body = doc.css("div[name='messageBodySection']")
+
+      if reply.present? && body.present?
+        elided = doc.css("div[name='messageReplySection']").remove
+        body = doc.css("div[name='messageBodySection']")
+        to_markdown(body.to_html, elided.to_html)
+      elsif reply.present?
+        to_markdown(reply.to_html, "")
+      elsif body.present?
+        to_markdown(body.to_html, "")
+      else
+        to_markdown(doc.to_html, "")
+      end
     end
 
     def extract_from_apple_mail(doc)
@@ -772,7 +792,7 @@ module Email
           # return the email address and name
           [mail, name]
         end
-      rescue Mail::Field::ParseError, Mail::Field::IncompleteParseError => e
+      rescue Mail::Field::ParseError, Mail::Field::IncompleteParseError
         # something went wrong parsing the email header value, return nil
       end
     end
@@ -923,23 +943,27 @@ module Email
     def create_group_post(group, user, body, elided)
       message_ids = Email::Receiver.extract_reply_message_ids(@mail, max_message_id_count: 5)
 
-      # incoming emails with matching message ids, and then cross references
+      # Incoming emails with matching message ids, and then cross references
       # these with any email addresses for the user vs to/from/cc of the
       # incoming emails. in effect, any incoming email record for these
-      # message ids where the user is involved in any way will be returned
+      # message ids where the user is involved in any way will be returned.
       incoming_emails = IncomingEmail.where(message_id: message_ids)
       if !group.allow_unknown_sender_topic_replies
         incoming_emails = incoming_emails.addressed_to_user(user)
       end
       post_ids = incoming_emails.pluck(:post_id) || []
 
-      # if the user is directly replying to an email send to them from discourse,
+      # If the user is directly replying to an email send to them from discourse,
       # there will be a corresponding EmailLog record, so we can use that as the
-      # reply post if it exists
-      if Email::MessageIdService.discourse_generated_message_id?(mail.in_reply_to)
+      # reply post if it exists.
+      #
+      # Since In-Reply-To can technically have multiple message ids, we only
+      # consider the first one here to simplify things.
+      first_in_reply_to = Array.wrap(mail.in_reply_to).first
+      if Email::MessageIdService.discourse_generated_message_id?(first_in_reply_to)
         post_id_from_email_log =
           EmailLog
-            .where(message_id: mail.in_reply_to)
+            .where(message_id: first_in_reply_to)
             .addressed_to_user(user)
             .order(created_at: :desc)
             .limit(1)
@@ -1359,7 +1383,28 @@ module Email
     def add_attachments(raw, user, options = {})
       raw = raw.dup
 
+      upload_ids =
+        UploadReference.where(
+          target_id: Post.where(topic_id: options[:topic_id]).select(:id),
+        ).pluck("DISTINCT upload_id")
+
+      upload_shas = Upload.where(id: upload_ids).pluck("DISTINCT COALESCE(original_sha1, sha1)")
+
+      is_duplicate = ->(upload_id, upload_sha, attachment) do
+        return true if upload_id && upload_ids.include?(upload_id)
+        return true if upload_sha && upload_shas.include?(upload_sha)
+
+        if attachment.respond_to?(:url) && attachment.url&.start_with?("cid:") &&
+             attachment.content_type&.start_with?("image/")
+          return true if @cids&.include?(attachment.url)
+        end
+
+        false
+      end
+
+      added_attachments = []
       rejected_attachments = []
+
       attachments.each do |attachment|
         tmp = Tempfile.new(["discourse-email-attachment", File.extname(attachment.filename)])
         begin
@@ -1368,6 +1413,7 @@ module Email
           # create the upload for the user
           opts = { for_group_message: options[:is_group_message] }
           upload = UploadCreator.new(tmp, attachment.filename, opts).create_for(user.id)
+          upload_sha = upload.original_sha1.presence || upload.sha1
           if upload.errors.empty?
             # try to inline images
             if attachment.content_type&.start_with?("image/")
@@ -1384,11 +1430,11 @@ module Email
                 end
               elsif raw[/\[image:[^\]]*\]/i]
                 raw.sub!(/\[image:[^\]]*\]/i, UploadMarkdown.new(upload).to_markdown)
-              else
-                raw << "\n\n#{UploadMarkdown.new(upload).to_markdown}\n\n"
+              elsif !is_duplicate[upload.id, upload_sha, attachment]
+                added_attachments << upload
               end
-            else
-              raw << "\n\n#{UploadMarkdown.new(upload).to_markdown}\n\n"
+            elsif !is_duplicate[upload.id, upload_sha, attachment]
+              added_attachments << upload
             end
           else
             rejected_attachments << upload
@@ -1398,8 +1444,22 @@ module Email
           tmp&.close!
         end
       end
+
       if rejected_attachments.present? && !user.staged?
         notify_about_rejected_attachment(rejected_attachments)
+      end
+
+      if added_attachments.present?
+        markdown =
+          added_attachments.map { |upload| UploadMarkdown.new(upload).to_markdown }.join("\n")
+        if markdown.present?
+          raw << "\n\n"
+          raw << "[details=\"#{I18n.t("emails.incoming.attachments")}\"]"
+          raw << "\n\n"
+          raw << markdown
+          raw << "\n\n"
+          raw << "[/details]"
+        end
       end
 
       raw

@@ -16,6 +16,7 @@
         <FlagActionType
           @flag={{f}}
           @message={{this.message}}
+          @isConfirmed={{this.isConfirmed}}
           @isWarning={{this.isWarning}}
           @selectedFlag={{this.selected}}
           @username={{@model.flagModel.username}}
@@ -45,7 +46,7 @@
         class="btn-danger flag-modal__send-warning"
         @action={{this.createFlagAsWarning}}
         @disabled={{not this.submitEnabled}}
-        @icon="exclamation-triangle"
+        @icon="triangle-exclamation"
         @label="flagging.official_warning"
       />
     {{/if}}
@@ -62,7 +63,7 @@
         class="btn-danger flag-modal__flag-for-review"
         @action={{this.flagForReview}}
         @disabled={{not this.submitEnabled this.notifyModeratorsFlag}}
-        @icon="exclamation-triangle"
+        @icon="triangle-exclamation"
         @label="flagging.flag_for_review"
       />
     {{/if}}
@@ -72,7 +73,7 @@
         class="btn-danger delete-spammer flag-modal__delete-spammer"
         @action={{this.deleteSpammer}}
         @disabled={{not this.submitEnabled}}
-        @icon="exclamation-triangle"
+        @icon="triangle-exclamation"
         @label="flagging.delete_spammer"
       />
     {{/if}}

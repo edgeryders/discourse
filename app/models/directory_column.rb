@@ -1,11 +1,10 @@
 # frozen_string_literal: true
 
 class DirectoryColumn < ActiveRecord::Base
-  # TODO(2021-06-18): Remove automatic column
-  self.ignored_columns = ["automatic"]
+  self.ignored_columns = ["automatic"] # TODO: Remove when 20240212034010_drop_deprecated_columns has been promoted to pre-deploy
   self.inheritance_column = nil
 
-  enum type: { automatic: 0, user_field: 1, plugin: 2 }, _scopes: false
+  enum :type, { automatic: 0, user_field: 1, plugin: 2 }, scopes: false
 
   def self.automatic_column_names
     @automatic_column_names ||= %i[
@@ -50,7 +49,7 @@ class DirectoryColumn < ActiveRecord::Base
         column.enabled = false
       end
 
-    unless @@plugin_directory_columns.include?(directory_column.name)
+    if @@plugin_directory_columns.exclude?(directory_column.name)
       @@plugin_directory_columns << directory_column.name
       DirectoryItem.add_plugin_query(attrs[:query])
     end

@@ -20,6 +20,14 @@ RSpec.describe Admin::SiteSettingsController do
 
         expect(locale.length).to eq(1)
       end
+
+      it "does not return hidden site settings" do
+        get "/admin/site_settings.json"
+        expect(response.status).to eq(200)
+        expect(
+          response.parsed_body["site_settings"].find { |s| s["setting"] == "max_category_nesting" },
+        ).to be_nil
+      end
     end
 
     shared_examples "site settings inaccessible" do
@@ -228,13 +236,12 @@ RSpec.describe Admin::SiteSettingsController do
       end
 
       it "works for deprecated settings" do
-        put "/admin/site_settings/search_tokenize_chinese_japanese_korean.json",
-            params: {
-              search_tokenize_chinese_japanese_korean: true,
-            }
+        stub_deprecated_settings!(override: true) do
+          put "/admin/site_settings/old_one.json", params: { old_one: true }
 
-        expect(response.status).to eq(200)
-        expect(SiteSetting.search_tokenize_chinese).to eq(true)
+          expect(response.status).to eq(200)
+          expect(SiteSetting.new_one).to eq(true)
+        end
       end
 
       it "throws an error when the parameter is not a configurable site setting" do
@@ -259,7 +266,7 @@ RSpec.describe Admin::SiteSettingsController do
 
         expect(response.status).to eq(422)
         expect(SiteSetting.personal_message_enabled_groups).to eq(
-          Group::AUTO_GROUPS[:trust_level_4],
+          "1|2|#{Group::AUTO_GROUPS[:trust_level_4]}",
         )
       end
 
@@ -267,6 +274,13 @@ RSpec.describe Admin::SiteSettingsController do
         put "/admin/site_settings/title.json", params: { title: "" }
         expect(response.status).to eq(200)
         expect(SiteSetting.title).to eq("")
+      end
+
+      it "allows value to be a blank string for selectable_avatars" do
+        SiteSetting.selectable_avatars = [Fabricate(:image_upload)]
+        put "/admin/site_settings/selectable_avatars.json", params: { selectable_avatars: "" }
+        expect(response.status).to eq(200)
+        expect(SiteSetting.selectable_avatars).to eq([])
       end
 
       it "sanitizes integer values" do
@@ -617,6 +631,22 @@ RSpec.describe Admin::SiteSettingsController do
 
         expect(SiteSetting.max_category_nesting).to eq(3)
         expect(response.status).to eq(422)
+        expect(response.parsed_body["errors"]).to include(
+          I18n.t("errors.site_settings.site_setting_is_hidden"),
+        )
+      end
+
+      it "does not allow changing of globally shadowed settings" do
+        SiteSetting.max_category_nesting = 3
+        SiteSetting.stubs(:shadowed_settings).returns(Set.new([:max_category_nesting]))
+
+        put "/admin/site_settings/max_category_nesting.json", params: { max_category_nesting: 2 }
+
+        expect(SiteSetting.max_category_nesting).to eq(3)
+        expect(response.status).to eq(422)
+        expect(response.parsed_body["errors"]).to include(
+          I18n.t("errors.site_settings.site_setting_is_shadowed_globally"),
+        )
       end
 
       context "with an plugin" do

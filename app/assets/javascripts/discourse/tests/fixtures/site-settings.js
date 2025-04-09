@@ -21,6 +21,7 @@ export default {
         preview: null,
         secret: false,
         type: "username",
+        keywords: ["blah blah"],
       },
       {
         setting: "logo",
@@ -51,6 +52,7 @@ export default {
           "read",
           "posted",
           "bookmarks",
+          "unseen",
         ],
         list_type: "compact",
       },

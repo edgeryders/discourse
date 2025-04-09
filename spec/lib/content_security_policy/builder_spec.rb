@@ -5,16 +5,16 @@ RSpec.describe ContentSecurityPolicy::Builder do
   describe "#<<" do
     it "normalizes directive name" do
       builder << {
-        :script_src => ["symbol_underscore"],
-        :"script-src" => ["symbol_dash"],
-        "script_src" => ["string_underscore"],
-        "script-src" => ["string_dash"],
+        :script_src => ["'symbol_underscore'"],
+        :"script-src" => ["'symbol_dash'"],
+        "script_src" => ["'string_underscore'"],
+        "script-src" => ["'string_dash'"],
       }
 
       script_srcs = parse(builder.build)["script-src"]
 
       expect(script_srcs).to include(
-        *%w[symbol_underscore symbol_dash string_underscore symbol_underscore],
+        *%w['symbol_underscore' 'symbol_dash' 'string_underscore' 'symbol_underscore'],
       )
     end
 
@@ -22,6 +22,13 @@ RSpec.describe ContentSecurityPolicy::Builder do
       builder << { invalid_src: ["invalid"] }
 
       expect(builder.build).to_not include("invalid")
+    end
+
+    it "skips invalid sources with whitespace or semicolons" do
+      invalid_sources = ["invalid source;", "'unsafe-eval' https://invalid.example.com'"]
+      builder << { script_src: invalid_sources }
+      script_srcs = parse(builder.build)["script-src"]
+      invalid_sources.each { |invalid_source| expect(script_srcs).not_to include(invalid_source) }
     end
 
     it "no-ops on invalid values" do

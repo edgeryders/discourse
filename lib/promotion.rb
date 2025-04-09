@@ -11,6 +11,9 @@ class Promotion
   # Review a user for a promotion. Delegates work to a review_#{trust_level} method.
   # Returns true if the user was promoted, false otherwise.
   def review
+    override = DiscoursePluginRegistry.apply_modifier(:review_trust_level, false, @user)
+    return override if override
+
     # nil users are never promoted
     return false if @user.blank? || !@user.manual_locked_trust_level.nil?
 
@@ -137,6 +140,9 @@ class Promotion
       TrustLevel.calculate(user, use_previous_trust_level: use_previous_trust_level) ||
         TrustLevel[0]
 
+    granted_trust_level = user.trust_level if granted_trust_level < user.trust_level &&
+      !can_downgrade_trust_level?(user)
+
     # TrustLevel.calculate always returns a value, however we added extra protection just
     # in case this changes
     user.update_column(:trust_level, TrustLevel[granted_trust_level])
@@ -145,12 +151,26 @@ class Promotion
 
     promotion = Promotion.new(user)
 
+    override =
+      DiscoursePluginRegistry.apply_modifier(:recalculate_trust_level, false, user, promotion)
+    return override if override
+
     promotion.review_tl0 if granted_trust_level < TrustLevel[1]
     promotion.review_tl1 if granted_trust_level < TrustLevel[2]
     promotion.review_tl2 if granted_trust_level < TrustLevel[3]
 
+    Group.user_trust_level_change!(user.id, user.trust_level)
+
     if user.trust_level == TrustLevel[3] && Promotion.tl3_lost?(user)
       user.change_trust_level!(TrustLevel[2], log_action_for: performed_by || Discourse.system_user)
     end
+  end
+
+  def self.can_downgrade_trust_level?(user)
+    return false if user.trust_level == TrustLevel[1] && tl1_met?(user)
+    return false if user.trust_level == TrustLevel[2] && tl2_met?(user)
+    return false if user.trust_level == TrustLevel[3] && tl3_met?(user)
+
+    true
   end
 end

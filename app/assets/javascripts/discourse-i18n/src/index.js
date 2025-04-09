@@ -4,6 +4,8 @@ if (window.I18n) {
   );
 }
 
+import * as Cardinals from "make-plural/cardinals";
+
 // The placeholder format. Accepts `{{placeholder}}` and `%{placeholder}`.
 const PLACEHOLDER = /(?:\{\{|%\{)(.*?)(?:\}\}?)/gm;
 const SEPARATOR = ".";
@@ -13,21 +15,22 @@ export class I18n {
   defaultLocale = "en";
 
   // Set current locale to null
-  local = null;
+  locale = null;
   fallbackLocale = null;
   translations = null;
   extras = null;
   noFallbacks = false;
   testing = false;
+  verbose = false;
+  verboseIndicies = new Map();
 
-  // Set default pluralization rule
-  pluralizationRules = {
-    en(n) {
-      return n === 0 ? ["zero", "none", "other"] : n === 1 ? "one" : "other";
-    },
+  pluralizationRules = Cardinals;
+
+  translate = (scope, options) => {
+    return this.verbose
+      ? this._verboseTranslate(scope, options)
+      : this._translate(scope, options);
   };
-
-  translate = (scope, options) => this._translate(scope, options);
 
   // shortcut
   t = this.translate;
@@ -36,32 +39,31 @@ export class I18n {
     return this.locale || this.defaultLocale;
   }
 
+  get currentBcp47Locale() {
+    return this.currentLocale().replace("_", "-");
+  }
+
+  get pluralizationNormalizedLocale() {
+    if (this.currentLocale() === "pt") {
+      return "pt_PT";
+    }
+    return this.currentLocale().replace(/[_-].*/, "");
+  }
+
   enableVerboseLocalization() {
-    let counter = 0;
-    let keys = {};
-
     this.noFallbacks = true;
-
-    this.t = this.translate = (scope, options) => {
-      let current = keys[scope];
-      if (!current) {
-        current = keys[scope] = ++counter;
-        let message = "Translation #" + current + ": " + scope;
-        if (options && Object.keys(options).length > 0) {
-          message += ", parameters: " + JSON.stringify(options);
-        }
-        // eslint-disable-next-line no-console
-        console.info(message);
-      }
-
-      return this._translate(scope, options) + " (#" + current + ")";
-    };
+    this.verbose = true;
   }
 
   enableVerboseLocalizationSession() {
     sessionStorage.setItem("verbose_localization", "true");
     this.enableVerboseLocalization();
     return "Verbose localization is enabled. Close the browser tab to turn it off. Reload the page to see the translation keys.";
+  }
+
+  disableVerboseLocalizationSession() {
+    sessionStorage.removeItem("verbose_localization");
+    return "Verbose localization disabled. Reload the page.";
   }
 
   _translate(scope, options) {
@@ -192,7 +194,9 @@ export class I18n {
     options = this.prepareOptions(options);
     let count = options.count.toString();
 
-    let pluralizer = this.pluralizer(options.locale || this.currentLocale());
+    let pluralizer = this.pluralizer(
+      options.locale || this.pluralizationNormalizedLocale
+    );
     let key = pluralizer(Math.abs(count));
     let keys = typeof key === "object" && key instanceof Array ? key : [key];
     let message = this.findAndTranslateValidNode(keys, translation);
@@ -371,6 +375,38 @@ export class I18n {
   isValidNode(obj, node) {
     return obj[node] !== null && obj[node] !== undefined;
   }
+
+  messageFormat(key, options) {
+    const message = this._mfMessages?.hasMessage(
+      key,
+      this._mfMessages.locale,
+      this._mfMessages.defaultLocale
+    );
+    if (!message) {
+      return "Missing Key: " + key;
+    }
+    try {
+      return this._mfMessages.get(key, options);
+    } catch (err) {
+      return err.message;
+    }
+  }
+
+  _verboseTranslate(scope, options) {
+    const result = this._translate(scope, options);
+    let i = this.verboseIndicies.get(scope);
+    if (!i) {
+      i = this.verboseIndicies.size + 1;
+      this.verboseIndicies.set(scope, i);
+    }
+    let message = `Translation #${i}: ${scope}`;
+    if (options && Object.keys(options).length > 0) {
+      message += `, parameters: ${JSON.stringify(options)}`;
+    }
+    // eslint-disable-next-line no-console
+    console.info(message);
+    return `${result} (#${i})`;
+  }
 }
 
 export class I18nMissingInterpolationArgument extends Error {
@@ -382,3 +418,5 @@ export class I18nMissingInterpolationArgument extends Error {
 
 // Export a default/global instance
 export default globalThis.I18n = new I18n();
+
+export const i18n = globalThis.I18n.t;

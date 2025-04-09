@@ -3,7 +3,7 @@ import { tracked } from "@glimmer/tracking";
 import { fn, hash } from "@ember/helper";
 import { on } from "@ember/modifier";
 import { action } from "@ember/object";
-import { inject as service } from "@ember/service";
+import { service } from "@ember/service";
 import { modifier } from "ember-modifier";
 import DButton from "discourse/components/d-button";
 import FastEdit from "discourse/components/fast-edit";
@@ -11,14 +11,14 @@ import FastEditModal from "discourse/components/modal/fast-edit";
 import PluginOutlet from "discourse/components/plugin-outlet";
 import concatClass from "discourse/helpers/concat-class";
 import { ajax } from "discourse/lib/ajax";
+import { getAbsoluteURL } from "discourse/lib/get-url";
 import Sharing from "discourse/lib/sharing";
 import {
   clipboardCopy,
   postUrl,
   setCaretPosition,
 } from "discourse/lib/utilities";
-import { getAbsoluteURL } from "discourse-common/lib/get-url";
-import I18n from "discourse-i18n";
+import { i18n } from "discourse-i18n";
 
 export function fixQuotes(str) {
   // u+201c, u+201d = “ ”
@@ -108,7 +108,7 @@ export default class PostTextSelectionToolbar extends Component {
     clipboardCopy(text);
     this.toasts.success({
       duration: 3000,
-      data: { message: I18n.t("post.quote_copied_to_clibboard") },
+      data: { message: i18n("post.quote_copied_to_clibboard") },
     });
     await this.args.data.hideToolbar();
   }
@@ -225,7 +225,7 @@ export default class PostTextSelectionToolbar extends Component {
 
           {{#if @data.canEditPost}}
             <DButton
-              @icon="pencil-alt"
+              @icon="pencil"
               @label="post.quote_edit"
               @title="post.quote_edit_shortcut"
               class="btn-flat quote-edit-label"

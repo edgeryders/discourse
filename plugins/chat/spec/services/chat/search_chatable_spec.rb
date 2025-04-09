@@ -2,7 +2,7 @@
 
 RSpec.describe Chat::SearchChatable do
   describe ".call" do
-    subject(:result) { described_class.call(params) }
+    subject(:result) { described_class.call(params:, **dependencies) }
 
     fab!(:current_user) { Fabricate(:user, username: "bob-user") }
     fab!(:sam) { Fabricate(:user, username: "sam-user") }
@@ -25,15 +25,15 @@ RSpec.describe Chat::SearchChatable do
     let(:excluded_memberships_channel_id) { nil }
     let(:params) do
       {
-        guardian: guardian,
-        term: term,
-        include_users: include_users,
-        include_groups: include_groups,
-        include_category_channels: include_category_channels,
-        include_direct_message_channels: include_direct_message_channels,
-        excluded_memberships_channel_id: excluded_memberships_channel_id,
+        term:,
+        include_users:,
+        include_groups:,
+        include_category_channels:,
+        include_direct_message_channels:,
+        excluded_memberships_channel_id:,
       }
     end
+    let(:dependencies) { { guardian: } }
 
     before do
       SiteSetting.direct_message_enabled_groups = Group::AUTO_GROUPS[:everyone]
@@ -43,16 +43,14 @@ RSpec.describe Chat::SearchChatable do
     end
 
     context "when all steps pass" do
-      it "sets the service result as successful" do
-        expect(result).to be_a_success
-      end
+      it { is_expected.to run_successfully }
 
       it "cleans the term" do
         params[:term] = "#bob"
-        expect(result.term).to eq("bob")
+        expect(result.params.term).to eq("bob")
 
         params[:term] = "@bob"
-        expect(result.term).to eq("bob")
+        expect(result.params.term).to eq("bob")
       end
 
       it "fetches user memberships" do
@@ -81,6 +79,27 @@ RSpec.describe Chat::SearchChatable do
           params[:excluded_memberships_channel_id] = channel_1.id
 
           expect(result.users).to_not include(current_user)
+        end
+
+        context "when chat_allowed_bot_user_ids modifier exists" do
+          fab!(:bot_1) { Fabricate(:user, id: -500) }
+          fab!(:bot_2) { Fabricate(:user, id: -501) }
+
+          it "alters the users returned" do
+            modifier_block = Proc.new { [bot_2.id] }
+            plugin_instance = Plugin::Instance.new
+            plugin_instance.register_modifier(:chat_allowed_bot_user_ids, &modifier_block)
+
+            expect(result.users).to_not include(bot_1)
+            expect(result.users).to include(bot_2)
+            expect(result.users).to include(current_user, sam, charlie, alain)
+          ensure
+            DiscoursePluginRegistry.unregister_modifier(
+              plugin_instance,
+              :chat_allowed_bot_user_ids,
+              &modifier_block
+            )
+          end
         end
       end
 

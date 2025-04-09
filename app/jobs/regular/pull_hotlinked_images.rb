@@ -4,16 +4,23 @@ module Jobs
   class PullHotlinkedImages < ::Jobs::Base
     sidekiq_options queue: "low"
 
-    def initialize
-      @max_size = SiteSetting.max_image_size_kb.kilobytes
-    end
-
     def execute(args)
       disable_if_low_on_disk_space
 
       @post_id = args[:post_id]
       raise Discourse::InvalidParameters.new(:post_id) if @post_id.blank?
 
+      # in test we have no choice cause we don't want to cause a deadlock
+      if Jobs.run_immediately?
+        pull_hotlinked_images
+      else
+        DistributedMutex.synchronize("pull_hotlinked_images_#{@post_id}", validity: 2.minutes) do
+          pull_hotlinked_images
+        end
+      end
+    end
+
+    def pull_hotlinked_images
       post = Post.find_by(id: @post_id)
       return if post.nil? || post.topic.nil?
 
@@ -90,7 +97,7 @@ module Jobs
         downloaded =
           FileHelper.download(
             src,
-            max_file_size: @max_size,
+            max_file_size: SiteSetting.max_image_size_kb.kilobytes,
             retain_on_max_file_size_exceeded: true,
             tmp_file_name: "discourse-hotlinked",
             follow_redirect: true,
@@ -126,7 +133,9 @@ module Jobs
 
       hotlinked = download(src)
       raise ImageBrokenError if !hotlinked
-      raise ImageTooLargeError if File.size(hotlinked.path) > @max_size
+      if File.size(hotlinked.path) > SiteSetting.max_image_size_kb.kilobytes
+        raise ImageTooLargeError
+      end
 
       filename = File.basename(URI.parse(src).path)
       filename << File.extname(hotlinked.path) unless filename["."]
@@ -152,7 +161,7 @@ module Jobs
 
     def should_download_image?(src, post = nil)
       # make sure we actually have a url
-      return false unless src.present?
+      return false if src.blank?
 
       local_bases =
         [Discourse.base_url, Discourse.asset_host, SiteSetting.external_emoji_url.presence].compact

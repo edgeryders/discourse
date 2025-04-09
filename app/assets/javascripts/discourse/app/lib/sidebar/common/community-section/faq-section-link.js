@@ -1,13 +1,19 @@
 import BaseSectionLink from "discourse/lib/sidebar/base-community-section-link";
-import I18n from "discourse-i18n";
+import { i18n } from "discourse-i18n";
 
 export default class FAQSectionLink extends BaseSectionLink {
+  get renameToGuidelines() {
+    return (
+      this.siteSettings.experimental_rename_faq_to_guidelines && !this.href
+    );
+  }
+
   get name() {
-    return "faq";
+    return this.renameToGuidelines ? "guidelines" : "faq";
   }
 
   get route() {
-    return "faq";
+    return this.renameToGuidelines ? "guidelines" : "faq";
   }
 
   get href() {
@@ -15,17 +21,23 @@ export default class FAQSectionLink extends BaseSectionLink {
   }
 
   get title() {
-    return I18n.t("sidebar.sections.community.links.faq.title");
+    if (this.renameToGuidelines) {
+      return i18n("sidebar.sections.community.links.guidelines.title");
+    } else {
+      return i18n("sidebar.sections.community.links.faq.title");
+    }
   }
 
   get text() {
-    return I18n.t(
-      `sidebar.sections.community.links.${this.overridenName.toLowerCase()}.content`,
-      { defaultValue: this.overridenName }
+    const name = this.renameToGuidelines ? "Guidelines" : this.overridenName;
+
+    return i18n(
+      `sidebar.sections.community.links.${name.toLowerCase()}.content`,
+      { defaultValue: name }
     );
   }
 
   get defaultPrefixValue() {
-    return "question-circle";
+    return "circle-question";
   }
 }

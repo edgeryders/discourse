@@ -5,18 +5,17 @@ import { on } from "@ember/modifier";
 import { action } from "@ember/object";
 import DButton from "discourse/components/d-button";
 import PluginOutlet from "discourse/components/plugin-outlet";
-import { fixQuotes } from "discourse/components/post-text-selection";
 import { ajax } from "discourse/lib/ajax";
 import { popupAjaxError } from "discourse/lib/ajax-error";
 import { translateModKey } from "discourse/lib/utilities";
 import autoFocus from "discourse/modifiers/auto-focus";
-import I18n from "discourse-i18n";
+import { i18n } from "discourse-i18n";
 
 export default class FastEdit extends Component {
   @tracked isSaving = false;
   @tracked value = this.args.newValue || this.args.initialValue;
 
-  buttonTitle = I18n.t("composer.title", {
+  buttonTitle = i18n("composer.title", {
     modifier: translateModKey("Meta+"),
   });
 
@@ -52,10 +51,14 @@ export default class FastEdit extends Component {
 
     try {
       const result = await ajax(`/posts/${this.args.post.id}`);
-      const newRaw = result.raw.replace(
-        fixQuotes(this.args.initialValue),
-        fixQuotes(this.value)
-      );
+      const newRaw = result.raw.replace(this.args.initialValue, this.value);
+
+      // Warn the user if we failed to update the post
+      if (newRaw === result.raw) {
+        throw new Error(
+          "Failed to update the post. Did your fast edit include a special character?"
+        );
+      }
 
       await this.args.post.save({ raw: newRaw });
     } catch (error) {
@@ -80,7 +83,7 @@ export default class FastEdit extends Component {
         <DButton
           class="btn-small btn-primary save-fast-edit"
           @action={{this.save}}
-          @icon="pencil-alt"
+          @icon="pencil"
           @label="composer.save_edit"
           @translatedTitle={{this.buttonTitle}}
           @isLoading={{this.isSaving}}

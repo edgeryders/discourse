@@ -66,10 +66,12 @@ module PrettyText
     end
 
     root_path = "#{Rails.root}/app/assets/javascripts"
-    ctx.load("#{root_path}/node_modules/loader.js/dist/loader/loader.js")
-    ctx.load("#{root_path}/node_modules/markdown-it/dist/markdown-it.js")
+    d_node_modules = "#{Rails.root}/app/assets/javascripts/discourse/node_modules"
+    md_node_modules = "#{Rails.root}/app/assets/javascripts/discourse-markdown-it/node_modules"
+    ctx.load("#{d_node_modules}/loader.js/dist/loader/loader.js")
+    ctx.load("#{md_node_modules}/markdown-it/dist/markdown-it.js")
     ctx.load("#{root_path}/handlebars-shim.js")
-    ctx.load("#{root_path}/node_modules/xss/dist/xss.js")
+    ctx.load("#{md_node_modules}/xss/dist/xss.js")
     ctx.load("#{Rails.root}/lib/pretty_text/vendor-shims.js")
 
     ctx_load_directory(
@@ -84,12 +86,13 @@ module PrettyText
     )
 
     %w[
-      discourse-common/addon/lib/get-url
-      discourse-common/addon/lib/object
-      discourse-common/addon/lib/deprecated
-      discourse-common/addon/lib/escape
-      discourse-common/addon/lib/avatar-utils
-      discourse-common/addon/utils/watched-words
+      discourse/app/deprecation-workflow
+      discourse/app/lib/get-url
+      discourse/app/lib/object
+      discourse/app/lib/deprecated
+      discourse/app/lib/escape
+      discourse/app/lib/avatar-utils
+      discourse/app/lib/case-converter
       discourse/app/lib/to-markdown
       discourse/app/static/markdown-it/features
     ].each do |f|
@@ -103,18 +106,18 @@ module PrettyText
     ctx.load("#{Rails.root}/lib/pretty_text/shims.js")
     ctx.eval("__setUnicode(#{Emoji.unicode_replacements_json})")
 
-    to_load = []
-    DiscoursePluginRegistry.each_globbed_asset do |a|
-      to_load << a if File.file?(a) && a =~ /discourse-markdown/
-    end
-    to_load.uniq.each do |f|
-      plugin_name = f[%r{/plugins/([^/]+)/}, 1]
-      module_name = f[%r{/assets/javascripts/(.+)\.}, 1]
-      apply_es6_file(
-        ctx: ctx,
-        path: f,
-        module_name: "discourse/plugins/#{plugin_name}/#{module_name}",
-      )
+    Discourse.plugins.each do |plugin|
+      Dir
+        .glob("#{plugin.directory}/assets/javascripts/**/discourse-markdown/**/*.{js,js.es6}")
+        .filter { |a| File.file?(a) }
+        .each do |f|
+          module_name =
+            f.sub(%r{\A.+assets/javascripts/}, "discourse/plugins/#{plugin.name}/").sub(
+              /\.js(\.es6)?\z/,
+              "",
+            )
+          apply_es6_file(ctx: ctx, path: f, module_name: module_name)
+        end
     end
 
     DiscoursePluginRegistry.vendored_core_pretty_text.each { |vpt| ctx.eval(File.read(vpt)) }
@@ -157,6 +160,7 @@ module PrettyText
   #  markdown_it_rules - An array of markdown rule names which will be applied to the markdown-it engine. Currently used by plugins to customize what markdown-it rules should be
   #                      enabled when rendering markdown.
   #  topic_id          - Topic id for the post being cooked.
+  #  post_id           - Post id for the post being cooked.
   #  user_id           - User id for the post being cooked.
   #  force_quote_link  - Always create the link to the quoted topic for [quote] bbcode. Normally this only happens
   #                      if the topic_id provided is different from the [quote topic:X].
@@ -206,6 +210,7 @@ module PrettyText
       JS
 
       buffer << "__optInput.topicId = #{opts[:topic_id].to_i};\n" if opts[:topic_id]
+      buffer << "__optInput.postId = #{opts[:post_id].to_i};\n" if opts[:post_id]
 
       if opts[:force_quote_link]
         buffer << "__optInput.forceQuoteLink = #{opts[:force_quote_link]};\n"
@@ -254,7 +259,7 @@ module PrettyText
         __optInput = {};
         __optInput.avatar_sizes = #{SiteSetting.avatar_sizes.to_json};
         __paths = #{paths_json};
-        require("discourse-common/lib/avatar-utils").avatarImg({size: #{size.inspect}, avatarTemplate: #{avatar_template.inspect}}, __getURL);
+        require("discourse/lib/avatar-utils").avatarImg({size: #{size.inspect}, avatarTemplate: #{avatar_template.inspect}}, __getURL);
       JS
   end
 
@@ -402,7 +407,7 @@ module PrettyText
     doc.css("aside.quote a, aside.onebox a, .elided a").remove
 
     # remove hotlinked images
-    doc.css("a.onebox > img").each { |img| img.parent.remove }
+    doc.css("a.lightbox > img, a.onebox > img").each { |img| img.parent.remove }
 
     # extract all links
     doc
@@ -448,12 +453,16 @@ module PrettyText
       .css(".video-placeholder-container")
       .each do |video|
         video_src = video["data-video-src"]
+        next if video_src == "/404" || video_src.nil?
         video_sha1 = File.basename(video_src, File.extname(video_src))
         thumbnail = Upload.where("original_filename LIKE ?", "#{video_sha1}.%").last
         if thumbnail
           video["data-thumbnail-src"] = UrlHelper.absolute(
             GlobalPath.upload_cdn_path(thumbnail.url),
           )
+          video[
+            "data-video-base62-sha1"
+          ] = "#{Upload.base62_sha1(video_sha1)}#{File.extname(video_src)}"
         end
       end
   end
@@ -462,11 +471,9 @@ module PrettyText
     mentions =
       cooked
         .css(".mention, .mention-group")
-        .map do |e|
+        .filter_map do |e|
           if (name = e.inner_text)
-            name = name[1..-1]
-            name = User.normalize_username(name)
-            name
+            User.normalize_username(name[1..-1]) if name[0] == "@"
           end
         end
 
@@ -479,6 +486,8 @@ module PrettyText
   end
 
   def self.excerpt(html, max_length, options = {})
+    return "" if html.blank?
+
     # TODO: properly fix this HACK in ExcerptParser without introducing XSS
     doc = Nokogiri::HTML5.fragment(html)
     DiscourseEvent.trigger(:reduce_excerpt, doc, options)
@@ -506,17 +515,23 @@ module PrettyText
   end
 
   def self.make_all_links_absolute(doc)
-    site_uri = nil
     doc
-      .css("a")
-      .each do |link|
-        href = link["href"].to_s
+      .css("a[href]")
+      .each do |a|
         begin
-          uri = URI(href)
-          site_uri ||= URI(Discourse.base_url)
-          unless uri.host.present? || href.start_with?("mailto")
-            link["href"] = "#{site_uri}#{link["href"]}"
-          end
+          href = a["href"].to_s
+          next if href.blank?
+          next if href.start_with?("mailto:")
+          next if href.start_with?(Discourse.base_url)
+          next if URI(href).host.present?
+
+          a["href"] = (
+            if href.start_with?(Discourse.base_path)
+              "#{Discourse.base_url_no_prefix}#{href}"
+            else
+              "#{Discourse.base_url}#{href}"
+            end
+          )
         rescue URI::Error
           # leave it
         end
@@ -653,7 +668,7 @@ module PrettyText
   def self.format_for_email(html, post = nil)
     doc = Nokogiri::HTML5.fragment(html)
     DiscourseEvent.trigger(:reduce_cooked, doc, post)
-    strip_secure_uploads(doc) if post&.with_secure_uploads?
+    strip_secure_uploads(doc) if post&.should_secure_uploads?
     strip_image_wrapping(doc)
     convert_vimeo_iframes(doc)
     make_all_links_absolute(doc)
@@ -679,9 +694,9 @@ module PrettyText
 
   private
 
-  USER_TYPE ||= "user"
-  GROUP_TYPE ||= "group"
-  GROUP_MENTIONABLE_TYPE ||= "group-mentionable"
+  USER_TYPE = "user"
+  GROUP_TYPE = "group"
+  GROUP_MENTIONABLE_TYPE = "group-mentionable"
 
   def self.add_mentions(doc, user_id: nil)
     elements = doc.css("span.mention")

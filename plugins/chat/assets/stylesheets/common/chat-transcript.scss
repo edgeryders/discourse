@@ -77,6 +77,8 @@
         }
 
         .chat-transcript-thread {
+          min-width: 0;
+
           &-header {
             margin-bottom: 0.5rem;
           }
@@ -105,7 +107,6 @@
 
     .chat-transcript-reaction {
       @include chat-reaction;
-
       pointer-events: none;
     }
   }
@@ -113,6 +114,7 @@
   .chat-transcript-images.onebox {
     display: flex;
     flex-wrap: wrap;
+
     img {
       width: auto;
       max-height: 150px;

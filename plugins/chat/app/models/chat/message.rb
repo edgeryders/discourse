@@ -4,10 +4,12 @@ module Chat
   class Message < ActiveRecord::Base
     include Trashable
     include TypeMappable
+    include HasCustomFields
 
     self.table_name = "chat_messages"
 
     BAKED_VERSION = 2
+    EXCERPT_LENGTH = 150
 
     attribute :has_oneboxes, default: false
 
@@ -17,6 +19,10 @@ module Chat
     belongs_to :last_editor, class_name: "User"
     belongs_to :thread, class_name: "Chat::Thread", optional: true, autosave: true
 
+    has_many :interactions,
+             class_name: "Chat::MessageInteraction",
+             dependent: :destroy,
+             foreign_key: :chat_message_id
     has_many :replies,
              class_name: "Chat::Message",
              foreign_key: "in_reply_to_id",
@@ -89,15 +95,29 @@ module Chat
 
     before_save { ensure_last_editor_id }
 
-    validates :cooked, length: { maximum: 20_000 }
-    validate :validate_message
+    normalizes :blocks,
+               with: ->(blocks) do
+                 return if !blocks
+
+                 # automatically assigns unique IDs
+                 blocks.each do |block|
+                   block["schema_version"] = 1
+                   block["block_id"] ||= SecureRandom.uuid
+                   block["elements"].each do |element|
+                     element["schema_version"] = 1
+                     element["action_id"] ||= SecureRandom.uuid if element["type"] == "button"
+                   end
+                 end
+               end
 
     def self.polymorphic_class_mapping = { "ChatMessage" => Chat::Message }
 
-    def validate_message
-      self.message =
-        TextCleaner.clean(self.message, strip_whitespaces: true, strip_zero_width_spaces: true)
+    validates :cooked, length: { maximum: 20_000 }
 
+    validates_with Chat::MessageBlocksValidator
+
+    validate :validate_message
+    def validate_message
       WatchedWordsValidator.new(attributes: [:message]).validate(self)
 
       if self.new_record? || self.changed.include?("message")
@@ -122,19 +142,22 @@ module Chat
       end
     end
 
-    def excerpt(max_length: 100)
+    def build_excerpt
       # just show the URL if the whole message is a URL, because we cannot excerpt oneboxes
-      return message if UrlHelper.relaxed_parse(message).is_a?(URI)
+      urls = PrettyText.extract_links(cooked).map(&:url)
+      if urls.present?
+        regex = %r{^[^:]+://}
+        clean_urls = urls.map { |url| url.sub(regex, "") }
+        if message.gsub(regex, "").split.sort == clean_urls.sort
+          return PrettyText.excerpt(urls.join(" "), EXCERPT_LENGTH)
+        end
+      end
 
       # upload-only messages are better represented as the filename
       return uploads.first.original_filename if cooked.blank? && uploads.present?
 
       # this may return blank for some complex things like quotes, that is acceptable
-      PrettyText.excerpt(cooked, max_length, strip_links: true, keep_mentions: true)
-    end
-
-    def censored_excerpt(max_length: 100)
-      WordWatcher.censor(excerpt(max_length: max_length))
+      PrettyText.excerpt(cooked, EXCERPT_LENGTH, strip_links: true, keep_mentions: true)
     end
 
     def cooked_for_excerpt
@@ -200,6 +223,7 @@ module Chat
       text-post-process
       upload-protocol
       watched-words
+      chat-html-inline
     ]
 
     MARKDOWN_IT_RULES = %w[
@@ -217,9 +241,18 @@ module Chat
       blockquote
       emphasis
       replacements
+      escape
     ]
 
     def self.cook(message, opts = {})
+      bot = opts[:user_id] && opts[:user_id].negative?
+
+      features = MARKDOWN_FEATURES.dup
+      features << "image-grid" if bot
+
+      rules = MARKDOWN_IT_RULES.dup
+      rules << "heading" if bot
+
       # A rule in our Markdown pipeline may have Guardian checks that require a
       # user to be present. The last editing user of the message will be more
       # generally up to date than the creating user. For example, we use
@@ -229,9 +262,8 @@ module Chat
       cooked =
         PrettyText.cook(
           message,
-          features_override:
-            MARKDOWN_FEATURES + DiscoursePluginRegistry.chat_markdown_features.to_a,
-          markdown_it_rules: MARKDOWN_IT_RULES,
+          features_override: features + DiscoursePluginRegistry.chat_markdown_features.to_a,
+          markdown_it_rules: rules,
           force_quote_link: true,
           user_id: opts[:user_id],
           hashtag_context: "chat-composer",
@@ -271,7 +303,7 @@ module Chat
     end
 
     def in_thread?
-      self.thread_id.present?
+      self.thread_id.present? && (self.chat_channel.threading_enabled || self.thread&.force)
     end
 
     def thread_reply?
@@ -279,7 +311,7 @@ module Chat
     end
 
     def thread_om?
-      in_thread? && self.thread.original_message_id == self.id
+      in_thread? && self.thread&.original_message_id == self.id
     end
 
     def parsed_mentions
@@ -349,6 +381,10 @@ module Chat
       new_mentions = parsed_mentions.direct_mentions.pluck(:id)
       delete_mentions("Chat::UserMention", old_mentions - new_mentions)
       insert_mentions("Chat::UserMention", new_mentions - old_mentions)
+
+      # add users to threads when they are mentioned to track read status
+      return if new_mentions.empty? || !in_thread?
+      User.where(id: new_mentions).each { |user| thread.add(user, notification_level: :normal) }
     end
   end
 end

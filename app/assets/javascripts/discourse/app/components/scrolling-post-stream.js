@@ -1,13 +1,12 @@
 import { schedule, scheduleOnce } from "@ember/runloop";
-import { inject as service } from "@ember/service";
+import { service } from "@ember/service";
 import MountWidget from "discourse/components/mount-widget";
+import discourseDebounce from "discourse/lib/debounce";
+import { bind } from "discourse/lib/decorators";
+import domUtils from "discourse/lib/dom-utils";
 import offsetCalculator from "discourse/lib/offset-calculator";
-import { isWorkaroundActive } from "discourse/lib/safari-hacks";
 import DiscourseURL from "discourse/lib/url";
 import { cloak, uncloak } from "discourse/widgets/post-stream";
-import discourseDebounce from "discourse-common/lib/debounce";
-import { bind } from "discourse-common/utils/decorators";
-import domUtils from "discourse-common/utils/dom-utils";
 
 const DEBOUNCE_DELAY = 50;
 
@@ -32,14 +31,15 @@ function findTopView(posts, viewportTop, postsWrapperTop, min, max) {
   return min;
 }
 
-export default MountWidget.extend({
-  screenTrack: service(),
-  widget: "post-stream",
-  _topVisible: null,
-  _bottomVisible: null,
-  _currentPostObj: null,
-  _currentVisible: null,
-  _currentPercent: null,
+export default class ScrollingPostStream extends MountWidget {
+  @service screenTrack;
+
+  widget = "post-stream";
+  _topVisible = null;
+  _bottomVisible = null;
+  _currentPostObj = null;
+  _currentVisible = null;
+  _currentPercent = null;
 
   buildArgs() {
     return this.getProperties(
@@ -56,28 +56,14 @@ export default MountWidget.extend({
       "lastReadPostNumber",
       "highestPostNumber"
     );
-  },
+  }
 
   scrolled() {
     if (this.isDestroyed || this.isDestroying) {
       return;
     }
 
-    if (
-      isWorkaroundActive() ||
-      document.webkitFullscreenElement ||
-      document.fullscreenElement
-    ) {
-      return;
-    }
-
-    // We use this because watching videos fullscreen in Chrome was super buggy
-    // otherwise. Thanks to arrendek from q23 for the technique.
-    const topLeftCornerElement = document.elementFromPoint(0, 0);
-    if (
-      topLeftCornerElement &&
-      topLeftCornerElement.tagName.toUpperCase() === "IFRAME"
-    ) {
+    if (document.webkitFullscreenElement || document.fullscreenElement) {
       return;
     }
 
@@ -206,15 +192,18 @@ export default MountWidget.extend({
               return element.offsetTop + getOffsetTop(element.offsetParent);
             };
 
-            const top = getOffsetTop(refreshedElem) - offsetCalculator();
-            window.scrollTo({ top });
+            window.scrollTo({
+              top: getOffsetTop(refreshedElem) - offsetCalculator(),
+            });
 
             // This seems weird, but somewhat infrequently a rerender
             // will cause the browser to scroll to the top of the document
             // in Chrome. This makes sure the scroll works correctly if that
             // happens.
             schedule("afterRender", () => {
-              window.scrollTo({ top });
+              window.scrollTo({
+                top: getOffsetTop(refreshedElem) - offsetCalculator(),
+              });
             });
           });
         };
@@ -252,36 +241,35 @@ export default MountWidget.extend({
       this._currentPercent = null;
     }
 
-    const onscreenPostNumbers = [];
-    const readPostNumbers = [];
+    const onscreenPostNumbers = new Set();
+    const readPostNumbers = new Set();
 
-    const prev = this._previouslyNearby;
-    const newPrev = {};
+    const newPrev = new Set();
     nearby.forEach((idx) => {
       const post = posts.objectAt(idx);
-      const postNumber = post.post_number;
 
-      delete prev[postNumber];
+      this._previouslyNearby.delete(post.post_number);
 
       if (onscreen.includes(idx)) {
-        onscreenPostNumbers.push(postNumber);
+        onscreenPostNumbers.add(post.post_number);
         if (post.read) {
-          readPostNumbers.push(postNumber);
+          readPostNumbers.add(post.post_number);
         }
       }
-      newPrev[postNumber] = post;
+
+      newPrev.add(post.post_number, post);
       uncloak(post, this);
     });
 
-    Object.values(prev).forEach((node) => cloak(node, this));
+    Object.values(this._previouslyNearby).forEach((node) => cloak(node, this));
 
     this._previouslyNearby = newPrev;
     this.screenTrack.setOnscreen(onscreenPostNumbers, readPostNumbers);
-  },
+  }
 
   _scrollTriggered() {
     scheduleOnce("afterRender", this, this.scrolled);
-  },
+  }
 
   _posted(staged) {
     this.queueRerender(() => {
@@ -290,7 +278,7 @@ export default MountWidget.extend({
         DiscourseURL.jumpToPost(postNumber, { skipIfOnScreen: true });
       }
     });
-  },
+  }
 
   _refresh(args) {
     if (args) {
@@ -314,16 +302,16 @@ export default MountWidget.extend({
     }
     this.queueRerender();
     this._scrollTriggered();
-  },
+  }
 
   @bind
   _debouncedScroll() {
     discourseDebounce(this, this._scrollTriggered, DEBOUNCE_DELAY);
-  },
+  }
 
   didInsertElement() {
-    this._super(...arguments);
-    this._previouslyNearby = {};
+    super.didInsertElement(...arguments);
+    this._previouslyNearby = new Set();
 
     this.appEvents.on("post-stream:refresh", this, "_debouncedScroll");
     const opts = {
@@ -355,10 +343,10 @@ export default MountWidget.extend({
         DiscourseURL.routeTo(this.location.pathname);
       }
     };
-  },
+  }
 
   willDestroyElement() {
-    this._super(...arguments);
+    super.willDestroyElement(...arguments);
 
     document.removeEventListener("touchmove", this._debouncedScroll);
     window.removeEventListener("scroll", this._debouncedScroll);
@@ -373,12 +361,12 @@ export default MountWidget.extend({
     );
     this.appEvents.off("post-stream:refresh", this, "_refresh");
     this.appEvents.off("post-stream:posted", this, "_posted");
-  },
+  }
 
   didUpdateAttrs() {
-    this._super(...arguments);
+    super.didUpdateAttrs(...arguments);
     this._refresh({ force: true });
-  },
+  }
 
   _handleWidgetButtonHoverState(event) {
     if (event.target.classList.contains("widget-button")) {
@@ -389,11 +377,11 @@ export default MountWidget.extend({
         });
       event.target.classList.add("d-hover");
     }
-  },
+  }
 
   _removeWidgetButtonHoverState() {
     document.querySelectorAll("button.widget-button").forEach((button) => {
       button.classList.remove("d-hover");
     });
-  },
-});
+  }
+}

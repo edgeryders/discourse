@@ -4,7 +4,7 @@
   padding: 0;
 
   .chat-message-expand {
-    color: var(--primary-low-mid);
+    color: var(--primary-high);
     padding: 0.25em;
 
     .d-button-label {
@@ -64,18 +64,28 @@
     min-width: 0;
     width: 100%;
 
+    mark {
+      background-color: var(--highlight);
+    }
+
     code {
       box-sizing: border-box;
       font-size: var(--font-down-1);
       width: 100%;
     }
 
-    .mention {
+    a.mention,
+    span.mention.--wide {
       @include mention;
 
       &.highlighted {
         background: var(--tertiary-low);
       }
+    }
+
+    // unlinked, invalid mention
+    span.mention:not(--wide) {
+      color: var(--primary-high);
     }
 
     // Automatic aspect-ratio mapping https://developer.mozilla.org/en-US/docs/Web/Media/images/aspect_ratio_mapping
@@ -103,9 +113,9 @@
     display: flex;
     flex-wrap: wrap;
 
-    .chat-message-react-btn {
+    .react-btn {
       vertical-align: top;
-      padding: 0em 0.25em;
+      padding: 0 0.25em;
       background: none;
       border: none;
       will-change: scale;
@@ -156,7 +166,7 @@
 
   &:hover {
     .chat-message-reaction-list .chat-message-react-btn {
-      display: inline-block;
+      visibility: visible;
     }
   }
 
@@ -167,7 +177,11 @@
     }
 
     &.-deleted {
-      background-color: var(--danger-medium);
+      background-color: var(--danger-low);
+
+      .chat-message-expand {
+        color: var(--danger);
+      }
     }
 
     &.-highlighted {
@@ -237,6 +251,6 @@
   }
 
   .chat-message-reaction-list .chat-message-react-btn {
-    display: none;
+    visibility: hidden;
   }
 }

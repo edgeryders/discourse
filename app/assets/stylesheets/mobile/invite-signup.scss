@@ -1,7 +1,10 @@
 .invites-show {
-  width: 100vw;
   box-sizing: border-box;
-  padding: 0 1em 1em;
+  padding: 1em;
+
+  .signup-progress-bar {
+    margin: 0;
+  }
 
   .invitation-cta {
     display: flex;

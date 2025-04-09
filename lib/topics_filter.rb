@@ -74,16 +74,31 @@ class TopicsFilter
         filter_by_number_of_posters(max: filter_values)
       when "status"
         filter_values.each { |status| @scope = filter_status(status: status) }
+      when "tag_group"
+        filter_tag_groups(values: key_prefixes.zip(filter_values))
       when "tag"
         filter_tags(values: key_prefixes.zip(filter_values))
       when "views-min"
         filter_by_number_of_views(min: filter_values)
       when "views-max"
         filter_by_number_of_views(max: filter_values)
+      else
+        if custom_filter =
+             DiscoursePluginRegistry.custom_filter_mappings.find { |hash| hash.key?(filter) }
+          @scope = custom_filter[filter].call(@scope, filter_values)
+        end
       end
     end
 
     @scope
+  end
+
+  def self.add_filter_by_status(status, &blk)
+    custom_status_filters[status] = blk
+  end
+
+  def self.custom_status_filters
+    @custom_status_filters ||= {}
   end
 
   def filter_status(status:, category_id: nil)
@@ -106,6 +121,10 @@ class TopicsFilter
       end
     when "public"
       @scope = @scope.joins(:category).where("NOT categories.read_restricted")
+    else
+      if custom_filter = TopicsFilter.custom_status_filters[status]
+        @scope = custom_filter.call(@scope)
+      end
     end
 
     @scope
@@ -258,9 +277,14 @@ class TopicsFilter
       )
     end
 
-    if exclude_category_ids.present?
-      @scope = @scope.where("topics.category_id NOT IN (?)", exclude_category_ids)
-    end
+    # Use `NOT EXISTS` instead of `NOT IN` to avoid performance issues with large arrays.
+    @scope = @scope.where(<<~SQL) if exclude_category_ids.present?
+      NOT EXISTS (
+        SELECT 1
+        FROM unnest(array[#{exclude_category_ids.join(",")}]) AS excluded_categories(category_id)
+        WHERE topics.category_id IS NULL OR excluded_categories.category_id = topics.category_id
+      )
+      SQL
   end
 
   def filter_created_by_user(usernames:)
@@ -351,6 +375,27 @@ class TopicsFilter
     all_tag_ids
   end
 
+  def filter_tag_groups(values:)
+    values.each do |key_prefix, tag_groups|
+      tag_group_ids = TagGroup.visible(@guardian).where(name: tag_groups).pluck(:id)
+      exclude_clause = "NOT" if key_prefix == "-"
+      filter =
+        "tags.id #{exclude_clause} IN (SELECT tag_id FROM tag_group_memberships WHERE tag_group_id IN (?))"
+
+      query =
+        if exclude_clause.present?
+          @scope
+            .joins("LEFT JOIN topic_tags ON topic_tags.topic_id = topics.id")
+            .joins("LEFT JOIN tags ON tags.id = topic_tags.tag_id")
+            .where("tags.id IS NULL OR #{filter}", tag_group_ids)
+        else
+          @scope.joins(:tags).where(filter, tag_group_ids)
+        end
+
+      @scope = query.distinct(:id)
+    end
+  end
+
   def filter_tags(values:)
     return if !SiteSetting.tagging_enabled?
 
@@ -363,7 +408,7 @@ class TopicsFilter
       break if key_prefix && key_prefix != "-"
 
       value.scan(
-        /\A(?<tag_names>([\p{N}\p{L}\-]+)(?<delimiter>[,+])?([\p{N}\p{L}\-]+)?(\k<delimiter>[\p{N}\p{L}\-]+)*)\z/,
+        /\A(?<tag_names>([\p{N}\p{L}\-_]+)(?<delimiter>[,+])?([\p{N}\p{L}\-]+)?(\k<delimiter>[\p{N}\p{L}\-]+)*)\z/,
       ) do |tag_names, delimiter|
         match_all =
           if delimiter == ","
@@ -504,14 +549,21 @@ class TopicsFilter
 
   def order_by(values:)
     values.each do |value|
+      # If the order by value is not recognized, check if it is a custom filter.
       match_data = value.match(ORDER_BY_REGEXP)
-
       if match_data && column_name = ORDER_BY_MAPPINGS.dig(match_data[:order_by], :column)
         if scope = ORDER_BY_MAPPINGS.dig(match_data[:order_by], :scope)
           @scope = instance_exec(&scope)
         end
 
         @scope = @scope.order("#{column_name} #{match_data[:asc] ? "ASC" : "DESC"}")
+      else
+        match_data = value.match /^(?<column>.*?)(?:-(?<asc>asc))?$/
+        key = "order:#{match_data[:column]}"
+        if custom_match =
+             DiscoursePluginRegistry.custom_filter_mappings.find { |hash| hash.key?(key) }
+          @scope = custom_match[key].call(@scope, match_data[:asc].nil? ? "DESC" : "ASC")
+        end
       end
     end
   end

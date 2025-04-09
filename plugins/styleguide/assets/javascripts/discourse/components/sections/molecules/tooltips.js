@@ -1,17 +1,18 @@
 import Component from "@glimmer/component";
 import { tracked } from "@glimmer/tracking";
 import { action } from "@ember/object";
-import { inject as service } from "@ember/service";
+import { service } from "@ember/service";
 import { htmlSafe } from "@ember/template";
 import { TOOLTIP } from "float-kit/lib/constants";
 import DummyComponent from "discourse/plugins/styleguide/discourse/components/dummy-component";
 
 export default class Tooltips extends Component {
   @service tooltip;
+  @service site;
 
   @tracked label = "What is this?";
-  @tracked triggers = TOOLTIP.options.triggers;
-  @tracked untriggers = TOOLTIP.options.untriggers;
+  @tracked triggers = TOOLTIP.options.triggers[this.triggersByDevice];
+  @tracked untriggers = TOOLTIP.options.untriggers[this.triggersByDevice];
   @tracked arrow = TOOLTIP.options.arrow;
   @tracked inline = TOOLTIP.options.inline;
   @tracked interactive = TOOLTIP.options.interactive;
@@ -19,6 +20,10 @@ export default class Tooltips extends Component {
   @tracked identifier;
   @tracked offset = TOOLTIP.options.offset;
   @tracked _content = "Hello World!";
+
+  get triggersByDevice() {
+    return this.site.mobileView ? "mobile" : "desktop";
+  }
 
   get content() {
     return this._content;

@@ -1,28 +1,32 @@
 import Component from "@glimmer/component";
+import { hash } from "@ember/helper";
 import didInsert from "@ember/render-modifiers/modifiers/did-insert";
 import willDestroy from "@ember/render-modifiers/modifiers/will-destroy";
 import { LinkTo } from "@ember/routing";
-import { inject as service } from "@ember/service";
+import { service } from "@ember/service";
+import { and } from "truth-helpers";
 import BookmarkIcon from "discourse/components/bookmark-icon";
 import UserStatusMessage from "discourse/components/user-status-message";
 import concatClass from "discourse/helpers/concat-class";
+import icon from "discourse/helpers/d-icon";
+import { bind } from "discourse/lib/decorators";
 import { prioritizeNameInUx } from "discourse/lib/settings";
-import dIcon from "discourse-common/helpers/d-icon";
-import i18n from "discourse-common/helpers/i18n";
-import { bind } from "discourse-common/utils/decorators";
+import { i18n } from "discourse-i18n";
+import ChannelTitle from "discourse/plugins/chat/discourse/components/channel-title";
 import formatChatDate from "../../../helpers/format-chat-date";
 
 export default class ChatMessageInfo extends Component {
+  @service site;
   @service siteSettings;
 
   @bind
   trackStatus() {
-    this.#user?.trackStatus?.();
+    this.#user?.statusManager.trackStatus();
   }
 
   @bind
   stopTrackingStatus() {
-    this.#user?.stopTrackingStatus?.();
+    this.#user?.statusManager.stopTrackingStatus();
   }
 
   get usernameClasses() {
@@ -57,7 +61,9 @@ export default class ChatMessageInfo extends Component {
   }
 
   get isFlagged() {
-    return this.#message?.reviewableId || this.#message?.userFlagStatus === 0;
+    return (
+      this.args.message?.reviewableId || this.args.message?.userFlagStatus === 0
+    );
   }
 
   get prioritizeName() {
@@ -72,11 +78,27 @@ export default class ChatMessageInfo extends Component {
   }
 
   get #user() {
-    return this.#message?.user;
+    return this.args.message?.user;
   }
 
-  get #message() {
-    return this.args.message;
+  get routeModels() {
+    if (this.site.mobileView) {
+      return [...this.args.message.channel.routeModels, this.args.message.id];
+    } else {
+      return [
+        ...this.args.message.channel.routeModels,
+        this.args.message.id,
+        this.args.message.thread.id,
+      ];
+    }
+  }
+
+  get route() {
+    if (this.site.mobileView) {
+      return "chat.channel.near-message";
+    } else {
+      return "chat.channel.near-message-with-thread";
+    }
   }
 
   <template>
@@ -113,15 +135,15 @@ export default class ChatMessageInfo extends Component {
           >
             <span class="chat-message-info__username__name">{{this.name}}</span>
             {{#if this.showStatus}}
-              <div class="chat-message-info__status">
+              <span class="chat-message-info__status">
                 <UserStatusMessage @status={{@message.user.status}} />
-              </div>
+              </span>
             {{/if}}
           </span>
         {{/if}}
 
         <span class="chat-message-info__date">
-          {{formatChatDate @message}}
+          {{formatChatDate @message (hash threadContext=@threadContext)}}
         </span>
 
         {{#if @message.bookmark}}
@@ -134,12 +156,25 @@ export default class ChatMessageInfo extends Component {
           <span class="chat-message-info__flag">
             {{#if @message.reviewableId}}
               <LinkTo @route="review.show" @model={{@message.reviewableId}}>
-                {{dIcon "flag" title="chat.flagged"}}
+                {{icon "flag" title="chat.flagged"}}
               </LinkTo>
             {{else}}
-              {{dIcon "flag" title="chat.you_flagged"}}
+              {{icon "flag" title="chat.you_flagged"}}
             {{/if}}
           </span>
+        {{/if}}
+
+        {{#if (and @threadContext @message.isOriginalThreadMessage)}}
+          <LinkTo
+            @route={{this.route}}
+            @models={{this.routeModels}}
+            class="chat-message-info__original-message"
+          >
+            <span class="chat-message-info__original-message__text">
+              {{i18n "chat.see_in"}}
+            </span>
+            <ChannelTitle @channel={{@message.channel}} />
+          </LinkTo>
         {{/if}}
       </div>
     {{/if}}

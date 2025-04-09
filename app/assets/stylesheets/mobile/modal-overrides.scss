@@ -3,6 +3,7 @@
     flex-direction: column;
     gap: 0.5em;
   }
+
   .calendar-date-time-input {
     width: 100%;
     margin: 0 0 1rem 0;
@@ -19,8 +20,8 @@
   }
 }
 
-.d-modal.add-pm-participants {
-  .d-modal__body {
-    overflow: visible;
+.d-modal.bookmark-reminder-modal {
+  .d-modal__container {
+    min-height: calc(var(--composer-vh, var(--1dvh)) * 85);
   }
 }

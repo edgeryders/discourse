@@ -8,12 +8,29 @@ RSpec.describe SearchLog, type: :model do
       it "no search type returns error" do
         status, _ =
           SearchLog.log(term: "bounty hunter", search_type: :missing, ip_address: "127.0.0.1")
+
         expect(status).to eq(:error)
       end
 
       it "no IP returns error" do
         status, _ = SearchLog.log(term: "bounty hunter", search_type: :header, ip_address: nil)
+
         expect(status).to eq(:error)
+      end
+
+      it "truncates the `user_agent` attribute if it exceeds #{described_class::MAXIMUM_USER_AGENT_LENGTH} characters" do
+        user_agent = "a" * (described_class::MAXIMUM_USER_AGENT_LENGTH + 1)
+
+        status, _ =
+          SearchLog.log(
+            term: "bounty hunter",
+            search_type: :header,
+            user_agent:,
+            ip_address: "127.0.0.1",
+          )
+
+        expect(status).to eq(:created)
+        expect(SearchLog.last.user_agent).to eq("a" * described_class::MAXIMUM_USER_AGENT_LENGTH)
       end
     end
 
@@ -21,12 +38,18 @@ RSpec.describe SearchLog, type: :model do
       it "logs and updates the search" do
         freeze_time
         action, log_id =
-          SearchLog.log(term: "jabba", search_type: :header, ip_address: "192.168.0.33")
+          SearchLog.log(
+            term: "jabba",
+            search_type: :header,
+            ip_address: "192.168.0.33",
+            user_agent: "Mozilla",
+          )
         expect(action).to eq(:created)
         log = SearchLog.find(log_id)
         expect(log.term).to eq("jabba")
         expect(log.search_type).to eq(SearchLog.search_types[:header])
         expect(log.ip_address).to eq("192.168.0.33")
+        expect(log.user_agent).to eq("Mozilla")
 
         action, updated_log_id =
           SearchLog.log(term: "jabba the hut", search_type: :header, ip_address: "192.168.0.33")
@@ -55,6 +78,10 @@ RSpec.describe SearchLog, type: :model do
 
     context "when logged in" do
       fab!(:user)
+      let!(:plugin) { Plugin::Instance.new }
+      let!(:modifier) { :search_log_can_log }
+      let!(:deny_block) { Proc.new { false } }
+      let!(:allow_block) { Proc.new { true } }
 
       it "logs and updates the search" do
         freeze_time
@@ -63,6 +90,7 @@ RSpec.describe SearchLog, type: :model do
             term: "hello",
             search_type: :full_page,
             ip_address: "192.168.0.1",
+            user_agent: "Mozilla",
             user_id: user.id,
           )
         expect(action).to eq(:created)
@@ -70,6 +98,7 @@ RSpec.describe SearchLog, type: :model do
         expect(log.term).to eq("hello")
         expect(log.search_type).to eq(SearchLog.search_types[:full_page])
         expect(log.ip_address).to eq(nil)
+        expect(log.user_agent).to eq("Mozilla")
         expect(log.user_id).to eq(user.id)
 
         action, updated_log_id =
@@ -129,6 +158,31 @@ RSpec.describe SearchLog, type: :model do
             user_id: Fabricate(:user).id,
           )
         expect(action).to eq(:created)
+      end
+
+      it "allows plugins to control logging" do
+        DiscoursePluginRegistry.register_modifier(plugin, modifier, &deny_block)
+        action, _ =
+          SearchLog.log(
+            term: "hello dolly",
+            search_type: :full_page,
+            ip_address: "192.168.0.1",
+            user_id: Fabricate(:user).id,
+          )
+        expect(action).to_not eq(:created)
+
+        DiscoursePluginRegistry.register_modifier(plugin, modifier, &allow_block)
+        action, _ =
+          SearchLog.log(
+            term: "hello dolly",
+            search_type: :full_page,
+            ip_address: "192.168.0.1",
+            user_id: Fabricate(:user).id,
+          )
+        expect(action).to eq(:created)
+      ensure
+        DiscoursePluginRegistry.unregister_modifier(plugin, modifier, &deny_block)
+        DiscoursePluginRegistry.unregister_modifier(plugin, modifier, &allow_block)
       end
     end
   end

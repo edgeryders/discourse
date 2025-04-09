@@ -526,6 +526,78 @@ RSpec.describe GroupsController do
     end
   end
 
+  describe "#mentions" do
+    it "ensures mentions are enabled" do
+      SiteSetting.enable_mentions = false
+
+      sign_in(user)
+      get "/groups/#{group.name}/mentions.json"
+
+      expect(response.status).to eq(404)
+    end
+
+    it "ensures the group can be seen" do
+      sign_in(user)
+      group.update!(visibility_level: Group.visibility_levels[:owners])
+
+      get "/groups/#{group.name}/mentions.json"
+
+      expect(response.status).to eq(404)
+    end
+
+    it "ensures the group members can be seen" do
+      sign_in(user)
+      group.update!(members_visibility_level: Group.visibility_levels[:owners])
+
+      get "/groups/#{group.name}/mentions.json"
+
+      expect(response.status).to eq(403)
+    end
+
+    it "returns the right response" do
+      post = Fabricate(:post)
+      GroupMention.create!(post: post, group: group)
+
+      sign_in(user)
+      get "/groups/#{group.name}/mentions.json"
+
+      expect(response.status).to eq(200)
+      expect(response.parsed_body["posts"].first["id"]).to eq(post.id)
+    end
+
+    it "supports pagination using before (date)" do
+      post = Fabricate(:post)
+      GroupMention.create!(post: post, group: group)
+
+      sign_in(user)
+      get "/groups/#{group.name}/mentions.json"
+
+      expect(response.status).to eq(200)
+      expect(response.parsed_body["posts"].first["id"]).to eq(post.id)
+
+      get "/groups/#{group.name}/mentions.json", params: { before: post.created_at }
+
+      expect(response.status).to eq(200)
+      expect(response.parsed_body["posts"]).to be_empty
+    end
+
+    it "supports pagination using before_post_id" do
+      post = Fabricate(:post)
+      GroupMention.create!(post: post, group: group)
+
+      sign_in(user)
+      get "/groups/#{group.name}/mentions.json"
+
+      expect(response.status).to eq(200)
+      expect(response.parsed_body["posts"].first["id"]).to eq(post.id)
+
+      get "/groups/#{group.name}/mentions.json", params: { before_post_id: post.id }
+
+      expect(response.status).to eq(200)
+      expect(response.parsed_body["posts"]).to be_empty
+    end
+  end
+
   describe "#posts" do
     it "ensures the group can be seen" do
       sign_in(user)
@@ -551,7 +623,7 @@ RSpec.describe GroupsController do
       get "/groups/#{group.name}/posts.json"
 
       expect(response.status).to eq(200)
-      expect(response.parsed_body.first["id"]).to eq(post.id)
+      expect(response.parsed_body["posts"].first["id"]).to eq(post.id)
     end
 
     it "returns moderator actions" do
@@ -560,7 +632,37 @@ RSpec.describe GroupsController do
       get "/groups/#{group.name}/posts.json"
 
       expect(response.status).to eq(200)
-      expect(response.parsed_body.first["id"]).to eq(post.id)
+      expect(response.parsed_body["posts"].first["id"]).to eq(post.id)
+    end
+
+    it "supports pagination using before (date)" do
+      post = Fabricate(:post, user: user)
+
+      sign_in(user)
+      get "/groups/#{group.name}/posts.json"
+
+      expect(response.status).to eq(200)
+      expect(response.parsed_body["posts"].first["id"]).to eq(post.id)
+
+      get "/groups/#{group.name}/posts.json", params: { before: post.created_at }
+
+      expect(response.status).to eq(200)
+      expect(response.parsed_body["posts"]).to be_empty
+    end
+
+    it "supports pagination using before_post_id" do
+      post = Fabricate(:post, user: user)
+
+      sign_in(user)
+      get "/groups/#{group.name}/posts.json"
+
+      expect(response.status).to eq(200)
+      expect(response.parsed_body["posts"].first["id"]).to eq(post.id)
+
+      get "/groups/#{group.name}/posts.json", params: { before_post_id: post.id }
+
+      expect(response.status).to eq(200)
+      expect(response.parsed_body["posts"]).to be_empty
     end
   end
 
@@ -894,7 +996,7 @@ RSpec.describe GroupsController do
                   incoming_email: "test@mail.org",
                   flair_bg_color: "FFF",
                   flair_color: "BBB",
-                  flair_icon: "fa-adjust",
+                  flair_icon: "fa-circle-half-stroke",
                   bio_raw: "testing",
                   full_name: "awesome team",
                   public_admission: true,
@@ -916,7 +1018,7 @@ RSpec.describe GroupsController do
 
         expect(group.flair_bg_color).to eq("FFF")
         expect(group.flair_color).to eq("BBB")
-        expect(group.flair_url).to eq("fa-adjust")
+        expect(group.flair_url).to eq("fa-circle-half-stroke")
         expect(group.bio_raw).to eq("testing")
         expect(group.full_name).to eq("awesome team")
         expect(group.public_admission).to eq(true)
@@ -1002,7 +1104,7 @@ RSpec.describe GroupsController do
               group: {
                 flair_bg_color: "FFF",
                 flair_color: "BBB",
-                flair_icon: "fa-adjust",
+                flair_icon: "fa-circle-half-stroke",
                 name: "testing",
                 visibility_level: 1,
                 mentionable_level: 1,
@@ -1020,8 +1122,8 @@ RSpec.describe GroupsController do
         group.reload
         expect(group.flair_bg_color).to eq("FFF")
         expect(group.flair_color).to eq("BBB")
-        expect(group.flair_icon).to eq("fa-adjust")
-        expect(group.flair_url).to eq("fa-adjust")
+        expect(group.flair_icon).to eq("fa-circle-half-stroke")
+        expect(group.flair_url).to eq("fa-circle-half-stroke")
         expect(group.name).to eq("admins")
         expect(group.visibility_level).to eq(1)
         expect(group.mentionable_level).to eq(1)
@@ -1247,7 +1349,7 @@ RSpec.describe GroupsController do
               group: {
                 flair_bg_color: "FFF",
                 flair_color: "BBB",
-                flair_icon: "fa-adjust",
+                flair_icon: "fa-circle-half-stroke",
                 mentionable_level: 1,
                 messageable_level: 1,
                 default_notification_level: 1,
@@ -1259,8 +1361,8 @@ RSpec.describe GroupsController do
         group.reload
         expect(group.flair_bg_color).to eq("FFF")
         expect(group.flair_color).to eq("BBB")
-        expect(group.flair_icon).to eq("fa-adjust")
-        expect(group.flair_url).to eq("fa-adjust")
+        expect(group.flair_icon).to eq("fa-circle-half-stroke")
+        expect(group.flair_url).to eq("fa-circle-half-stroke")
         expect(group.name).to eq("trust_level_4")
         expect(group.mentionable_level).to eq(1)
         expect(group.messageable_level).to eq(1)
@@ -1602,6 +1704,23 @@ RSpec.describe GroupsController do
           emails.each do |email|
             invite = Invite.find_by(email: email)
             expect(invite.groups).to eq([group])
+          end
+        end
+
+        it "sends emails with invitations when `skip_emails` param isn't present" do
+          expect_enqueued_with(job: :invite_email) do
+            put "/groups/#{group.id}/members.json", params: { emails: "something@gmail.com" }
+            expect(response.status).to eq(200)
+          end
+        end
+
+        it "sends emails with invitations when `skip_emails` is present" do
+          expect_not_enqueued_with(job: :invite_email) do
+            put "/groups/#{group.id}/members.json?skip_email=true",
+                params: {
+                  emails: "something@gmail.com",
+                }
+            expect(response.status).to eq(200)
           end
         end
 
@@ -2165,22 +2284,107 @@ RSpec.describe GroupsController do
       sign_in(user)
     end
 
-    it "sends a private message when accepted" do
+    it "sends a reply to the request membership topic when accepted" do
       GroupRequest.create!(group: group, user: other_user)
+
+      # send the initial request PM
+      PostCreator.new(
+        other_user,
+        title: I18n.t("groups.request_membership_pm.title", group_name: group.name),
+        raw: "*British accent* Please, sir, may I have some group?",
+        archetype: Archetype.private_message,
+        target_usernames: user.username,
+        skip_validations: true,
+      ).create!
+
+      topic = Topic.last
+
       expect {
         put "/groups/#{group.id}/handle_membership_request.json",
             params: {
               user_id: other_user.id,
               accept: true,
             }
-      }.to change { Topic.count }.by(1).and change { Post.count }.by(1)
+      }.to_not change { Topic.count }
 
-      topic = Topic.last
       expect(topic.archetype).to eq(Archetype.private_message)
-      expect(topic.title).to eq(I18n.t("groups.request_accepted_pm.title", group_name: group.name))
-      expect(topic.first_post.raw).to eq(
+      expect(Topic.first.title).to eq(
+        I18n.t("groups.request_membership_pm.title", group_name: group.name),
+      )
+
+      post = Post.last
+      expect(post.topic_id).to eq(Topic.last.id)
+      expect(topic.posts.count).to eq(2)
+      expect(post.raw).to eq(
         I18n.t("groups.request_accepted_pm.body", group_name: group.name).strip,
       )
+    end
+
+    it "sends accepted membership request reply even if request is in another language" do
+      SiteSetting.allow_user_locale = true
+      other_user.update!(locale: "fr")
+
+      GroupRequest.create!(group: group, user: other_user)
+
+      # send the initial request PM
+      PostCreator.new(
+        other_user,
+        title: I18n.t("groups.request_membership_pm.title", group_name: group.name, locale: "fr"),
+        raw: "*French accent* Please let me in!",
+        archetype: Archetype.private_message,
+        target_usernames: user.username,
+        skip_validations: true,
+      ).create!
+
+      topic = Topic.last
+
+      expect {
+        put "/groups/#{group.id}/handle_membership_request.json",
+            params: {
+              user_id: other_user.id,
+              accept: true,
+            }
+      }.to_not change { Topic.count }
+
+      expect(topic.archetype).to eq(Archetype.private_message)
+      expect(Topic.first.title).to eq(
+        I18n.t("groups.request_membership_pm.title", group_name: group.name, locale: "fr"),
+      )
+
+      post = Post.last
+      expect(post.topic_id).to eq(Topic.last.id)
+      expect(topic.posts.count).to eq(2)
+      expect(post.raw).to eq(
+        I18n.t("groups.request_accepted_pm.body", group_name: group.name, locale: "fr").strip,
+      )
+    end
+
+    it "works even though the user has no locale" do
+      other_user.update!(locale: "")
+
+      GroupRequest.create!(group: group, user: other_user)
+
+      # send the initial request PM
+      PostCreator.new(
+        other_user,
+        title: I18n.t("groups.request_membership_pm.title", group_name: group.name),
+        raw: "*Alien accent* Can I join?!",
+        archetype: Archetype.private_message,
+        target_usernames: user.username,
+        skip_validations: true,
+      ).create!
+
+      topic = Topic.last
+
+      expect {
+        put "/groups/#{group.id}/handle_membership_request.json",
+            params: {
+              user_id: other_user.id,
+              accept: true,
+            }
+      }.to_not change { Topic.count }
+
+      expect(topic.posts.count).to eq(2)
     end
   end
 
@@ -2579,6 +2783,7 @@ RSpec.describe GroupsController do
     let(:params) do
       {
         protocol: protocol,
+        ssl_mode: ssl_mode,
         ssl: ssl,
         port: port,
         host: host,
@@ -2597,7 +2802,8 @@ RSpec.describe GroupsController do
       let(:username) { "test@gmail.com" }
       let(:password) { "password" }
       let(:domain) { nil }
-      let(:ssl) { true }
+      let(:ssl_mode) { Group.smtp_ssl_modes[:starttls] }
+      let(:ssl) { nil }
       let(:host) { "smtp.somemailsite.com" }
       let(:port) { 587 }
 
@@ -2612,7 +2818,7 @@ RSpec.describe GroupsController do
           post "/groups/#{group.id}/test_email_settings.json", params: params
           expect(response.status).to eq(422)
           expect(response.parsed_body["errors"]).to include(
-            I18n.t("email_settings.smtp_authentication_error"),
+            I18n.t("email_settings.smtp_authentication_error", message: "Invalid credentials"),
           )
         end
       end
@@ -2624,11 +2830,12 @@ RSpec.describe GroupsController do
       let(:password) { "password" }
       let(:domain) { nil }
       let(:ssl) { true }
+      let(:ssl_mode) { nil }
       let(:host) { "imap.somemailsite.com" }
       let(:port) { 993 }
 
       it "validates with the correct TLS settings" do
-        EmailSettingsValidator.expects(:validate_imap).with(has_entry(ssl: true))
+        EmailSettingsValidator.expects(:validate_imap).with(has_entries(ssl: true))
         post "/groups/#{group.id}/test_email_settings.json", params: params
         expect(response.status).to eq(200)
       end
@@ -2657,6 +2864,7 @@ RSpec.describe GroupsController do
       let(:username) { "test@gmail.com" }
       let(:password) { "password" }
       let(:ssl) { true }
+      let(:ssl_mode) { nil }
 
       context "when the protocol is not accepted" do
         let(:protocol) { "sigma" }
@@ -2679,8 +2887,6 @@ RSpec.describe GroupsController do
       end
 
       context "when rate limited" do
-        use_redis_snapshotting
-
         it "rate limits anon searches per user" do
           RateLimiter.enable
 

@@ -1,8 +1,4 @@
 .chat-modal-create-channel {
-  .modal-inner-container {
-    width: 500px;
-  }
-
   .choose-topic-results-list {
     max-height: 200px;
     overflow-y: scroll;
@@ -14,6 +10,7 @@
     width: 100%;
     margin-bottom: 0;
   }
+
   .category-chooser {
     .select-kit-selected-name.selected-name.choice {
       color: var(

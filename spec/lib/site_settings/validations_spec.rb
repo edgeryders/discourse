@@ -159,26 +159,6 @@ RSpec.describe SiteSettings::Validations do
         end
       end
 
-      context "when social logins are enabled" do
-        let(:error_message) do
-          I18n.t(
-            "errors.site_settings.second_factor_cannot_enforce_with_socials",
-            auth_provider_names: "facebook, github",
-          )
-        end
-        before do
-          SiteSetting.enable_facebook_logins = true
-          SiteSetting.enable_github_logins = true
-        end
-
-        it "raises and error, and specifies the auth providers" do
-          expect { validations.validate_enforce_second_factor("all") }.to raise_error(
-            Discourse::InvalidParameters,
-            error_message,
-          )
-        end
-      end
-
       context "when SSO is enabled" do
         let(:error_message) do
           I18n.t(
@@ -492,6 +472,21 @@ RSpec.describe SiteSettings::Validations do
       upload.update!(url: "/images/logo-dark.png", extension: "png")
       expect { validations.validate_twitter_summary_large_image(upload.id) }.not_to raise_error
       expect { validations.validate_twitter_summary_large_image(nil) }.not_to raise_error
+    end
+  end
+
+  describe "#validate_allow_tl0_and_anonymous_users_to_flag_illegal_content" do
+    it "does not allow to enable when no contact email is provided" do
+      expect {
+        validations.validate_allow_tl0_and_anonymous_users_to_flag_illegal_content("t")
+      }.to raise_error(
+        Discourse::InvalidParameters,
+        I18n.t("errors.site_settings.tl0_and_anonymous_flag"),
+      )
+      SiteSetting.contact_email = "illegal@example.com"
+      expect {
+        validations.validate_allow_tl0_and_anonymous_users_to_flag_illegal_content("t")
+      }.not_to raise_error
     end
   end
 end

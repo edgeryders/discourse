@@ -29,7 +29,7 @@ class UserAnonymizer
 
       @user.reload
       @user.password = SecureRandom.hex
-      @user.name = SiteSetting.full_name_required ? @user.username : nil
+      @user.name = SiteSetting.full_name_requirement == "required_at_signup" ? @user.username : nil
       @user.date_of_birth = nil
       @user.title = nil
       @user.uploaded_avatar_id = nil
@@ -40,7 +40,9 @@ class UserAnonymizer
       end
 
       @user.save!
+
       @user.primary_email.update_attribute(:email, "#{@user.username}#{EMAIL_SUFFIX}")
+      @user.primary_email.update_attribute(:normalized_email, "#{@user.username}#{EMAIL_SUFFIX}")
 
       options = @user.user_option
       options.mailing_list_mode = false

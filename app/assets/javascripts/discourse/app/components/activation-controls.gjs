@@ -1,5 +1,5 @@
 import Component from "@glimmer/component";
-import { inject as service } from "@ember/service";
+import { service } from "@ember/service";
 import DButton from "discourse/components/d-button";
 
 export default class ActivationControls extends Component {
@@ -26,7 +26,7 @@ export default class ActivationControls extends Component {
         <DButton
           @action={{@editActivationEmail}}
           @label="login.change_email"
-          @icon="pencil-alt"
+          @icon="pencil"
           class="edit-email"
         />
       {{/if}}

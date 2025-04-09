@@ -8,14 +8,11 @@
     width: 100%;
     border: 1px solid var(--primary-medium);
 
-    .btn-emoji {
+    .emoji-picker-trigger {
       margin: 3px;
-      width: 2.3em;
+      width: 38px;
+      height: 38px;
       text-align: center;
-
-      .svg-icon {
-        color: var(--primary-high);
-      }
     }
 
     .user-status-description {

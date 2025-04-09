@@ -1,21 +1,18 @@
-import { click, fillIn, visit } from "@ember/test-helpers";
+import { click, fillIn, select, visit } from "@ember/test-helpers";
 import { test } from "qunit";
+import { cloneJSON } from "discourse/lib/object";
 import topicFixtures from "discourse/tests/fixtures/topic";
 import {
   acceptance,
-  exists,
   fakeTime,
   loggedInUser,
-  query,
   queryAll,
   updateCurrentUser,
 } from "discourse/tests/helpers/qunit-helpers";
 import selectKit from "discourse/tests/helpers/select-kit-helper";
-import { cloneJSON } from "discourse-common/lib/object";
-import I18n from "discourse-i18n";
+import { i18n } from "discourse-i18n";
 
 acceptance("Topic - Edit timer", function (needs) {
-  let clock = null;
   needs.user();
   needs.pretender((server, helper) => {
     server.post("/t/280/timer", () =>
@@ -36,14 +33,14 @@ acceptance("Topic - Edit timer", function (needs) {
     server.get("/t/54077.json", () => helper.response(topicResponse));
   });
 
-  needs.hooks.beforeEach(() => {
-    const timezone = loggedInUser().user_option.timezone;
+  needs.hooks.beforeEach(function () {
+    this.timezone = loggedInUser().user_option.timezone;
     const tuesday = "2100-06-15T08:00:00";
-    clock = fakeTime(tuesday, timezone, true);
+    this.clock = fakeTime(tuesday, this.timezone, true);
   });
 
-  needs.hooks.afterEach(() => {
-    clock.restore();
+  needs.hooks.afterEach(function () {
+    this.clock.restore();
   });
 
   test("autoclose - specific time", async function (assert) {
@@ -51,14 +48,11 @@ acceptance("Topic - Edit timer", function (needs) {
     await visit("/t/internationalization-localization");
     await click(".toggle-admin-menu");
     await click(".admin-topic-timer-update button");
-
     await click("#tap_tile_start_of_next_business_week");
 
-    const regex = /will automatically close in/g;
-    const html = query(
-      ".edit-topic-timer-modal .topic-timer-info"
-    ).innerHTML.trim();
-    assert.ok(regex.test(html));
+    assert
+      .dom(".edit-topic-timer-modal .topic-timer-info")
+      .matchesText(/will automatically close in/g);
   });
 
   test("autoclose", async function (assert) {
@@ -67,78 +61,84 @@ acceptance("Topic - Edit timer", function (needs) {
     await visit("/t/internationalization-localization");
     await click(".toggle-admin-menu");
     await click(".admin-topic-timer-update button");
-
     await click("#tap_tile_start_of_next_business_week");
 
-    const regex1 = /will automatically close in/g;
-    const html1 = query(
-      ".edit-topic-timer-modal .topic-timer-info"
-    ).innerHTML.trim();
-    assert.ok(regex1.test(html1));
+    assert
+      .dom(".edit-topic-timer-modal .topic-timer-info")
+      .matchesText(/will automatically close in/);
 
     await click("#tap_tile_custom");
     await fillIn(".tap-tile-date-input .date-picker", "2100-11-24");
 
-    const regex2 = /will automatically close in/g;
-    const html2 = query(
-      ".edit-topic-timer-modal .topic-timer-info"
-    ).innerHTML.trim();
-    assert.ok(regex2.test(html2));
+    assert
+      .dom(".edit-topic-timer-modal .topic-timer-info")
+      .matchesText(/will automatically close in/);
 
-    const timerType = selectKit(".select-kit.timer-type");
-    await timerType.expand();
-    await timerType.selectRowByValue("close_after_last_post");
+    await select(".timer-type", "close_after_last_post");
 
     const interval = selectKit(".select-kit.relative-time-intervals");
     await interval.expand();
     await interval.selectRowByValue("hours");
+
+    assert.strictEqual(interval.header().label(), "hours");
     await fillIn(".relative-time-duration", "2");
 
-    const regex3 = /last post in the topic is already/g;
-    const html3 = query(".edit-topic-timer-modal .warning").innerHTML.trim();
-    assert.ok(regex3.test(html3));
+    assert
+      .dom(".edit-topic-timer-modal .warning")
+      .matchesText(
+        /last post in the topic is already/,
+        "shows the warning if the topic will be closed immediately"
+      );
+
+    const topic = topicFixtures["/t/54077.json"];
+    const lastPostIndex = topic.post_stream.posts.length - 1;
+    const time = topic.post_stream.posts[lastPostIndex].updated_at;
+    this.clock.restore();
+    this.clock = fakeTime(time, this.timezone, true);
+    await fillIn(".relative-time-duration", "6");
+
+    assert
+      .dom(".topic-timer-heading")
+      .hasText("This topic will close 6 hours after the last reply.");
+
+    await interval.expand();
+    await interval.selectRowByValue("days");
+
+    assert.strictEqual(interval.header().label(), "days");
+    assert
+      .dom(".topic-timer-heading")
+      .hasText("This topic will close 6 days after the last reply.");
   });
 
   test("close temporarily", async function (assert) {
     updateCurrentUser({ moderator: true });
-    const timerType = selectKit(".select-kit.timer-type");
 
     await visit("/t/internationalization-localization");
     await click(".toggle-admin-menu");
     await click(".admin-topic-timer-update button");
-
-    await timerType.expand();
-    await timerType.selectRowByValue("open");
-
+    await select(".timer-type", "open");
     await click("#tap_tile_start_of_next_business_week");
 
-    const regex1 = /will automatically open in/g;
-    const html1 = query(
-      ".edit-topic-timer-modal .topic-timer-info"
-    ).innerHTML.trim();
-    assert.ok(regex1.test(html1));
+    assert
+      .dom(".edit-topic-timer-modal .topic-timer-info")
+      .matchesText(/will automatically open in/g);
 
     await click("#tap_tile_custom");
     await fillIn(".tap-tile-date-input .date-picker", "2100-11-24");
 
-    const regex2 = /will automatically open in/g;
-    const html2 = query(
-      ".edit-topic-timer-modal .topic-timer-info"
-    ).innerHTML.trim();
-    assert.ok(regex2.test(html2));
+    assert
+      .dom(".edit-topic-timer-modal .topic-timer-info")
+      .matchesText(/will automatically open in/g);
   });
 
   test("schedule publish to category - visible for a PM", async function (assert) {
     updateCurrentUser({ moderator: true });
-    const timerType = selectKit(".select-kit.timer-type");
-    const categoryChooser = selectKit(".d-modal__body .category-chooser");
 
     await visit("/t/pm-for-testing/12");
     await click(".toggle-admin-menu");
     await click(".admin-topic-timer-update button");
-
-    await timerType.expand();
-    await timerType.selectRowByValue("publish_to_category");
+    await select(".timer-type", "publish_to_category");
+    const categoryChooser = selectKit(".d-modal__body .category-chooser");
 
     assert.strictEqual(categoryChooser.header().label(), "category…");
     assert.strictEqual(categoryChooser.header().value(), null);
@@ -148,37 +148,29 @@ acceptance("Topic - Edit timer", function (needs) {
 
     await click("#tap_tile_start_of_next_business_week");
 
-    const text = query(
-      ".edit-topic-timer-modal .topic-timer-info"
-    ).innerText.trim();
-
     // this needs to be done because there is no simple way to get the
     // plain text version of a translation with HTML
     let el = document.createElement("p");
-    el.innerHTML = I18n.t(
-      "topic.status_update_notice.auto_publish_to_category",
-      {
-        categoryUrl: "/c/dev/7",
-        categoryName: "dev",
-        timeLeft: "in 6 days",
-      }
-    );
+    el.innerHTML = i18n("topic.status_update_notice.auto_publish_to_category", {
+      categoryUrl: "/c/dev/7",
+      categoryName: "dev",
+      timeLeft: "in 6 days",
+    });
 
-    assert.strictEqual(text, el.innerText);
+    assert
+      .dom(".edit-topic-timer-modal .topic-timer-info")
+      .hasText(el.innerText);
   });
 
   test("schedule publish to category - visible for a private category", async function (assert) {
     updateCurrentUser({ moderator: true });
-    const timerType = selectKit(".select-kit.timer-type");
-    const categoryChooser = selectKit(".d-modal__body .category-chooser");
 
     // has private category id 24 (shared drafts)
     await visit("/t/some-topic/9");
     await click(".toggle-admin-menu");
     await click(".admin-topic-timer-update button");
-
-    await timerType.expand();
-    await timerType.selectRowByValue("publish_to_category");
+    await select(".timer-type", "publish_to_category");
+    const categoryChooser = selectKit(".d-modal__body .category-chooser");
 
     assert.strictEqual(categoryChooser.header().label(), "category…");
     assert.strictEqual(categoryChooser.header().value(), null);
@@ -188,29 +180,22 @@ acceptance("Topic - Edit timer", function (needs) {
 
     await click("#tap_tile_start_of_next_business_week");
 
-    const text = query(
-      ".edit-topic-timer-modal .topic-timer-info"
-    ).innerText.trim();
-
     // this needs to be done because there is no simple way to get the
     // plain text version of a translation with HTML
     let el = document.createElement("p");
-    el.innerHTML = I18n.t(
-      "topic.status_update_notice.auto_publish_to_category",
-      {
-        categoryUrl: "/c/dev/7",
-        categoryName: "dev",
-        timeLeft: "in 6 days",
-      }
-    );
+    el.innerHTML = i18n("topic.status_update_notice.auto_publish_to_category", {
+      categoryUrl: "/c/dev/7",
+      categoryName: "dev",
+      timeLeft: "in 6 days",
+    });
 
-    assert.strictEqual(text, el.innerText);
+    assert
+      .dom(".edit-topic-timer-modal .topic-timer-info")
+      .hasText(el.innerText);
   });
 
   test("schedule publish to category - visible for an unlisted public topic", async function (assert) {
     updateCurrentUser({ moderator: true });
-    const timerType = selectKit(".select-kit.timer-type");
-    const categoryChooser = selectKit(".d-modal__body .category-chooser");
 
     await visit("/t/internationalization-localization/280");
 
@@ -221,8 +206,8 @@ acceptance("Topic - Edit timer", function (needs) {
     await click(".toggle-admin-menu");
     await click(".admin-topic-timer-update button");
 
-    await timerType.expand();
-    await timerType.selectRowByValue("publish_to_category");
+    await select(".timer-type", "publish_to_category");
+    const categoryChooser = selectKit(".d-modal__body .category-chooser");
 
     assert.strictEqual(categoryChooser.header().label(), "category…");
     assert.strictEqual(categoryChooser.header().value(), null);
@@ -232,23 +217,18 @@ acceptance("Topic - Edit timer", function (needs) {
 
     await click("#tap_tile_start_of_next_business_week");
 
-    const text = query(
-      ".edit-topic-timer-modal .topic-timer-info"
-    ).innerText.trim();
-
     // this needs to be done because there is no simple way to get the
     // plain text version of a translation with HTML
     let el = document.createElement("p");
-    el.innerHTML = I18n.t(
-      "topic.status_update_notice.auto_publish_to_category",
-      {
-        categoryUrl: "/c/dev/7",
-        categoryName: "dev",
-        timeLeft: "in 6 days",
-      }
-    );
+    el.innerHTML = i18n("topic.status_update_notice.auto_publish_to_category", {
+      categoryUrl: "/c/dev/7",
+      categoryName: "dev",
+      timeLeft: "in 6 days",
+    });
 
-    assert.strictEqual(text, el.innerText);
+    assert
+      .dom(".edit-topic-timer-modal .topic-timer-info")
+      .hasText(el.innerText);
   });
 
   test("schedule publish to category - last custom date and time", async function (assert) {
@@ -257,10 +237,11 @@ acceptance("Topic - Edit timer", function (needs) {
 
     await click(".toggle-admin-menu");
     await click(".admin-topic-timer-update button");
-    assert.notOk(
-      exists("#tap_tile_last_custom"),
-      "it does not show last custom if the custom date and time was not filled before"
-    );
+    assert
+      .dom("#tap_tile_last_custom")
+      .doesNotExist(
+        "it does not show last custom if the custom date and time was not filled before"
+      );
 
     await click(".modal-close");
     await click(".toggle-admin-menu");
@@ -273,28 +254,26 @@ acceptance("Topic - Edit timer", function (needs) {
     await click(".toggle-admin-menu");
     await click(".admin-topic-timer-update button");
 
-    assert.ok(
-      exists("#tap_tile_last_custom"),
-      "it show last custom because the custom date and time was valid"
-    );
-    const text = query("#tap_tile_last_custom").innerText.trim();
-    const regex = /Nov 24, 10:30 am/g;
-    assert.ok(regex.test(text));
+    assert
+      .dom("#tap_tile_last_custom")
+      .exists("it show last custom because the custom date and time was valid");
+
+    assert.dom("#tap_tile_last_custom").matchesText(/Nov 24, 10:30 am/g);
   });
 
   test("schedule publish to category - does not show for a public topic", async function (assert) {
     updateCurrentUser({ moderator: true });
-    const timerType = selectKit(".select-kit.timer-type");
 
     await visit("/t/internationalization-localization");
     await click(".toggle-admin-menu");
     await click(".admin-topic-timer-update button");
 
-    await timerType.expand();
-    assert.notOk(
-      timerType.rowByValue("publish_to_category").exists(),
-      "publish to category is not shown for a public topic"
-    );
+    assert
+      .dselect(".timer-type")
+      .hasNoOption(
+        "publish_to_category",
+        "publish to category is not shown for a public topic"
+      );
   });
 
   test("TL4 can't auto-delete", async function (assert) {
@@ -304,11 +283,7 @@ acceptance("Topic - Edit timer", function (needs) {
     await click(".toggle-admin-menu");
     await click(".admin-topic-timer-update button");
 
-    const timerType = selectKit(".select-kit.timer-type");
-
-    await timerType.expand();
-
-    assert.ok(!timerType.rowByValue("delete").exists());
+    assert.dselect(".timer-type").hasNoOption("delete");
   });
 
   test("Category Moderator can auto-delete replies", async function (assert) {
@@ -318,11 +293,10 @@ acceptance("Topic - Edit timer", function (needs) {
     await click(".toggle-admin-menu");
     await click(".admin-topic-timer-update button");
 
-    const timerType = selectKit(".select-kit.timer-type");
-
-    await timerType.expand();
-
-    assert.ok(timerType.rowByValue("delete_replies").exists());
+    assert.dselect(".timer-type").hasOption({
+      value: "delete_replies",
+      label: i18n("topic.auto_delete_replies.title"),
+    });
   });
 
   test("TL4 can't auto-delete replies", async function (assert) {
@@ -332,11 +306,7 @@ acceptance("Topic - Edit timer", function (needs) {
     await click(".toggle-admin-menu");
     await click(".admin-topic-timer-update button");
 
-    const timerType = selectKit(".select-kit.timer-type");
-
-    await timerType.expand();
-
-    assert.ok(!timerType.rowByValue("delete_replies").exists());
+    assert.dselect(".timer-type").hasNoOption("delete_replies");
   });
 
   test("Category Moderator can auto-delete", async function (assert) {
@@ -346,31 +316,23 @@ acceptance("Topic - Edit timer", function (needs) {
     await click(".toggle-admin-menu");
     await click(".admin-topic-timer-update button");
 
-    const timerType = selectKit(".select-kit.timer-type");
-
-    await timerType.expand();
-
-    assert.ok(timerType.rowByValue("delete").exists());
+    assert
+      .dselect(".timer-type")
+      .hasOption({ value: "delete", label: i18n("topic.auto_delete.title") });
   });
 
   test("auto delete", async function (assert) {
     updateCurrentUser({ moderator: true });
-    const timerType = selectKit(".select-kit.timer-type");
 
     await visit("/t/internationalization-localization");
     await click(".toggle-admin-menu");
     await click(".admin-topic-timer-update button");
-
-    await timerType.expand();
-    await timerType.selectRowByValue("delete");
-
+    await select(".timer-type", "delete");
     await click("#tap_tile_two_weeks");
 
-    const regex = /will be automatically deleted/g;
-    const html = query(
-      ".edit-topic-timer-modal .topic-timer-info"
-    ).innerHTML.trim();
-    assert.ok(regex.test(html));
+    assert
+      .dom(".edit-topic-timer-modal .topic-timer-info")
+      .matchesText(/will be automatically deleted/g);
   });
 
   test("Inline delete timer", async function (assert) {
@@ -382,11 +344,12 @@ acceptance("Topic - Edit timer", function (needs) {
     await click("#tap_tile_start_of_next_business_week");
     await click(".edit-topic-timer-modal button.btn-primary");
 
-    const removeTimerButton = query(".topic-timer-info .topic-timer-remove");
-    assert.strictEqual(removeTimerButton.getAttribute("title"), "remove timer");
+    assert
+      .dom(".topic-timer-info .topic-timer-remove")
+      .hasAttribute("title", "remove timer");
 
     await click(".topic-timer-info .topic-timer-remove");
-    assert.ok(!exists(".topic-timer-info .topic-timer-remove"));
+    assert.dom(".topic-timer-info .topic-timer-remove").doesNotExist();
   });
 
   test("Shows correct time frame options", async function (assert) {
@@ -402,13 +365,13 @@ acceptance("Topic - Edit timer", function (needs) {
         el.innerText.trim()
       ),
       [
-        I18n.t("time_shortcut.tomorrow"),
-        I18n.t("time_shortcut.this_weekend"),
-        I18n.t("time_shortcut.start_of_next_business_week"),
-        I18n.t("time_shortcut.two_weeks"),
-        I18n.t("time_shortcut.next_month"),
-        I18n.t("time_shortcut.six_months"),
-        I18n.t("time_shortcut.custom"),
+        i18n("time_shortcut.tomorrow"),
+        i18n("time_shortcut.this_weekend"),
+        i18n("time_shortcut.start_of_next_business_week"),
+        i18n("time_shortcut.two_weeks"),
+        i18n("time_shortcut.next_month"),
+        i18n("time_shortcut.six_months"),
+        i18n("time_shortcut.custom"),
       ]
     );
   });
@@ -419,11 +382,59 @@ acceptance("Topic - Edit timer", function (needs) {
     await visit("/t/internationalization-localization");
     await click(".toggle-admin-menu");
     await click(".admin-topic-timer-update button");
+    await select(".timer-type", "close_after_last_post");
 
-    const timerType = selectKit(".select-kit.timer-type");
-    await timerType.expand();
-    await timerType.selectRowByValue("close_after_last_post");
+    assert.dom(".topic-timer-heading").doesNotExist();
+  });
 
-    assert.notOk(exists(".topic-timer-heading"));
+  test("Close timer removed after manual close", async function (assert) {
+    updateCurrentUser({ moderator: true, trust_level: 4 });
+
+    await visit("/t/internationalization-localization");
+    await click(".toggle-admin-menu");
+    await click(".admin-topic-timer-update button");
+    await click("#tap_tile_tomorrow");
+    await click(".edit-topic-timer-modal button.btn-primary");
+
+    await click(".toggle-admin-menu");
+    await click(".topic-admin-close button");
+
+    assert.dom(".topic-timer-heading").doesNotExist();
+  });
+
+  test("Open timer removed after manual open", async function (assert) {
+    updateCurrentUser({ moderator: true, trust_level: 4 });
+
+    await visit("/t/internationalization-localization");
+    await click(".toggle-admin-menu");
+    await click(".topic-admin-close button");
+
+    await click(".toggle-admin-menu");
+    await click(".admin-topic-timer-update button");
+    await click("#tap_tile_tomorrow");
+    await click(".edit-topic-timer-modal button.btn-primary");
+
+    await click(".toggle-admin-menu");
+    await click(".topic-admin-open button");
+
+    assert.dom(".topic-timer-heading").doesNotExist();
+  });
+
+  test("timer removed after manual toggle close and open", async function (assert) {
+    updateCurrentUser({ moderator: true, trust_level: 4 });
+
+    await visit("/t/internationalization-localization");
+    await click(".toggle-admin-menu");
+    await click(".admin-topic-timer-update button");
+    await click("#tap_tile_tomorrow");
+    await click(".edit-topic-timer-modal button.btn-primary");
+
+    await click(".toggle-admin-menu");
+    await click(".topic-admin-close button");
+
+    await click(".toggle-admin-menu");
+    await click(".topic-admin-open button");
+
+    assert.dom(".topic-timer-heading").doesNotExist();
   });
 });

@@ -4,7 +4,6 @@
 
 // Floats
 // --------------------------------------------------
-
 .pull-left {
   float: left;
 }
@@ -15,7 +14,6 @@
 
 // Element visibility
 // --------------------------------------------------
-
 .show {
   display: block;
 }
@@ -40,30 +38,22 @@
   border: 0;
 }
 
-// Affix
-// --------------------------------------------------
-
-.affix {
-  position: fixed;
-}
-
 // Contain floats
 // --------------------------------------------------
-
 .clearfix {
-  &:before,
-  &:after {
+  &::before,
+  &::after {
     display: table;
     content: " ";
   }
-  &:after {
+
+  &::after {
     clear: both;
   }
 }
 
 // Overflow
 // --------------------------------------------------
-
 .overflow-ellipsis {
   white-space: nowrap;
   overflow: hidden;
@@ -72,11 +62,6 @@
 
 // Clickable elements
 // --------------------------------------------------
-
 .clickable {
   cursor: pointer;
-}
-
-.non-clickable {
-  cursor: default;
 }

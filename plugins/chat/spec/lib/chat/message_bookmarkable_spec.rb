@@ -1,7 +1,5 @@
 # frozen_string_literal: true
 
-require "rails_helper"
-
 describe Chat::MessageBookmarkable do
   subject(:registered_bookmarkable) { RegisteredBookmarkable.new(described_class) }
 
@@ -16,7 +14,7 @@ describe Chat::MessageBookmarkable do
   before do
     register_test_bookmarkable(described_class)
     Chat::UserChatChannelMembership.create(chat_channel: channel, user: user, following: true)
-    SiteSetting.chat_allowed_groups = [chatters]
+    SiteSetting.chat_allowed_groups = chatters
   end
 
   after { DiscoursePluginRegistry.reset_register!(:bookmarkables) }
@@ -146,6 +144,8 @@ describe Chat::MessageBookmarkable do
           display_username: bookmark1.user.username,
           bookmark_name: bookmark1.name,
           bookmark_id: bookmark1.id,
+          bookmarkable_type: bookmark1.bookmarkable_type,
+          bookmarkable_id: bookmark1.bookmarkable_id,
         }.to_json,
       )
     end

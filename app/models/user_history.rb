@@ -141,6 +141,21 @@ class UserHistory < ActiveRecord::Base
         update_public_sidebar_section: 102,
         destroy_public_sidebar_section: 103,
         reset_bounce_score: 104,
+        create_watched_word_group: 105,
+        update_watched_word_group: 106,
+        delete_watched_word_group: 107,
+        redirected_to_required_fields: 108,
+        filled_in_required_fields: 109,
+        topic_slow_mode_set: 110,
+        topic_slow_mode_removed: 111,
+        custom_emoji_create: 112,
+        custom_emoji_destroy: 113,
+        delete_post_permanently: 114,
+        delete_topic_permanently: 115,
+        tag_group_create: 116,
+        tag_group_destroy: 117,
+        tag_group_change: 118,
+        delete_associated_accounts: 119,
       )
   end
 
@@ -246,6 +261,23 @@ class UserHistory < ActiveRecord::Base
       deleted_tag
       chat_channel_status_change
       chat_auto_remove_membership
+      create_watched_word_group
+      update_watched_word_group
+      delete_watched_word_group
+      topic_slow_mode_set
+      topic_slow_mode_removed
+      custom_emoji_create
+      custom_emoji_destroy
+      delete_post_permanently
+      delete_topic_permanently
+      tag_group_create
+      tag_group_destroy
+      tag_group_change
+      delete_associated_accounts
+      toggle_flag
+      delete_flag
+      update_flag
+      create_flag
     ]
   end
 
@@ -312,7 +344,9 @@ class UserHistory < ActiveRecord::Base
   end
 
   def new_value_is_json?
-    [UserHistory.actions[:change_theme], UserHistory.actions[:delete_theme]].include?(action)
+    %i[change_theme delete_theme tag_group_create tag_group_destroy tag_group_change]
+      .map { |i| UserHistory.actions[i] }
+      .include?(action)
   end
 
   def previous_value_is_json?
@@ -348,6 +382,7 @@ end
 #  index_user_histories_on_acting_user_id_and_action_and_id        (acting_user_id,action,id)
 #  index_user_histories_on_action_and_id                           (action,id)
 #  index_user_histories_on_category_id                             (category_id)
+#  index_user_histories_on_post_id                                 (post_id)
 #  index_user_histories_on_subject_and_id                          (subject,id)
 #  index_user_histories_on_target_user_id_and_id                   (target_user_id,id)
 #  index_user_histories_on_topic_id_and_target_user_id_and_action  (topic_id,target_user_id,action)

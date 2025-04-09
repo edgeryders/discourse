@@ -2,11 +2,11 @@ import { setupTest } from "ember-qunit";
 import { module, test } from "qunit";
 import sinon from "sinon";
 import ClickTrack from "discourse/lib/click-track";
+import { setPrefix } from "discourse/lib/get-url";
 import DiscourseURL from "discourse/lib/url";
 import User from "discourse/models/user";
 import pretender from "discourse/tests/helpers/create-pretender";
 import { fixture, logIn } from "discourse/tests/helpers/qunit-helpers";
-import { setPrefix } from "discourse-common/lib/get-url";
 
 const track = ClickTrack.trackClick;
 
@@ -18,8 +18,7 @@ function generateClickEventOn(selector) {
 
 function badgeClickCount(assert, id, expected) {
   track(generateClickEventOn(`#${id}`));
-  const badge = fixture(`#${id}`).querySelector("span.badge");
-  assert.strictEqual(parseInt(badge.innerHTML, 10), expected);
+  assert.dom("span.badge", fixture(`#${id}`)).hasHtml(String(expected));
 }
 
 function testOpenInANewTab(description, clickEventModifier) {
@@ -27,7 +26,7 @@ function testOpenInANewTab(description, clickEventModifier) {
     const clickEvent = generateClickEventOn("a");
     clickEventModifier(clickEvent);
     assert.true(track(clickEvent));
-    assert.strictEqual(clickEvent.defaultPrevented, false);
+    assert.false(clickEvent.defaultPrevented);
   });
 }
 
@@ -81,7 +80,7 @@ module("Unit | Utility | click-track", function (hooks) {
       assert.true(false, "should not request a csrf token");
     });
 
-    sinon.stub(DiscourseURL, "origin").returns("http://discuss.domain.com");
+    sinon.stub(DiscourseURL, "origin").get(() => "http://discuss.domain.com");
 
     const done = assert.async();
     pretender.post("/clicks/track", (request) => {
@@ -101,7 +100,7 @@ module("Unit | Utility | click-track", function (hooks) {
   });
 
   test("does not track attachments", async function (assert) {
-    sinon.stub(DiscourseURL, "origin").returns("http://discuss.domain.com");
+    sinon.stub(DiscourseURL, "origin").get(() => "http://discuss.domain.com");
 
     pretender.post("/clicks/track", () => assert.true(false));
 

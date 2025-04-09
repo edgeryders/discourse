@@ -1,5 +1,6 @@
+import { tracked } from "@glimmer/tracking";
 import EmberObject from "@ember/object";
-import { inject as service } from "@ember/service";
+import { service } from "@ember/service";
 import { ajax } from "discourse/lib/ajax";
 import RestModel from "discourse/models/rest";
 
@@ -8,10 +9,17 @@ import RestModel from "discourse/models/rest";
   When showing topics in lists and such this information should not be required.
 **/
 
-const TopicDetails = RestModel.extend({
-  store: service(),
+export default class TopicDetails extends RestModel {
+  @service store;
 
-  loaded: false,
+  @tracked can_delete;
+  @tracked can_edit_staff_notes;
+  @tracked can_permanently_delete;
+  @tracked can_publish_page;
+  @tracked created_by;
+  @tracked notification_level;
+
+  loaded = false;
 
   updateFromJson(details) {
     const topic = this.topic;
@@ -31,7 +39,7 @@ const TopicDetails = RestModel.extend({
 
     this.setProperties(details);
     this.set("loaded", true);
-  },
+  }
 
   updateNotifications(level) {
     return ajax(`/t/${this.get("topic.id")}/notifications`, {
@@ -43,7 +51,7 @@ const TopicDetails = RestModel.extend({
         notifications_reason_id: null,
       });
     });
-  },
+  }
 
   removeAllowedGroup(group) {
     const groups = this.allowed_groups;
@@ -55,7 +63,7 @@ const TopicDetails = RestModel.extend({
     }).then(() => {
       groups.removeObject(groups.findBy("name", name));
     });
-  },
+  }
 
   removeAllowedUser(user) {
     const users = this.allowed_users;
@@ -67,7 +75,5 @@ const TopicDetails = RestModel.extend({
     }).then(() => {
       users.removeObject(users.findBy("username", username));
     });
-  },
-});
-
-export default TopicDetails;
+  }
+}

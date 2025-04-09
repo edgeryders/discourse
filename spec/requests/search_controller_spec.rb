@@ -230,8 +230,6 @@ RSpec.describe SearchController do
     context "when rate limited" do
       before { RateLimiter.enable }
 
-      use_redis_snapshotting
-
       def unlimited_request(ip_address = "1.2.3.4")
         get "/search/query.json", params: { term: "wookie" }, env: { REMOTE_ADDR: ip_address }
 
@@ -350,6 +348,11 @@ RSpec.describe SearchController do
       expect(response.status).to eq(400)
     end
 
+    it "returns a 400 error if the page parameter is above the limit" do
+      get "/search.json", params: { q: "kittens", page: 11 }
+      expect(response.status).to eq(400)
+    end
+
     it "logs the search term" do
       SiteSetting.log_search_queries = true
       get "/search.json", params: { q: "bantha" }
@@ -422,8 +425,6 @@ RSpec.describe SearchController do
     context "when rate limited" do
       before { RateLimiter.enable }
 
-      use_redis_snapshotting
-
       def unlimited_request(ip_address = "1.2.3.4")
         get "/search.json", params: { q: "wookie" }, env: { REMOTE_ADDR: ip_address }
 
@@ -493,6 +494,39 @@ RSpec.describe SearchController do
           json = response.parsed_body
           expect(json["message"]).to eq(I18n.t("rate_limiter.slow_down"))
         end
+      end
+    end
+
+    context "with lazy loaded categories" do
+      fab!(:parent_category) { Fabricate(:category) }
+      fab!(:category) { Fabricate(:category, parent_category: parent_category) }
+      fab!(:other_category) { Fabricate(:category, parent_category: parent_category) }
+
+      fab!(:post) do
+        with_search_indexer_enabled do
+          topic = Fabricate(:topic, category: category)
+          Fabricate(:post, topic: topic, raw: "hello world. first topic")
+        end
+      end
+
+      fab!(:other_post) do
+        with_search_indexer_enabled do
+          topic = Fabricate(:topic, category: other_category)
+          Fabricate(:post, topic: topic, raw: "hello world. second topic")
+        end
+      end
+
+      before { SiteSetting.lazy_load_categories_groups = "#{Group::AUTO_GROUPS[:everyone]}" }
+
+      it "returns extra categories and parent categories" do
+        get "/search.json", params: { q: "hello" }
+
+        categories = response.parsed_body["grouped_search_result"]["extra"]["categories"]
+        expect(categories.map { |c| c["id"] }).to contain_exactly(
+          parent_category.id,
+          category.id,
+          other_category.id,
+        )
       end
     end
   end

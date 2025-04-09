@@ -22,7 +22,7 @@
             {{i18n "badges.allow_title"}}
             <DButton
               @action={{this.toggleSetUserTitle}}
-              @icon="pencil-alt"
+              @icon="pencil"
               class="btn-default pad-left"
             />
           </div>
@@ -37,12 +37,18 @@
 
     {{#if this.canSelectTitle}}
       <div class="badge-set-title {{if this.hiddenSetTitle 'hidden' ''}}">
-        <BadgeTitle @selectableUserBadges={{this.selectableUserBadges}} />
-        <DButton
-          @action={{this.toggleSetUserTitle}}
-          @label="close"
-          class="btn-default close-btn"
-        />
+        <PluginOutlet
+          @name="selectable-user-badges"
+          @outletArgs={{hash
+            selectableUserBadges=this.selectableUserBadges
+            closeAction=this.toggleSetUserTitle
+          }}
+        >
+          <BadgeTitle
+            @selectableUserBadges={{this.selectableUserBadges}}
+            @closeAction={{this.toggleSetUserTitle}}
+          />
+        </PluginOutlet>
       </div>
     {{/if}}
   </div>

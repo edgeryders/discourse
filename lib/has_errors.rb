@@ -15,18 +15,18 @@ module HasErrors
     false
   end
 
-  def rollback_with!(obj, error)
-    obj.errors.add(:base, error)
+  def rollback_with!(obj, error, **kwargs)
+    obj.errors.add(:base, error, **kwargs)
     rollback_from_errors!(obj)
   end
 
   def rollback_from_errors!(obj)
     add_errors_from(obj)
-    raise ActiveRecord::Rollback.new
+    raise ActiveRecord::Rollback.new, obj.errors.full_messages.join("\n")
   end
 
   def add_error(msg)
-    errors.add(:base, msg) unless errors[:base].include?(msg)
+    errors.add(:base, msg) if errors[:base].exclude?(msg)
   end
 
   def add_errors_from(obj)

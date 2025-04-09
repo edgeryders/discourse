@@ -24,6 +24,7 @@ class UserUpdater
     email_messages_level
     external_links_in_new_tab
     enable_quoting
+    enable_smart_lists
     enable_defer
     color_scheme_id
     dark_scheme_id
@@ -41,7 +42,8 @@ class UserUpdater
     allow_private_messages
     enable_allowed_pm_users
     homepage_id
-    hide_profile_and_presence
+    hide_profile
+    hide_presence
     text_size
     title_count_mode
     timezone
@@ -52,6 +54,7 @@ class UserUpdater
     sidebar_link_to_filtered_list
     sidebar_show_count_of_new_items
     watched_precedence_over_muted
+    topics_unread_when_closed
   ]
 
   NOTIFICATION_SCHEDULE_ATTRS = -> do
@@ -127,6 +130,8 @@ class UserUpdater
           attributes[:primary_group_id].blank?
       user.primary_group_id = nil
     end
+
+    attributes[:homepage_id] = nil if attributes[:homepage_id] == "-1"
 
     if attributes[:flair_group_id] && attributes[:flair_group_id] != user.flair_group_id &&
          (
@@ -262,14 +267,14 @@ class UserUpdater
           user_notification_schedule.destroy_scheduled_timings
         end
       end
-      if attributes.key?(:seen_popups) || attributes.key?(:skip_new_user_tips)
-        MessageBus.publish(
-          "/user-tips/#{user.id}",
-          user.user_option.seen_popups,
-          user_ids: [user.id],
+      DiscourseEvent.trigger(:user_updated, user)
+
+      if attributes[:custom_fields].present? && user.needs_required_fields_check?
+        UserHistory.create!(
+          action: UserHistory.actions[:filled_in_required_fields],
+          acting_user_id: user.id,
         )
       end
-      DiscourseEvent.trigger(:user_updated, user)
     end
 
     saved

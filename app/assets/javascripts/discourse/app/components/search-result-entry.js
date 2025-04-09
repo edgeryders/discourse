@@ -1,21 +1,28 @@
 import Component from "@ember/component";
 import { action } from "@ember/object";
+import {
+  attributeBindings,
+  classNameBindings,
+  classNames,
+  tagName,
+} from "@ember-decorators/component";
+import { wantsNewWindow } from "discourse/lib/intercept-click";
 import { logSearchLinkClick } from "discourse/lib/search";
-import { modKeysPressed } from "discourse/lib/utilities";
 
-export default Component.extend({
-  tagName: "div",
-  classNames: ["fps-result"],
-  classNameBindings: ["bulkSelectEnabled"],
-  attributeBindings: ["role"],
-  role: "listitem",
+@tagName("div")
+@classNames("fps-result")
+@classNameBindings("bulkSelectEnabled")
+@attributeBindings("role")
+export default class SearchResultEntry extends Component {
+  role = "listitem";
 
   @action
   logClick(topicId, event) {
     // Avoid click logging when any modifier keys are pressed.
-    if (event && modKeysPressed(event).length > 0) {
-      return false;
+    if (wantsNewWindow(event)) {
+      return;
     }
+
     if (this.searchLogId && topicId) {
       logSearchLinkClick({
         searchLogId: this.searchLogId,
@@ -23,5 +30,5 @@ export default Component.extend({
         searchResultType: "topic",
       });
     }
-  },
-});
+  }
+}

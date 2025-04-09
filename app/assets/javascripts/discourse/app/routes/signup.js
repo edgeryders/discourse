@@ -1,6 +1,6 @@
 import { action } from "@ember/object";
 import { next } from "@ember/runloop";
-import { inject as service } from "@ember/service";
+import { service } from "@ember/service";
 import DiscourseRoute from "discourse/routes/discourse";
 
 export default class SignupRoute extends DiscourseRoute {
@@ -14,6 +14,9 @@ export default class SignupRoute extends DiscourseRoute {
   @action
   async showCreateAccount() {
     const { canSignUp } = this.controllerFor("application");
+    if (canSignUp && this.siteSettings.full_page_login) {
+      return;
+    }
     const route = await this.router
       .replaceWith(
         this.siteSettings.login_required ? "login" : "discovery.latest"

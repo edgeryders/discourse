@@ -4,6 +4,7 @@ require "guardian/bookmark_guardian"
 require "guardian/category_guardian"
 require "guardian/ensure_magic"
 require "guardian/group_guardian"
+require "guardian/flag_guardian"
 require "guardian/post_guardian"
 require "guardian/post_revision_guardian"
 require "guardian/sidebar_guardian"
@@ -16,6 +17,7 @@ class Guardian
   include BookmarkGuardian
   include CategoryGuardian
   include EnsureMagic
+  include FlagGuardian
   include GroupGuardian
   include PostGuardian
   include PostRevisionGuardian
@@ -97,7 +99,7 @@ class Guardian
   attr_reader :request
 
   def initialize(user = nil, request = nil)
-    @user = user.presence || AnonymousUser.new
+    @user = user.presence || Guardian::AnonymousUser.new
     @request = request
   end
 
@@ -134,17 +136,14 @@ class Guardian
     return false if !category
     return false if !category_group_moderation_allowed?
 
-    reviewable_by_group_id = category.reviewable_by_group_id
-    return false if reviewable_by_group_id.blank?
+    @group_moderator_categories ||= {}
 
-    @category_group_moderator_groups ||= {}
-
-    if @category_group_moderator_groups.key?(reviewable_by_group_id)
-      @category_group_moderator_groups[reviewable_by_group_id]
+    if @group_moderator_categories.key?(category.id)
+      @group_moderator_categories[category.id]
     else
-      @category_group_moderator_groups[
-        reviewable_by_group_id
-      ] = category_group_moderator_scope.exists?("categories.id": category.id)
+      @group_moderator_categories[category.id] = category_group_moderator_scope.exists?(
+        id: category.id,
+      )
     end
   end
 
@@ -153,9 +152,9 @@ class Guardian
   end
 
   def is_developer?
-    @user && is_admin? &&
+    @user &&
       (
-        Rails.env.development? || Developer.user_ids.include?(@user.id) ||
+        Rails.env.development? || (is_admin? && Developer.user_ids.include?(@user.id)) ||
           (
             Rails.configuration.respond_to?(:developer_emails) &&
               Rails.configuration.developer_emails.include?(@user.email)
@@ -503,6 +502,14 @@ class Guardian
     # Must be a valid target
     return false if !(target_is_group || target_is_user)
 
+    can_send_private_message =
+      DiscoursePluginRegistry.apply_modifier(
+        :guardian_can_send_private_message,
+        target: target,
+        user: @user,
+      )
+    return false if !can_send_private_message
+
     # Users can send messages to certain groups with the `everyone` messageable_level
     # even if they are not in personal_message_enabled_groups
     group_is_messageable = target_is_group && Group.messageable(@user).where(id: target.id).exists?
@@ -529,17 +536,20 @@ class Guardian
       @user.in_any_groups?(SiteSetting.send_email_messages_allowed_groups_map)
   end
 
-  def can_export_entity?(entity)
+  def can_export_entity?(entity, entity_id = nil)
     return false if anonymous?
     return true if is_admin?
-    return entity != "user_list" if is_moderator?
+    return can_see_emails? if entity == "screened_email"
+    return entity != "user_list" if is_moderator? && (entity != "user_archive" || entity_id.nil?)
 
     # Regular users can only export their archives
     return false unless entity == "user_archive"
-    UserExport.where(
-      user_id: @user.id,
-      created_at: (Time.zone.now.beginning_of_day..Time.zone.now.end_of_day),
-    ).count == 0
+    entity_id == @user.id || entity_id.nil?
+  end
+
+  def can_see_emails?
+    return true if is_admin?
+    SiteSetting.moderators_view_emails && is_moderator?
   end
 
   def can_mute_user?(target_user)
@@ -557,8 +567,23 @@ class Guardian
 
   def can_ignore_users?
     return false if anonymous?
-    @user.staff? || @user.has_trust_level?(SiteSetting.min_trust_level_to_allow_ignore.to_i) ||
-      @user.in_any_groups?(SiteSetting.ignore_allowed_groups_map)
+    @user.staff? || @user.in_any_groups?(SiteSetting.ignore_allowed_groups_map)
+  end
+
+  def is_muting_user?(target_user)
+    @user.muted_user_ids.include?(target_user.id)
+  end
+
+  def is_ignoring_user?(target_user)
+    @user.ignored_user_ids.include?(target_user.id)
+  end
+
+  def is_muted_by_user?(target_user)
+    target_user.muted_user_ids.include?(@user.id)
+  end
+
+  def is_ignored_by_user?(target_user)
+    target_user.ignored_user_ids.include?(@user.id)
   end
 
   def allowed_theme_repo_import?(repo)
@@ -624,8 +649,7 @@ class Guardian
     return false if !authenticated?
     return false if User.where(username_lower: SiteSetting.here_mention).exists?
 
-    @user.in_any_groups?(SiteSetting.here_mention_allowed_groups_map) ||
-      @user.has_trust_level_or_staff?(SiteSetting.min_trust_level_for_here_mention)
+    @user.in_any_groups?(SiteSetting.here_mention_allowed_groups_map)
   end
 
   def can_lazy_load_categories?
@@ -640,12 +664,7 @@ class Guardian
   private
 
   def is_my_own?(obj)
-    if anonymous?
-      return(
-        SiteSetting.allow_anonymous_likes? && obj.class == PostAction && obj.is_like? &&
-          obj.user_id == @user.id
-      )
-    end
+    return false if anonymous?
     return obj.user_id == @user.id if obj.respond_to?(:user_id) && obj.user_id && @user.id
     return obj.user == @user if obj.respond_to?(:user)
 
@@ -689,8 +708,9 @@ class Guardian
   end
 
   def category_group_moderator_scope
-    Category.joins(
-      "INNER JOIN group_users ON group_users.group_id = categories.reviewable_by_group_id",
-    ).where("group_users.user_id = ?", user.id)
+    Category
+      .joins(:category_moderation_groups)
+      .joins("INNER JOIN group_users ON group_users.group_id = category_moderation_groups.group_id")
+      .where("group_users.user_id": user.id)
   end
 end

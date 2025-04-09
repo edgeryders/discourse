@@ -117,6 +117,8 @@ RSpec.describe Invite do
     end
 
     it "escapes the email_address when raising an existing user error" do
+      SiteSetting.hide_email_address_taken = false
+
       user.email = xss_email
       user.save(validate: false)
 
@@ -221,8 +223,6 @@ RSpec.describe Invite do
           3.times { Invite.generate(user, email: "test@example.com") }
         end
 
-        use_redis_snapshotting
-
         it "raises an error" do
           expect { Invite.generate(user, email: "test@example.com") }.to raise_error(
             RateLimiter::LimitExceeded,
@@ -326,13 +326,24 @@ RSpec.describe Invite do
     end
 
     context "when inviting to groups" do
-      it "add the user to the correct groups" do
-        group = Fabricate(:group)
+      fab!(:group)
+
+      before do
         group.add_owner(invite.invited_by)
         invite.invited_groups.create!(group_id: group.id)
+      end
 
+      it "add the user to the correct groups" do
         user = invite.redeem
         expect(user.groups).to contain_exactly(group)
+      end
+      it "should not raise error when both group & site tag preferences same" do
+        tag = Fabricate(:tag)
+        group.tracking_tags = [tag.name]
+        group.save!
+        SiteSetting.default_tags_tracking = tag.name
+
+        expect { invite.redeem }.not_to raise_error
       end
     end
 

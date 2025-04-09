@@ -1,4 +1,4 @@
-import { getOwner } from "@ember/application";
+import { getOwner } from "@ember/owner";
 import { setupTest } from "ember-qunit";
 import { emojiSearch } from "pretty-text/emoji";
 import { IMAGE_VERSION as v } from "pretty-text/emoji/version";
@@ -172,7 +172,7 @@ module("Unit | Utility | emoji", function (hooks) {
   test("search does partial-match on emoji aliases", function (assert) {
     const matches = emojiSearch("instru");
 
-    assert.ok(matches.includes("woman_teacher"));
-    assert.ok(matches.includes("violin"));
+    assert.true(matches.includes("woman_teacher"));
+    assert.true(matches.includes("violin"));
   });
 });

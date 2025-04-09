@@ -3,7 +3,7 @@ import { cached } from "@glimmer/tracking";
 import { on } from "@ember/modifier";
 import { action } from "@ember/object";
 import { guidFor } from "@ember/object/internals";
-import { inject as service } from "@ember/service";
+import { service } from "@ember/service";
 import { htmlSafe } from "@ember/template";
 import { isEmpty, isNone } from "@ember/utils";
 import { categoryBadgeHTML } from "discourse/helpers/category-link";
@@ -64,7 +64,7 @@ export default class CategoryRow extends Component {
   }
 
   get label() {
-    return this.args.item?.name;
+    return this.args.item?.name || this.args.item?.label;
   }
 
   get displayCategoryDescription() {
@@ -83,11 +83,11 @@ export default class CategoryRow extends Component {
   }
 
   get categoryName() {
-    return this.category.name;
+    return this.category.displayName;
   }
 
   get categoryDescriptionText() {
-    return this.category.description_text;
+    return this.category.descriptionText;
   }
 
   @cached
@@ -106,11 +106,14 @@ export default class CategoryRow extends Component {
   get badgeForCategory() {
     return htmlSafe(
       categoryBadgeHTML(this.category, {
-        link: this.categoryLink,
+        link: false,
         allowUncategorized:
           this.allowUncategorizedTopics || this.allowUncategorized,
         hideParent: !!this.parentCategory,
         topicCount: this.topicCount,
+        subcategoryCount: this.args.item?.category
+          ? this.category.subcategory_count
+          : 0,
       })
     );
   }
@@ -119,7 +122,7 @@ export default class CategoryRow extends Component {
   get badgeForParentCategory() {
     return htmlSafe(
       categoryBadgeHTML(this.parentCategory, {
-        link: this.categoryLink,
+        link: false,
         allowUncategorized:
           this.allowUncategorizedTopics || this.allowUncategorized,
         recursive: true,
@@ -222,7 +225,6 @@ export default class CategoryRow extends Component {
         event.preventDefault();
       } else if (event.key === "Enter") {
         event.stopImmediatePropagation();
-
         this.args.selectKit.select(
           this.args.selectKit.highlighted.id,
           this.args.selectKit.highlighted
@@ -251,6 +253,7 @@ export default class CategoryRow extends Component {
       description.length > limit ? "&hellip;" : ""
     }`;
   }
+
   _isValidInput(eventKey) {
     // relying on passing the event to the input is risky as it could not work
     // dispatching the event won't work as the event won't be trusted
@@ -283,11 +286,11 @@ export default class CategoryRow extends Component {
       {{on "click" this.handleClick}}
       {{on "keydown" this.handleKeyDown}}
       aria-checked={{this.isSelected}}
-      tabindex="0"
+      tabindex="-1"
     >
 
       {{#if this.category}}
-        <div class="category-status" aria-hidden="true">
+        <div class="category-status">
           {{#if this.hasParentCategory}}
             {{#unless this.hideParentCategory}}
               {{this.badgeForParentCategory}}

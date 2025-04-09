@@ -1,3 +1,4 @@
+{{! template-lint-disable no-duplicate-id }}
 <DModal
   class="create-account -large"
   {{on "keydown" this.actionOnEnter}}
@@ -20,16 +21,16 @@
         this.model.authOptions.auth_provider
       }}
     >
-      <div class="login-welcome-header" id="create-account-title">
-        <h1 class="login-title">{{i18n "create_account.header_title"}}</h1>
-        <img src={{this.wavingHandURL}} alt="" class="waving-hand" />
-        <p class="login-subheader">{{i18n "create_account.subheader_title"}}</p>
+      <SignupProgressBar @step="signup" />
+      <WelcomeHeader
+        id="create-account-title"
+        @header={{i18n "create_account.header_title"}}
+      >
         <PluginOutlet
           @name="create-account-header-bottom"
           @outletArgs={{hash showLogin=(route-action "showLogin")}}
         />
-      </div>
-
+      </WelcomeHeader>
       {{#if this.showCreateForm}}
         <form id="login-form">
           {{#if this.associateHtml}}
@@ -40,6 +41,7 @@
           <div class="input-group create-account-email">
             <Input
               {{on "focusout" this.checkEmailAvailability}}
+              {{on "focusin" this.scrollInputIntoView}}
               @type="email"
               @value={{this.model.accountEmail}}
               disabled={{this.emailDisabled}}
@@ -52,22 +54,27 @@
             />
             <label class="alt-placeholder" for="new-account-email">
               {{i18n "user.email.title"}}
-              {{~#if this.userFields~}}
-                <span class="required">*</span>
-              {{/if}}
             </label>
-            <InputTip
-              @validation={{this.emailValidation}}
-              id="account-email-validation"
-            />
-            <span class="more-info" id="account-email-validation-more-info">
-              {{i18n "user.email.instructions"}}
-            </span>
+            {{#if this.showEmailValidation}}
+              <InputTip
+                @validation={{this.emailValidation}}
+                id="account-email-validation"
+              />
+            {{else}}
+              <span class="more-info" id="account-email-validation-more-info">
+                {{#if this.siteSettings.show_signup_form_email_instructions}}
+                  {{i18n "user.email.instructions"}}
+                {{/if}}
+              </span>
+            {{/if}}
           </div>
 
           <div class="input-group create-account__username">
-            <Input
-              @value={{this.model.accountUsername}}
+            <input
+              {{on "focusin" this.scrollInputIntoView}}
+              {{on "input" this.setAccountUsername}}
+              type="text"
+              value={{this.accountUsername}}
               disabled={{this.usernameDisabled}}
               maxlength={{this.maxUsernameLength}}
               aria-describedby="username-validation username-validation-more-info"
@@ -75,58 +82,41 @@
               autocomplete="off"
               name="username"
               id="new-account-username"
-              class={{value-entered this.model.accountUsername}}
+              class={{value-entered this.accountUsername}}
             />
             <label class="alt-placeholder" for="new-account-username">
               {{i18n "user.username.title"}}
-              {{~#if this.userFields~}}
-                <span class="required">*</span>
-              {{/if}}
             </label>
 
-            <InputTip
-              @validation={{this.usernameValidation}}
-              id="username-validation"
-            />
-            <span class="more-info" id="username-validation-more-info">
-              {{i18n "user.username.instructions"}}
-            </span>
-          </div>
-
-          <div class="input-group create-account__fullname">
-            {{#if this.fullnameRequired}}
-              <TextField
-                @disabled={{this.nameDisabled}}
-                @value={{this.model.accountName}}
-                @id="new-account-name"
-                aria-describedby="fullname-validation fullname-validation-more-info"
-                aria-invalid={{this.nameValidation.failed}}
-                class={{value-entered this.model.accountName}}
-              />
-              <label class="alt-placeholder" for="new-account-name">
-                {{i18n "user.name.title"}}
-                {{#if this.siteSettings.full_name_required}}
-                  {{~#if this.userFields~}}
-                    <span class="required">*</span>
-                  {{/if}}
-                {{/if}}
-              </label>
-
-              <InputTip
-                @validation={{this.nameValidation}}
-                id="fullname-validation"
-              />
-              <span class="more-info" id="fullname-validation-more-info">
-                {{this.nameInstructions}}
+            {{#if this.showUsernameInstructions}}
+              <span class="more-info" id="username-validation-more-info">
+                {{i18n "user.username.instructions"}}
               </span>
+
+            {{else}}
+              <InputTip
+                @validation={{this.usernameValidation}}
+                id="username-validation"
+              />
             {{/if}}
           </div>
+
+          {{#if (and this.showFullname this.fullnameRequired)}}
+            <FullnameInput
+              @nameValidation={{this.nameValidation}}
+              @nameTitle={{this.nameTitle}}
+              @accountName={{this.accountName}}
+              @nameDisabled={{this.nameDisabled}}
+              @onFocusIn={{this.scrollInputIntoView}}
+              class="input-group create-account__fullname required"
+            />
+          {{/if}}
 
           <PluginOutlet
             @name="create-account-before-password"
             @outletArgs={{hash
               accountName=this.model.accountName
-              accountUsername=this.model.accountUsername
+              accountUsername=this.accountUsername
               accountPassword=this.accountPassword
               userFields=this.userFields
               authOptions=this.model.authOptions
@@ -136,10 +126,12 @@
           <div class="input-group create-account__password">
             {{#if this.passwordRequired}}
               <PasswordField
+                {{on "focusout" this.togglePasswordValidation}}
+                {{on "focusin" this.scrollInputIntoView}}
                 @value={{this.accountPassword}}
-                @type={{if this.maskPassword "password" "text"}}
-                @autocomplete="current-password"
                 @capsLockOn={{this.capsLockOn}}
+                type={{if this.maskPassword "password" "text"}}
+                autocomplete="current-password"
                 aria-describedby="password-validation password-validation-more-info"
                 aria-invalid={{this.passwordValidation.failed}}
                 id="new-account-password"
@@ -147,34 +139,35 @@
               />
               <label class="alt-placeholder" for="new-account-password">
                 {{i18n "user.password.title"}}
-                {{~#if this.userFields~}}
-                  <span class="required">*</span>
-                {{/if}}
               </label>
-
+              <TogglePasswordMask
+                @maskPassword={{this.maskPassword}}
+                @togglePasswordMask={{this.togglePasswordMask}}
+              />
               <div class="create-account__password-info">
                 <div class="create-account__password-tip-validation">
-                  <InputTip
-                    @validation={{this.passwordValidation}}
-                    id="password-validation"
-                  />
-                  <span class="more-info" id="password-validation-more-info">
-                    {{this.passwordInstructions}}
-                  </span>
+                  {{#if this.showPasswordValidation}}
+                    <InputTip
+                      @validation={{this.passwordValidation}}
+                      id="password-validation"
+                    />
+                  {{else if
+                    this.siteSettings.show_signup_form_password_instructions
+                  }}
+                    <span class="more-info" id="password-validation-more-info">
+                      {{this.passwordInstructions}}
+                    </span>
+                  {{/if}}
                   <div
                     class={{concat-class
                       "caps-lock-warning"
                       (unless this.capsLockOn "hidden")
                     }}
                   >
-                    {{d-icon "exclamation-triangle"}}
+                    {{d-icon "triangle-exclamation"}}
                     {{i18n "login.caps_lock_warning"}}
                   </div>
                 </div>
-                <TogglePasswordMask
-                  @maskPassword={{this.maskPassword}}
-                  @togglePasswordMask={{this.togglePasswordMask}}
-                />
               </div>
             {{/if}}
 
@@ -197,6 +190,7 @@
           {{#if this.requireInviteCode}}
             <div class="input-group create-account__invite-code">
               <Input
+                {{on "focusin" this.scrollInputIntoView}}
                 @value={{this.inviteCode}}
                 id="inviteCode"
                 class={{value-entered this.inviteCode}}
@@ -214,17 +208,29 @@
             @name="create-account-after-password"
             @outletArgs={{hash
               accountName=this.model.accountName
-              accountUsername=this.model.accountUsername
+              accountUsername=this.accountUsername
               accountPassword=this.accountPassword
               userFields=this.userFields
             }}
           />
+
+          {{#if (and this.showFullname (not this.fullnameRequired))}}
+            <FullnameInput
+              @nameValidation={{this.nameValidation}}
+              @nameTitle={{this.nameTitle}}
+              @accountName={{this.accountName}}
+              @nameDisabled={{this.nameDisabled}}
+              @onFocusIn={{this.scrollInputIntoView}}
+              class="input-group create-account__fullname"
+            />
+          {{/if}}
 
           {{#if this.userFields}}
             <div class="user-fields">
               {{#each this.userFields as |f|}}
                 <div class="input-group">
                   <UserField
+                    {{on "focusin" this.scrollInputIntoView}}
                     @field={{f.field}}
                     @value={{f.value}}
                     @validation={{f.validation}}
@@ -239,42 +245,29 @@
             @name="create-account-after-user-fields"
             @outletArgs={{hash
               accountName=this.model.accountName
-              accountUsername=this.model.accountUsername
+              accountUsername=this.accountUsername
               accountPassword=this.accountPassword
               userFields=this.userFields
             }}
           />
         </form>
 
-        <div class="d-modal__footer">
-          <div class="disclaimer">
-            {{html-safe this.disclaimerHtml}}
-          </div>
-          <div class="d-modal__footer-buttons">
-            <DButton
-              @action={{this.createAccount}}
-              @disabled={{this.submitDisabled}}
-              @label="create_account.title"
-              @isLoading={{this.formSubmitted}}
-              class="btn-large btn-primary"
+        {{#if this.site.desktopView}}
+          <div class="d-modal__footer">
+            <SignupPageCta
+              @formSubmitted={{this.formSubmitted}}
+              @hasAuthOptions={{this.hasAuthOptions}}
+              @createAccount={{this.createAccount}}
+              @submitDisabled={{this.submitDisabled}}
+              @disclaimerHtml={{this.disclaimerHtml}}
             />
-
-            {{#unless this.hasAuthOptions}}
-              <DButton
-                @action={{route-action "showLogin"}}
-                @disabled={{this.formSubmitted}}
-                @label="log_in"
-                id="login-link"
-                class="btn-large btn-flat"
-              />
-            {{/unless}}
           </div>
-        </div>
 
-        <PluginOutlet
-          @name="create-account-after-modal-footer"
-          @connectorTagName="div"
-        />
+          <PluginOutlet
+            @name="create-account-after-modal-footer"
+            @connectorTagName="div"
+          />
+        {{/if}}
       {{/if}}
 
       {{#if this.model.skipConfirmation}}
@@ -294,4 +287,16 @@
       </div>
     {{/if}}
   </:body>
+
+  <:footer>
+    {{#if (and this.showCreateForm this.site.mobileView)}}
+      <SignupPageCta
+        @formSubmitted={{this.formSubmitted}}
+        @hasAuthOptions={{this.hasAuthOptions}}
+        @createAccount={{this.createAccount}}
+        @submitDisabled={{this.submitDisabled}}
+        @disclaimerHtml={{this.disclaimerHtml}}
+      />
+    {{/if}}
+  </:footer>
 </DModal>

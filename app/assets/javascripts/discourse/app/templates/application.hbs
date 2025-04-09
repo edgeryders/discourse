@@ -1,5 +1,10 @@
-<DiscourseRoot>
-  <a href="#main-container" id="skip-link">{{i18n "skip_to_main_content"}}</a>
+<DStyles />
+<DVirtualHeight />
+
+<DiscourseRoot {{did-insert this.trackDiscoursePainted}}>
+  {{#if this.showSkipToContent}}
+    <a href="#main-container" id="skip-link">{{i18n "skip_to_main_content"}}</a>
+  {{/if}}
   <DDocument />
   <PageLoadingSlider />
   <PluginOutlet
@@ -9,7 +14,7 @@
   />
 
   {{#if this.showSiteHeader}}
-    <SiteHeader
+    <GlimmerSiteHeader
       @canSignUp={{this.canSignUp}}
       @showCreateAccount={{route-action "showCreateAccount"}}
       @showLogin={{route-action "showLogin"}}
@@ -17,9 +22,8 @@
       @toggleMobileView={{route-action "toggleMobileView"}}
       @logout={{route-action "logout"}}
       @sidebarEnabled={{this.sidebarEnabled}}
-      @navigationMenuQueryParamOverride={{this.navigationMenuQueryParamOverride}}
       @showSidebar={{this.showSidebar}}
-      @toggleSidebar={{action "toggleSidebar"}}
+      @toggleSidebar={{this.toggleSidebar}}
     />
   {{/if}}
 
@@ -36,7 +40,6 @@
   />
 
   <div id="main-outlet-wrapper" class="wrap" role="main">
-
     <div class="sidebar-wrapper">
       {{! empty div allows for animation }}
       {{#if (and this.sidebarEnabled this.showSidebar)}}
@@ -75,6 +78,9 @@
 
     <PluginOutlet @name="after-main-outlet" />
 
+    {{#if this.showPoweredBy}}
+      <PoweredByDiscourse />
+    {{/if}}
   </div>
 
   <PluginOutlet
@@ -95,7 +101,6 @@
     @outletArgs={{hash showFooter=this.showFooter}}
   />
 
-  <DLightbox />
   <ModalContainer />
   <DialogHolder />
   <TopicEntrance />
@@ -103,10 +108,12 @@
   <RenderGlimmerContainer />
 
   {{#if this.showFooterNav}}
-    <FooterNav />
+    <PluginOutlet @name="footer-nav">
+      <FooterNav />
+    </PluginOutlet>
   {{/if}}
 </DiscourseRoot>
 
-<DInlineMenu />
-<DInlineTooltip />
+<DMenus />
+<DTooltips />
 <DToasts />

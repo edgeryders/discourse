@@ -11,7 +11,6 @@ ko:
     poll_edit_window_mins: "포스트 생성 이후 투표를 편집할 수 있는 시간(분)"
     poll_minimum_trust_level_to_create: "설문을 만들 수 있는 최소 회원 레벨을 설정합니다."
     poll_groupable_user_fields: "설문 조사 결과를 그룹화하고 필터링하는 데 사용할 수있는 사용자 필드 이름 세트입니다."
-    poll_export_data_explorer_query_id: "폴링 결과를 내보내는 데 사용할 Data Explorer Query의 ID입니다 (0은 사용 안함)."
   poll:
     poll: "투표"
     invalid_argument: "&#39;%{argument}&#39;인수에 대해 &#39;%{value}&#39;값이 잘못되었습니다."
@@ -42,6 +41,8 @@ ko:
       other: 이 투표에는 최대 %{count}표가 허용됩니다.
     min_vote_per_user:
       other: 이 투표에는 최소 %{count}개의 표가 필요합니다.
+    ranked_choice:
+      no_group_results_support: "잘못된 투표 유형입니다. rated_choice는 그룹화된 결과를 지원하지 않습니다."
     topic_must_be_open_to_toggle_status: "토픽이 열려야 상태 변경을 할 수 있습니다."
     only_staff_or_op_can_toggle_status: "운영진이나 작성자만이 투표 상태를 변경할 수 있습니다."
     insufficient_rights_to_create: "설문 조사를 만들 수 없습니다."

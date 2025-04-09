@@ -34,8 +34,8 @@ fi:
         icons:
           title: "Kuvakkeet"
           full_list: "Katso täydellinen luettelo Font Awesome -kuvakkeista"
-        input_fields:
-          title: "Tekstikentät"
+        forms:
+          title: "Lomakkeet"
         buttons:
           title: "Painikkeet"
         dropdowns:
@@ -74,6 +74,10 @@ fi:
           title: "Ketjun ilmoitukset"
         post:
           title: "Viesti"
+        post_list:
+          title: "Viestiluettelo"
+          empty_example: "<PostList /> tyhjä tila"
+          populated_example: "<PostList /> täytetty tila"
         topic_map:
           title: "Ketjun kartta"
         site_header:

@@ -1,7 +1,8 @@
 import { computed } from "@ember/object";
 import { htmlSafe as htmlSafeTemplateHelper } from "@ember/template";
-import getURL from "discourse-common/lib/get-url";
-import I18n from "discourse-i18n";
+import getURL from "discourse/lib/get-url";
+import { deepEqual } from "discourse/lib/object";
+import { i18n } from "discourse-i18n";
 
 function addonFmt(str, formats) {
   let cachedFormats = formats;
@@ -39,7 +40,7 @@ function addonFmt(str, formats) {
 
 export function propertyEqual(p1, p2) {
   return computed(p1, p2, function () {
-    return this.get(p1) === this.get(p2);
+    return deepEqual(this.get(p1), this.get(p2));
   });
 }
 
@@ -53,7 +54,7 @@ export function propertyEqual(p1, p2) {
 **/
 export function propertyNotEqual(p1, p2) {
   return computed(p1, p2, function () {
-    return this.get(p1) !== this.get(p2);
+    return !deepEqual(this.get(p1), this.get(p2));
   });
 }
 
@@ -72,17 +73,20 @@ export function propertyLessThan(p1, p2) {
 /**
   Returns i18n version of a string based on a property.
 
-  @method i18n
+  @method computedI18n
   @params {String} properties* to format
   @params {String} format the i18n format string
   @return {Function} discourseComputedProperty function
 **/
-export function i18n(...args) {
+export function computedI18n(...args) {
   const format = args.pop();
   return computed(...args, function () {
-    return I18n.t(addonFmt(format, ...args.map((a) => this.get(a))));
+    return i18n(addonFmt(format, ...args.map((a) => this.get(a))));
   });
 }
+
+export { computedI18n as i18n };
+
 /**
   Returns htmlSafe version of a string.
 

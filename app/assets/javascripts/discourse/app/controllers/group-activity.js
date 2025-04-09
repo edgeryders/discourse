@@ -1,6 +1,8 @@
 import Controller from "@ember/controller";
-import { inject as service } from "@ember/service";
-export default Controller.extend({
-  router: service(),
-  queryParams: ["category_id"],
-});
+import { service } from "@ember/service";
+
+export default class GroupActivityController extends Controller {
+  @service router;
+
+  queryParams = ["category_id"];
+}

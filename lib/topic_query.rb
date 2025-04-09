@@ -8,23 +8,43 @@
 class TopicQuery
   include PrivateMessageLists
 
-  PG_MAX_INT ||= 2_147_483_647
-  DEFAULT_PER_PAGE_COUNT ||= 30
+  PG_MAX_INT = 2_147_483_647
+  DEFAULT_PER_PAGE_COUNT = 30
 
   def self.validators
     @validators ||=
       begin
         int = lambda { |x| Integer === x || (String === x && x.match?(/\A-?[0-9]+\z/)) }
         zero_up_to_max_int = lambda { |x| int.call(x) && x.to_i.between?(0, PG_MAX_INT) }
+        one_up_to_one_hundred = lambda { |x| int.call(x) && x.to_i.between?(1, 100) }
         array_or_string = lambda { |x| Array === x || String === x }
+        string = lambda { |x| String === x }
+        true_or_false = lambda { |x| x == true || x == false || x == "true" || x == "false" }
 
         {
+          page: zero_up_to_max_int,
+          per_page: one_up_to_one_hundred,
           before: zero_up_to_max_int,
           bumped_before: zero_up_to_max_int,
-          max_posts: zero_up_to_max_int,
+          topic_ids: array_or_string,
+          category: string,
+          order: string,
+          ascending: true_or_false,
           min_posts: zero_up_to_max_int,
-          page: zero_up_to_max_int,
+          max_posts: zero_up_to_max_int,
+          status: string,
+          filter: string,
+          state: string,
+          search: string,
+          q: string,
+          f: string,
+          subset: string,
+          group_name: string,
           tags: array_or_string,
+          match_all_tags: true_or_false,
+          no_subcategories: true_or_false,
+          no_tags: true_or_false,
+          exclude_tag: string,
         }
       end
   end
@@ -41,6 +61,7 @@ class TopicQuery
     # For these to work in Ember, add them to `controllers/discovery/list.js`
     @public_valid_options ||= %i[
       page
+      per_page
       before
       bumped_before
       topic_ids
@@ -71,8 +92,6 @@ class TopicQuery
         %i[
           except_topic_ids
           limit
-          page
-          per_page
           visible
           guardian
           no_definitions
@@ -339,10 +358,8 @@ class TopicQuery
   end
 
   def list_hot
-    create_list(:hot, unordered: true) do |topics|
-      topics = remove_muted_topics(topics, user)
-      topics = remove_muted_categories(topics, user, exclude: options[:category])
-      TopicQuery.remove_muted_tags(topics, user, options)
+    create_list(:hot, unordered: true, prioritize_pinned: true) do |topics|
+      topics = remove_muted(topics, user, options)
       topics.joins("JOIN topic_hot_scores on topics.id = topic_hot_scores.topic_id").order(
         "topic_hot_scores.score DESC",
       )
@@ -352,9 +369,9 @@ class TopicQuery
   def list_top_for(period)
     score_column = TopTopic.score_column_for_period(period)
     create_list(:top, unordered: true) do |topics|
-      topics = remove_muted_categories(topics, @user)
+      topics = remove_muted(topics, user, options)
       topics = topics.joins(:top_topic).where("top_topics.#{score_column} > 0")
-      if period == :yearly && @user.try(:trust_level) == TrustLevel[0]
+      if period == :yearly && user&.new_user?
         topics.order(<<~SQL)
           CASE WHEN (
              COALESCE(topics.pinned_at, '1900-01-01') > COALESCE(tu.cleared_pinned_at, '1900-01-01')
@@ -404,7 +421,7 @@ class TopicQuery
 
   def list_new_in_category(category)
     create_list(:new_in_category, unordered: true, category: category.id) do |list|
-      list.by_newest.first(25)
+      list.by_newest.limit(25)
     end
   end
 
@@ -485,7 +502,7 @@ class TopicQuery
     unpinned_topics = topics.where("NOT ( #{pinned_clause} )")
     pinned_topics = topics.dup.offset(nil).where(pinned_clause).reorder(pinned_at: :desc)
 
-    per_page = options[:per_page] || per_page_setting
+    per_page = options[:per_page]&.to_i || per_page_setting
     limit = per_page unless options[:limit] == false
     page = options[:page].to_i
 
@@ -506,10 +523,12 @@ class TopicQuery
       DiscoursePluginRegistry.apply_modifier(:topic_query_create_list_topics, topics, options, self)
 
     options = options.merge(@options)
-    if %w[activity default].include?(options[:order] || "activity") && !options[:unordered] &&
-         filter != :private_messages
-      topics = prioritize_pinned_topics(topics, options)
-    end
+
+    apply_pinning = filter != :private_messages
+    apply_pinning &&= %w[activity default].include?(options[:order] || "activity")
+    apply_pinning &&= !options[:unordered] || options[:prioritize_pinned]
+
+    topics = prioritize_pinned_topics(topics, options) if apply_pinning
 
     topics = topics.to_a
 
@@ -541,7 +560,7 @@ class TopicQuery
     end
 
     list = TopicList.new(filter, @user, topics, options.merge(@options))
-    list.per_page = options[:per_page] || per_page_setting
+    list.per_page = options[:per_page]&.to_i || per_page_setting
     list
   end
 
@@ -719,7 +738,7 @@ class TopicQuery
   end
 
   def get_category_id(category_id_or_slug)
-    return nil unless category_id_or_slug.present?
+    return nil if category_id_or_slug.blank?
     category_id = category_id_or_slug.to_i
 
     if category_id == 0
@@ -755,7 +774,7 @@ class TopicQuery
     category_id = get_category_id(options[:category])
     @options[:category_id] = category_id
     if category_id
-      if options[:no_subcategories]
+      if ActiveModel::Type::Boolean.new.cast(options[:no_subcategories])
         result = result.where("topics.category_id = ?", category_id)
       else
         result = result.where("topics.category_id IN (?)", Category.subcategory_ids(category_id))
@@ -816,7 +835,7 @@ class TopicQuery
       result = result.where("COALESCE(categories.topic_id, 0) <> topics.id")
     end
 
-    result = result.limit(options[:per_page]) unless options[:limit] == false
+    result = result.limit(options[:per_page]&.to_i) unless options[:limit] == false
     result = result.visible if options[:visible]
     result =
       result.where.not(topics: { id: options[:except_topic_ids] }).references(:topics) if options[
@@ -824,7 +843,7 @@ class TopicQuery
     ]
 
     if options[:page]
-      offset = options[:page].to_i * options[:per_page]
+      offset = options[:page].to_i * options[:per_page]&.to_i
       result = result.offset(offset) if offset > 0
     end
 
@@ -1008,7 +1027,7 @@ class TopicQuery
     return list if muted_tag_ids.blank?
 
     # if viewing the topic list for a muted tag, show all the topics
-    if !opts[:no_tags] && opts[:tags].present?
+    if !ActiveModel::Type::Boolean.new.cast(opts[:no_tags]) && opts[:tags].present?
       if TagUser
            .lookup(user, :muted)
            .joins(:tag)
@@ -1194,8 +1213,7 @@ class TopicQuery
     result =
       result.where("topics.id NOT IN (?)", excluded_topic_ids) unless excluded_topic_ids.empty?
 
-    result = remove_muted_categories(result, @user)
-    result = remove_muted_topics(result, @user)
+    result = remove_muted(result, @user, @options)
 
     # If we are in a category, prefer it for the random results
     if topic.category_id
@@ -1261,7 +1279,9 @@ class TopicQuery
 
     if tags_arg && tags_arg.size > 0
       tags_arg = tags_arg.split if String === tags_arg
-      tags_query = tags_arg[0].is_a?(String) ? Tag.where_name(tags_arg) : Tag.where(id: tags_arg)
+      tags_query = DiscourseTagging.visible_tags(@guardian)
+      tags_query =
+        tags_arg[0].is_a?(String) ? tags_query.where_name(tags_arg) : tags_query.where(id: tags_arg)
       tags = tags_query.select(:id, :target_tag_id).map { |t| t.target_tag_id || t.id }.uniq
 
       if ActiveModel::Type::Boolean.new.cast(@options[:match_all_tags])
@@ -1283,10 +1303,8 @@ class TopicQuery
         result = result.joins(:tags).where("tags.id in (?)", tags)
       end
 
-      # TODO: this is very side-effecty and should be changed
-      # It is done cause further up we expect normalized tags
-      @options[:tags] = tags
-    elsif @options[:no_tags]
+      @options[:tag_ids] = tags
+    elsif ActiveModel::Type::Boolean.new.cast(@options[:no_tags])
       # the following will do: ("topics"."id" NOT IN (SELECT DISTINCT "topic_tags"."topic_id" FROM "topic_tags"))
       result = result.where.not(id: TopicTag.distinct.select(:topic_id))
     end

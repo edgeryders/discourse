@@ -1,7 +1,8 @@
+import { getOwner } from "@ember/owner";
 import { settled } from "@ember/test-helpers";
 import { setupTest } from "ember-qunit";
 import { module, test } from "qunit";
-import I18n from "discourse-i18n";
+import { i18n } from "discourse-i18n";
 
 module("Unit | Component | create-account", function (hooks) {
   setupTest(hooks);
@@ -22,10 +23,10 @@ module("Unit | Component | create-account", function (hooks) {
     };
 
     testInvalidUsername("", null);
-    testInvalidUsername("x", I18n.t("user.username.too_short"));
+    testInvalidUsername("x", i18n("user.username.too_short"));
     testInvalidUsername(
       "123456789012345678901",
-      I18n.t("user.username.too_long")
+      i18n("user.username.too_long")
     );
 
     const component = this.owner
@@ -37,7 +38,7 @@ module("Unit | Component | create-account", function (hooks) {
     assert.true(validation.ok, "Prefilled username is valid");
     assert.strictEqual(
       validation.reason,
-      I18n.t("user.username.prefilled"),
+      i18n("user.username.prefilled"),
       "Prefilled username is valid"
     );
   });
@@ -57,7 +58,7 @@ module("Unit | Component | create-account", function (hooks) {
     assert.true(component.passwordValidation.ok, "Password is ok");
     assert.strictEqual(
       component.passwordValidation.reason,
-      I18n.t("user.password.ok"),
+      i18n("user.password.ok"),
       "Password is valid"
     );
 
@@ -75,16 +76,16 @@ module("Unit | Component | create-account", function (hooks) {
       );
     };
 
+    const siteSettings = getOwner(this).lookup("service:site-settings");
     testInvalidPassword("", null);
-    testInvalidPassword("x", I18n.t("user.password.too_short"));
     testInvalidPassword(
-      "porkchops123",
-      I18n.t("user.password.same_as_username")
+      "x",
+      i18n("user.password.too_short", {
+        count: siteSettings.min_password_length,
+      })
     );
-    testInvalidPassword(
-      "pork@chops.com",
-      I18n.t("user.password.same_as_email")
-    );
+    testInvalidPassword("porkchops123", i18n("user.password.same_as_username"));
+    testInvalidPassword("pork@chops.com", i18n("user.password.same_as_email"));
 
     // Wait for username check request to finish
     await settled();
@@ -97,7 +98,7 @@ module("Unit | Component | create-account", function (hooks) {
 
     assert.strictEqual(
       component.authProviderDisplayName("facebook"),
-      I18n.t("login.facebook.name"),
+      i18n("login.facebook.name"),
       "provider name is translated correctly"
     );
 

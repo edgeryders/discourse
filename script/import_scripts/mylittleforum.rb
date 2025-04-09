@@ -18,14 +18,14 @@ export BASE="forum"
 =end
 
 class ImportScripts::MylittleforumSQL < ImportScripts::Base
-  DB_HOST ||= ENV["DB_HOST"] || "localhost"
-  DB_NAME ||= ENV["DB_NAME"] || "mylittleforum"
-  DB_PW ||= ENV["DB_PW"] || ""
-  DB_USER ||= ENV["DB_USER"] || "root"
-  TABLE_PREFIX ||= ENV["TABLE_PREFIX"] || "forum_"
-  IMPORT_AFTER ||= ENV["IMPORT_AFTER"] || "1970-01-01"
-  IMAGE_BASE ||= ENV["IMAGE_BASE"] || ""
-  BASE ||= ENV["BASE"] || "forum/"
+  DB_HOST = ENV["DB_HOST"] || "localhost"
+  DB_NAME = ENV["DB_NAME"] || "mylittleforum"
+  DB_PW = ENV["DB_PW"] || ""
+  DB_USER = ENV["DB_USER"] || "root"
+  TABLE_PREFIX = ENV["TABLE_PREFIX"] || "forum_"
+  IMPORT_AFTER = ENV["IMPORT_AFTER"] || "1970-01-01"
+  IMAGE_BASE = ENV["IMAGE_BASE"] || ""
+  BASE = ENV["BASE"] || "forum/"
   BATCH_SIZE = 1000
   CONVERT_HTML = true
   QUIET = nil || ENV["VERBOSE"] == "TRUE"
@@ -224,7 +224,7 @@ class ImportScripts::MylittleforumSQL < ImportScripts::Base
         raw = clean_up(discussion["Body"])
 
         youtube = nil
-        unless discussion["youtube"].blank?
+        if discussion["youtube"].present?
           youtube = clean_youtube(discussion["youtube"])
           raw += "\n#{youtube}\n"
           print_warning(raw)
@@ -286,7 +286,7 @@ class ImportScripts::MylittleforumSQL < ImportScripts::Base
         next if comment["Body"].blank?
         raw = clean_up(comment["Body"])
         youtube = nil
-        unless comment["youtube"].blank?
+        if comment["youtube"].present?
           youtube = clean_youtube(comment["youtube"])
           raw += "\n#{youtube}\n"
         end

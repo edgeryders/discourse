@@ -19,13 +19,13 @@ export PARENT_FIELD="parent_id" # "parent" in some versions
 =end
 
 class ImportScripts::Kunena < ImportScripts::Base
-  DB_HOST ||= ENV["DB_HOST"] || "localhost"
-  DB_NAME ||= ENV["DB_NAME"] || "kunena"
-  DB_USER ||= ENV["DB_USER"] || "kunena"
-  DB_PW ||= ENV["DB_PW"] || "kunena"
-  KUNENA_PREFIX ||= ENV["KUNENA_PREFIX"] || "jos_" # "iff_" sometimes
-  IMAGE_PREFIX ||= ENV["IMAGE_PREFIX"] || "http://EXAMPLE.com/media/kunena/attachments"
-  PARENT_FIELD ||= ENV["PARENT_FIELD"] || "parent_id" # "parent" in some versions
+  DB_HOST = ENV["DB_HOST"] || "localhost"
+  DB_NAME = ENV["DB_NAME"] || "kunena"
+  DB_USER = ENV["DB_USER"] || "kunena"
+  DB_PW = ENV["DB_PW"] || "kunena"
+  KUNENA_PREFIX = ENV["KUNENA_PREFIX"] || "jos_" # "iff_" sometimes
+  IMAGE_PREFIX = ENV["IMAGE_PREFIX"] || "http://EXAMPLE.com/media/kunena/attachments"
+  PARENT_FIELD = ENV["PARENT_FIELD"] || "parent_id" # "parent" in some versions
 
   def initialize
     super
@@ -94,7 +94,7 @@ class ImportScripts::Kunena < ImportScripts::Base
         cache_rows: false,
       )
     results.each do |u|
-      next unless u["id"].to_i > (0) && u["username"].present? && u["email"].present?
+      next if u["id"].to_i <= (0) || u["username"].blank? || u["email"].blank?
       username = u["username"].gsub(" ", "_").gsub(/[^A-Za-z0-9_]/, "")[0, User.username_length.end]
       if username.length < User.username_length.first
         username = username * User.username_length.first

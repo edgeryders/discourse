@@ -1,6 +1,6 @@
-import { getOwner } from "@ember/application";
 import EmberObject, { computed } from "@ember/object";
-import { inject as service } from "@ember/service";
+import { getOwner } from "@ember/owner";
+import { service } from "@ember/service";
 import { setupTest } from "ember-qunit";
 import { module, test } from "qunit";
 
@@ -21,7 +21,7 @@ module("Unit | Service | site-settings", function (hooks) {
   });
 
   test("contains settings", function (assert) {
-    assert.ok(this.siteSettings.title);
+    assert.strictEqual(typeof this.siteSettings.title, "string");
   });
 
   test("notifies getters", function (assert) {

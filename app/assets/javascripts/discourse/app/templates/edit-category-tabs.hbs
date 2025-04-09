@@ -12,16 +12,14 @@
         />
       {{/if}}
     </div>
-    {{#unless this.mobileView}}
-      {{#if this.model.id}}
-        <DButton
-          @action={{action "goBack"}}
-          @label="category.back"
-          @icon="caret-left"
-          class="category-back"
-        />
-      {{/if}}
-    {{/unless}}
+    {{#if (and this.site.desktopView this.model.id)}}
+      <DButton
+        @action={{action "goBack"}}
+        @label="category.back"
+        @icon="caret-left"
+        class="category-back"
+      />
+    {{/if}}
   </div>
 
   <div class="edit-category-nav">
@@ -99,7 +97,7 @@
       <DButton
         @disabled={{this.deleteDisabled}}
         @action={{action "deleteCategory"}}
-        @icon="far-trash-alt"
+        @icon="trash-can"
         @label="category.delete"
         class="btn-danger"
       />
@@ -108,7 +106,7 @@
         <DButton
           @disabled={{this.deleteDisabled}}
           @action={{action "toggleDeleteTooltip"}}
-          @icon="question-circle"
+          @icon="circle-question"
           @label="category.delete"
           class="btn-default"
         />

@@ -41,6 +41,7 @@ nb_NO:
       bookmark_message: "Bokmerke"
       bookmark_message_edit: "Rediger bokmerke"
       save: "Lagre"
+      select: "Velg"
       sounds:
         none: "Ingen"
       exit: "forrige"
@@ -50,6 +51,7 @@ nb_NO:
       browse:
         back: "Forrige"
         filter_all: Alle
+        filter_open: Åpne
         filter_closed: Lukket
       chat_message_separator:
         today: I dag
@@ -68,6 +70,10 @@ nb_NO:
       direct_message_creator:
         title: Ny Melding
         prefix: "Til:"
+      channel:
+        memberships_count:
+          one: "%{count} medlem"
+          other: "%{count} medlemmer"
       create_channel:
         type: "Type"
         types:
@@ -137,6 +143,8 @@ nb_NO:
             title: "Normal"
           tracking:
             title: "Overvåkning"
+          watching:
+            title: "Følger"
         participants_other_count:
           one: "+%{count}"
           other: "+%{count}"

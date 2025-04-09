@@ -8,10 +8,12 @@ module Onebox
       include HTML
       include ActionView::Helpers::NumberHelper
 
-      matches_regexp(
-        %r{^https?://(mobile\.|www\.)?twitter\.com/.+?/status(es)?/\d+(/(video|photo)/\d?+)?+(/?\?.*)?/?$},
-      )
+      matches_domain("twitter.com", "www.twitter.com", "mobile.twitter.com", "x.com", "www.x.com")
       always_https
+
+      def self.matches_path(path)
+        path.match?(%r{^/.+?/status(es)?/\d+(/(video|photo)/\d?)?(/?\?.*)?/?$})
+      end
 
       def http_params
         { "User-Agent" => "DiscourseBot/1.0" }
@@ -26,7 +28,13 @@ module Onebox
       def get_twitter_data
         response =
           begin
-            Onebox::Helpers.fetch_response(url, headers: http_params)
+            # We need to allow cross domain cookies to prevent an
+            # infinite redirect loop between twitter.com and x.com
+            Onebox::Helpers.fetch_response(
+              url,
+              headers: http_params,
+              allow_cross_domain_cookies: true,
+            )
           rescue StandardError
             return nil
           end
@@ -45,7 +53,7 @@ module Onebox
       end
 
       def match
-        @match ||= @url.match(%r{twitter\.com/.+?/status(es)?/(?<id>\d+)})
+        @match ||= @url.match(%r{(twitter\.com|x\.com)/.+?/status(es)?/(?<id>\d+)})
       end
 
       def twitter_data
@@ -111,7 +119,7 @@ module Onebox
         if twitter_api_credentials_present?
           raw.dig(:includes, :users)&.first&.dig(:name)
         else
-          meta_tags_data("givenName")[tweet_index]
+          twitter_data[:title]
         end
       end
 
@@ -119,13 +127,15 @@ module Onebox
         if twitter_api_credentials_present?
           raw.dig(:includes, :users)&.first&.dig(:username)
         else
-          meta_tags_data("additionalName")[tweet_index]
+          twitter_data[:title][/\(@([^\)\(]*)\) on X/, 1] if twitter_data[:title].present?
         end
       end
 
       def avatar
         if twitter_api_credentials_present?
           raw.dig(:includes, :users)&.first&.dig(:profile_image_url)
+        else
+          twitter_data[:image] if twitter_data[:image]&.include?("profile_images")
         end
       end
 

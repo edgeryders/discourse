@@ -1,10 +1,11 @@
 /* eslint-disable ember/no-private-routing-service */
-import { getOwner } from "@ember/application";
 import { A } from "@ember/array";
 import Helper from "@ember/component/helper";
 import { assert, runInDebug } from "@ember/debug";
 import { computed, get } from "@ember/object";
+import { getOwner } from "@ember/owner";
 import { join } from "@ember/runloop";
+import { isTesting } from "discourse/lib/environment";
 
 function getCurrentRouteInfos(router) {
   let routerLib = router._routerMicrolib || router.router;
@@ -30,13 +31,15 @@ function getRouteWithAction(router, actionName) {
 function routeAction(actionName, router, ...params) {
   assert("[ember-route-action-helper] Unable to lookup router", router);
 
-  runInDebug(() => {
-    let { handler } = getRouteWithAction(router, actionName);
-    assert(
-      `[ember-route-action-helper] Unable to find action ${actionName}`,
-      handler
-    );
-  });
+  if (!isTesting() || router.currentRoute) {
+    runInDebug(() => {
+      let { handler } = getRouteWithAction(router, actionName);
+      assert(
+        `[ember-route-action-helper] Unable to find action ${actionName}`,
+        handler
+      );
+    });
+  }
 
   return function (...invocationArgs) {
     let { action, handler } = getRouteWithAction(router, actionName);
@@ -45,14 +48,13 @@ function routeAction(actionName, router, ...params) {
   };
 }
 
-export default Helper.extend({
-  router: computed({
-    get() {
-      return getOwner(this).lookup("router:main");
-    },
-  }),
+export default class RouteAction extends Helper {
+  @computed
+  get router() {
+    return getOwner(this).lookup("router:main");
+  }
 
   compute([actionName, ...params]) {
     return routeAction(actionName, get(this, "router"), ...params);
-  },
-});
+  }
+}

@@ -11,17 +11,17 @@ register_asset "stylesheets/common/poll-ui-builder.scss"
 register_asset "stylesheets/desktop/poll-ui-builder.scss", :desktop
 register_asset "stylesheets/common/poll-breakdown.scss"
 
-register_svg_icon "far fa-check-square"
+register_svg_icon "far-square-check"
 
 enabled_site_setting :poll_enabled
 hide_plugin
 
 after_initialize do
   module ::DiscoursePoll
-    PLUGIN_NAME ||= "poll"
-    DATA_PREFIX ||= "data-poll-"
-    HAS_POLLS ||= "has_polls"
-    DEFAULT_POLL_NAME ||= "poll"
+    PLUGIN_NAME = "poll"
+    DATA_PREFIX = "data-poll-"
+    HAS_POLLS = "has_polls"
+    DEFAULT_POLL_NAME = "poll"
 
     class Engine < ::Rails::Engine
       engine_name PLUGIN_NAME
@@ -32,17 +32,20 @@ after_initialize do
     end
   end
 
-  require_relative "app/controllers/polls_controller.rb"
-  require_relative "app/models/poll_option.rb"
-  require_relative "app/models/poll_vote.rb"
-  require_relative "app/models/poll.rb"
-  require_relative "app/serializers/poll_option_serializer.rb"
-  require_relative "app/serializers/poll_serializer.rb"
-  require_relative "jobs/regular/close_poll.rb"
-  require_relative "lib/poll.rb"
-  require_relative "lib/polls_updater.rb"
-  require_relative "lib/polls_validator.rb"
-  require_relative "lib/post_validator.rb"
+  require_relative "app/controllers/polls_controller"
+  require_relative "app/models/poll_option"
+  require_relative "app/models/poll_vote"
+  require_relative "app/models/poll"
+  require_relative "app/serializers/poll_option_serializer"
+  require_relative "app/serializers/poll_serializer"
+  require_relative "jobs/regular/close_poll"
+  require_relative "lib/poll"
+  require_relative "lib/ranked_choice"
+  require_relative "lib/polls_updater"
+  require_relative "lib/polls_validator"
+  require_relative "lib/post_validator"
+  require_relative "lib/post_extension"
+  require_relative "lib/user_extension"
 
   DiscoursePoll::Engine.routes.draw do
     put "/vote" => "polls#vote"
@@ -59,26 +62,8 @@ after_initialize do
   topic_view_post_custom_fields_allowlister { [DiscoursePoll::HAS_POLLS] }
 
   reloadable_patch do
-    Post.class_eval do
-      attr_accessor :extracted_polls
-
-      has_many :polls, dependent: :destroy
-
-      after_save do
-        polls = self.extracted_polls
-        self.extracted_polls = nil
-        next if polls.blank? || !polls.is_a?(Hash)
-        post = self
-
-        Poll.transaction do
-          polls.values.each { |poll| DiscoursePoll::Poll.create!(post.id, poll) }
-          post.custom_fields[DiscoursePoll::HAS_POLLS] = true
-          post.save_custom_fields(true)
-        end
-      end
-    end
-
-    User.class_eval { has_many :poll_votes, dependent: :delete_all }
+    Post.prepend(DiscoursePoll::PostExtension)
+    User.prepend(DiscoursePoll::UserExtension)
   end
 
   validate(:post, :validate_polls) do |force = nil|
@@ -86,6 +71,7 @@ after_initialize do
 
     validator = DiscoursePoll::PollsValidator.new(self)
     return unless (polls = validator.validate_polls)
+    return if polls.blank? && self.id.blank?
 
     if polls.present?
       validator = DiscoursePoll::PostValidator.new(self)
@@ -94,6 +80,8 @@ after_initialize do
 
     # are we updating a post?
     if self.id.present?
+      return if polls.blank? && ::Poll.where(post: self).empty?
+
       DiscoursePoll::PollsUpdater.update(self, polls)
     else
       self.extracted_polls = polls
@@ -194,12 +182,13 @@ after_initialize do
           end
 
         if post_with_polls.present?
-          Poll
-            .where(post_id: post_with_polls)
-            .each do |p|
-              polls[p.post_id] ||= []
-              polls[p.post_id] << p
-            end
+          all_polls = Poll.includes(:poll_options).where(post_id: post_with_polls)
+          Poll.preload!(all_polls, user_id: @user&.id)
+          DiscoursePoll::Poll.preload_serialized_voters!(all_polls)
+          all_polls.each do |p|
+            polls[p.post_id] ||= []
+            polls[p.post_id] << p
+          end
         end
 
         polls
@@ -233,13 +222,22 @@ after_initialize do
   ) do
     preloaded_polls
       .map do |poll|
-        user_poll_votes =
-          poll
-            .poll_votes
-            .where(user_id: scope.user.id)
-            .joins(:poll_option)
-            .pluck("poll_options.digest")
-
+        if poll.ranked_choice?
+          user_poll_votes =
+            poll
+              .poll_votes
+              .where(user_id: scope.user.id)
+              .joins(:poll_option)
+              .pluck("poll_options.digest", "poll_votes.rank")
+              .map { |digest, rank| { digest: digest, rank: rank } }
+        else
+          user_poll_votes =
+            poll
+              .poll_votes
+              .where(user_id: scope.user.id)
+              .joins(:poll_option)
+              .pluck("poll_options.digest")
+        end
         [poll.name, user_poll_votes]
       end
       .to_h

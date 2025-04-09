@@ -17,7 +17,7 @@ class ImportScripts::Disqus < ImportScripts::Base
     abort("Category #{IMPORT_CATEGORY} not found") if @category.blank?
 
     @parser = DisqusSAX.new
-    doc = Nokogiri::XML::SAX::Parser.new(@parser)
+    doc = Nokogiri::XML::SAX::Parser.new(@parser, Encoding::UTF_8)
     doc.parse_file(IMPORT_FILE)
     @parser.normalize
 
@@ -73,7 +73,7 @@ class ImportScripts::Disqus < ImportScripts::Base
       if post.present? && post.topic.posts_count <= 1
         (t[:posts] || []).each do |p|
           post_user = find_existing_user(p[:author_email] || "", p[:author_username])
-          next unless post_user.present?
+          next if post_user.blank?
 
           attrs = {
             user_id: post_user.id,

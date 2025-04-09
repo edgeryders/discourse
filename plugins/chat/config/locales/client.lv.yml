@@ -50,6 +50,7 @@ lv:
       browse:
         back: "Atpakaļ"
         filter_all: Viss
+        filter_open: Atvērt
         filter_closed: Slēgts
       chat_message_separator:
         today: Šodien
@@ -135,6 +136,8 @@ lv:
             title: "Normāls"
           tracking:
             title: "Sekot"
+          watching:
+            title: "Novērošana"
       draft_channel_screen:
         header: "Jauns ziņa"
         cancel: "Atcelt"

@@ -1,31 +1,37 @@
+import { getOwner } from "@ember/owner";
 import { render } from "@ember/test-helpers";
 import hbs from "htmlbars-inline-precompile";
 import { module, test } from "qunit";
 import { setupRenderingTest } from "discourse/tests/helpers/component-test";
-import { exists, query } from "discourse/tests/helpers/qunit-helpers";
-import fabricators from "discourse/plugins/chat/discourse/lib/fabricators";
+import ChatFabricators from "discourse/plugins/chat/discourse/lib/fabricators";
 import ChatMessage from "discourse/plugins/chat/discourse/models/chat-message";
 
 module("Discourse Chat | Component | chat-message-avatar", function (hooks) {
   setupRenderingTest(hooks);
 
   test("chat_webhook_event", async function (assert) {
-    this.message = ChatMessage.create(fabricators.channel(), {
-      chat_webhook_event: { emoji: ":heart:" },
-    });
+    this.message = ChatMessage.create(
+      new ChatFabricators(getOwner(this)).channel(),
+      {
+        chat_webhook_event: { emoji: ":heart:" },
+      }
+    );
 
     await render(hbs`<Chat::Message::Avatar @message={{this.message}} />`);
 
-    assert.strictEqual(query(".chat-emoji-avatar .emoji").title, "heart");
+    assert.dom(".chat-emoji-avatar .emoji").hasAttribute("title", "heart");
   });
 
   test("user", async function (assert) {
-    this.message = ChatMessage.create(fabricators.channel(), {
-      user: { username: "discobot" },
-    });
+    this.message = ChatMessage.create(
+      new ChatFabricators(getOwner(this)).channel(),
+      {
+        user: { username: "discobot" },
+      }
+    );
 
     await render(hbs`<Chat::Message::Avatar @message={{this.message}} />`);
 
-    assert.true(exists('.chat-user-avatar [data-user-card="discobot"]'));
+    assert.dom('.chat-user-avatar [data-user-card="discobot"]').exists();
   });
 });

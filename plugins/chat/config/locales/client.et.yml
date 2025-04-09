@@ -70,6 +70,7 @@ et:
         back: "Tagasi"
         title: Kanalid
         filter_all: Kõik
+        filter_open: Ava
         filter_closed: Suletud
       chat_message_separator:
         today: Täna
@@ -159,6 +160,8 @@ et:
             title: "Normaalne"
           tracking:
             title: "Jälgimine"
+          watching:
+            title: "Vaatlemine"
         participants_other_count:
           one: "+%{count}"
           other: "+%{count}"

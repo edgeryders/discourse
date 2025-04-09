@@ -1,19 +1,20 @@
 import Handlebars from "handlebars";
 import $ from "jquery";
+import * as AvatarUtils from "discourse/lib/avatar-utils";
+import deprecated from "discourse/lib/deprecated";
+import escape from "discourse/lib/escape";
+import getURL from "discourse/lib/get-url";
+import { parseAsync } from "discourse/lib/text";
 import toMarkdown from "discourse/lib/to-markdown";
 import { capabilities } from "discourse/services/capabilities";
-import * as AvatarUtils from "discourse-common/lib/avatar-utils";
-import deprecated from "discourse-common/lib/deprecated";
-import escape from "discourse-common/lib/escape";
-import getURL from "discourse-common/lib/get-url";
-import I18n from "discourse-i18n";
+import { i18n } from "discourse-i18n";
 
 let _defaultHomepage;
 
 function deprecatedAvatarUtil(name) {
   return function () {
     deprecated(
-      `${name} should be imported from discourse-common/lib/avatar-utils instead of discourse/lib/utilities`,
+      `${name} should be imported from discourse/lib/avatar-utils instead of discourse/lib/utilities`,
       { id: "discourse.avatar-utils" }
     );
     return AvatarUtils[name](...arguments);
@@ -79,23 +80,20 @@ export function highlightPost(postNumber) {
   }
 
   const element = container.querySelector(".topic-body, .small-action-desc");
-  if (!element || element.classList.contains("highlighted")) {
+  if (!element) {
     return;
   }
 
-  element.classList.add("highlighted");
-
   if (postNumber > 1) {
+    // Transport screenreader to correct post by focusing it
     element.setAttribute("tabindex", "0");
+    element.addEventListener(
+      "focusin",
+      () => element.removeAttribute("tabindex"),
+      { once: true }
+    );
     element.focus();
   }
-
-  const removeHighlighted = function () {
-    element.classList.remove("highlighted");
-    element.removeAttribute("tabindex");
-    element.removeEventListener("animationend", removeHighlighted);
-  };
-  element.addEventListener("animationend", removeHighlighted);
 }
 
 export function emailValid(email) {
@@ -158,17 +156,27 @@ export function selectedText() {
     } else if (oneboxTest) {
       // This is a partial quote from a onebox.
       // Treat it as though the entire onebox was quoted.
-      const oneboxUrl = oneboxTest.dataset.oneboxSrc;
-      div.append(oneboxUrl);
+      div.append(oneboxTest.dataset.oneboxSrc);
     } else {
       div.append(range.cloneContents());
     }
   }
 
   div.querySelectorAll("aside.onebox[data-onebox-src]").forEach((element) => {
-    const oneboxUrl = element.dataset.oneboxSrc;
-    element.replaceWith(oneboxUrl);
+    element.replaceWith(element.dataset.oneboxSrc);
   });
+
+  div
+    .querySelectorAll("div.video-placeholder-container[data-video-src]")
+    .forEach((element) => {
+      const videoBase62Sha1 = element.dataset.videoBase62Sha1;
+      if (videoBase62Sha1) {
+        element.replaceWith(`![|video](upload://${videoBase62Sha1})`);
+      } else {
+        // Fallback for old posts that don't contain data-video-base62-sha1
+        element.replaceWith(`![|video](${element.dataset.videoSrc})`);
+      }
+    });
 
   return toMarkdown(div.outerHTML);
 }
@@ -206,6 +214,10 @@ export function caretPosition(el) {
 
 // Set the caret's position
 export function setCaretPosition(ctrl, pos) {
+  if (typeof ctrl === "string") {
+    ctrl = document.querySelector(ctrl);
+  }
+
   let range;
   if (ctrl.setSelectionRange) {
     ctrl.focus();
@@ -371,6 +383,24 @@ export function slugify(string) {
     .replace(/-+$/, ""); // Remove trailing dashes
 }
 
+export function unicodeSlugify(string) {
+  try {
+    return string
+      .trim()
+      .toLowerCase()
+      .normalize("NFD") // normalize the string to remove diacritics
+      .replace(/\s|_+/g, "-") // replace spaces and underscores with dashes
+      .replace(/[^\p{Letter}\d\-]+/gu, "") // Remove non-letter characters except for dashes
+      .replace(/--+/g, "-") // replace multiple dashes with a single dash
+      .replace(/^-+/, "") // Remove leading dashes
+      .replace(/-+$/, ""); // Remove trailing dashes
+  } catch {
+    // in case the regex construct \p{Letter} is not supported by the browser
+    // fall back to the basic slugify function
+    return slugify(string);
+  }
+}
+
 export function toNumber(input) {
   return typeof input === "number" ? input : parseFloat(input);
 }
@@ -406,7 +436,7 @@ export function areCookiesEnabled() {
     let ret = document.cookie.includes("cookietest=");
     document.cookie = "cookietest=1; expires=Thu, 01-Jan-1970 00:00:01 GMT";
     return ret;
-  } catch (e) {
+  } catch {
     return false;
   }
 }
@@ -421,40 +451,45 @@ export function postRNWebviewMessage(prop, value) {
   }
 }
 
-const CODE_BLOCKS_REGEX =
-  /^(  |\t).*|`[^`]+`|^```[^]*?^```|\[code\][^]*?\[\/code\]/gm;
-//|    ^     |   ^   |      ^      |           ^           |
-//     |         |          |                  |
-//     |         |          |       code blocks between [code]
-//     |         |          |
-//     |         |          +--- code blocks between three backticks
-//     |         |
-//     |         +----- inline code between backticks
-//     |
-//     +------- paragraphs starting with 2 spaces or tab
-
-const OPEN_CODE_BLOCKS_REGEX = /^(  |\t).*|`[^`]+|^```[^]*?|\[code\][^]*?/gm;
-
-export function inCodeBlock(text, pos) {
-  let end = 0;
-  for (const match of text.matchAll(CODE_BLOCKS_REGEX)) {
-    end = match.index + match[0].length;
-    if (match.index <= pos && pos <= end) {
-      return true;
+function pickMarker(text) {
+  // Uses the private use area (U+E000 to U+F8FF) to find a character that
+  // is not present in the text. This character will be used as a marker in
+  // place of the caret.
+  for (let code = 0xe000; code <= 0xf8ff; ++code) {
+    const char = String.fromCharCode(code);
+    if (!text.includes(char)) {
+      return char;
     }
   }
-
-  // Character at position `pos` can be in a code block that is unfinished.
-  // To check this case, we look for any open code blocks after the last closed
-  // code block.
-  const lastOpenBlock = text.slice(end).search(OPEN_CODE_BLOCKS_REGEX);
-  return lastOpenBlock !== -1 && pos >= end + lastOpenBlock;
+  return null;
 }
 
-// Return an array of modifier keys that are pressed during a given `MouseEvent`
-// or `KeyboardEvent`.
-export function modKeysPressed(event) {
-  return ["alt", "shift", "meta", "ctrl"].filter((key) => event[`${key}Key`]);
+function findToken(tokens, marker, level = 0) {
+  if (level > 50) {
+    return null;
+  }
+  const token = tokens.find((t) => (t.content ?? "").includes(marker));
+  return token?.children ? findToken(token.children, marker, level + 1) : token;
+}
+
+const CODE_MARKERS_REGEX = /    |```|~~~|[^`]`[^`]|\[code\]/;
+const CODE_TOKEN_TYPES = ["code_inline", "code_block", "fence"];
+
+export async function inCodeBlock(text, pos) {
+  if (!CODE_MARKERS_REGEX.test(text)) {
+    return false;
+  }
+
+  const marker = pickMarker(text);
+  if (!marker) {
+    return false;
+  }
+
+  const markedText = text.slice(0, pos) + marker + text.slice(pos);
+  const tokens = await parseAsync(markedText);
+  const type = findToken(tokens, marker)?.type;
+
+  return CODE_TOKEN_TYPES.includes(type);
 }
 
 export function translateModKey(string) {
@@ -470,10 +505,10 @@ export function translateModKey(string) {
   } else {
     string = string
       .toLowerCase()
-      .replace("shift", I18n.t("shortcut_modifier_key.shift"))
-      .replace("ctrl", I18n.t("shortcut_modifier_key.ctrl"))
-      .replace("meta", I18n.t("shortcut_modifier_key.ctrl"))
-      .replace("alt", I18n.t("shortcut_modifier_key.alt"));
+      .replace("shift", i18n("shortcut_modifier_key.shift"))
+      .replace("ctrl", i18n("shortcut_modifier_key.ctrl"))
+      .replace("meta", i18n("shortcut_modifier_key.ctrl"))
+      .replace("alt", i18n("shortcut_modifier_key.alt"));
   }
 
   return string;
@@ -626,27 +661,32 @@ export function getCaretPosition(element, options) {
  * Generate markdown table from an array of objects
  * Inspired by https://github.com/Ygilany/array-to-table
  *
- * @param  {Array} array       Array of objects
- * @param  {Array} columns     Column headings
- * @param  {String} colPrefix  Table column prefix
+ * @param  {Array<Record<string, string | undefined>>}          array       Array of objects
+ * @param  {String[]}                                           columns     Column headings
+ * @param  {String}                                             colPrefix   Table column prefix
+ * @param  {("left" | "center" | "right" | null)[] | undefined} alignments  Table alignments
  *
  * @return {String} Markdown table
  */
-export function arrayToTable(array, cols, colPrefix = "col") {
+export function arrayToTable(array, cols, colPrefix = "col", alignments) {
   let table = "";
 
   // Generate table headers
   table += "|";
   table += cols.join(" | ");
-  table += "|\r\n|";
+  table += "|\n|";
+
+  const alignMap = {
+    left: ":--",
+    center: ":-:",
+    right: "--:",
+  };
 
   // Generate table header separator
   table += cols
-    .map(function () {
-      return "---";
-    })
+    .map((_, index) => alignMap[String(alignments?.[index])] || "---")
     .join(" | ");
-  table += "|\r\n";
+  table += "|\n";
 
   // Generate table body
   array.forEach(function (item) {
@@ -655,12 +695,11 @@ export function arrayToTable(array, cols, colPrefix = "col") {
     table +=
       cols
         .map(function (_key, index) {
-          return String(item[`${colPrefix}${index}`] || "").replace(
-            /\r?\n|\r/g,
-            " "
-          );
+          return String(item[`${colPrefix}${index}`] || "")
+            .replace(/\r?\n|\r/g, " ")
+            .replaceAll("|", "\\|");
         })
-        .join(" | ") + "|\r\n";
+        .join(" | ") + "|\n";
   });
 
   return table;
@@ -736,4 +775,24 @@ export function cleanNullQueryParams(params) {
     }
   }
   return params;
+}
+
+export function getElement(node) {
+  return node.nodeType === Node.TEXT_NODE ? node.parentElement : node;
+}
+
+export function isPrimaryTab() {
+  return new Promise((resolve) => {
+    if (capabilities.supportsServiceWorker) {
+      navigator.serviceWorker.addEventListener("message", (event) => {
+        resolve(event.data.primaryTab);
+      });
+
+      navigator.serviceWorker.ready.then((registration) => {
+        registration.active.postMessage({ action: "primaryTab" });
+      });
+    } else {
+      resolve(true);
+    }
+  });
 }

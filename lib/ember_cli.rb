@@ -42,17 +42,10 @@ class EmberCli < ActiveSupport::CurrentAttributes
     @version ||=
       begin
         ember_source_package_raw =
-          File.read("#{Rails.root}/app/assets/javascripts/node_modules/ember-source/package.json")
+          File.read(
+            "#{Rails.root}/app/assets/javascripts/discourse/node_modules/ember-source/package.json",
+          )
         JSON.parse(ember_source_package_raw)["version"]
-      end
-  end
-
-  def self.workbox_dir_name
-    return @workbox_base_dir if defined?(@workbox_base_dir)
-
-    @workbox_base_dir =
-      if (full_path = Dir.glob("app/assets/javascripts/discourse/dist/assets/workbox-*")[0])
-        File.basename(full_path)
       end
   end
 

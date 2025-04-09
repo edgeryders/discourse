@@ -8,15 +8,15 @@ RSpec.describe ThemeJavascriptCompiler do
       template = "<h1>hello</h1>"
       name = "/path/to/templates1"
       compiler.append_raw_template("#{name}.raw", template)
-      expect(compiler.raw_content.to_s).to include("addRawTemplate(\"#{name}\"")
+      expect(compiler.raw_content.to_s).to include("addRawTemplate)(\"#{name}\"")
 
       name = "/path/to/templates2"
       compiler.append_raw_template("#{name}.hbr", template)
-      expect(compiler.raw_content.to_s).to include("addRawTemplate(\"#{name}\"")
+      expect(compiler.raw_content.to_s).to include("addRawTemplate)(\"#{name}\"")
 
       name = "/path/to/templates3"
       compiler.append_raw_template("#{name}.hbs", template)
-      expect(compiler.raw_content.to_s).to include("addRawTemplate(\"#{name}.hbs\"")
+      expect(compiler.raw_content.to_s).to include("addRawTemplate)(\"#{name}.hbs\"")
     end
   end
 
@@ -251,9 +251,23 @@ RSpec.describe ThemeJavascriptCompiler do
       expect(compiler.raw_content).to include(
         "define(\"discourse/theme-1/discourse/components/my-component\", [\"exports\",",
       )
-      expect(compiler.raw_content).to include("_defineProperty(this, \"value\", \"foo\");")
+      expect(compiler.raw_content).to include('value = "foo";')
       expect(compiler.raw_content).to include("setComponentTemplate")
       expect(compiler.raw_content).to include("createTemplateFactory")
+    end
+  end
+
+  describe "safari <16 class field bugfix" do
+    it "is applied" do
+      compiler.append_tree({ "discourse/components/my-component.js" => <<~JS })
+        export default class MyComponent extends Component {
+          value = "foo";
+          complexValue = this.value + "bar";
+        }
+      JS
+
+      expect(compiler.raw_content).to include('value = "foo";')
+      expect(compiler.raw_content).to include('complexValue = (() => this.value + "bar")();')
     end
   end
 end

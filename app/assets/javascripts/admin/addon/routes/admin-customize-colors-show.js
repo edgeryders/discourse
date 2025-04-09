@@ -1,5 +1,5 @@
 import Route from "@ember/routing/route";
-import { inject as service } from "@ember/service";
+import { service } from "@ember/service";
 
 export default class AdminCustomizeColorsShowRoute extends Route {
   @service router;
@@ -18,8 +18,8 @@ export default class AdminCustomizeColorsShowRoute extends Route {
     return { scheme_id: model.get("id") };
   }
 
-  setupController(controller, model) {
-    controller.set("model", model);
+  setupController(controller) {
+    super.setupController(...arguments);
     controller.set("allColors", this.modelFor("adminCustomize.colors"));
   }
 }

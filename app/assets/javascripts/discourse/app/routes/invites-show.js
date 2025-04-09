@@ -1,13 +1,16 @@
+import { service } from "@ember/service";
+import { ajax } from "discourse/lib/ajax";
+import { deepMerge } from "discourse/lib/object";
 import PreloadStore from "discourse/lib/preload-store";
-import DisableSidebar from "discourse/mixins/disable-sidebar";
 import DiscourseRoute from "discourse/routes/discourse";
-import { deepMerge } from "discourse-common/lib/object";
-import I18n from "discourse-i18n";
+import { i18n } from "discourse-i18n";
 
-export default DiscourseRoute.extend(DisableSidebar, {
+export default class InvitesShow extends DiscourseRoute {
+  @service siteSettings;
+
   titleToken() {
-    return I18n.t("invites.accept_title");
-  },
+    return i18n("invites.accept_title");
+  }
 
   model(params) {
     if (PreloadStore.get("invite_info")) {
@@ -15,28 +18,35 @@ export default DiscourseRoute.extend(DisableSidebar, {
         deepMerge(params, json)
       );
     } else {
-      return {};
+      return ajax(`/invites/${params.token}`).then((json) =>
+        deepMerge(params, json)
+      );
     }
-  },
+  }
 
   activate() {
-    this._super(...arguments);
+    super.activate(...arguments);
 
-    this.controllerFor("application").setProperties({
-      showSiteHeader: false,
-    });
-  },
+    if (this.siteSettings.login_required) {
+      this.controllerFor("application").setProperties({
+        showSiteHeader: false,
+      });
+    }
+  }
 
   deactivate() {
-    this._super(...arguments);
+    super.deactivate(...arguments);
 
-    this.controllerFor("application").setProperties({
-      showSiteHeader: true,
-    });
-  },
+    if (this.siteSettings.login_required) {
+      this.controllerFor("application").setProperties({
+        showSiteHeader: true,
+      });
+    }
+  }
 
   setupController(controller, model) {
-    this._super(...arguments);
+    super.setupController(...arguments);
+    controller.accountUsername = model.username;
 
     if (model.user_fields) {
       controller.userFields.forEach((userField) => {
@@ -45,5 +55,5 @@ export default DiscourseRoute.extend(DisableSidebar, {
         }
       });
     }
-  },
-});
+  }
+}

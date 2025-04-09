@@ -1,10 +1,15 @@
 import { cancel } from "@ember/runloop";
-import Service, { inject as service } from "@ember/service";
+import Service, { service } from "@ember/service";
 
 export default class ChatDraftsManager extends Service {
   @service chatApi;
 
   drafts = {};
+
+  willDestroy() {
+    super.willDestroy(...arguments);
+    cancel(this._persistHandler);
+  }
 
   async add(message, channelId, threadId) {
     try {
@@ -42,12 +47,8 @@ export default class ChatDraftsManager extends Service {
         threadId,
       });
       message.draftSaved = true;
-    } catch (e) {
+    } catch {
       // We don't want to throw an error if the draft fails to save
     }
-  }
-
-  willDestroy() {
-    cancel(this?._persistHandler);
   }
 }

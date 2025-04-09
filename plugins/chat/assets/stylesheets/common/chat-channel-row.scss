@@ -23,19 +23,19 @@
     &.active {
       background: var(--primary-very-low);
     }
+  }
 
-    &.can-leave:hover {
-      .toggle-channel-membership-button.-leave {
-        display: block;
+  &.can-leave:hover {
+    .toggle-channel-membership-button.-leave {
+      display: block;
 
-        > * {
-          pointer-events: auto;
-        }
+      > * {
+        pointer-events: auto;
       }
+    }
 
-      .chat-channel__metadata {
-        display: none;
-      }
+    .chat-channel__metadata {
+      display: none;
     }
   }
 
@@ -90,22 +90,6 @@
       align-items: flex-end;
       flex-direction: column;
       margin-left: 0.5em;
-
-      .chat-channel-unread-indicator {
-        @include chat-unread-indicator;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        width: 8px;
-        height: 8px;
-
-        &.-urgent {
-          width: auto;
-          height: auto;
-          min-width: 0.6em;
-          padding: 0.3em 0.5em;
-        }
-      }
     }
 
     &__metadata-date {

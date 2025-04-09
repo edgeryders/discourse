@@ -1,15 +1,14 @@
 import Component from "@glimmer/component";
 import { tracked } from "@glimmer/tracking";
 import { action } from "@ember/object";
-import { inject as service } from "@ember/service";
+import { service } from "@ember/service";
 import { htmlSafe } from "@ember/template";
 import { isEmpty } from "@ember/utils";
 import DButton from "discourse/components/d-button";
 import DModal from "discourse/components/d-modal";
 import { popupAjaxError } from "discourse/lib/ajax-error";
-import i18n from "discourse-common/helpers/i18n";
-import discourseLater from "discourse-common/lib/later";
-import I18n from "discourse-i18n";
+import discourseLater from "discourse/lib/later";
+import { i18n } from "discourse-i18n";
 import {
   EXISTING_TOPIC_SELECTION,
   NEW_TOPIC_SELECTION,
@@ -65,10 +64,10 @@ export default class ChatModalArchiveChannel extends Component {
 
   get instructionLabels() {
     const labels = {};
-    labels[NEW_TOPIC_SELECTION] = I18n.t(
+    labels[NEW_TOPIC_SELECTION] = i18n(
       "chat.selection.new_topic.instructions_channel_archive"
     );
-    labels[EXISTING_TOPIC_SELECTION] = I18n.t(
+    labels[EXISTING_TOPIC_SELECTION] = i18n(
       "chat.selection.existing_topic.instructions_channel_archive"
     );
     return labels;
@@ -76,10 +75,23 @@ export default class ChatModalArchiveChannel extends Component {
 
   get instructionsText() {
     return htmlSafe(
-      I18n.t("chat.channel_archive.instructions", {
+      i18n("chat.channel_archive.instructions", {
         channelTitle: this.channel.escapedTitle,
       })
     );
+  }
+
+  get data() {
+    const data = { type: this.selection };
+    if (this.newTopic) {
+      data.title = this.topicTitle;
+      data.category_id = this.categoryId;
+      data.tags = this.tags;
+    }
+    if (this.existingTopic) {
+      data.topic_id = this.selectedTopicId;
+    }
+    return data;
   }
 
   @action
@@ -87,9 +99,9 @@ export default class ChatModalArchiveChannel extends Component {
     this.saving = true;
 
     return this.chatApi
-      .createChannelArchive(this.channel.id, this.#data())
+      .createChannelArchive(this.channel.id, this.data)
       .then(() => {
-        this.flash = I18n.t("chat.channel_archive.process_started");
+        this.flash = i18n("chat.channel_archive.process_started");
         this.flashType = "success";
         this.channel.status = CHANNEL_STATUSES.archived;
 
@@ -101,17 +113,9 @@ export default class ChatModalArchiveChannel extends Component {
       .finally(() => (this.saving = false));
   }
 
-  #data() {
-    const data = { type: this.selection };
-    if (this.newTopic) {
-      data.title = this.topicTitle;
-      data.category_id = this.categoryId;
-      data.tags = this.tags;
-    }
-    if (this.existingTopic) {
-      data.topic_id = this.selectedTopicId;
-    }
-    return data;
+  @action
+  newTopicSelected(topic) {
+    this.selectedTopicId = topic.id;
   }
 
   <template>
@@ -132,7 +136,7 @@ export default class ChatModalArchiveChannel extends Component {
           @topicTitle={{this.topicTitle}}
           @categoryId={{this.categoryId}}
           @tags={{this.tags}}
-          @selectedTopicId={{this.selectedTopicId}}
+          @topicChangedCallback={{this.newTopicSelected}}
           @instructionLabels={{this.instructionLabels}}
           @allowNewMessage={{false}}
         />

@@ -5,11 +5,52 @@ module SystemHelpers
   PLATFORM_KEY_MODIFIER = RUBY_PLATFORM =~ /darwin/i ? :meta : :control
 
   def pause_test
-    result =
-      ask(
-        "\n\e[33mTest paused, press enter to resume, type `d` and press enter to start debugger.\e[0m",
-      )
+    msg = "Test paused. Press enter to resume, or `d` + enter to start debugger.\n\n"
+    msg += "Browser inspection URLs:\n"
+
+    base_url = page.driver.browser.send(:devtools_address)
+    uri = URI(base_url)
+    response = Net::HTTP.get(uri.hostname, "/json/list", uri.port)
+
+    socat_pid = nil
+
+    if exposed_port = ENV["SELENIUM_FORWARD_DEVTOOLS_TO_PORT"]
+      socat_pid =
+        fork do
+          chrome_port = uri.port
+          exec "socat tcp-listen:#{exposed_port},reuseaddr,fork tcp:localhost:#{chrome_port}"
+        end
+    end
+
+    # Fetch devtools urls
+    base_url = page.driver.browser.send(:devtools_address)
+    uri = URI(base_url)
+    response = Net::HTTP.get(uri.hostname, "/json/list", uri.port)
+    JSON
+      .parse(response)
+      .each do |result|
+        devtools_url = "#{base_url}#{result["devtoolsFrontendUrl"]}"
+
+        devtools_url = devtools_url.gsub(":#{uri.port}", ":#{exposed_port}") if exposed_port
+
+        if ENV["CODESPACE_NAME"]
+          devtools_url =
+            devtools_url
+              .gsub(
+                "localhost:#{exposed_port}",
+                "#{ENV["CODESPACE_NAME"]}-#{exposed_port}.#{ENV["GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN"]}",
+              )
+              .gsub("http://", "https://")
+              .gsub("ws=", "wss=")
+        end
+
+        msg += " - (#{result["type"]}) #{devtools_url} (#{URI(result["url"]).path})\n"
+      end
+
+    result = ask("\n\e[33m#{msg}\e[0m")
     binding.pry if result == "d" # rubocop:disable Lint/Debugger
+    puts "\e[33mResuming...\e[0m"
+    Process.kill("TERM", socat_pid) if socat_pid
     self
   end
 
@@ -22,51 +63,9 @@ module SystemHelpers
     expect(page).to have_content("Signed in to #{user.encoded_username} successfully")
   end
 
-  # Uploads a theme from a directory.
-  #
-  # @param set_theme_as_default [Boolean] Whether to set the uploaded theme as the default theme for the site. Defaults to true.
-  #
-  # @return [Theme] The uploaded theme model given by `models/theme.rb`.
-  #
-  # @example Upload a theme and set it as default
-  #   upload_theme("/path/to/theme")
-  def upload_theme(set_theme_as_default: true)
-    theme = RemoteTheme.import_theme_from_directory(theme_dir_from_caller)
-
-    if theme.component
-      raise "Uploaded theme is a theme component, please use the `upload_theme_component` method instead."
-    end
-
-    theme.set_default! if set_theme_as_default
-    theme
-  end
-
-  # Uploads a theme component from a directory.
-  #
-  # @param parent_theme_id [Integer] The ID of the theme to add the theme component to. Defaults to `SiteSetting.default_theme_id`.
-  #
-  # @return [Theme] The uploaded theme model given by `models/theme.rb`.
-  #
-  # @example Upload a theme component
-  #   upload_theme_component("/path/to/theme_component")
-  #
-  # @example Upload a theme component and add it to a specific theme
-  #   upload_theme_component("/path/to/theme_component", parent_theme_id: 123)
-  def upload_theme_component(parent_theme_id: SiteSetting.default_theme_id)
-    theme = RemoteTheme.import_theme_from_directory(theme_dir_from_caller)
-
-    if !theme.component
-      raise "Uploaded theme is not a theme component, please use the `upload_theme` method instead."
-    end
-
-    Theme.find(parent_theme_id).child_themes << theme
-    theme
-  end
-
   def setup_system_test
     SiteSetting.login_required = false
     SiteSetting.has_login_hint = false
-    SiteSetting.content_security_policy = false
     SiteSetting.force_hostname = Capybara.server_host
     SiteSetting.port = Capybara.server_port
     SiteSetting.external_system_avatars_enabled = false
@@ -154,13 +153,6 @@ module SystemHelpers
     end
   end
 
-  # When using parallelism, Capybara's `using_session` method can cause
-  # intermittent failures as two sessions can be created with the same name
-  # in different tests and be run at the same time.
-  def using_session(name, &block)
-    Capybara.using_session(name.to_s + self.method_name, &block)
-  end
-
   def select_text_range(selector, start = 0, offset = 5)
     js = <<-JS
       const node = document.querySelector(arguments[0]).childNodes[0];
@@ -176,7 +168,9 @@ module SystemHelpers
     page.execute_script(js, selector, start, offset)
   end
 
-  def setup_s3_system_test(enable_secure_uploads: false, enable_direct_s3_uploads: true)
+  def setup_or_skip_s3_system_test(enable_secure_uploads: false, enable_direct_s3_uploads: true)
+    skip_unless_s3_system_specs_enabled!
+
     SiteSetting.enable_s3_uploads = true
 
     SiteSetting.s3_upload_bucket = "discoursetest"
@@ -193,13 +187,6 @@ module SystemHelpers
   end
 
   def skip_unless_s3_system_specs_enabled!
-    if ENV["CI"]
-      return(
-        skip(
-          "S3 system specs are temporarily disabled in this environment to address parallel spec issues",
-        )
-      )
-    end
     if !ENV["CI"] && !ENV["RUN_S3_SYSTEM_SPECS"]
       skip(
         "S3 system specs are disabled in this environment, set CI=1 or RUN_S3_SYSTEM_SPECS=1 to enable them.",
@@ -207,13 +194,11 @@ module SystemHelpers
     end
   end
 
-  private
+  def skip_on_ci!(message = "Flaky on CI")
+    skip(message) if ENV["CI"]
+  end
 
-  def theme_dir_from_caller
-    caller.each do |line|
-      if (split = line.split(%r{/spec/system/.+_spec.rb})).length > 1
-        return split.first
-      end
-    end
+  def click_logo
+    PageObjects::Components::Logo.click
   end
 end

@@ -11,16 +11,21 @@ sr:
         chat_separate_sidebar_mode:
           always: "Uvek"
           never: "Nikad"
+      logs:
+        staff_actions:
+          actions:
+            chat_auto_remove_membership: "Članstva su automatski uklonjena s kanala"
     chat:
       dates:
         yesterday: "Juče"
-        time_tiny: "h:mm"
+      all_loaded: "Prikaz svih poruka"
       cancel: "Odustani"
       channel_settings:
         edit: "Izmeni"
         add: "Dodaj"
       close: "Zatvori"
       remove: "Ukloni"
+      collapse: "Skupi okvir za chat"
       delete: "Obriši"
       muted: "utišano"
       joined: "pridružen"
@@ -30,6 +35,7 @@ sr:
         never: "Nikad"
       flag: "Označi Zastavom"
       last_visit: "poslednja poseta"
+      placeholder_self: "Zapiši nešto"
       reply: "Odgovori"
       edit: "Izmeni"
       rebake_message: "Popravi HTML"
@@ -44,6 +50,7 @@ sr:
       browse:
         back: "Nazad"
         filter_all: sve
+        filter_open: Otvori
       chat_message_separator:
         today: Danas
         yesterday: Juče
@@ -80,6 +87,8 @@ sr:
         category_label: "Kategorija"
         history_label: "Istorija"
         members_label: "Članovi"
+      channel_list:
+        title: "Kanali"
       incoming_webhooks:
         back: "Nazad"
         description: "Opis"
@@ -114,6 +123,8 @@ sr:
             title: "Normalno"
           tracking:
             title: "Praćeno"
+          watching:
+            title: "Posmatram"
       draft_channel_screen:
         header: "Nova privatna poruka"
         cancel: "Odustani"

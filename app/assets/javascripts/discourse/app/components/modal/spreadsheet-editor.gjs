@@ -2,7 +2,7 @@ import Component from "@glimmer/component";
 import { tracked } from "@glimmer/tracking";
 import { action } from "@ember/object";
 import didInsert from "@ember/render-modifiers/modifiers/did-insert";
-import { inject as service } from "@ember/service";
+import { service } from "@ember/service";
 import ConditionalLoadingSpinner from "discourse/components/conditional-loading-spinner";
 import DButton from "discourse/components/d-button";
 import DModal from "discourse/components/d-modal";
@@ -10,13 +10,13 @@ import DModalCancel from "discourse/components/d-modal-cancel";
 import TextField from "discourse/components/text-field";
 import { ajax } from "discourse/lib/ajax";
 import { popupAjaxError } from "discourse/lib/ajax-error";
+import KeyboardShortcuts from "discourse/lib/keyboard-shortcuts";
 import {
   arrayToTable,
   findTableRegex,
   tokenRange,
 } from "discourse/lib/utilities";
-import i18n from "discourse-common/helpers/i18n";
-import I18n from "discourse-i18n";
+import { i18n } from "discourse-i18n";
 import DTooltip from "float-kit/components/d-tooltip";
 
 export default class SpreadsheetEditor extends Component {
@@ -26,10 +26,17 @@ export default class SpreadsheetEditor extends Component {
   spreadsheet = null;
   defaultColWidth = 150;
   isEditingTable = !!this.args.model.tableTokens;
+  alignments = null;
 
   constructor() {
     super(...arguments);
     this.loadJspreadsheet();
+    KeyboardShortcuts.pause();
+  }
+
+  willDestroy() {
+    super.willDestroy(...arguments);
+    KeyboardShortcuts.unpause();
   }
 
   get modalAttributes() {
@@ -38,7 +45,7 @@ export default class SpreadsheetEditor extends Component {
         title: "table_builder.edit.modal.title",
         insertTable: {
           title: "table_builder.edit.modal.create",
-          icon: "pencil-alt",
+          icon: "pencil",
         },
       };
     } else {
@@ -72,7 +79,7 @@ export default class SpreadsheetEditor extends Component {
   interceptCloseModal() {
     if (this._hasChanges()) {
       this.dialog.yesNoConfirm({
-        message: I18n.t("table_builder.modal.confirm_close"),
+        message: i18n("table_builder.modal.confirm_close"),
         didConfirm: () => this.args.closeModal(),
       });
     } else {
@@ -82,7 +89,10 @@ export default class SpreadsheetEditor extends Component {
 
   @action
   insertTable() {
-    const updatedHeaders = this.spreadsheet.getHeaders().split(","); // keys
+    const updatedHeaders = this.spreadsheet
+      .getHeaders()
+      .split(",")
+      .map((c) => c.trim()); // keys
     const updatedData = this.spreadsheet.getData(); // values
     const markdownTable = this.buildTableMarkdown(updatedHeaders, updatedData);
 
@@ -138,20 +148,20 @@ export default class SpreadsheetEditor extends Component {
 
     const columns = [
       {
-        title: I18n.t("table_builder.default_header.col_1"),
+        title: i18n("table_builder.default_header.col_1"),
         width: this.defaultColWidth,
       },
       {
-        title: I18n.t("table_builder.default_header.col_2"),
+        title: i18n("table_builder.default_header.col_2"),
         width: this.defaultColWidth,
       },
       {
-        title: I18n.t("table_builder.default_header.col_3"),
+        title: i18n("table_builder.default_header.col_3"),
 
         width: this.defaultColWidth,
       },
       {
-        title: I18n.t("table_builder.default_header.col_4"),
+        title: i18n("table_builder.default_header.col_4"),
 
         width: this.defaultColWidth,
       },
@@ -167,6 +177,25 @@ export default class SpreadsheetEditor extends Component {
       .map((t) => t.content);
   }
 
+  extractTableAlignments(data) {
+    return data
+      .flat()
+      .filter((t) => t.type === "td_open")
+      .map((t) => {
+        for (const attr of t.attrs?.flat() ?? []) {
+          switch (attr) {
+            case "text-align:left":
+              return "left";
+            case "text-align:center":
+              return "center";
+            case "text-align:right":
+              return "right";
+          }
+        }
+        return null; // default
+      });
+  }
+
   buildPopulatedTable(tableTokens) {
     const contentRows = tokenRange(tableTokens, "tr_open", "tr_close");
     const rows = [];
@@ -178,18 +207,24 @@ export default class SpreadsheetEditor extends Component {
         // headings
         headings = this.extractTableContent(row).map((heading) => {
           return {
-            title: heading,
+            title: heading || " ",
             width: Math.max(
               heading.length * rowWidthFactor,
               this.defaultColWidth
             ),
-            align: "left",
           };
         });
       } else {
+        if (this.alignments == null) {
+          this.alignments = this.extractTableAlignments(row);
+        }
         // rows:
         rows.push(this.extractTableContent(row));
       }
+    });
+
+    headings.forEach((h, i) => {
+      h.align = this.alignments?.[i] ?? "left";
     });
 
     return this.buildSpreadsheet(rows, headings);
@@ -201,7 +236,6 @@ export default class SpreadsheetEditor extends Component {
       ? `post-${postNumber}-table-export`
       : `post-table-export`;
 
-    // eslint-disable-next-line no-undef
     this.spreadsheet = this.jspreadsheet(this.spreadsheet, {
       data,
       columns,
@@ -234,7 +268,7 @@ export default class SpreadsheetEditor extends Component {
     const newRaw = markdownTable;
 
     const editReason =
-      this.editReason || I18n.t("table_builder.edit.default_edit_reason");
+      this.editReason || i18n("table_builder.edit.default_edit_reason");
     const raw = this.args.model.post.raw;
     const newPostRaw = this.buildUpdatedPost(tableIndex, raw, newRaw);
 
@@ -269,7 +303,7 @@ export default class SpreadsheetEditor extends Component {
       table.push(result);
     });
 
-    return arrayToTable(table, headers);
+    return arrayToTable(table, headers, "col", this.alignments);
   }
 
   localeMapping() {
@@ -344,7 +378,7 @@ export default class SpreadsheetEditor extends Component {
             {{#if this.isEditingTable}}
               <div class="edit-reason">
                 <DButton
-                  @icon="info-circle"
+                  @icon="circle-info"
                   @title="table_builder.edit.modal.trigger_reason"
                   @action={{this.showEditReasonField}}
                   class="btn-edit-reason"
@@ -389,5 +423,5 @@ export default class SpreadsheetEditor extends Component {
 }
 
 function prefixedLocale(localeString) {
-  return I18n.t(`table_builder.spreadsheet.${localeString}`);
+  return i18n(`table_builder.spreadsheet.${localeString}`);
 }

@@ -286,10 +286,65 @@ RSpec.describe Oneboxer do
         "<a href='http://test.localhost/g/somegroup#&apos;onerror=&apos;'>http://test.localhost/g/somegroup#&apos;onerror=&apos;</a>",
       )
     end
+
+    context "when URL contains non-ASCII characters" do
+      let(:html) { <<~HTML }
+        <html>
+        <head>
+          <meta property="og:title" content="Cats">
+          <meta property="og:description" content="Meow">
+        </head>
+        <body>
+           <p>body</p>
+        </body>
+        <html>
+      HTML
+
+      context "when response is not a redirect" do
+        let(:url) { "https://its.me/héhé" }
+
+        before do
+          stub_request(:get, url).to_return(status: 200, body: html, headers: {})
+          stub_request(:head, url).to_return(status: 200, body: "", headers: {})
+        end
+
+        it "does not break" do
+          expect(described_class.onebox_raw(url)[:onebox]).to be_present
+        end
+      end
+
+      context "when response is a redirect" do
+        let(:url) { "https://its.me" }
+        let(:non_ascii_url) { "#{url}/h%C3%A9h%C3%A9" }
+
+        before do
+          stub_request(:get, url).to_return(
+            status: 301,
+            body: "",
+            headers: {
+              "location" => non_ascii_url,
+            },
+          )
+          stub_request(:head, url).to_return(
+            status: 301,
+            body: "",
+            headers: {
+              "location" => non_ascii_url,
+            },
+          )
+          stub_request(:get, non_ascii_url).to_return(status: 200, body: html, headers: {})
+          stub_request(:head, non_ascii_url).to_return(status: 200, body: "", headers: {})
+        end
+
+        it "does not break" do
+          expect(described_class.onebox_raw(url)[:onebox]).to be_present
+        end
+      end
+    end
   end
 
   describe ".external_onebox" do
-    html = <<~HTML
+    let(:html) { <<~HTML }
       <html>
       <head>
         <meta property="og:title" content="Cats">
@@ -570,26 +625,59 @@ RSpec.describe Oneboxer do
     end
   end
 
-  it "uses the Onebox custom user agent on specified hosts" do
-    SiteSetting.force_custom_user_agent_hosts = "http://codepen.io|https://video.discourse.org/"
-    url = "https://video.discourse.org/presentation.mp4"
+  describe "onebox custom user agent" do
+    let!(:default_onebox_user_agent) do
+      "#{Onebox.options.user_agent} v#{Discourse::VERSION::STRING}"
+    end
 
-    stub_request(:head, url).to_return(status: 403, body: "", headers: {})
-    stub_request(:get, url).to_return(status: 403, body: "", headers: {})
-    stub_request(:head, url).with(headers: { "User-Agent" => Onebox.options.user_agent }).to_return(
-      status: 200,
-      body: "",
-      headers: {
-      },
-    )
-    stub_request(:get, url).with(headers: { "User-Agent" => Onebox.options.user_agent }).to_return(
-      status: 200,
-      body: "",
-      headers: {
-      },
-    )
+    it "uses the site setting value" do
+      SiteSetting.force_custom_user_agent_hosts = "http://codepen.io|https://video.discourse.org/"
+      url = "https://video.discourse.org/presentation.mp4"
+      custom_user_agent = "Custom User Agent"
 
-    expect(Oneboxer.preview(url, invalidate_oneboxes: true)).to be_present
+      %i[head get].each do |method|
+        stub_request(method, url).with(
+          headers: {
+            "User-Agent" => default_onebox_user_agent,
+          },
+        ).to_return(status: 403, body: "", headers: {})
+        stub_request(method, url).with(
+          headers: {
+            "User-Agent" => "#{custom_user_agent} v#{Discourse::VERSION::STRING}",
+          },
+        ).to_return(status: 200, body: "", headers: {})
+      end
+
+      expect(Oneboxer.preview(url, invalidate_oneboxes: true)).to include("onebox-warning-message")
+
+      SiteSetting.onebox_user_agent = custom_user_agent
+
+      expect(Oneboxer.preview(url, invalidate_oneboxes: true)).to include(
+        "onebox-placeholder-container",
+      )
+    end
+
+    it "forcing on specified hosts" do
+      SiteSetting.force_custom_user_agent_hosts = "http://codepen.io|https://video.discourse.org/"
+      url = "https://video.discourse.org/presentation.mp4"
+
+      stub_request(:head, url).to_return(status: 403, body: "", headers: {})
+      stub_request(:get, url).to_return(status: 403, body: "", headers: {})
+      stub_request(:head, url).with(
+        headers: {
+          "User-Agent" => default_onebox_user_agent,
+        },
+      ).to_return(status: 200, body: "", headers: {})
+      stub_request(:get, url).with(
+        headers: {
+          "User-Agent" => default_onebox_user_agent,
+        },
+      ).to_return(status: 200, body: "", headers: {})
+
+      expect(Oneboxer.preview(url, invalidate_oneboxes: true)).to include(
+        "onebox-placeholder-container",
+      )
+    end
   end
 
   context "with youtube stub" do
@@ -680,7 +768,7 @@ RSpec.describe Oneboxer do
       body: allowlisted_oembed.to_json,
     )
 
-    SiteSetting.allowed_iframes = "discourse.org|https://ifram.es"
+    SiteSetting.allowed_iframes = "https://discourse.org/|https://ifram.es/"
 
     expect(Oneboxer.onebox("https://blocklist.ed/iframes", invalidate_oneboxes: true)).to be_empty
     expect(Oneboxer.onebox("https://allowlist.ed/iframes", invalidate_oneboxes: true)).to match(
@@ -921,6 +1009,20 @@ RSpec.describe Oneboxer do
     it "ignores cache when domain not present" do
       preview = Oneboxer.preview(url2, invalidate_oneboxes: true)
       expect(Oneboxer.cached_response_body_exists?(url2)).to eq(false)
+    end
+
+    it "separates cache by default_locale" do
+      Oneboxer.preview(url, invalidate_oneboxes: true)
+      expect(Oneboxer.cached_response_body_exists?(url)).to eq(true)
+      SiteSetting.default_locale = "fr"
+      expect(Oneboxer.cached_response_body_exists?(url)).to eq(false)
+    end
+
+    it "separates cache by onebox_locale, when set" do
+      Oneboxer.preview(url, invalidate_oneboxes: true)
+      expect(Oneboxer.cached_response_body_exists?(url)).to eq(true)
+      SiteSetting.onebox_locale = "fr"
+      expect(Oneboxer.cached_response_body_exists?(url)).to eq(false)
     end
   end
 

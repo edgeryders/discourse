@@ -10,7 +10,7 @@
     {{this.primaryGroup}}"
 >
   <section class="user-main">
-    <a href="#user-content" id="skip-link" class="skip-link__user-nav">
+    <a href="#user-content" id="user-nav-skip-link" class="skip-link__user-nav">
       {{i18n "skip_user_nav"}}
     </a>
     <section
@@ -191,7 +191,7 @@
             >
               {{#if this.model.location}}<div
                   class="user-profile-location"
-                >{{d-icon "map-marker-alt"~}}
+                >{{d-icon "location-dot"~}}
                   {{this.model.location}}</div>{{/if}}
               {{#if this.model.website_name}}
                 <div class="user-profile-website">
@@ -260,7 +260,16 @@
                       <span class="user-field-value">
                         {{#each uf.value as |v|}}
                           {{! some values are arrays }}
-                          <span class="user-field-value-list-item">{{v}}</span>
+                          <span class="user-field-value-list-item">
+                            {{#if uf.field.searchable}}
+                              <LinkTo
+                                @route="users"
+                                @query={{hash name=v}}
+                              >{{v}}</LinkTo>
+                            {{else}}
+                              {{v}}
+                            {{/if}}
+                          </span>
                         {{else}}
                           {{uf.value}}
                         {{/each}}
@@ -439,17 +448,17 @@
               {{#if this.canDeleteUser}}
                 <div class="pull-right"><DButton
                     @action={{action "adminDelete"}}
-                    @icon="exclamation-triangle"
+                    @icon="triangle-exclamation"
                     @label="user.admin_delete"
                     class="btn-danger btn-delete-user"
                   /></div>
               {{/if}}
+
+              <PluginOutlet
+                @name="user-profile-secondary"
+                @outletArgs={{hash model=this.model}}
+              />
             </dl>
-            <PluginOutlet
-              @name="user-profile-secondary"
-              @connectorTagName="div"
-              @outletArgs={{hash model=this.model}}
-            />
           </div>
         {{/unless}}
       </div>
@@ -460,6 +469,7 @@
         @user={{this.model}}
         @isStaff={{this.currentUser.staff}}
         @isMobileView={{this.site.mobileView}}
+        @showActivityTab={{this.showActivityTab}}
         @showNotificationsTab={{this.showNotificationsTab}}
         @showPrivateMessages={{this.showPrivateMessages}}
         @canInviteToForum={{this.canInviteToForum}}

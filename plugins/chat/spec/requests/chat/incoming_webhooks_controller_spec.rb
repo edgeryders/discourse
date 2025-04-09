@@ -1,7 +1,5 @@
 # frozen_string_literal: true
 
-require "rails_helper"
-
 RSpec.describe Chat::IncomingWebhooksController do
   fab!(:chat_channel) { Fabricate(:category_channel) }
   fab!(:webhook) { Fabricate(:incoming_chat_webhook, chat_channel: chat_channel) }
@@ -74,8 +72,6 @@ RSpec.describe Chat::IncomingWebhooksController do
     end
 
     describe "rate limiting" do
-      use_redis_snapshotting
-
       it "rate limits" do
         RateLimiter.enable
         10.times { post "/chat/hooks/#{webhook.key}.json", params: valid_payload }

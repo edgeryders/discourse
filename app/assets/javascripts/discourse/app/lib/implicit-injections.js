@@ -1,7 +1,7 @@
-import { getOwner } from "@ember/application";
 import Component from "@ember/component";
 import Controller from "@ember/controller";
 import EmberObject, { computed } from "@ember/object";
+import { getOwner } from "@ember/owner";
 import Route from "@ember/routing/route";
 import Service from "@ember/service";
 import RestAdapter from "discourse/adapters/rest";
@@ -46,6 +46,7 @@ function setInjections(target, injections) {
     extension[key] = implicitInjectionShim(lookupName, key);
   }
   EmberObject.reopen.call(target, extension);
+  target.proto();
 }
 
 let alreadyRegistered = false;

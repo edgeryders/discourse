@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-RSpec.describe Admin::EmojisController do
+RSpec.describe Admin::EmojiController do
   fab!(:admin)
   fab!(:moderator)
   fab!(:user)
@@ -10,22 +10,23 @@ RSpec.describe Admin::EmojisController do
     context "when logged in as an admin" do
       before { sign_in(admin) }
 
-      it "returns a list of custom emojis" do
-        CustomEmoji.create!(name: "osama-test-emoji", upload: upload)
+      it "returns a list of custom emoji" do
+        CustomEmoji.create!(name: "osama-test-emoji", upload: upload, user: admin)
         Emoji.clear_cache
 
-        get "/admin/customize/emojis.json"
+        get "/admin/config/emoji.json"
         expect(response.status).to eq(200)
 
         json = response.parsed_body
         expect(json[0]["name"]).to eq("osama-test-emoji")
         expect(json[0]["url"]).to eq(upload.url)
+        expect(json[0]["created_by"]).to eq(admin.username)
       end
     end
 
-    shared_examples "custom emojis inaccessible" do
+    shared_examples "custom emoji inaccessible" do
       it "denies access with a 404 response" do
-        get "/admin/customize/emojis.json"
+        get "/admin/config/emoji.json"
 
         expect(response.status).to eq(404)
         expect(response.parsed_body["errors"]).to include(I18n.t("not_found"))
@@ -35,13 +36,13 @@ RSpec.describe Admin::EmojisController do
     context "when logged in as a moderator" do
       before { sign_in(moderator) }
 
-      include_examples "custom emojis inaccessible"
+      include_examples "custom emoji inaccessible"
     end
 
     context "when logged in as a non-staff user" do
       before { sign_in(user) }
 
-      include_examples "custom emojis inaccessible"
+      include_examples "custom emoji inaccessible"
     end
   end
 
@@ -51,7 +52,7 @@ RSpec.describe Admin::EmojisController do
 
       context "when upload is invalid" do
         it "should publish the right error" do
-          post "/admin/customize/emojis.json",
+          post "/admin/config/emoji.json",
                params: {
                  name: "test",
                  file: fixture_file_upload("#{Rails.root}/spec/fixtures/images/fake.jpg"),
@@ -67,7 +68,7 @@ RSpec.describe Admin::EmojisController do
         it "should publish the right error" do
           CustomEmoji.create!(name: "test", upload: upload)
 
-          post "/admin/customize/emojis.json",
+          post "/admin/config/emoji.json",
                params: {
                  name: "test",
                  file: fixture_file_upload("#{Rails.root}/spec/fixtures/images/logo.png"),
@@ -84,7 +85,7 @@ RSpec.describe Admin::EmojisController do
       it "should allow an admin to add a custom emoji" do
         Emoji.expects(:clear_cache)
 
-        post "/admin/customize/emojis.json",
+        post "/admin/config/emoji.json",
              params: {
                name: "test",
                file: fixture_file_upload("#{Rails.root}/spec/fixtures/images/logo.png"),
@@ -101,12 +102,29 @@ RSpec.describe Admin::EmojisController do
         expect(data["name"]).to eq(custom_emoji.name)
         expect(data["url"]).to eq(upload.url)
         expect(custom_emoji.group).to eq(nil)
+        expect(custom_emoji.user_id).to eq(admin.id)
+      end
+
+      it "should log the action" do
+        Emoji.expects(:clear_cache)
+
+        post "/admin/config/emoji.json",
+             params: {
+               name: "test",
+               file: fixture_file_upload("#{Rails.root}/spec/fixtures/images/logo.png"),
+             }
+
+        last_log = UserHistory.last
+
+        expect(last_log.action).to eq(UserHistory.actions[:custom_emoji_create])
+        expect(last_log.acting_user_id).to eq(admin.id)
+        expect(last_log.new_value).to eq("test")
       end
 
       it "should allow an admin to add a custom emoji with a custom group" do
         Emoji.expects(:clear_cache)
 
-        post "/admin/customize/emojis.json",
+        post "/admin/config/emoji.json",
              params: {
                name: "test",
                group: "Foo",
@@ -123,7 +141,7 @@ RSpec.describe Admin::EmojisController do
       it "should fix up the emoji name" do
         Emoji.expects(:clear_cache).times(3)
 
-        post "/admin/customize/emojis.json",
+        post "/admin/config/emoji.json",
              params: {
                name: "test.png",
                file: fixture_file_upload("#{Rails.root}/spec/fixtures/images/logo.png"),
@@ -136,7 +154,7 @@ RSpec.describe Admin::EmojisController do
         expect(custom_emoji.name).to eq("test")
         expect(response.status).to eq(200)
 
-        post "/admin/customize/emojis.json",
+        post "/admin/config/emoji.json",
              params: {
                name: "st&#* onk$",
                file: fixture_file_upload("#{Rails.root}/spec/fixtures/images/logo.png"),
@@ -146,7 +164,7 @@ RSpec.describe Admin::EmojisController do
         expect(custom_emoji.name).to eq("st_onk_")
         expect(response.status).to eq(200)
 
-        post "/admin/customize/emojis.json",
+        post "/admin/config/emoji.json",
              params: {
                name: "PaRTYpaRrot",
                file: fixture_file_upload("#{Rails.root}/spec/fixtures/images/logo.png"),
@@ -160,7 +178,7 @@ RSpec.describe Admin::EmojisController do
 
     shared_examples "custom emoji creation not allowed" do
       it "prevents creation with a 404 response" do
-        post "/admin/customize/emojis.json",
+        post "/admin/config/emoji.json",
              params: {
                name: "test",
                file: fixture_file_upload("#{Rails.root}/spec/fixtures/images/logo.png"),
@@ -193,8 +211,21 @@ RSpec.describe Admin::EmojisController do
         Emoji.clear_cache
 
         expect do
-          delete "/admin/customize/emojis/#{custom_emoji.name}.json", params: { name: "test" }
+          delete "/admin/config/emoji/#{custom_emoji.name}.json", params: { name: "test" }
         end.to change { CustomEmoji.count }.by(-1)
+      end
+
+      it "should log the action" do
+        custom_emoji = CustomEmoji.create!(name: "test", upload: upload)
+        Emoji.clear_cache
+
+        delete "/admin/config/emoji/#{custom_emoji.name}.json", params: { name: "test" }
+
+        last_log = UserHistory.last
+
+        expect(last_log.action).to eq(UserHistory.actions[:custom_emoji_destroy])
+        expect(last_log.acting_user_id).to eq(admin.id)
+        expect(last_log.previous_value).to eq("test")
       end
     end
 
@@ -203,7 +234,7 @@ RSpec.describe Admin::EmojisController do
         custom_emoji = CustomEmoji.create!(name: "test", upload: upload)
         Emoji.clear_cache
 
-        delete "/admin/customize/emojis/#{custom_emoji.name}.json", params: { name: "test" }
+        delete "/admin/config/emoji/#{custom_emoji.name}.json", params: { name: "test" }
 
         expect(response.status).to eq(404)
         expect(response.parsed_body["errors"]).to include(I18n.t("not_found"))

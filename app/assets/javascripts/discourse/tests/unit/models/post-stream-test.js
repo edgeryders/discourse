@@ -1,10 +1,9 @@
-import { getOwner } from "@ember/application";
 import ArrayProxy from "@ember/array/proxy";
+import { getOwner } from "@ember/owner";
 import { setupTest } from "ember-qunit";
 import { module, test } from "qunit";
 import sinon from "sinon";
 import Post from "discourse/models/post";
-import User from "discourse/models/user";
 import pretender, { response } from "discourse/tests/helpers/create-pretender";
 
 function buildStream(id, stream) {
@@ -25,16 +24,16 @@ module("Unit | Model | post-stream", function (hooks) {
 
   test("create", function (assert) {
     const store = getOwner(this).lookup("service:store");
-    assert.ok(
-      store.createRecord("postStream"),
-      "it can be created with no parameters"
+    assert.true(
+      !!store.createRecord("postStream"),
+      "can be created with no parameters"
     );
   });
 
   test("defaults", function (assert) {
     const postStream = buildStream.call(this, 1234);
     assert.blank(postStream.posts, "there are no posts in a stream by default");
-    assert.ok(!postStream.loaded, "it has never loaded");
+    assert.false(postStream.loaded, "has never loaded");
     assert.present(postStream.topic);
   });
 
@@ -44,16 +43,16 @@ module("Unit | Model | post-stream", function (hooks) {
 
     assert.strictEqual(postStream.lastPostId, 4, "the last post id is 4");
 
-    assert.ok(!postStream.hasPosts, "there are no posts by default");
-    assert.ok(!postStream.firstPostPresent, "the first post is not loaded");
-    assert.ok(!postStream.loadedAllPosts, "the last post is not loaded");
+    assert.false(postStream.hasPosts, "there are no posts by default");
+    assert.false(postStream.firstPostPresent, "the first post is not loaded");
+    assert.false(postStream.loadedAllPosts, "the last post is not loaded");
     assert.strictEqual(postStream.posts.length, 0, "it has no posts initially");
 
     postStream.appendPost(
       store.createRecord("post", { id: 2, post_number: 2 })
     );
-    assert.ok(
-      !postStream.firstPostPresent,
+    assert.false(
+      postStream.firstPostPresent,
       "the first post is still not loaded"
     );
     assert.strictEqual(
@@ -65,8 +64,8 @@ module("Unit | Model | post-stream", function (hooks) {
     postStream.appendPost(
       store.createRecord("post", { id: 4, post_number: 4 })
     );
-    assert.ok(!postStream.firstPostPresent, "the first post is still loaded");
-    assert.ok(postStream.loadedAllPosts, "the last post is now loaded");
+    assert.false(postStream.firstPostPresent, "the first post is still loaded");
+    assert.true(postStream.loadedAllPosts, "the last post is now loaded");
     assert.strictEqual(
       postStream.posts.length,
       2,
@@ -98,11 +97,11 @@ module("Unit | Model | post-stream", function (hooks) {
 
     // change the stream
     postStream.set("stream", [1, 2, 4]);
-    assert.ok(
-      !postStream.firstPostPresent,
+    assert.false(
+      postStream.firstPostPresent,
       "the first post no longer loaded since the stream changed."
     );
-    assert.ok(
+    assert.true(
       postStream.loadedAllPosts,
       "the last post is still the last post in the new stream"
     );
@@ -219,7 +218,7 @@ module("Unit | Model | post-stream", function (hooks) {
 
     postStream.set("filter", "summary");
     postStream.cancelFilter();
-    assert.ok(!postStream.summary, "summary is cancelled");
+    assert.false(postStream.summary, "summary is cancelled");
 
     postStream.filterParticipant(participant);
     postStream.cancelFilter();
@@ -290,7 +289,7 @@ module("Unit | Model | post-stream", function (hooks) {
     );
 
     postStream.filterParticipant(participant.username);
-    assert.ok(
+    assert.true(
       postStream.userFilters.includes("eviltrout"),
       "eviltrout is in the filters"
     );
@@ -309,9 +308,8 @@ module("Unit | Model | post-stream", function (hooks) {
 
     sinon.stub(postStream, "refresh").resolves();
 
-    assert.strictEqual(
+    assert.false(
       postStream.filterRepliesToPostNumber,
-      false,
       "by default no replies are filtered"
     );
 
@@ -323,11 +321,7 @@ module("Unit | Model | post-stream", function (hooks) {
     );
 
     postStream.cancelFilter();
-    assert.strictEqual(
-      postStream.filterRepliesToPostNumber,
-      false,
-      "cancelFilter clears"
-    );
+    assert.false(postStream.filterRepliesToPostNumber, "cancelFilter clears");
   });
 
   test("filterUpwards", function (assert) {
@@ -340,17 +334,13 @@ module("Unit | Model | post-stream", function (hooks) {
 
     sinon.stub(postStream, "refresh").resolves();
 
-    assert.strictEqual(
-      postStream.filterUpwardsPostID,
-      false,
-      "by default filter is false"
-    );
+    assert.false(postStream.filterUpwardsPostID, "by default filter is false");
 
     postStream.filterUpwards(2);
     assert.strictEqual(postStream.filterUpwardsPostID, 2, "filter is set");
 
     postStream.cancelFilter();
-    assert.strictEqual(postStream.filterUpwardsPostID, false, "filter cleared");
+    assert.false(postStream.filterUpwardsPostID, "filter cleared");
   });
 
   test("streamFilters", function (assert) {
@@ -362,7 +352,7 @@ module("Unit | Model | post-stream", function (hooks) {
       {},
       "there are no postFilters by default"
     );
-    assert.ok(postStream.hasNoFilters, "there are no filters by default");
+    assert.true(postStream.hasNoFilters, "there are no filters by default");
 
     postStream.set("filter", "summary");
     assert.deepEqual(
@@ -370,7 +360,7 @@ module("Unit | Model | post-stream", function (hooks) {
       { filter: "summary" },
       "postFilters contains the summary flag"
     );
-    assert.ok(!postStream.hasNoFilters, "now there are filters present");
+    assert.false(postStream.hasNoFilters, "now there are filters present");
 
     postStream.filterParticipant(participant.username);
     assert.deepEqual(
@@ -402,18 +392,18 @@ module("Unit | Model | post-stream", function (hooks) {
 
   test("loading", function (assert) {
     const postStream = buildStream.call(this, 1234);
-    assert.ok(!postStream.loading, "we're not loading by default");
+    assert.false(postStream.loading, "we're not loading by default");
 
     postStream.set("loadingAbove", true);
-    assert.ok(postStream.loading, "we're loading if loading above");
+    assert.true(postStream.loading, "we're loading if loading above");
 
     const postStream2 = buildStream.call(this, 1234);
     postStream2.set("loadingBelow", true);
-    assert.ok(postStream2.loading, "we're loading if loading below");
+    assert.true(postStream2.loading, "we're loading if loading below");
 
     const postStream3 = buildStream.call(this, 1234);
     postStream3.set("loadingFilter", true);
-    assert.ok(postStream3.loading, "we're loading if loading a filter");
+    assert.true(postStream3.loading, "we're loading if loading a filter");
   });
 
   test("nextWindow", function (assert) {
@@ -661,7 +651,7 @@ module("Unit | Model | post-stream", function (hooks) {
       2,
       "it updates the highest_post_number"
     );
-    assert.ok(
+    assert.true(
       postStream.loading,
       "it is loading while the post is being staged"
     );
@@ -690,7 +680,7 @@ module("Unit | Model | post-stream", function (hooks) {
       "it is assigned the probable post_number"
     );
     assert.present(stagedPost.created_at, "it is assigned a created date");
-    assert.ok(
+    assert.true(
       postStream.posts.includes(stagedPost),
       "the post is added to the stream"
     );
@@ -699,7 +689,7 @@ module("Unit | Model | post-stream", function (hooks) {
     // Undoing a created post (there was an error)
     postStream.undoPost(stagedPost);
 
-    assert.ok(!postStream.loading, "it is no longer loading");
+    assert.false(postStream.loading, "no longer loading");
     assert.strictEqual(
       topic.highest_post_number,
       1,
@@ -711,8 +701,8 @@ module("Unit | Model | post-stream", function (hooks) {
       1,
       "it retains the filteredPostsCount"
     );
-    assert.ok(
-      !postStream.posts.includes(stagedPost),
+    assert.false(
+      postStream.posts.includes(stagedPost),
       "the post is removed from the stream"
     );
     assert.strictEqual(
@@ -755,9 +745,9 @@ module("Unit | Model | post-stream", function (hooks) {
     const result = postStream.stagePost(stagedPost, user);
     assert.strictEqual(result, "staged", "it returns staged");
 
-    assert.ok(
+    assert.true(
       postStream.loading,
-      "it is loading while the post is being staged"
+      "is loading while the post is being staged"
     );
     stagedPost.setProperties({ id: 1234, raw: "different raw value" });
 
@@ -774,11 +764,11 @@ module("Unit | Model | post-stream", function (hooks) {
     );
 
     postStream.commitPost(stagedPost);
-    assert.ok(
+    assert.true(
       postStream.posts.includes(stagedPost),
       "the post is still in the stream"
     );
-    assert.ok(!postStream.loading, "it is no longer loading");
+    assert.false(postStream.loading, "it is no longer loading");
 
     assert.strictEqual(
       postStream.filteredPostsCount,
@@ -788,7 +778,7 @@ module("Unit | Model | post-stream", function (hooks) {
 
     const found = postStream.findLoadedPost(stagedPost.id);
     assert.present(found, "the post is in the identity map");
-    assert.ok(
+    assert.true(
       postStream.posts.includes(stagedPost),
       "the post is in the stream"
     );
@@ -817,10 +807,10 @@ module("Unit | Model | post-stream", function (hooks) {
       store.createRecord("post", { id: 1, post_number: 1 })
     );
     postStream.appendPost(postWithoutId);
-    assert.ok(!postStream.loadedAllPosts, "the last post is not loaded");
+    assert.false(postStream.loadedAllPosts, "the last post is not loaded");
 
     postWithoutId.set("id", 2);
-    assert.ok(
+    assert.true(
       postStream.loadedAllPosts,
       "the last post is loaded now that the post has an id"
     );
@@ -894,14 +884,16 @@ module("Unit | Model | post-stream", function (hooks) {
   test("triggerNewPostInStream for ignored posts", async function (assert) {
     const postStream = buildStream.call(this, 280, [1]);
     const store = getOwner(this).lookup("service:store");
-    User.resetCurrent(
-      store.createRecord("user", {
-        username: "eviltrout",
-        name: "eviltrout",
-        id: 321,
-        ignored_users: ["ignored-user"],
-      })
-    );
+    const user = store.createRecord("user", {
+      username: "eviltrout",
+      name: "eviltrout",
+      id: 321,
+      ignored_users: ["ignored-user"],
+    });
+    getOwner(this).unregister("service:current-user");
+    getOwner(this).register("service:current-user", user, {
+      instantiate: false,
+    });
 
     postStream.appendPost(
       store.createRecord("post", { id: 1, post_number: 1 })
@@ -986,10 +978,10 @@ module("Unit | Model | post-stream", function (hooks) {
       "we immediately have a larger placeholder window"
     );
     assert.strictEqual(testProxy.length, 8);
-    assert.ok(!!postsWithPlaceholders.nextObject(3, p3));
-    assert.ok(!!postsWithPlaceholders.objectAt(4));
-    assert.ok(postsWithPlaceholders.objectAt(3) !== p4);
-    assert.ok(testProxy.objectAt(3) !== p4);
+    assert.true(!!postsWithPlaceholders.nextObject(3, p3));
+    assert.true(!!postsWithPlaceholders.objectAt(4));
+    assert.notStrictEqual(postsWithPlaceholders.objectAt(3), p4);
+    assert.notStrictEqual(testProxy.objectAt(3), p4);
 
     await promise;
     assert.strictEqual(postsWithPlaceholders.objectAt(3), p4);

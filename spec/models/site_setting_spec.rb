@@ -171,4 +171,68 @@ RSpec.describe SiteSetting do
 
     expect(settings.test_setting).to eq(value)
   end
+
+  describe "#all_settings" do
+    it "does not include the `default_locale` setting if include_locale_setting is false" do
+      expect(SiteSetting.all_settings.map { |s| s[:setting] }).to include("default_locale")
+      expect(
+        SiteSetting.all_settings(include_locale_setting: false).map { |s| s[:setting] },
+      ).not_to include("default_locale")
+    end
+
+    it "does not include the `default_locale` setting if filter_categories are specified" do
+      expect(
+        SiteSetting.all_settings(filter_categories: ["branding"]).map { |s| s[:setting] },
+      ).not_to include("default_locale")
+    end
+
+    it "does not include the `default_locale` setting if filter_plugin is specified" do
+      expect(
+        SiteSetting.all_settings(filter_plugin: "chat").map { |s| s[:setting] },
+      ).not_to include("default_locale")
+    end
+
+    it "includes only settings for the specified category" do
+      expect(SiteSetting.all_settings(filter_categories: ["required"]).count).to eq(12)
+    end
+  end
+
+  describe "Upload" do
+    before { setup_s3 }
+
+    describe "#use_dualstack_endpoint" do
+      context "when the s3 endpoint has been set" do
+        before { SiteSetting.s3_endpoint = "https://s3clone.test.com" }
+
+        it "returns false " do
+          expect(SiteSetting.Upload.use_dualstack_endpoint).to eq(false)
+        end
+      end
+
+      context "when enable_s3_uploads is false" do
+        before { SiteSetting.enable_s3_uploads = false }
+
+        it "returns false" do
+          expect(SiteSetting.Upload.use_dualstack_endpoint).to eq(false)
+        end
+      end
+
+      context "when enable_s3_uploads is true" do
+        before do
+          SiteSetting.enable_s3_uploads = true
+          SiteSetting.s3_endpoint = ""
+        end
+
+        it "returns false if the s3_region is in China" do
+          SiteSetting.s3_region = "cn-north-1"
+          expect(SiteSetting.Upload.use_dualstack_endpoint).to eq(false)
+        end
+
+        it "returns true if the s3_region is not in China" do
+          SiteSetting.s3_region = "us-west-1"
+          expect(SiteSetting.Upload.use_dualstack_endpoint).to eq(true)
+        end
+      end
+    end
+  end
 end

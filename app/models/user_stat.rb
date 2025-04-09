@@ -3,8 +3,7 @@ class UserStat < ActiveRecord::Base
   belongs_to :user
   after_save :trigger_badges
 
-  # TODO(2021-05-13): Remove
-  self.ignored_columns = ["topic_reply_count"]
+  self.ignored_columns = ["topic_reply_count"] # TODO: Remove when 20240212034010_drop_deprecated_columns has been promoted to pre-deploy
 
   def self.ensure_consistency!(last_seen = 1.hour.ago)
     reset_bounce_scores
@@ -18,8 +17,6 @@ class UserStat < ActiveRecord::Base
   UPDATE_UNREAD_USERS_LIMIT = 10_000
 
   def self.update_first_unread_pm(last_seen, limit: UPDATE_UNREAD_USERS_LIMIT)
-    whisperers_group_ids = SiteSetting.whispers_allowed_group_ids
-
     DB.exec(
       <<~SQL,
     UPDATE user_stats us
@@ -37,11 +34,11 @@ class UserStat < ActiveRecord::Base
         INNER JOIN topics t ON t.id = tau.topic_id
         INNER JOIN users u ON u.id = tau.user_id
         LEFT JOIN topic_users tu ON t.id = tu.topic_id AND tu.user_id = tau.user_id
-        #{whisperers_group_ids.present? ? "LEFT JOIN group_users gu ON gu.group_id IN (:whisperers_group_ids) AND gu.user_id = u.id" : ""}
+        #{SiteSetting.whispers_allowed_groups_map.any? ? "LEFT JOIN group_users gu ON gu.group_id IN (:whisperers_group_ids) AND gu.user_id = u.id" : ""}
         WHERE t.deleted_at IS NULL
         AND t.archetype = :archetype
         AND tu.last_read_post_number < CASE
-                                       WHEN u.admin OR u.moderator #{whisperers_group_ids.present? ? "OR gu.id IS NOT NULL" : ""}
+                                       WHEN u.admin OR u.moderator #{SiteSetting.whispers_allowed_groups_map.any? ? "OR gu.id IS NOT NULL" : ""}
                                        THEN t.highest_staff_post_number
                                        ELSE t.highest_post_number
                                        END
@@ -71,7 +68,7 @@ class UserStat < ActiveRecord::Base
       now: UPDATE_UNREAD_MINUTES_AGO.minutes.ago,
       last_seen: last_seen,
       limit: limit,
-      whisperers_group_ids: whisperers_group_ids,
+      whisperers_group_ids: SiteSetting.whispers_allowed_groups_map,
     )
   end
 
@@ -195,7 +192,9 @@ class UserStat < ActiveRecord::Base
     SQL
   end
 
-  def self.update_distinct_badge_count(user_id = nil)
+  def self.update_distinct_badge_count(user_ids = [])
+    user_ids = user_ids.join(", ")
+
     sql = <<~SQL
       UPDATE user_stats
       SET distinct_badge_count = x.distinct_badge_count
@@ -207,30 +206,28 @@ class UserStat < ActiveRecord::Base
         GROUP BY users.id
       ) x
       WHERE user_stats.user_id = x.user_id AND user_stats.distinct_badge_count <> x.distinct_badge_count
+      #{"AND user_stats.user_id IN (#{user_ids})" if !user_ids.empty?}
     SQL
-
-    sql = sql + " AND user_stats.user_id = #{user_id.to_i}" if user_id
 
     DB.exec sql
   end
 
   def update_distinct_badge_count
-    self.class.update_distinct_badge_count(self.user_id)
+    self.class.update_distinct_badge_count([self.user_id])
   end
 
   def self.update_draft_count(user_id = nil)
     if user_id.present?
-      draft_count, has_topic_draft =
-        DB.query_single <<~SQL, user_id: user_id, new_topic: Draft::NEW_TOPIC
+      draft_count = DB.query_single(<<~SQL, user_id: user_id).first
         UPDATE user_stats
         SET draft_count = (SELECT COUNT(*) FROM drafts WHERE user_id = :user_id)
         WHERE user_id = :user_id
-        RETURNING draft_count, (SELECT 1 FROM drafts WHERE user_id = :user_id AND draft_key = :new_topic)
+        RETURNING draft_count
       SQL
 
       MessageBus.publish(
         "/user-drafts/#{user_id}",
-        { draft_count: draft_count, has_topic_draft: !!has_topic_draft },
+        { draft_count: draft_count },
         user_ids: [user_id],
       )
     else

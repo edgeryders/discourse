@@ -1,12 +1,16 @@
+import { getOwner } from "@ember/owner";
 import { capitalize } from "@ember/string";
 import { findOrResetCachedTopicList } from "discourse/lib/cached-topic-list";
-import { cleanNullQueryParams } from "discourse/lib/utilities";
 import createPMRoute from "discourse/routes/build-private-messages-route";
-import I18n from "discourse-i18n";
+import { i18n } from "discourse-i18n";
 
 export default (inboxType, filter) => {
-  return createPMRoute(inboxType, "private-messages-groups", filter).extend({
-    groupName: null,
+  return class extends createPMRoute(
+    inboxType,
+    "private-messages-groups",
+    filter
+  ) {
+    groupName = null;
 
     titleToken() {
       const groupName = this.groupName;
@@ -15,14 +19,14 @@ export default (inboxType, filter) => {
         let title = capitalize(groupName);
 
         if (filter !== "inbox") {
-          title = `${title} ${I18n.t("user.messages." + filter)}`;
+          title = `${title} ${i18n("user.messages." + filter)}`;
         }
 
-        return [title, I18n.t(`user.private_messages`)];
+        return [title, i18n(`user.private_messages`)];
       }
-    },
+    }
 
-    model(params = {}) {
+    async model(params = {}) {
       const username = this.modelFor("user").get("username_lower");
       const groupName = this.modelFor("userPrivateMessages.group").name;
 
@@ -41,22 +45,18 @@ export default (inboxType, filter) => {
         return lastTopicList;
       }
 
-      params = cleanNullQueryParams(params);
+      const topicList = await this.store.findFiltered("topicList", {
+        filter: topicListFilter,
+        params,
+      });
 
-      return this.store
-        .findFiltered("topicList", {
-          filter: topicListFilter,
-          params,
-        })
-        .then((topicList) => {
-          // andrei: we agreed that this is an anti pattern,
-          // it's better to avoid mutating a rest model like this
-          // this place we'll be refactored later
-          // see https://github.com/discourse/discourse/pull/14313#discussion_r708784704
-          topicList.set("emptyState", this.emptyState());
-          return topicList;
-        });
-    },
+      // andrei: we agreed that this is an anti pattern,
+      // it's better to avoid mutating a rest model like this
+      // this place we'll be refactored later
+      // see https://github.com/discourse/discourse/pull/14313#discussion_r708784704
+      topicList.set("emptyState", this.emptyState());
+      return topicList;
+    }
 
     afterModel(model) {
       const filters = model.get("filter").split("/");
@@ -71,33 +71,33 @@ export default (inboxType, filter) => {
       const group = this.modelFor("userPrivateMessages.group");
 
       this.setProperties({ groupName, group });
-    },
+    }
 
     setupController() {
-      this._super.apply(this, arguments);
+      super.setupController(...arguments);
 
       const userTopicsListController = this.controllerFor("user-topics-list");
       userTopicsListController.set("group", this.group);
 
-      userTopicsListController.set(
-        "pmTopicTrackingState.activeGroup",
-        this.group
+      const pmTopicTrackingState = getOwner(this).lookup(
+        "service:pm-topic-tracking-state"
       );
+      pmTopicTrackingState.activeGroup = this.group;
 
       this.controllerFor("user-private-messages").set("group", this.group);
-    },
+    }
 
     emptyState() {
       return {
-        title: I18n.t("user.no_messages_title"),
+        title: i18n("user.no_messages_title"),
         body: "",
       };
-    },
+    }
 
     dismissReadOptions() {
       return {
         group_name: this.get("groupName"),
       };
-    },
-  });
+    }
+  };
 };

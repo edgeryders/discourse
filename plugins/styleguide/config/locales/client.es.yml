@@ -34,8 +34,8 @@ es:
         icons:
           title: "Iconos"
           full_list: "Ver la lista completa de iconos de Font Awesome"
-        input_fields:
-          title: "Campos de entrada de datos"
+        forms:
+          title: "Formularios"
         buttons:
           title: "Botones"
         dropdowns:
@@ -74,6 +74,10 @@ es:
           title: "Notificaciones del tema"
         post:
           title: "Publicación"
+        post_list:
+          title: "Lista de publicaciones"
+          empty_example: "<PostList /> estado vacío"
+          populated_example: "<PostList /> estado poblado"
         topic_map:
           title: "Mapa del tema"
         site_header:

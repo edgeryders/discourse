@@ -1,5 +1,5 @@
 .chat-message-thread-indicator {
-  .c-routes-threads & {
+  .c-routes.--threads & {
     background: var(--secondary);
   }
   grid-template-areas:
@@ -21,6 +21,7 @@
     margin-top: 0.5rem;
     margin-right: 0.25rem;
   }
+
   &__replies-count {
     grid-area: replies;
   }

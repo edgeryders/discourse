@@ -9,11 +9,19 @@ module Onebox
 
       MAX_FILES = 3
 
-      matches_regexp(%r{^http(?:s)?://gist\.(?:(?:\w)+\.)?(github)\.com(?:/)?})
+      matches_domain("gist.github.com")
       always_https
+
+      def self.matches_path(path)
+        path.match?(%r{^/[\w\-]+/[a-f0-9]+(/|$)})
+      end
 
       def url
         "https://api.github.com/gists/#{match[:sha]}"
+      end
+
+      def self.priority
+        110 # overlaps with GithubRepoOnebox
       end
 
       private

@@ -220,7 +220,7 @@ RSpec.describe PrettyText do
           <aside class="quote no-group" data-username="maja" data-post="3" data-topic="#{topic.id}">
           <div class="title">
           <div class="quote-controls"></div>
-          <a href="http://test.localhost/t/#{topic.id}/3">#{I18n.t("on_another_topic")}</a></div>
+          <a href="/t/#{topic.id}/3">#{I18n.t("on_another_topic")}</a></div>
           <blockquote>
           <p>I have nothing to say.</p>
           </blockquote>
@@ -269,7 +269,7 @@ RSpec.describe PrettyText do
           <aside class="quote no-group" data-username="#{user.username}" data-post="123" data-topic="456" data-full="true">
           <div class="title">
           <div class="quote-controls"></div>
-          <img loading="lazy" alt="" width="24" height="24" src="//test.localhost/uploads/default/avatars/42d/57c/46ce7ee487/48.png" class="avatar"> #{user.username}:</div>
+          <img alt="" width="24" height="24" src="//test.localhost/uploads/default/avatars/42d/57c/46ce7ee487/48.png" class="avatar"> #{user.username}:</div>
           <blockquote>
           <p>ddd</p>
           </blockquote>
@@ -291,7 +291,7 @@ RSpec.describe PrettyText do
           <aside class="quote no-group" data-username="#{user.username}" data-post="123" data-topic="456" data-full="true">
           <div class="title">
           <div class="quote-controls"></div>
-          <img loading="lazy" alt="" width="24" height="24" src="//test.localhost/uploads/default/avatars/42d/57c/46ce7ee487/48.png" class="avatar"> #{user.username}:</div>
+          <img alt="" width="24" height="24" src="//test.localhost/uploads/default/avatars/42d/57c/46ce7ee487/48.png" class="avatar"> #{user.username}:</div>
           <blockquote>
           <p>ddd</p>
           </blockquote>
@@ -312,7 +312,7 @@ RSpec.describe PrettyText do
           <aside class="quote no-group" data-username="#{user.username}" data-post="555" data-topic="666">
           <div class="title">
           <div class="quote-controls"></div>
-          <img loading="lazy" alt="" width="24" height="24" src="//test.localhost/uploads/default/avatars/42d/57c/46ce7ee487/48.png" class="avatar"> #{user.username}:</div>
+          <img alt="" width="24" height="24" src="//test.localhost/uploads/default/avatars/42d/57c/46ce7ee487/48.png" class="avatar"> #{user.username}:</div>
           <blockquote>
           <p>ddd</p>
           </blockquote>
@@ -338,7 +338,7 @@ RSpec.describe PrettyText do
           <aside class="quote group-#{group.name}" data-username="#{user.username}" data-post="2" data-topic="#{topic.id}">
           <div class="title">
           <div class="quote-controls"></div>
-          <img loading="lazy" alt="" width="24" height="24" src="//test.localhost/uploads/default/avatars/42d/57c/46ce7ee487/48.png" class="avatar"><a href="http://test.localhost/t/this-is-a-test-topic/#{topic.id}/2">This is a test topic</a></div>
+          <img alt="" width="24" height="24" src="//test.localhost/uploads/default/avatars/42d/57c/46ce7ee487/48.png" class="avatar"><a href="http://test.localhost/t/this-is-a-test-topic/#{topic.id}/2">This is a test topic</a></div>
           <blockquote>
           <p>ddd</p>
           </blockquote>
@@ -569,13 +569,13 @@ RSpec.describe PrettyText do
           <a class="mention" href="/u/test">@test</a>,
           <a class="mention-group" href="/g/test-group">@test-group</a>,
           <a class="custom-mention" href="/custom-mention">@test-custom</a>,
+          <a class="mention" href="/u/test1">test1</a>,
           this is a test
         </p>
         HTML
 
         extracted_mentions = PrettyText.extract_mentions(Nokogiri::HTML5.fragment(cooked_html))
-        expect(extracted_mentions).to include("test", "test-group")
-        expect(extracted_mentions).not_to include("test-custom")
+        expect(extracted_mentions).to contain_exactly("test", "test-group")
 
         Plugin::Instance
           .new
@@ -923,16 +923,10 @@ RSpec.describe PrettyText do
         ).to eq("![car](http://cnn.com/a.gif)")
       end
 
-      it "should keep details if too long" do
+      it "replaces details / summary with the summary" do
         expect(
           PrettyText.excerpt("<details><summary>expand</summary><p>hello</p></details>", 6),
-        ).to match_html "<details class='disabled'><summary>expand</summary></details>"
-      end
-
-      it "doesn't disable details if short enough" do
-        expect(
-          PrettyText.excerpt("<details><summary>expand</summary><p>hello</p></details>", 60),
-        ).to match_html "<details><summary>expand</summary>hello</details>"
+        ).to match_html "▶ expand"
       end
 
       it "should remove meta information" do
@@ -1062,11 +1056,27 @@ RSpec.describe PrettyText do
     it "does not extract links from hotlinked images" do
       html = <<~HTML
         <p>
-        <a href="https://example.com">example</a>
+          <a href="https://example.com">example</a>
+        </p>
 
-        <a href="https://images.pexels.com/photos/1525041/pexels-photo-1525041.jpeg?auto=compress&amp;cs=tinysrgb&amp;w=1260&amp;h=750&amp;dpr=2" target="_blank" rel="noopener" class="onebox">
-        <img src="https://images.pexels.com/photos/1525041/pexels-photo-1525041.jpeg?auto=compress&amp;cs=tinysrgb&amp;w=1260&amp;h=750&amp;dpr=2" width="690" height="459">
-        </a>
+        <p>
+          <a href="https://images.pexels.com/photos/1525041/pexels-photo-1525041.jpeg?auto=compress&amp;cs=tinysrgb&amp;w=1260&amp;h=750&amp;dpr=2" target="_blank" rel="noopener" class="onebox">
+            <img src="https://images.pexels.com/photos/1525041/pexels-photo-1525041.jpeg?auto=compress&amp;cs=tinysrgb&amp;w=1260&amp;h=750&amp;dpr=2" width="690" height="459">
+          </a>
+        </p>
+
+        <p>
+          <div class="lightbox-wrapper">
+            <a class="lightbox" href="//localhost:3000/uploads/default/original/1X/fb7ecffe57b3bc54321635c4f810c5a9396c802c.png" data-download-href="//localhost:3000/uploads/default/fb7ecffe57b3bc54321635c4f810c5a9396c802c" title="image">
+              <img src="//localhost:3000/uploads/default/optimized/1X/fb7ecffe57b3bc54321635c4f810c5a9396c802c_2_545x500.png" alt="image" data-base62-sha1="zSPxs3tDdPBuq4dK3uJ1K3Sv8kI" width="545" height="500" data-dominant-color="F9F9F9" />
+              <div class="meta">
+                <svg class="fa d-icon d-icon-far-image svg-icon" aria-hidden="true"><use href="#far-image"></use></svg>
+                <span class="filename">image</span>
+                <span class="informations">808×740 24.8 KB</span>
+                <svg class="fa d-icon d-icon-discourse-expand svg-icon" aria-hidden="true"><use href="#discourse-expand"></use></svg>
+              </div>
+            </a>
+          </div>
         </p>
       HTML
 
@@ -1322,153 +1332,207 @@ RSpec.describe PrettyText do
   end
 
   describe "format_for_email" do
-    let(:base_url) { "http://baseurl.net" }
+    context "when (sub)domain" do
+      before { Discourse.stubs(:base_path).returns("") }
 
-    before { Discourse.stubs(:base_url).returns(base_url) }
-
-    it "does not crash" do
-      PrettyText.format_for_email(
-        '<a href="mailto:michael.brown@discourse.org?subject=Your%20post%20at%20http://try.discourse.org/t/discussion-happens-so-much/127/1000?u=supermathie">test</a>',
-        post,
-      )
-    end
-
-    it "adds base url to relative links" do
-      html =
-        "<p><a class=\"mention\" href=\"/u/wiseguy\">@wiseguy</a>, <a class=\"mention\" href=\"/u/trollol\">@trollol</a> what do you guys think? </p>"
-      output = described_class.format_for_email(html, post)
-      expect(output).to eq(
-        "<p><a class=\"mention\" href=\"#{base_url}/u/wiseguy\">@wiseguy</a>, <a class=\"mention\" href=\"#{base_url}/u/trollol\">@trollol</a> what do you guys think? </p>",
-      )
-    end
-
-    it "doesn't change external absolute links" do
-      html = "<p>Check out <a href=\"http://mywebsite.com/users/boss\">this guy</a>.</p>"
-      expect(described_class.format_for_email(html, post)).to eq(html)
-    end
-
-    it "doesn't change internal absolute links" do
-      html = "<p>Check out <a href=\"#{base_url}/users/boss\">this guy</a>.</p>"
-      expect(described_class.format_for_email(html, post)).to eq(html)
-    end
-
-    it "can tolerate invalid URLs" do
-      html = "<p>Check out <a href=\"not a real url\">this guy</a>.</p>"
-      expect { described_class.format_for_email(html, post) }.to_not raise_error
-    end
-
-    it "doesn't change mailto" do
-      html = "<p>Contact me at <a href=\"mailto:username@me.com\">this address</a>.</p>"
-      expect(PrettyText.format_for_email(html, post)).to eq(html)
-    end
-
-    it "prefers data-original-href attribute to get Vimeo iframe link and escapes it" do
-      html =
-        "<p>Check out this video – <iframe src='https://player.vimeo.com/video/329875646' data-original-href='https://vimeo.com/329875646/> <script>alert(1)</script>'></iframe>.</p>"
-      expect(PrettyText.format_for_email(html, post)).to match(
-        Regexp.escape("https://vimeo.com/329875646/%3E%20%3Cscript%3Ealert(1)%3C/script%3E"),
-      )
-    end
-
-    it "creates a valid URL when data-original-href is missing from Vimeo link" do
-      html =
-        '<iframe src="https://player.vimeo.com/video/508864124?h=fcbbcc92fa" width="640" height="360" frameborder="0" allow="autoplay; fullscreen; picture-in-picture" allowfullscreen></iframe>'
-      expect(PrettyText.format_for_email(html, post)).to match(
-        "https://vimeo.com/508864124/fcbbcc92fa",
-      )
-    end
-
-    describe "#convert_vimeo_iframes" do
-      it "converts <iframe> to <a>" do
+      it "does not crash" do
         html = <<~HTML
-          <p>This is a Vimeo link:</p>
-          <iframe width="640" height="360" src="https://player.vimeo.com/video/1" data-original-href="https://vimeo.com/1" frameborder="0" allowfullscreen="" seamless="seamless" sandbox="allow-same-origin allow-scripts allow-forms allow-popups allow-popups-to-escape-sandbox allow-presentation"></iframe>
+          <a href="mailto:michael.brown@discourse.org?subject=Your%20post%20at%20http://try.discourse.org/t/discussion-happens-so-much/127/1000?u=supermathie">test</a>
         HTML
 
-        md = PrettyText.format_for_email(html, post)
-
-        expect(md).not_to include("<iframe")
-        expect(md).to match_html(<<~HTML)
-          <p>This is a Vimeo link:</p>
-          <p><a href="https://vimeo.com/1">https://vimeo.com/1</a></p>
+        expect(described_class.format_for_email(html, post)).to eq <<~HTML
+          <a href="mailto:michael.brown@discourse.org?subject=Your%20post%20at%20http://try.discourse.org/t/discussion-happens-so-much/127/1000?u=supermathie">test</a>
         HTML
+      end
+
+      it "adds base url to relative links" do
+        html = <<~HTML
+          <p><a class="mention" href="/u/wiseguy">@wiseguy</a>, <a class="mention" href="/u/trollol">@trollol</a> what do you guys think?</p>
+        HTML
+
+        expect(described_class.format_for_email(html, post)).to eq <<~HTML
+          <p><a class="mention" href="#{Discourse.base_url}/u/wiseguy">@wiseguy</a>, <a class="mention" href="#{Discourse.base_url}/u/trollol">@trollol</a> what do you guys think?</p>
+        HTML
+      end
+
+      it "doesn't change external absolute links" do
+        html = <<~HTML
+          <p>Check out <a href="http://mywebsite.com/users/boss">this guy</a>.</p>
+        HTML
+
+        expect(described_class.format_for_email(html, post)).to eq(html)
+      end
+
+      it "doesn't change internal absolute links" do
+        html = <<~HTML
+          <p>Check out <a href="#{Discourse.base_url}/users/boss">this guy</a>.</p>
+        HTML
+
+        expect(described_class.format_for_email(html, post)).to eq(html)
+      end
+
+      it "can tolerate invalid URLs" do
+        html = <<~HTML
+          <p>Check out <a href="not a real url">this guy</a>.</p>
+        HTML
+
+        expect(described_class.format_for_email(html, post)).to eq(html)
+      end
+
+      it "doesn't change mailto" do
+        html = <<~HTML
+          <p>Contact me at <a href="mailto:username@me.com">this address</a>.</p>
+        HTML
+
+        expect(described_class.format_for_email(html, post)).to eq(html)
+      end
+
+      it "prefers data-original-href attribute to get Vimeo iframe link and escapes it" do
+        html = <<~HTML
+          <p>Check out this video – <iframe src='https://player.vimeo.com/video/329875646' data-original-href='https://vimeo.com/329875646/> <script>alert(1)</script>'></iframe>.</p>
+        HTML
+
+        expect(described_class.format_for_email(html, post)).to match(
+          Regexp.escape("https://vimeo.com/329875646/%3E%20%3Cscript%3Ealert(1)%3C/script%3E"),
+        )
+      end
+
+      it "creates a valid URL when data-original-href is missing from Vimeo link" do
+        html = <<~HTML
+          <iframe src="https://player.vimeo.com/video/508864124?h=fcbbcc92fa" width="640" height="360" frameborder="0" allow="autoplay; fullscreen; picture-in-picture" allowfullscreen></iframe>
+        HTML
+
+        expect(described_class.format_for_email(html, post)).to match(
+          "https://vimeo.com/508864124/fcbbcc92fa",
+        )
+      end
+
+      describe "#convert_vimeo_iframes" do
+        it "converts <iframe> to <a>" do
+          html = <<~HTML
+            <p>This is a Vimeo link:</p>
+            <iframe width="640" height="360" src="https://player.vimeo.com/video/1" data-original-href="https://vimeo.com/1" frameborder="0" allowfullscreen="" seamless="seamless" sandbox="allow-same-origin allow-scripts allow-forms allow-popups allow-popups-to-escape-sandbox allow-presentation"></iframe>
+          HTML
+
+          md = described_class.format_for_email(html, post)
+
+          expect(md).not_to include("<iframe")
+          expect(md).to match_html(<<~HTML)
+            <p>This is a Vimeo link:</p>
+            <p><a href="https://vimeo.com/1">https://vimeo.com/1</a></p>
+          HTML
+        end
+      end
+
+      describe "#strip_secure_uploads" do
+        before do
+          setup_s3
+          SiteSetting.s3_cdn_url = "https://s3.cdn.com"
+          SiteSetting.secure_uploads = true
+          SiteSetting.login_required = true
+        end
+
+        it "replaces secure video content" do
+          html = <<~HTML
+            <video width="100%" height="100%" controls="">
+              <source src="#{Discourse.base_url}/secure-uploads/original/1X/some-video.mp4">
+                <a href="#{Discourse.base_url}/secure-uploads/original/1X/some-video.mp4">Video label</a>
+              </source>
+            </video>
+          HTML
+
+          md = described_class.format_for_email(html, post)
+
+          expect(md).not_to include("<video")
+          expect(md.to_s).to match(I18n.t("emails.secure_uploads_placeholder"))
+          expect(md.to_s).not_to match(SiteSetting.Upload.s3_cdn_url)
+        end
+
+        it "replaces secure audio content" do
+          html = <<~HTML
+            <audio controls>
+              <source src="#{Discourse.base_url}/secure-uploads/original/1X/some-audio.mp3">
+                <a href="#{Discourse.base_url}/secure-uploads/original/1X/some-audio.mp3">Audio label</a>
+              </source>
+            </audio>
+          HTML
+
+          md = described_class.format_for_email(html, post)
+
+          expect(md).not_to include("<audio")
+          expect(md.to_s).to match(I18n.t("emails.secure_uploads_placeholder"))
+          expect(md.to_s).not_to match(SiteSetting.Upload.s3_cdn_url)
+        end
+
+        it "replaces secure uploads within a link with a placeholder, keeping the url in an attribute" do
+          url = "#{Discourse.base_url}\/secure-uploads/original/1X/testimage.png"
+          html = <<~HTML
+            <a href="#{url}"><img src="/secure-uploads/original/1X/testimage.png"></a>
+          HTML
+
+          md = described_class.format_for_email(html, post)
+
+          expect(md).not_to include("<img")
+          expect(md).to include("Redacted")
+          expect(md).to include("data-stripped-secure-upload=\"#{url}\"")
+        end
+
+        it "does not create nested redactions from double processing because of the view media link" do
+          url = "#{Discourse.base_url}\/secure-uploads/original/1X/testimage.png"
+          html = <<~HTML
+            <a href="#{url}"><img src="/secure-uploads/original/1X/testimage.png"></a>
+          HTML
+
+          md = described_class.format_for_email(html, post)
+
+          expect(md.scan(/stripped-secure-view-upload/).length).to eq(1)
+          expect(md.scan(/Redacted/).length).to eq(1)
+        end
+
+        it "replaces secure images with a placeholder, keeping the url in an attribute" do
+          url = "/secure-uploads/original/1X/testimage.png"
+          html = <<~HTML
+            <img src="#{url}" width="20" height="20">
+          HTML
+
+          md = described_class.format_for_email(html, post)
+
+          expect(md).not_to include("<img")
+          expect(md).to include("Redacted")
+          expect(md).to include("data-stripped-secure-upload=\"#{url}\"")
+          expect(md).to include("data-width=\"20\"")
+          expect(md).to include("data-height=\"20\"")
+        end
       end
     end
 
-    describe "#strip_secure_uploads" do
-      before do
-        setup_s3
-        SiteSetting.s3_cdn_url = "https://s3.cdn.com"
-        SiteSetting.secure_uploads = true
-        SiteSetting.login_required = true
-      end
+    context "when subfolder" do
+      before { Discourse.stubs(:base_path).returns("/forum") }
 
-      it "replaces secure video content" do
+      it "adds base url to relative links" do
         html = <<~HTML
-          <video width="100%" height="100%" controls="">
-            <source src="#{base_url}/secure-uploads/original/1X/some-video.mp4">
-              <a href="#{base_url}/secure-uploads/original/1X/some-video.mp4">Video label</a>
-            </source>
-          </video>
+          <p><a class="mention" href="/forum/u/wiseguy">@wiseguy</a>, <a class="mention" href="/forum/u/trollol">@trollol</a> what do you guys think?</p>
         HTML
 
-        md = PrettyText.format_for_email(html, post)
-
-        expect(md).not_to include("<video")
-        expect(md.to_s).to match(I18n.t("emails.secure_uploads_placeholder"))
-        expect(md.to_s).not_to match(SiteSetting.Upload.s3_cdn_url)
+        expect(described_class.format_for_email(html, post)).to eq <<~HTML
+          <p><a class="mention" href="#{Discourse.base_url}/u/wiseguy">@wiseguy</a>, <a class="mention" href="#{Discourse.base_url}/u/trollol">@trollol</a> what do you guys think?</p>
+        HTML
       end
 
-      it "replaces secure audio content" do
+      it "doesn't change external absolute links" do
         html = <<~HTML
-          <audio controls>
-            <source src="#{base_url}/secure-uploads/original/1X/some-audio.mp3">
-              <a href="#{base_url}/secure-uploads/original/1X/some-audio.mp3">Audio label</a>
-            </source>
-          </audio>
+          <p>Check out <a href="https://mywebsite.com/users/boss">this guy</a>.</p>
         HTML
 
-        md = PrettyText.format_for_email(html, post)
-
-        expect(md).not_to include("<audio")
-        expect(md.to_s).to match(I18n.t("emails.secure_uploads_placeholder"))
-        expect(md.to_s).not_to match(SiteSetting.Upload.s3_cdn_url)
+        expect(described_class.format_for_email(html, post)).to eq(html)
       end
 
-      it "replaces secure uploads within a link with a placeholder, keeping the url in an attribute" do
-        url = "#{Discourse.base_url}\/secure-uploads/original/1X/testimage.png"
+      it "doesn't change internal absolute links" do
         html = <<~HTML
-        <a href=\"#{url}\"><img src=\"/secure-uploads/original/1X/testimage.png\"></a>
+          <p>Check out <a href="#{Discourse.base_url}/users/boss">this guy</a>.</p>
         HTML
-        md = PrettyText.format_for_email(html, post)
-        expect(md).not_to include("<img")
-        expect(md).to include("Redacted")
-        expect(md).to include("data-stripped-secure-upload=\"#{url}\"")
-      end
 
-      it "does not create nested redactions from double processing because of the view media link" do
-        url = "#{Discourse.base_url}\/secure-uploads/original/1X/testimage.png"
-        html = <<~HTML
-        <a href=\"#{url}\"><img src=\"/secure-uploads/original/1X/testimage.png\"></a>
-        HTML
-        md = PrettyText.format_for_email(html, post)
-        md = PrettyText.format_for_email(md, post)
-
-        expect(md.scan(/stripped-secure-view-upload/).length).to eq(1)
-        expect(md.scan(/Redacted/).length).to eq(1)
-      end
-
-      it "replaces secure images with a placeholder, keeping the url in an attribute" do
-        url = "/secure-uploads/original/1X/testimage.png"
-        html = <<~HTML
-        <img src=\"#{url}\" width=\"20\" height=\"20\">
-        HTML
-        md = PrettyText.format_for_email(html, post)
-        expect(md).not_to include("<img")
-        expect(md).to include("Redacted")
-        expect(md).to include("data-stripped-secure-upload=\"#{url}\"")
-        expect(md).to include("data-width=\"20\"")
-        expect(md).to include("data-height=\"20\"")
+        expect(described_class.format_for_email(html, post)).to eq(html)
       end
     end
   end
@@ -1954,6 +2018,39 @@ HTML
   describe "watched words - replace & link" do
     after { Discourse.redis.flushdb }
 
+    # Makes sure that mini_racer/libv8-node env doesn't regress
+    it "finishes in a timely matter" do
+      sql = 1500.times.map { |i| <<~SQL }.join
+        INSERT INTO watched_words
+        (created_at, updated_at, word, action, replacement)
+        VALUES
+        (
+          :now,
+          :now,
+          'word_#{i}',
+          :action,
+          'replacement_#{i}'
+        );
+      SQL
+
+      DB.exec(sql, now: Time.current, action: WatchedWord.actions[:replace])
+
+      Fabricate(
+        :watched_word,
+        action: WatchedWord.actions[:replace],
+        word: "nope",
+        replacement: "yep",
+      )
+
+      # Due to a bug in node 18.16 and lower this takes about 11s.
+      # On node 18.19 and newer it takes about 250ms
+      expect do
+        Timeout.timeout(3) do
+          expect(PrettyText.cook("abc nope def")).to match_html("<p>abc yep def</p>")
+        end
+      end.not_to raise_error
+    end
+
     it "replaces words with other words" do
       Fabricate(
         :watched_word,
@@ -2426,17 +2523,17 @@ HTML
   end
 
   it "can properly allowlist iframes" do
-    SiteSetting.allowed_iframes = "https://bob.com/a|http://silly.com?EMBED="
+    SiteSetting.allowed_iframes = "https://bob.com/a|http://silly.com/?EMBED="
     raw = <<~HTML
       <iframe src='https://www.google.com/maps/Embed?testing'></iframe>
       <iframe src='https://bob.com/a?testing'></iframe>
-      <iframe src='HTTP://SILLY.COM?EMBED=111'></iframe>
+      <iframe src='HTTP://SILLY.COM/?EMBED=111'></iframe>
     HTML
 
     # we require explicit HTTPS here
     html = <<~HTML
       <iframe src="https://bob.com/a?testing"></iframe>
-      <iframe src="HTTP://SILLY.COM?EMBED=111"></iframe>
+      <iframe src="HTTP://SILLY.COM/?EMBED=111"></iframe>
     HTML
 
     cooked = PrettyText.cook(raw).strip
@@ -2546,7 +2643,7 @@ HTML
       cooked = PrettyText.cook("Hello [wrap=toc id=1]taco[/wrap] world")
 
       html = <<~HTML
-        <p>Hello <span class="d-wrap" data-wrap="toc" data-id="1">taco</span> world</p>
+        <p>Hello <span class="d-wrap" data-id="1" data-wrap="toc">taco</span> world</p>
       HTML
 
       expect(cooked).to eq(html.strip)
@@ -2557,7 +2654,7 @@ HTML
       SiteSetting.enable_markdown_typographer = true
 
       md = <<~MD
-        [wrap=toc id="a” aa='b"' bb="f'"]
+        [wrap=toc id=“a” aa='b"' bb="f'"]
         taco1
         [/wrap]
       MD
@@ -2565,7 +2662,7 @@ HTML
       cooked = PrettyText.cook(md)
 
       html = <<~HTML
-        <div class="d-wrap" data-wrap="toc" data-id="a" data-aa="b&amp;quot;" data-bb="f'">
+        <div class="d-wrap" data-aa="b&amp;quot;" data-bb="f'" data-id="a" data-wrap="toc">
         <p>taco1</p>
         </div>
       HTML
@@ -2592,7 +2689,7 @@ HTML
       cooked = PrettyText.cook("[wrap=toc name=\"single quote's\" id='1\"2']taco[/wrap]")
 
       html = <<~HTML
-        <div class="d-wrap" data-wrap="toc" data-name="single quote's" data-id="1&amp;quot;2">
+        <div class="d-wrap" data-id="1&amp;quot;2" data-name="single quote's" data-wrap="toc">
         <p>taco</p>
         </div>
       HTML
@@ -2604,7 +2701,7 @@ HTML
       cooked = PrettyText.cook('[wrap=toc foo="<script>console.log(1)</script>"]taco[/wrap]')
 
       html = <<~HTML
-        <div class="d-wrap" data-wrap="toc" data-foo="&amp;lt;script&amp;gt;console.log(1)&amp;lt;/script&amp;gt;">
+        <div class="d-wrap" data-foo="&amp;lt;script&amp;gt;console.log(1)&amp;lt;/script&amp;gt;" data-wrap="toc">
         <p>taco</p>
         </div>
       HTML
@@ -2616,9 +2713,7 @@ HTML
       cooked = PrettyText.cook('[wrap=toc fo@"èk-"!io=bar]taco[/wrap]')
 
       html = <<~HTML
-        <div class=\"d-wrap\" data-wrap=\"toc\" data-io=\"bar\">
-        <p>taco</p>
-        </div>
+        <p>[wrap=toc fo@"èk-"!io=bar]taco[/wrap]</p>
       HTML
 
       expect(cooked).to eq(html.strip)
@@ -2690,7 +2785,47 @@ HTML
       .with("[PrettyText] Deprecation notice: Some deprecation message")
 
     PrettyText.v8.eval <<~JS
-      require("discourse-common/lib/deprecated").default("Some deprecation message");
+      require("discourse/lib/deprecated").default("Some deprecation message");
     JS
+  end
+
+  describe "video thumbnails" do
+    before do
+      SiteSetting.authorized_extensions = "mp4|png"
+      @video_upload = Fabricate(:upload, original_filename: "video.mp4", extension: "mp4")
+    end
+
+    after { Upload.where(original_filename: ["404.png", "#{@video_upload.sha1}.png"]).destroy_all }
+
+    it "does not link to a thumbnail image if the video source is missing" do
+      Fabricate(:upload, original_filename: "404.png", extension: "png")
+
+      html = <<~HTML
+          <p></p><div class="video-placeholder-container" data-video-src="/404"></div><p></p>
+        HTML
+      doc = Nokogiri::HTML5.fragment(html)
+      described_class.add_video_placeholder_image(doc)
+
+      expect(doc.to_html).to eq(html)
+    end
+
+    it "links to a thumbnail image if the video source is valid" do
+      thumbnail =
+        Fabricate(:upload, original_filename: "#{@video_upload.sha1}.png", extension: "png")
+
+      html = <<~HTML
+        <p></p><div class="video-placeholder-container" data-video-src="#{@video_upload.url}"></div><p></p>
+      HTML
+      doc = Nokogiri::HTML5.fragment(html)
+      described_class.add_video_placeholder_image(doc)
+
+      video_base62_sha1 = "#{Upload.base62_sha1(@video_upload.sha1)}.#{@video_upload.extension}"
+
+      html_with_thumbnail = <<~HTML
+        <p></p><div class="video-placeholder-container" data-video-src="#{@video_upload.url}" data-thumbnail-src="http://test.localhost#{thumbnail.url}" data-video-base62-sha1="#{video_base62_sha1}"></div><p></p>
+      HTML
+
+      expect(doc.to_html).to eq(html_with_thumbnail)
+    end
   end
 end

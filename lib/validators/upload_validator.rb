@@ -78,7 +78,7 @@ class UploadValidator < ActiveModel::Validator
       .gsub(/[\s\.]+/, "")
       .downcase
       .split("|")
-      .each { |extension| extensions << extension unless extension.include?("*") }
+      .each { |extension| extensions << extension if extension.exclude?("*") }
 
     extensions
   end
@@ -146,7 +146,14 @@ class UploadValidator < ActiveModel::Validator
       if upload.for_export
         SiteSetting.max_export_file_size_kb
       else
-        SiteSetting.get("max_#{type}_size_kb")
+        if upload.user&.id == Discourse::SYSTEM_USER_ID && type == "attachment"
+          [
+            SiteSetting.get("system_user_max_attachment_size_kb"),
+            SiteSetting.get("max_attachment_size_kb"),
+          ].max
+        else
+          SiteSetting.get("max_#{type}_size_kb")
+        end
       end
 
     max_size_bytes = max_size_kb.kilobytes

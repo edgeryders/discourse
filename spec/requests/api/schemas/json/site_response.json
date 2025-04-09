@@ -74,6 +74,9 @@
         "liked_consolidated": {
           "type": "integer"
         },
+        "linked_consolidated": {
+          "type": "integer"
+        },
         "post_approved": {
           "type": "integer"
         },
@@ -116,6 +119,9 @@
         "chat_quoted": {
           "type": "integer"
         },
+        "chat_watched_thread": {
+          "type": "integer"
+        },
         "assigned": {
           "type": "integer"
         },
@@ -156,6 +162,7 @@
         "watching_first_post",
         "topic_reminder",
         "liked_consolidated",
+        "linked_consolidated",
         "post_approved",
         "code_review_commit_approved",
         "membership_request_accepted",
@@ -241,9 +248,6 @@
         },
         "suggested_topics": {
           "type": "integer"
-        },
-        "admin_guide": {
-          "type": "integer"
         }
       },
       "required": [
@@ -251,8 +255,7 @@
         "topic_timeline",
         "post_menu",
         "topic_notification_levels",
-        "suggested_topics",
-        "admin_guide"
+        "suggested_topics"
       ]
     },
     "groups": {
@@ -351,7 +354,22 @@
             "is_flag": {
               "type": "boolean"
             },
-            "is_custom_flag": {
+            "require_message": {
+              "type": "boolean"
+            },
+            "enabled": {
+              "type": "boolean"
+            },
+            "applies_to": {
+              "type": "array"
+            },
+            "is_used": {
+              "type": "boolean"
+            },
+            "position": {
+              "type": "integer"
+            },
+            "auto_action_type": {
               "type": "boolean"
             }
           },
@@ -362,7 +380,11 @@
             "description",
             "short_description",
             "is_flag",
-            "is_custom_flag"
+            "require_message",
+            "enabled",
+            "applies_to",
+            "is_used",
+            "auto_action_type"
           ]
         }
     },
@@ -391,7 +413,22 @@
             "is_flag": {
               "type": "boolean"
             },
-            "is_custom_flag": {
+            "require_message": {
+              "type": "boolean"
+            },
+            "enabled": {
+              "type": "boolean"
+            },
+            "applies_to": {
+              "type": "array"
+            },
+            "is_used": {
+              "type": "boolean"
+            },
+            "position": {
+              "type": "integer"
+            },
+            "auto_action_type": {
               "type": "boolean"
             }
           },
@@ -402,7 +439,11 @@
             "description",
             "short_description",
             "is_flag",
-            "is_custom_flag"
+            "require_message",
+            "enabled",
+            "applies_to",
+            "is_used",
+            "auto_action_type"
           ]
         }
     },
@@ -603,6 +644,12 @@
             "has_children": {
               "type": "boolean"
             },
+            "subcategory_count": {
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
             "sort_order": {
               "type": [
                 "string",
@@ -740,6 +787,7 @@
             "notification_level",
             "topic_template",
             "has_children",
+            "subcategory_count",
             "sort_order",
             "sort_ascending",
             "show_subcategory_list",
@@ -808,8 +856,17 @@
     "denied_emojis" : {
       "type": "array"
     },
+    "valid_flag_applies_to_types" : {
+      "type": "array"
+    },
     "navigation_menu_site_top_tags": {
       "type": "array"
+    },
+    "full_name_required_for_signup": {
+      "type": "boolean"
+    },
+    "full_name_visible_in_signup": {
+      "type": "boolean"
     }
   },
   "required": [
@@ -842,6 +899,8 @@
     "categories",
     "archetypes",
     "user_fields",
-    "auth_providers"
+    "auth_providers",
+    "full_name_required_for_signup",
+    "full_name_visible_in_signup"
   ]
 }

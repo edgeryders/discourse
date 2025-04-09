@@ -1,11 +1,12 @@
 .chat-channel-icon {
   flex-shrink: 0;
+
   &.--users-count {
     display: flex;
     justify-content: center;
     align-items: center;
-    width: 22px;
-    height: 22px;
+    width: 24px;
+    height: 24px;
     border-radius: 50%;
     background: rgba(var(--primary-rgb), 0.1);
     box-sizing: border-box;
@@ -19,15 +20,19 @@
     }
   }
 
-  &.--avatar {
-    .chat-user-avatar {
-      .avatar {
-        .chat-channel-row & {
-          width: var(--channel-list-avatar-size);
-          height: var(--channel-list-avatar-size);
-        }
+  .chat-user-avatar {
+    .avatar {
+      .chat-channel-row & {
+        width: var(--channel-list-avatar-size);
+        height: var(--channel-list-avatar-size);
       }
     }
+  }
+
+  &.--custom-icon img {
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
   }
 
   &.--category-badge {

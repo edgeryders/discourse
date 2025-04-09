@@ -109,7 +109,18 @@ class TopicCreator
     end
 
     topic.reload.topic_allowed_groups.each do |topic_allowed_group|
-      topic_allowed_group.group.set_message_default_notification_levels!(topic)
+      group = topic_allowed_group.group
+
+      begin
+        group.set_message_default_notification_levels!(topic)
+      rescue Group::GroupPmUserLimitExceededError => e
+        rollback_with!(
+          topic,
+          :too_large_group,
+          group_name: group.name,
+          limit: SiteSetting.group_pm_user_limit,
+        )
+      end
     end
   end
 
@@ -181,10 +192,17 @@ class TopicCreator
 
   def setup_tags(topic)
     if @opts[:tags].present?
+      # We can try the full tagging workflow which does validations and other
+      # things like replacing synonyms first, but if this fails then we can try
+      # the simple workflow if validations are skipped.
       valid_tags = DiscourseTagging.tag_topic_by_names(topic, @guardian, @opts[:tags])
-      unless valid_tags
-        topic.errors.add(:base, :unable_to_tag)
-        rollback_from_errors!(topic)
+      if !valid_tags
+        if @opts[:skip_validations]
+          DiscourseTagging.add_or_create_tags_by_name(topic, @opts[:tags])
+        else
+          topic.errors.add(:base, :unable_to_tag)
+          rollback_from_errors!(topic)
+        end
       end
     end
 
@@ -202,7 +220,7 @@ class TopicCreator
   end
 
   def setup_auto_close_time(topic)
-    return unless @opts[:auto_close_time].present?
+    return if @opts[:auto_close_time].blank?
     return unless @guardian.can_moderate?(topic)
     topic.set_auto_close(@opts[:auto_close_time], by_user: @user)
   end
@@ -211,8 +229,8 @@ class TopicCreator
     return unless @opts[:archetype] == Archetype.private_message
     topic.subtype = TopicSubtype.user_to_user unless topic.subtype
 
-    unless @opts[:target_usernames].present? || @opts[:target_emails].present? ||
-             @opts[:target_group_names].present?
+    if @opts[:target_usernames].blank? && @opts[:target_emails].blank? &&
+         @opts[:target_group_names].blank?
       rollback_with!(topic, :no_user_selected)
     end
 

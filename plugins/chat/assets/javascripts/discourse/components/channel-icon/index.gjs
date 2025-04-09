@@ -1,6 +1,6 @@
 import Component from "@glimmer/component";
 import { htmlSafe } from "@ember/template";
-import icon from "discourse-common/helpers/d-icon";
+import icon from "discourse/helpers/d-icon";
 import ChatUserAvatar from "discourse/plugins/chat/discourse/components/chat-user-avatar";
 
 export default class ChatChannelIcon extends Component {
@@ -19,10 +19,18 @@ export default class ChatChannelIcon extends Component {
     return htmlSafe(`color: #${this.args.channel.chatable.color}`);
   }
 
+  get isThreadsList() {
+    return this.args.thread ?? false;
+  }
+
   <template>
     {{#if @channel.isDirectMessageChannel}}
       <div class="chat-channel-icon">
-        {{#if this.groupDirectMessage}}
+        {{#if @channel.iconUploadUrl}}
+          <span class="chat-channel-icon --avatar --custom-icon">
+            <img src={{@channel.iconUploadUrl}} />
+          </span>
+        {{else if this.groupDirectMessage}}
           <span class="chat-channel-icon --users-count">
             {{@channel.membershipsCount}}
           </span>
@@ -43,6 +51,19 @@ export default class ChatChannelIcon extends Component {
             {{icon "lock" class="chat-channel-icon__restricted-category-icon"}}
           {{/if}}
         </span>
+      </div>
+    {{else if this.isThreadsList}}
+      <div class="chat-channel-icon">
+        <div class="chat-channel-icon --avatar">
+          <ChatUserAvatar
+            @user={{@thread.preview.lastReplyUser}}
+            @interactive={{true}}
+            @showPresence={{false}}
+          />
+          <div class="avatar-flair --threads">
+            {{icon "discourse-threads"}}
+          </div>
+        </div>
       </div>
     {{/if}}
   </template>

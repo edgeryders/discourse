@@ -1,20 +1,32 @@
 # frozen_string_literal: true
 
 class UserOption < ActiveRecord::Base
+  HOMEPAGES = {
+    # -1 => reserved for "custom homepage"
+    1 => "latest",
+    2 => "categories",
+    3 => "unread",
+    4 => "new",
+    5 => "top",
+    6 => "bookmarks",
+    7 => "unseen",
+    8 => "hot",
+  }
+
   self.ignored_columns = [
-    "disable_jump_reply", # Remove once 20210706091905 is promoted from post_deploy to regular migration
-    "sidebar_list_destination", # TODO(osama): Remove in January 2024
+    "sidebar_list_destination", # TODO: Remove when 20240212034010_drop_deprecated_columns has been promoted to pre-deploy
   ]
 
   self.primary_key = :user_id
   belongs_to :user
   before_create :set_defaults
 
+  before_save :update_hide_profile_and_presence
   after_save :update_tracked_topics
 
   scope :human_users, -> { where("user_id > 0") }
 
-  enum default_calendar: { none_selected: 0, ics: 1, google: 2 }, _scopes: false
+  enum :default_calendar, { none_selected: 0, ics: 1, google: 2 }, scopes: false
 
   def self.ensure_consistency!
     sql = <<~SQL
@@ -62,6 +74,7 @@ class UserOption < ActiveRecord::Base
     self.email_in_reply_to = SiteSetting.default_email_in_reply_to
 
     self.enable_quoting = SiteSetting.default_other_enable_quoting
+    self.enable_smart_lists = SiteSetting.default_other_enable_smart_lists
     self.enable_defer = SiteSetting.default_other_enable_defer
     self.external_links_in_new_tab = SiteSetting.default_other_external_links_in_new_tab
     self.dynamic_favicon = SiteSetting.default_other_dynamic_favicon
@@ -74,21 +87,16 @@ class UserOption < ActiveRecord::Base
 
     self.like_notification_frequency = SiteSetting.default_other_like_notification_frequency
 
-    if SiteSetting.default_email_digest_frequency.to_i <= 0
-      self.email_digests = false
-    else
-      self.email_digests = true
-    end
-
-    self.digest_after_minutes ||= SiteSetting.default_email_digest_frequency.to_i
-
+    self.email_digests = SiteSetting.default_email_digest_frequency.to_i > 0
+    self.digest_after_minutes = SiteSetting.default_email_digest_frequency.to_i
     self.include_tl0_in_digests = SiteSetting.default_include_tl0_in_digests
 
     self.text_size = SiteSetting.default_text_size
 
     self.title_count_mode = SiteSetting.default_title_count_mode
 
-    self.hide_profile_and_presence = SiteSetting.default_hide_profile_and_presence
+    self.hide_profile = SiteSetting.default_hide_profile
+    self.hide_presence = SiteSetting.default_hide_presence
     self.sidebar_link_to_filtered_list = SiteSetting.default_sidebar_link_to_filtered_list
     self.sidebar_show_count_of_new_items = SiteSetting.default_sidebar_show_count_of_new_items
 
@@ -96,8 +104,7 @@ class UserOption < ActiveRecord::Base
   end
 
   def mailing_list_mode
-    return false if SiteSetting.disable_mailing_list_mode
-    super
+    SiteSetting.disable_mailing_list_mode ? false : super
   end
 
   def redirected_to_top_yet?
@@ -170,30 +177,9 @@ class UserOption < ActiveRecord::Base
   end
 
   def homepage
-    case homepage_id
-    when 1
-      "latest"
-    when 2
-      "categories"
-    when 3
-      "unread"
-    when 4
-      "new"
-    when 5
-      "top"
-    when 6
-      "bookmarks"
-    when 7
-      "unseen"
-    when 8
-      if SiteSetting.experimental_hot_topics
-        "hot"
-      else
-        SiteSetting.homepage
-      end
-    else
-      SiteSetting.homepage
-    end
+    return HOMEPAGES[homepage_id] if HOMEPAGES.keys.include?(homepage_id)
+
+    "hot" if homepage_id == 8 && SiteSetting.top_menu_map.include?("hot")
   end
 
   def text_size
@@ -239,6 +225,15 @@ class UserOption < ActiveRecord::Base
 
   private
 
+  def update_hide_profile_and_presence
+    if hide_profile_changed? || hide_presence_changed?
+      self.hide_profile_and_presence = hide_profile || hide_presence
+    elsif hide_profile_and_presence_changed?
+      self.hide_profile = hide_profile_and_presence
+      self.hide_presence = hide_profile_and_presence
+    end
+  end
+
   def update_tracked_topics
     return unless saved_change_to_auto_track_topics_after_msecs?
     TrackedTopicsUpdater.new(id, auto_track_topics_after_msecs).call
@@ -271,6 +266,8 @@ end
 #  homepage_id                          :integer
 #  theme_ids                            :integer          default([]), not null, is an Array
 #  hide_profile_and_presence            :boolean          default(FALSE), not null
+#  hide_profile                         :boolean          default(FALSE), not null
+#  hide_presence                        :boolean          default(FALSE), not null
 #  text_size_key                        :integer          default(0), not null
 #  text_size_seq                        :integer          default(0), not null
 #  email_level                          :integer          default(1), not null
@@ -299,6 +296,10 @@ end
 #  sidebar_show_count_of_new_items      :boolean          default(FALSE), not null
 #  watched_precedence_over_muted        :boolean
 #  chat_separate_sidebar_mode           :integer          default(0), not null
+#  chat_send_shortcut                   :integer          default(0), not null
+#  topics_unread_when_closed            :boolean          default(TRUE), not null
+#  show_thread_title_prompts            :boolean          default(TRUE), not null
+#  enable_smart_lists                   :boolean          default(TRUE), not null
 #
 # Indexes
 #

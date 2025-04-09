@@ -1,6 +1,10 @@
 # frozen_string_literal: true
 
 class DiscoursePoll::Poll
+  RANKED_CHOICE = "ranked_choice"
+  MULTIPLE = "multiple"
+  REGULAR = "regular"
+
   def self.vote(user, post_id, poll_name, options)
     poll_id = nil
 
@@ -9,7 +13,19 @@ class DiscoursePoll::Poll
         poll_id = poll.id
         # remove options that aren't available in the poll
         available_options = poll.poll_options.map { |o| o.digest }.to_set
-        options.select! { |o| available_options.include?(o) }
+
+        if poll.ranked_choice?
+          options = options.values.map { |hash| hash }
+          options.select! { |o| available_options.include?(o[:digest]) }
+
+          if options.all? { |o| o[:rank] == "0" }
+            raise DiscoursePoll::Error.new I18n.t(
+                                             "poll.requires_that_at_least_one_option_is_ranked",
+                                           )
+          end
+        else
+          options.select! { |o| available_options.include?(o) }
+        end
 
         if options.empty?
           raise DiscoursePoll::Error.new I18n.t("poll.requires_at_least_1_valid_option")
@@ -19,7 +35,11 @@ class DiscoursePoll::Poll
           poll
             .poll_options
             .each_with_object([]) do |option, obj|
-              obj << option.id if options.include?(option.digest)
+              if poll.ranked_choice?
+                obj << option.id if options.any? { |o| o[:digest] == option.digest }
+              else
+                obj << option.id if options.include?(option.digest)
+              end
             end
 
         self.validate_votes!(poll, new_option_ids)
@@ -31,43 +51,113 @@ class DiscoursePoll::Poll
               obj << option.id if option.poll_votes.where(user_id: user.id).exists?
             end
 
-        # remove non-selected votes
-        PollVote.where(poll: poll, user: user).where.not(poll_option_id: new_option_ids).delete_all
+        if poll.ranked_choice?
+          # for ranked choice, we need to remove all votes and re-create them as there is no way to update them due to lack of primary key.
+          PollVote.where(poll: poll, user: user).delete_all
+          creation_set = new_option_ids
+        else
+          # remove non-selected votes
+          PollVote
+            .where(poll: poll, user: user)
+            .where.not(poll_option_id: new_option_ids)
+            .delete_all
+          creation_set = new_option_ids - old_option_ids
+        end
 
         # create missing votes
-        (new_option_ids - old_option_ids).each do |option_id|
-          PollVote.create!(poll: poll, user: user, poll_option_id: option_id)
+        creation_set.each do |option_id|
+          if poll.ranked_choice?
+            option_digest = poll.poll_options.find(option_id).digest
+
+            PollVote.create!(
+              poll: poll,
+              user: user,
+              poll_option_id: option_id,
+              rank: options.find { |o| o[:digest] == option_digest }[:rank],
+            )
+          else
+            PollVote.create!(poll: poll, user: user, poll_option_id: option_id)
+          end
         end
       end
 
-    # Ensure consistency here as we do not have a unique index to limit the
-    # number of votes per the poll's configuration.
-    is_multiple = serialized_poll[:type] == "multiple"
-    offset = is_multiple ? (serialized_poll[:max] || serialized_poll[:options].length) : 1
+    if serialized_poll[:type] == RANKED_CHOICE
+      serialized_poll[:ranked_choice_outcome] = DiscoursePoll::RankedChoice.outcome(poll_id)
+    else
+      # Ensure consistency here as we do not have a unique index to limit the
+      # number of votes per the poll's configuration.
+      is_multiple = serialized_poll[:type] == MULTIPLE
+      offset = is_multiple ? (serialized_poll[:max] || serialized_poll[:options].length) : 1
 
-    DB.query(<<~SQL, poll_id: poll_id, user_id: user.id, offset: offset)
-    DELETE FROM poll_votes
-    USING (
-      SELECT
-        poll_id,
-        user_id
-      FROM poll_votes
-      WHERE poll_id = :poll_id
-      AND user_id = :user_id
-      ORDER BY created_at DESC
-      OFFSET :offset
-    ) to_delete_poll_votes
-    WHERE poll_votes.poll_id = to_delete_poll_votes.poll_id
-    AND poll_votes.user_id = to_delete_poll_votes.user_id
-    SQL
+      params = { poll_id: poll_id, offset: offset, user_id: user.id }
+
+      DB.query(<<~SQL, params)
+      DELETE FROM poll_votes
+      USING (
+        SELECT
+          poll_id,
+          user_id
+        FROM poll_votes
+        WHERE poll_id = :poll_id
+        AND user_id = :user_id
+        ORDER BY created_at DESC
+        OFFSET :offset
+      ) to_delete_poll_votes
+      WHERE poll_votes.poll_id = to_delete_poll_votes.poll_id
+      AND poll_votes.user_id = to_delete_poll_votes.user_id
+      SQL
+    end
+
+    serialized_poll[:options].each do |option|
+      if serialized_poll[:type] == RANKED_CHOICE
+        option.merge!(
+          rank:
+            PollVote
+              .joins(:poll_option)
+              .where(poll_options: { digest: option[:id] }, user_id: user.id, poll_id: poll_id)
+              .limit(1)
+              .pluck(:rank),
+        )
+      elsif serialized_poll[:type] == MULTIPLE
+        option.merge!(
+          chosen:
+            PollVote
+              .joins(:poll_option)
+              .where(poll_options: { digest: option[:id] }, user_id: user.id, poll_id: poll_id)
+              .exists?,
+        )
+      end
+    end
+
+    if serialized_poll[:type] == MULTIPLE
+      serialized_poll[:options].each do |option|
+        option.merge!(
+          chosen:
+            PollVote
+              .joins(:poll_option)
+              .where(poll_options: { digest: option[:id] }, user_id: user.id, poll_id: poll_id)
+              .exists?,
+        )
+      end
+    end
 
     [serialized_poll, options]
   end
 
   def self.remove_vote(user, post_id, poll_name)
-    DiscoursePoll::Poll.change_vote(user, post_id, poll_name) do |poll|
-      PollVote.where(poll: poll, user: user).delete_all
+    poll_id = nil
+
+    serialized_poll =
+      DiscoursePoll::Poll.change_vote(user, post_id, poll_name) do |poll|
+        poll_id = poll.id
+        PollVote.where(poll: poll, user: user).delete_all
+      end
+
+    if serialized_poll[:type] == RANKED_CHOICE
+      serialized_poll[:ranked_choice_outcome] = DiscoursePoll::RankedChoice.outcome(poll_id)
     end
+
+    serialized_poll
   end
 
   def self.toggle_status(user, post_id, poll_name, status, raise_errors = true)
@@ -119,73 +209,83 @@ class DiscoursePoll::Poll
   end
 
   def self.serialized_voters(poll, opts = {})
-    limit = (opts["limit"] || 25).to_i
-    limit = 0 if limit < 0
-    limit = 50 if limit > 50
+    preload_serialized_voters!([poll], opts)[poll.id]
+  end
 
-    page = (opts["page"] || 1).to_i
-    page = 1 if page < 1
+  def self.preload_serialized_voters!(polls, opts = {})
+    # This method is used in order to avoid N+1s and preloads serialized voters
+    # for multiple polls from a topic view. After the first call, the serialized
+    # voters are cached in the Poll object and returned from there for future
+    # calls.
 
+    page = [1, (opts["page"] || 1).to_i].max
+    limit = (opts["limit"] || 25).to_i.clamp(1, 50)
     offset = (page - 1) * limit
 
-    option_digest = opts["option_id"].to_s
+    params = {
+      offset: offset,
+      offset_plus_limit: offset + limit,
+      option_digest: opts[:option_id].presence,
+    }
 
-    if poll.number?
-      user_ids =
-        PollVote
-          .where(poll: poll)
-          .group(:user_id)
-          .order("MIN(created_at)")
-          .offset(offset)
-          .limit(limit)
-          .pluck(:user_id)
+    result = {}
 
-      result = User.where(id: user_ids).map { |u| UserNameSerializer.new(u).serializable_hash }
-    elsif option_digest.present?
-      poll_option = PollOption.find_by(poll: poll, digest: option_digest)
+    uncached_poll_ids = []
+    polls.each do |p|
+      if p.serialized_voters_cache&.key?(params)
+        result[p.id] = p.serialized_voters_cache[params]
+      else
+        uncached_poll_ids << p.id
+      end
+    end
 
-      raise Discourse::InvalidParameters.new(:option_id) unless poll_option
+    return result if uncached_poll_ids.empty?
 
-      user_ids =
-        PollVote
-          .where(poll: poll, poll_option: poll_option)
-          .group(:user_id)
-          .order("MIN(created_at)")
-          .offset(offset)
-          .limit(limit)
-          .pluck(:user_id)
-
-      user_hashes = User.where(id: user_ids).map { |u| UserNameSerializer.new(u).serializable_hash }
-
-      result = { option_digest => user_hashes }
-    else
-      votes = DB.query <<~SQL
-        SELECT digest, user_id
-          FROM (
-            SELECT digest
-                  , user_id
-                  , ROW_NUMBER() OVER (PARTITION BY poll_option_id ORDER BY pv.created_at) AS row
-              FROM poll_votes pv
-              JOIN poll_options po ON pv.poll_option_id = po.id
-              WHERE pv.poll_id = #{poll.id}
-                AND po.poll_id = #{poll.id}
-          ) v
-          WHERE row BETWEEN #{offset} AND #{offset + limit}
+    where_clause = params[:option_digest] ? "AND po.digest = :option_digest" : ""
+    query = <<~SQL.gsub("/* where */", where_clause)
+      SELECT poll_id, digest, rank, user_id
+        FROM (
+          SELECT pv.poll_id
+               , po.digest
+               , CASE pv.rank WHEN 0 THEN 'Abstain' ELSE CAST(pv.rank AS text) END AS rank
+               , pv.user_id
+               , u.username
+               , ROW_NUMBER() OVER (PARTITION BY pv.poll_option_id ORDER BY pv.created_at) AS row
+          FROM poll_votes pv
+          JOIN poll_options po ON pv.poll_id = po.poll_id AND pv.poll_option_id = po.id
+          JOIN users u ON pv.user_id = u.id
+          WHERE pv.poll_id IN (:poll_ids)
+                /* where */
+        ) v
+        WHERE row BETWEEN :offset AND :offset_plus_limit
+        ORDER BY digest, CASE WHEN rank = 'Abstain' THEN 1 ELSE CAST(rank AS integer) END, username
       SQL
 
-      user_ids = votes.map(&:user_id).uniq
+    votes = DB.query(query, params.merge(poll_ids: uncached_poll_ids))
 
-      user_hashes =
-        User
-          .where(id: user_ids)
-          .map { |u| [u.id, UserNameSerializer.new(u).serializable_hash] }
-          .to_h
+    users =
+      User
+        .where(id: votes.map(&:user_id).uniq)
+        .map { |u| [u.id, UserNameSerializer.new(u).serializable_hash] }
+        .to_h
 
-      result = {}
-      votes.each do |v|
-        result[v.digest] ||= []
-        result[v.digest] << user_hashes[v.user_id]
+    polls_by_id = polls.index_by(&:id)
+    votes.each do |v|
+      if polls_by_id[v.poll_id].number?
+        result[v.poll_id] ||= []
+        result[v.poll_id] << users[v.user_id]
+      elsif polls_by_id[v.poll_id].ranked_choice?
+        result[v.poll_id] ||= Hash.new { |h, k| h[k] = [] }
+        result[v.poll_id][v.digest] << { rank: v.rank, user: users[v.user_id] }
+      else
+        result[v.poll_id] ||= Hash.new { |h, k| h[k] = [] }
+        result[v.poll_id][v.digest] << users[v.user_id]
       end
+    end
+
+    polls.each do |p|
+      p.serialized_voters_cache ||= {}
+      p.serialized_voters_cache[params] = result[p.id]
     end
 
     result
@@ -211,7 +311,7 @@ class DiscoursePoll::Poll
       raise DiscoursePoll::Error.new I18n.t("poll.user_cant_post_in_topic")
     end
 
-    unless SiteSetting.poll_groupable_user_fields.split("|").include?(user_field_name)
+    if SiteSetting.poll_groupable_user_fields.split("|").exclude?(user_field_name)
       raise Discourse::InvalidParameters.new(:user_field_name)
     end
 
@@ -292,7 +392,7 @@ class DiscoursePoll::Poll
         post_id: post_id,
         name: poll["name"].presence || "poll",
         close_at: close_at,
-        type: poll["type"].presence || "regular",
+        type: poll["type"].presence || REGULAR,
         status: poll["status"].presence || "open",
         visibility: poll["public"] == "true" ? "everyone" : "secret",
         title: poll["title"],
@@ -317,6 +417,9 @@ class DiscoursePoll::Poll
     # Poll Post handlers get called very early in the post
     # creation process. `raw` could be nil here.
     return [] if raw.blank?
+
+    # bail-out early if the post does not contain a poll
+    return [] if !raw.include?("[/poll]")
 
     # TODO: we should fix the callback mess so that the cooked version is available
     # in the validators instead of cooking twice
@@ -362,6 +465,16 @@ class DiscoursePoll::Poll
         raise DiscoursePoll::Error.new(I18n.t("poll.min_vote_per_user", count: poll.min))
       elsif poll.max && (num_of_options > poll.max)
         raise DiscoursePoll::Error.new(I18n.t("poll.max_vote_per_user", count: poll.max))
+      end
+    elsif poll.ranked_choice?
+      if poll.poll_options.length != num_of_options
+        raise DiscoursePoll::Error.new(
+                I18n.t(
+                  "poll.ranked_choice.vote_options_mismatch",
+                  count: poll.options.length,
+                  provided: num_of_options,
+                ),
+              )
       end
     elsif num_of_options > 1
       raise DiscoursePoll::Error.new(I18n.t("poll.one_vote_per_user"))

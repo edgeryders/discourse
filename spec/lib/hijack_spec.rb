@@ -5,6 +5,7 @@ RSpec.describe Hijack do
     attr_reader :io
 
     include Hijack
+    include CurrentUser
 
     def initialize(env = {})
       @io = StringIO.new
@@ -14,7 +15,7 @@ RSpec.describe Hijack do
       self.request = ActionController::TestRequest.new(env, nil, nil)
 
       # we need this for the 418
-      self.response = ActionDispatch::Response.new
+      set_response!(ActionDispatch::Response.new)
     end
 
     def hijack_test(&blk)
@@ -22,12 +23,10 @@ RSpec.describe Hijack do
     end
   end
 
-  let :tester do
-    Hijack::Tester.new
-  end
+  let(:tester) { Hijack::Tester.new }
 
   describe "Request Tracker integration" do
-    let :logger do
+    let(:logger) do
       lambda do |env, data|
         @calls += 1
         @status = data[:status]
@@ -181,7 +180,7 @@ RSpec.describe Hijack do
     end
 
     result =
-      "HTTP/1.1 302 Found\r\nLocation: http://awesome.com\r\nContent-Type: text/html; charset=utf-8\r\nContent-Length: 84\r\nConnection: close\r\nX-Runtime: 1.000000\r\n\r\n<html><body>You are being <a href=\"http://awesome.com\">redirected</a>.</body></html>"
+      "HTTP/1.1 302 Found\r\nLocation: http://awesome.com\r\nContent-Type: text/html; charset=utf-8\r\nContent-Length: 0\r\nConnection: close\r\nX-Runtime: 1.000000\r\n\r\n"
     expect(tester.io.string).to eq(result)
   end
 
@@ -233,5 +232,35 @@ RSpec.describe Hijack do
     tester.hijack_test {}
 
     expect(tester.response.status).to eq(503)
+  end
+
+  context "when there is a current user" do
+    fab!(:test_current_user) { Fabricate(:user) }
+
+    it "captures the current user" do
+      test_user_id = nil
+
+      tester =
+        Hijack::Tester.new(Auth::DefaultCurrentUserProvider::CURRENT_USER_KEY => test_current_user)
+
+      tester.hijack_test { test_user_id = current_user.id }
+
+      expect(test_user_id).to eq(test_current_user.id)
+    end
+
+    it "uses the current user's locale for translations" do
+      SiteSetting.allow_user_locale = true
+      test_current_user.update!(locale: "es")
+      test_translation = nil
+
+      tester =
+        Hijack::Tester.new(Auth::DefaultCurrentUserProvider::CURRENT_USER_KEY => test_current_user)
+
+      # Simulates the around_action that sets the locale in ApplicationController, since this is
+      # not a request spec.
+      tester.with_resolved_locale { tester.hijack_test { test_translation = I18n.t("topics") } }
+
+      expect(test_translation).to eq(I18n.t("topics", locale: "es"))
+    end
   end
 end

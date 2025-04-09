@@ -1,6 +1,10 @@
 # frozen_string_literal: true
 
 class Notification < ActiveRecord::Base
+  self.ignored_columns = [
+    :old_id, # TODO: Remove once 20240829140226_drop_old_notification_id_columns has been promoted to pre-deploy
+  ]
+
   attr_accessor :acting_user
   attr_accessor :acting_username
 
@@ -37,6 +41,7 @@ class Notification < ActiveRecord::Base
   scope :prioritized,
         ->(deprioritized_types = []) do
           scope = order("notifications.high_priority AND NOT notifications.read DESC")
+
           if deprioritized_types.present?
             scope =
               scope.order(
@@ -48,8 +53,10 @@ class Notification < ActiveRecord::Base
           else
             scope = scope.order("NOT notifications.read DESC")
           end
+
           scope.order("notifications.created_at DESC")
         end
+
   scope :for_user_menu,
         ->(user_id, limit: 30) do
           where(user_id: user_id).visible.prioritized.includes(:topic).limit(limit)
@@ -156,6 +163,8 @@ class Notification < ActiveRecord::Base
         watching_category_or_tag: 36,
         new_features: 37,
         admin_problems: 38,
+        linked_consolidated: 39,
+        chat_watched_thread: 40,
         following: 800, # Used by https://github.com/discourse/discourse-follow
         following_created_topic: 801, # Used by https://github.com/discourse/discourse-follow
         following_replied: 802, # Used by https://github.com/discourse/discourse-follow
@@ -258,6 +267,9 @@ class Notification < ActiveRecord::Base
     Post.find_by(topic_id: topic_id, post_number: post_number)
   end
 
+  # Update `index_notifications_user_menu_ordering_deprioritized_likes` index when updating this as this is used by
+  # `Notification.prioritized_list` to deprioritize like typed notifications. Also See
+  # `db/migrate/20240306063428_add_indexes_to_notifications.rb`.
   def self.like_types
     [
       Notification.types[:liked],
@@ -353,19 +365,26 @@ class Notification < ActiveRecord::Base
   end
 
   def self.populate_acting_user(notifications)
+    if !(SiteSetting.show_user_menu_avatars || SiteSetting.prioritize_full_name_in_ux)
+      return notifications
+    end
     usernames =
       notifications.map do |notification|
         notification.acting_username =
           (
             notification.data_hash[:username] || notification.data_hash[:display_username] ||
               notification.data_hash[:mentioned_by_username] ||
-              notification.data_hash[:invited_by_username]
+              notification.data_hash[:invited_by_username] ||
+              notification.data_hash[:original_username]
           )&.downcase
       end
 
     users = User.where(username_lower: usernames.uniq).index_by(&:username_lower)
     notifications.each do |notification|
       notification.acting_user = users[notification.acting_username]
+      notification.data_hash[
+        :original_name
+      ] = notification.acting_user&.name if SiteSetting.enable_names
     end
 
     notifications
@@ -400,7 +419,6 @@ end
 #
 # Table name: notifications
 #
-#  id                :integer          not null, primary key
 #  notification_type :integer          not null
 #  user_id           :integer          not null
 #  data              :string(1000)     not null
@@ -411,6 +429,7 @@ end
 #  post_number       :integer
 #  post_action_id    :integer
 #  high_priority     :boolean          default(FALSE), not null
+#  id                :bigint           not null, primary key
 #
 # Indexes
 #
@@ -421,4 +440,6 @@ end
 #  index_notifications_on_user_id_and_topic_id_and_post_number  (user_id,topic_id,post_number)
 #  index_notifications_read_or_not_high_priority                (user_id,id DESC,read,topic_id) WHERE (read OR (high_priority = false))
 #  index_notifications_unique_unread_high_priority              (user_id,id) UNIQUE WHERE ((NOT read) AND (high_priority = true))
+#  index_notifications_user_menu_ordering                       (user_id, ((high_priority AND (NOT read))) DESC, ((NOT read)) DESC, created_at DESC)
+#  index_notifications_user_menu_ordering_deprioritized_likes   (user_id, ((high_priority AND (NOT read))) DESC, (((NOT read) AND (notification_type <> ALL (ARRAY[5, 19, 25])))) DESC, created_at DESC)
 #

@@ -14,7 +14,7 @@
         />
       </div>
 
-      <label for="enable_ssl_imap">
+      <label for="enable_ssl_imap" class="groups-form__enable-ssl">
         <Input
           @type="checkbox"
           @checked={{this.form.imap_ssl}}
@@ -54,7 +54,7 @@
             @valueProperty="value"
             @content={{this.mailboxes}}
             @tabindex="10"
-            @onChange={{action (mut this.group.imap_mailbox_name)}}
+            @onChange={{fn (mut this.group.imap_mailbox_name)}}
             @options={{hash none="groups.manage.email.mailboxes.disabled"}}
           />
         {{/if}}
@@ -84,7 +84,7 @@
     <DButton
       @disabled={{or this.missingSettings this.testingSettings}}
       @action={{this.testImapSettings}}
-      @icon="cog"
+      @icon="gear"
       @label="groups.manage.email.test_settings"
       @title="groups.manage.email.settings_required"
       tabindex="12"
@@ -98,7 +98,7 @@
 
     {{#if this.imapSettingsValid}}
       <span class="imap-settings-ok">
-        {{d-icon "check-circle"}}
+        {{d-icon "circle-check"}}
         {{i18n "groups.manage.email.imap_settings_valid"}}
       </span>
     {{/if}}

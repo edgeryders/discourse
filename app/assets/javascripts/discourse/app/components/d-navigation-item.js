@@ -1,6 +1,6 @@
 import Component from "@glimmer/component";
-import { inject as service } from "@ember/service";
-import { makeArray } from "discourse-common/lib/helpers";
+import { service } from "@ember/service";
+import { makeArray } from "discourse/lib/helpers";
 
 export default class DNavigationItem extends Component {
   @service router;

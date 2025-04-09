@@ -39,6 +39,14 @@ RSpec.describe UserAnonymizer do
       expect(user.reload.email).to eq("#{user.username}@anonymized.invalid")
     end
 
+    it "changes the primary email normalized email address" do
+      make_anonymous
+
+      primary_email = user.reload.primary_email
+
+      expect(primary_email.normalized_email).to eq("#{user.username}@anonymized.invalid")
+    end
+
     it "changes the primary email address when there is an email domain allowlist" do
       SiteSetting.allowed_email_domains = "example.net|wayne.com|discourse.org"
 
@@ -68,7 +76,7 @@ RSpec.describe UserAnonymizer do
     end
 
     context "when Site Settings do not require full name" do
-      before { SiteSetting.full_name_required = false }
+      before { SiteSetting.full_name_requirement = "optional_at_signup" }
 
       it "resets profile to default values" do
         user.update!(name: "Bibi", date_of_birth: 19.years.ago, title: "Super Star")
@@ -119,7 +127,7 @@ RSpec.describe UserAnonymizer do
     end
 
     context "when Site Settings require full name" do
-      before { SiteSetting.full_name_required = true }
+      before { SiteSetting.full_name_requirement = "required_at_signup" }
 
       it "changes name to anonymized username" do
         prev_username = user.username

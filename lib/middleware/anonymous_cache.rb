@@ -4,6 +4,7 @@ require "mobile_detection"
 require "crawler_detection"
 require "guardian"
 require "http_language_parser"
+require "http_user_agent_encoder"
 
 module Middleware
   class AnonymousCache
@@ -73,7 +74,12 @@ module Middleware
 
       def initialize(env, request = nil)
         @env = env
+        @user_agent = HttpUserAgentEncoder.ensure_utf8(@env[USER_AGENT])
         @request = request || Rack::Request.new(@env)
+      end
+
+      def crawler_identifier
+        @user_agent
       end
 
       def blocked_crawler?
@@ -82,7 +88,7 @@ module Middleware
           @request[Auth::DefaultCurrentUserProvider::API_KEY].nil? &&
           @env[Auth::DefaultCurrentUserProvider::USER_API_KEY].nil? &&
           @env[Auth::DefaultCurrentUserProvider::HEADER_API_KEY].nil? &&
-          CrawlerDetection.is_blocked_crawler?(@env[USER_AGENT])
+          CrawlerDetection.is_blocked_crawler?(crawler_identifier)
       end
 
       # rubocop:disable Lint/BooleanSymbol
@@ -98,7 +104,7 @@ module Middleware
             # otherwise you get a broken params on the request
             params = {}
 
-            MobileDetection.resolve_mobile_view!(@env[USER_AGENT], params, session) ? :true : :false
+            MobileDetection.resolve_mobile_view!(@user_agent, params, session) ? :true : :false
           end
 
         @is_mobile == :true
@@ -126,14 +132,12 @@ module Middleware
       def is_crawler?
         @is_crawler ||=
           begin
-            user_agent = @env[USER_AGENT]
-
             if @env[DISCOURSE_RENDER] == "crawler" ||
-                 CrawlerDetection.crawler?(user_agent, @env["HTTP_VIA"])
+                 CrawlerDetection.crawler?(@user_agent, @env["HTTP_VIA"])
               :true
             else
-              if user_agent.downcase.include?("discourse") &&
-                   !user_agent.downcase.include?("mobile")
+              if @user_agent.downcase.include?("discourse") &&
+                   !@user_agent.downcase.include?("mobile")
                 :true
               else
                 :false
@@ -146,18 +150,24 @@ module Middleware
       # rubocop:enable Lint/BooleanSymbol
 
       def key_is_modern_mobile_device?
-        MobileDetection.modern_mobile_device?(@env[USER_AGENT]) if @env[USER_AGENT]
+        MobileDetection.modern_mobile_device?(@user_agent) if @user_agent
       end
 
       def key_is_old_browser?
-        CrawlerDetection.show_browser_update?(@env[USER_AGENT]) if @env[USER_AGENT]
+        CrawlerDetection.show_browser_update?(@user_agent) if @user_agent
       end
 
       def cache_key
         return @cache_key if defined?(@cache_key)
 
+        # Rack `xhr?` performs a case sensitive comparison, but Rails `xhr?`
+        # performs a case insensitive comparison. We use the latter everywhere
+        # else in the application, so we should use it here as well.
+        is_xhr = @env["HTTP_X_REQUESTED_WITH"]&.casecmp("XMLHttpRequest") == 0 ? "t" : "f"
+
         @cache_key =
-          +"ANON_CACHE_#{@env["HTTP_ACCEPT"]}_#{@env[Rack::RACK_URL_SCHEME]}_#{@env["HTTP_HOST"]}#{@env["REQUEST_URI"]}"
+          +"ANON_CACHE_#{is_xhr}_#{@env["HTTP_ACCEPT"]}_#{@env[Rack::RACK_URL_SCHEME]}_#{@env["HTTP_HOST"]}#{@env["REQUEST_URI"]}"
+
         @cache_key << AnonymousCache.build_cache_key(self)
         @cache_key
       end

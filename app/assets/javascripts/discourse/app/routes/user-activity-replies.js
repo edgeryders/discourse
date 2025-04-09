@@ -1,34 +1,34 @@
 import { htmlSafe } from "@ember/template";
+import getURL from "discourse/lib/get-url";
 import UserAction from "discourse/models/user-action";
 import UserActivityStreamRoute from "discourse/routes/user-activity-stream";
-import getURL from "discourse-common/lib/get-url";
-import I18n from "discourse-i18n";
+import { i18n } from "discourse-i18n";
 
-export default UserActivityStreamRoute.extend({
-  userActionType: UserAction.TYPES["posts"],
+export default class UserActivityReplies extends UserActivityStreamRoute {
+  userActionType = UserAction.TYPES["posts"];
 
   emptyState() {
     const user = this.modelFor("user");
 
     let title, body;
     if (this.isCurrentUser(user)) {
-      title = I18n.t("user_activity.no_replies_title");
+      title = i18n("user_activity.no_replies_title");
       body = htmlSafe(
-        I18n.t("user_activity.no_replies_body", {
+        i18n("user_activity.no_replies_body", {
           searchUrl: getURL("/search"),
         })
       );
     } else {
-      title = I18n.t("user_activity.no_replies_title_others", {
+      title = i18n("user_activity.no_replies_title_others", {
         username: user.username,
       });
       body = "";
     }
 
     return { title, body };
-  },
+  }
 
   titleToken() {
-    return I18n.t("user_action_groups.5");
-  },
-});
+    return i18n("user_action_groups.5");
+  }
+}

@@ -18,7 +18,9 @@ $max_image_height: 150px;
   }
 
   .onebox {
-    container-type: inline-size;
+    &:not(img) {
+      container-type: inline-size;
+    }
 
     .thumbnail {
       &.onebox-avatar {
@@ -29,6 +31,12 @@ $max_image_height: 150px;
       }
     }
 
+    .onebox-body .aspect-image {
+      max-width: 50%;
+    }
+  }
+
+  .onebox:not(.githubpullrequest, .githubcommit, .githubissue) {
     @container (width < 400px) {
       .onebox-body {
         display: flex;
@@ -37,9 +45,11 @@ $max_image_height: 150px;
         .thumbnail.onebox-avatar {
           display: none;
         }
+
         .aspect-image {
           margin-right: 0;
           max-width: 100%;
+
           + h3 {
             margin-top: 0.25rem;
           }
@@ -48,6 +58,7 @@ $max_image_height: 150px;
         h3 {
           margin-block: 0.75rem 0;
         }
+
         p {
           margin-top: 0.5rem;
         }
@@ -72,20 +83,9 @@ $max_image_height: 150px;
     object-fit: contain;
     max-height: $max_image_height;
     max-width: calc(#{$max_image_height} / 9 * 16);
-  }
 
-  // Prevent overflow of old lazy-yt images
-  // TODO: remove in December 2023
-  .lazyYT.lazyYT-container {
-    border: none;
-    a {
-      display: flex;
-    }
-    .ytp-thumbnail-image {
-      object-fit: contain;
-      height: $max_image_height;
-      width: calc(#{$max_image_height} / 9 * 16);
-      pointer-events: none;
+    &:has(div[data-provider-name="tiktok"]) {
+      max-height: unset;
     }
   }
 }

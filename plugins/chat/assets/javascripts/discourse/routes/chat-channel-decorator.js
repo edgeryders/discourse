@@ -1,4 +1,4 @@
-import { inject as service } from "@ember/service";
+import { service } from "@ember/service";
 
 export default function withChatChannel(extendedClass) {
   return class WithChatChannel extends extendedClass {
@@ -15,10 +15,12 @@ export default function withChatChannel(extendedClass) {
         return;
       }
 
+      const title = this.currentModel.unicodeTitle || this.currentModel.title;
+
       if (this.currentModel.isDirectMessageChannel) {
-        return `${this.currentModel.title}`;
+        return `${title}`;
       } else {
-        return `#${this.currentModel.title}`;
+        return `#${title}`;
       }
     }
 

@@ -49,6 +49,10 @@ class ListController < ApplicationController
                   :filter,
                 ].flatten
 
+  rescue_from ActionController::Redirecting::UnsafeRedirectError do
+    rescue_discourse_actions(:not_found, 404)
+  end
+
   # Create our filters
   Discourse.filters.each do |filter|
     define_method(filter) do |options = nil|
@@ -122,8 +126,6 @@ class ListController < ApplicationController
   end
 
   def filter
-    raise Discourse::NotFound if !SiteSetting.experimental_topics_filter
-
     topic_query_opts = { no_definitions: !SiteSetting.show_category_definitions_in_topic_lists }
 
     %i[page q].each do |key|
@@ -145,7 +147,7 @@ class ListController < ApplicationController
   def category_default
     canonical_url "#{Discourse.base_url_no_prefix}#{@category.url}"
     view_method = @category.default_view
-    view_method = "latest" unless %w[latest top].include?(view_method)
+    view_method = "latest" if %w[latest top].exclude?(view_method)
 
     self.public_send(view_method, category: @category.id)
   end
@@ -199,6 +201,7 @@ class ListController < ApplicationController
          :private_messages_group_unread
       raise Discourse::NotFound if target_user.id != current_user.id
     when :private_messages_tag
+      raise Discourse::NotFound if target_user.id != current_user.id
       raise Discourse::NotFound if !guardian.can_tag_pms?
     when :private_messages_warnings
       guardian.ensure_can_see_warnings!(target_user)
@@ -320,7 +323,8 @@ class ListController < ApplicationController
     define_method("top_#{period}") do |options = nil|
       top_options = build_topic_list_options
       top_options.merge!(options) if options
-      top_options[:per_page] = SiteSetting.topics_per_period_in_top_page
+      top_options[:per_page] = top_options[:per_page].presence ||
+        SiteSetting.topics_per_period_in_top_page
 
       user = list_target_user
       list = TopicQuery.new(user, top_options).list_top_for(period)
@@ -417,7 +421,7 @@ class ListController < ApplicationController
     end
     real_slug = @category.full_slug("/")
     if CGI.unescape(current_slug) != CGI.unescape(real_slug)
-      url = request.fullpath.gsub(current_slug, real_slug)
+      url = CGI.unescape(request.fullpath).gsub(current_slug, real_slug)
       if ActionController::Base.config.relative_url_root
         url = url.sub(ActionController::Base.config.relative_url_root, "")
       end

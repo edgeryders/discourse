@@ -60,8 +60,8 @@ class UserActionManager
   end
 
   def self.post_rows(post)
-    # first post gets nada
-    return [] if post.is_first_post? || post.topic.blank?
+    # first post gets nada or if the author has been deleted
+    return [] if post.is_first_post? || post.topic.blank? || post.user.blank?
 
     row = {
       action_type: UserAction::REPLY,
@@ -104,6 +104,8 @@ class UserActionManager
         UserAction::MENTION
       when Notification.types[:edited]
         UserAction::EDIT
+      when Notification.types[:linked]
+        UserAction::LINKED
       end
 
     # skip any invalid items, eg failed to save post and so on

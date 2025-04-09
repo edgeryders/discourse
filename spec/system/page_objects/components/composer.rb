@@ -14,6 +14,10 @@ module PageObjects
         page.has_css?("#{COMPOSER_ID}.closed", visible: :all)
       end
 
+      def minimized?
+        page.has_css?("#{COMPOSER_ID}.draft")
+      end
+
       def open_composer_actions
         find(".composer-action-title .btn").click
         self
@@ -31,6 +35,11 @@ module PageObjects
 
       def fill_content(content)
         composer_input.fill_in(with: content)
+        self
+      end
+
+      def minimize
+        find("#{COMPOSER_ID} .toggle-minimize").click
         self
       end
 
@@ -219,6 +228,7 @@ module PageObjects
           const index = composer.value.indexOf(text);
           const position = index + text.length;
 
+          composer.focus();
           composer.setSelectionRange(position, position);
         JS
       end
@@ -226,7 +236,16 @@ module PageObjects
       def select_all
         execute_script(<<~JS, text)
           const composer = document.querySelector("#{COMPOSER_ID} .d-editor-input");
+          composer.focus();
           composer.setSelectionRange(0, composer.value.length);
+        JS
+      end
+
+      def select_range(start_index, length)
+        execute_script(<<~JS, text)
+          const composer = document.querySelector("#{COMPOSER_ID} .d-editor-input");
+          composer.focus();
+          composer.setSelectionRange(#{start_index}, #{length});
         JS
       end
 

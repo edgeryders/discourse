@@ -3,6 +3,7 @@
 class SvgSpriteController < ApplicationController
   skip_before_action :preload_json,
                      :redirect_to_login_if_required,
+                     :redirect_to_profile_if_required,
                      :check_xhr,
                      :verify_authenticity_token,
                      only: %i[show search svg_icon]
@@ -47,8 +48,9 @@ class SvgSpriteController < ApplicationController
     filter = params[:filter] || ""
     only_available = params[:only_available]
 
-    icons = SvgSprite.icon_picker_search(filter, only_available)
-    render json: icons.take(200), root: false
+    icons = SvgSprite.icon_picker_search(filter, only_available).take(500)
+
+    render json: icons, root: false
   end
 
   def svg_icon

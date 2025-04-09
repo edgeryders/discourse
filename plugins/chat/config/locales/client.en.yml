@@ -33,6 +33,10 @@ en:
       chat_messages_count: "Chat messages"
       chat_channels_count: "Chat channels"
       chat_users_count: "Chat users"
+      activities:
+        chat_messages:
+          one: "%{formatted_number} chat message"
+          other: "%{formatted_number} chat messages"
 
     chat:
       text_copied: Text copied to clipboard
@@ -41,7 +45,6 @@ en:
       deleted_chat_username: deleted
       dates:
         yesterday: "Yesterday"
-        time_tiny: "h:mm"
       all_loaded: "Showing all messages"
       already_enabled: "Chat is already enabled on this topic. Please refresh."
       disabled_for_topic: "Chat is disabled on this topic."
@@ -51,12 +54,17 @@ en:
       cancel_reply: "Cancel reply"
       chat_channels: "Channels"
       browse_all_channels: "Browse all channels"
+      see_in: "See in"
       move_to_channel:
         title: "Move messages to channel"
         instructions:
           one: "You are moving <strong>%{count}</strong> message. Select a destination channel. A placeholder message will be created in the <strong>%{channelTitle}</strong> channel to indicate that this message has been moved. Note that reply chains will not be preserved in the new channel, and messages in the old channel will no longer show as replying to any moved messages."
           other: "You are moving <strong>%{count}</strong> messages. Select a destination channel. A placeholder message will be created in the <strong>%{channelTitle}</strong> channel to indicate that these messages have been moved. Note that reply chains will not be preserved in the new channel, and messages in the old channel will no longer show as replying to any moved messages."
         confirm_move: "Move Messages"
+      delete_messages:
+        confirm:
+          one: "Are you sure you want to delete this message?"
+          other: "Are you sure you want to delete these %{count} messages?"
       channel_settings:
         title: "Channel settings"
         edit: "Edit"
@@ -96,7 +104,6 @@ en:
         browse: "Browse channels"
         create: "New channel"
 
-      click_to_join: "Click here to view available channels."
       close: "Close"
       remove: "Remove"
       collapse: "Collapse Chat Drawer"
@@ -124,11 +131,18 @@ en:
       header_indicator_preference:
         title: "Show activity indicator in header"
         all_new: "All New Messages"
-        dm_and_mentions: "Direct Messages and Mentions"
+        dm_and_mentions: "Direct Messages, Mentions and Watched Threads"
         only_mentions: "Only Mentions"
         never: "Never"
       separate_sidebar_mode:
         title: "Show separate sidebar modes for forum and chat"
+      send_shortcut:
+        enter:
+          label: "Send by Enter"
+          description: "New line by Shift + Enter"
+        meta_enter:
+          label: "Send by %{meta_key} + Enter"
+          description: "New line by Enter"
       enable: "Enable chat"
       flag: "Flag"
       emoji: "Insert emoji"
@@ -140,13 +154,6 @@ en:
       join: "Join"
       last_visit: "last visit"
 
-      summarization:
-        title: "Summarize messages"
-        description: "Select an option below to summarize the conversation sent during the desired timeframe."
-        summarize: "Summarize"
-        since:
-          one: "Last hour"
-          other: "Last %{count} hours"
       mention_warning:
         invitations_sent:
           one: "Invitation sent"
@@ -228,8 +235,10 @@ en:
         composer: "Chat composer"
         channels_list: "Chat channels list"
 
-      no_direct_message_channels: "You have not joined any direct message channels."
-      no_public_channels: "You have not joined any channels."
+      no_direct_message_channels: "You have not joined any direct messages, yet!"
+      no_direct_message_channels_cta: "Start a conversation"
+      no_public_channels: "You have not joined any channels, yet!"
+      no_public_channels_cta: "Browse channels"
       kicked_from_channel: "You can no longer access this channel."
       only_chat_push_notifications:
         title: "Only send chat push notifications"
@@ -237,6 +246,9 @@ en:
       ignore_channel_wide_mention:
         title: "Ignore channel-wide mentions"
         description: "Do not send notifications for channel-wide mentions (@here and @all)"
+      show_thread_title_prompts:
+        title: "Show thread title prompts"
+        description: "Show prompts to set a title for new threads"
       open: "Open chat"
       open_full_page: "Open full-screen chat"
       close_full_page: "Close full-screen chat"
@@ -245,6 +257,7 @@ en:
       placeholder_channel: "Chat in %{channelName}"
       placeholder_thread: "Chat in thread"
       placeholder_users: "Chat with %{commaSeparatedNames}"
+      placeholder_group: "Chat in group"
       placeholder_new_message_disallowed:
         archived: "Channel is archived, you cannot send new messages right now."
         closed: "Channel is closed, you cannot send new messages right now."
@@ -257,6 +270,7 @@ en:
       copy_link: "Copy link"
       copy_text: "Copy text"
       rebake_message: "Rebuild HTML"
+      message_too_long: "Message is too long, messages must be a maximum of %{count} characters."
       retry_staged_message:
         title: "Network error"
         action: "Send again?"
@@ -307,7 +321,7 @@ en:
         back: "Back"
         title: Channels
         filter_all: All
-        filter_open: Opened
+        filter_open: Open
         filter_closed: Closed
         filter_archived: Archived
         filter_input_placeholder: Search channel by name
@@ -471,10 +485,9 @@ en:
         auto_join_users_info: "Check hourly which users have been active in the last 3 months. Add them to this channel if they have access to the %{category} category."
         auto_join_users_info_no_category: "Check hourly which users have been active in the last 3 months. Add them to this channel if they have access to the selected category."
         auto_join_users_warning: "Every user who isn't a member of this channel and has access to the %{category} category will join. Are you sure?"
-        desktop_notification_level: "Desktop notifications"
+        notification_level: "Send push notifications"
         follow: "Join"
         followed: "Joined"
-        mobile_notification_level: "Mobile push notifications"
         mute: "Mute channel"
         threading_enabled: "Enabled"
         threading_disabled: "Disabled"
@@ -498,6 +511,7 @@ en:
           title: "Export chat messages"
           description: "This exports all messages from all channels."
           create_export: "Create export"
+          confirm_export: "This exports all messages from all channels and sends the result to you in a personal message. Are you sure you want to export?"
           export_has_started: "The export has started. You'll receive a PM when it's ready."
 
       my_threads:
@@ -520,6 +534,7 @@ en:
       incoming_webhooks:
         back: "Back"
         channel_placeholder: "Select a channel"
+        channel: "Channel"
         confirm_destroy: "Are you sure you want to delete this incoming webhook? This cannot be un-done."
         current_emoji: "Current Emoji"
         description: "Description"
@@ -543,11 +558,14 @@ en:
         username: "Username"
         username_instructions: "Username of bot that posts to channel. Defaults to 'system' when left blank."
         instructions: "Incoming webhooks can be used by external systems to post messages into a designated chat channel as a bot user via the <code>/hooks/:key</code> endpoint. The payload consists of a single <code>text</code> parameter, which is limited to 2000 characters.<br><br>We also support limited Slack-formatted <code>text</code> parameters, extracting links and mentions based on the format at <a href=\"https://api.slack.com/reference/surfaces/formatting\">https://api.slack.com/reference/surfaces/formatting</a>, but the <code>/hooks/:key/slack</code> endpoint must be used for this."
+        saved: "Webhook changes saved"
+        created: "Webhook created"
 
       selection:
         cancel: "Cancel"
         quote_selection: "Quote in Topic"
         copy: "Copy"
+        delete: "Delete (%{selectionCount}/%{totalCount})"
         move_selection_to_channel: "Move to Channel"
         error: "There was an error moving the chat messages"
         title: "Move Chat to Topic"
@@ -589,6 +607,7 @@ en:
       flags:
         off_topic: "This message is not relevant to the current discussion as defined by the channel title, and should probably be moved elsewhere."
         inappropriate: "This message contains content that a reasonable person would consider offensive, abusive, or a violation of <a href=\"%{basePath}/guidelines\">our community guidelines</a>."
+        illegal: "This post requires staff attention because I believe it contains content that is illegal."
         spam: "This message is an advertisement, or vandalism. It is not useful or relevant to the current channel."
         notify_user: "I want to talk to this person directly and personally about their message."
         notify_moderators: "This message requires staff attention for another reason not listed above."
@@ -625,13 +644,27 @@ en:
         notifications:
           regular:
             title: "Normal"
-            description: "You will be notified if someone mentions your @name in this thread."
+            description: "Get notified when someone mentions you in this thread."
           tracking:
             title: "Tracking"
-            description: "A count of new replies for this thread will be shown in the thread list and the channel. You will be notified if someone mentions your @name in this thread."
+            description: "Get notified when someone mentions you in this thread and see a count of new replies in the thread list."
+          watching:
+            title: "Watching"
+            description: "Get notified about all replies in this thread and see a count of new replies in the thread list."
         participants_other_count:
           one: "+%{count}"
           other: "+%{count}"
+      thread_title_toast:
+        title: "Set a thread title"
+        message: "Help others discover this conversation."
+        dismiss_action: "Don't show again"
+        primary_action: "Set title"
+      thread_title_modal:
+        title: "Set thread title"
+        input_placeholder: "Tell others what this conversation is about..."
+        discourse_ai:
+          title: "Generate thread titles automatically"
+          description: "Check out %{url} to learn more about this and other enhancements to your Discourse experience."
       threads:
         open: "Open Thread"
         list: "Threads"
@@ -644,6 +677,9 @@ en:
       chat_invitation: "invited you to join a chat channel"
       chat_invitation_html: "<span>%{username}</span> <span>invited you to join a chat channel</span>"
       chat_quoted: "<span>%{username}</span> %{description}"
+      chat_watched_thread_label:
+        one: "%{username} and %{username2}"
+        other: "%{username} and %{count} others"
 
       popup:
         chat_mention:
@@ -662,9 +698,10 @@ en:
         chat_quoted: "%{username} quoted your chat message"
 
       titles:
-        chat_mention: "Chat mention"
-        chat_invitation: "Chat invitation"
-        chat_quoted: "Chat quoted"
+        chat_mention: "Mentioned in chat"
+        chat_invitation: "Invited to chat channel"
+        chat_quoted: "Chat message quoted"
+        chat_watched_thread: "Watched chat thread"
     action_codes:
       chat:
         enabled: '%{who} enabled <button class="btn-link open-chat">chat</button> %{when}'
@@ -695,6 +732,7 @@ en:
         title: "Chat"
         keyboard_shortcuts:
           switch_channel_arrows: "%{shortcut} Switch channel"
+          switch__unread_channel_arrows: "%{shortcut} Switch unread channel"
           open_quick_channel_selector: "%{shortcut} Open quick channel selector"
           open_insert_link_modal: "%{shortcut} Insert hyperlink (composer only)"
           composer_bold: "%{shortcut} Bold (composer only)"

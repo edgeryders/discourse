@@ -1,15 +1,15 @@
 import { action } from "@ember/object";
-import { inject as service } from "@ember/service";
+import { service } from "@ember/service";
 import { isEmpty } from "@ember/utils";
 import { queryParams, resetParams } from "discourse/controllers/discovery/list";
 import { disableImplicitInjections } from "discourse/lib/implicit-injections";
+import { deepEqual } from "discourse/lib/object";
 import { setTopicList } from "discourse/lib/topic-list-tracker";
-import { cleanNullQueryParams, defaultHomepage } from "discourse/lib/utilities";
+import { defaultHomepage } from "discourse/lib/utilities";
 import Session from "discourse/models/session";
 import Site from "discourse/models/site";
 import DiscourseRoute from "discourse/routes/discourse";
-import { deepEqual } from "discourse-common/lib/object";
-import I18n from "discourse-i18n";
+import { i18n } from "discourse-i18n";
 
 // A helper to build a topic route for a filter
 export function filterQueryParams(params, defaultParams) {
@@ -29,7 +29,7 @@ export async function findTopicList(
   store,
   tracking,
   filter,
-  filterParams,
+  filterParams = {},
   extras = {}
 ) {
   let list;
@@ -57,16 +57,10 @@ export async function findTopicList(
     session.setProperties({ topicList: null });
   }
 
-  if (!list) {
-    // Clean up any string parameters that might slip through
-    filterParams ||= {};
-    filterParams = cleanNullQueryParams(filterParams);
-
-    list = await store.findFiltered("topicList", {
-      filter,
-      params: filterParams,
-    });
-  }
+  list ||= await store.findFiltered("topicList", {
+    filter,
+    params: filterParams,
+  });
 
   list.set("listParams", filterParams);
 
@@ -126,10 +120,10 @@ class AbstractTopicRoute extends DiscourseRoute {
       return;
     }
 
-    const filterText = I18n.t(
+    const filterText = i18n(
       "filters." + this.routeConfig.filter.replace("/", ".") + ".title"
     );
-    return I18n.t("filters.with_topics", { filter: filterText });
+    return i18n("filters.with_topics", { filter: filterText });
   }
 
   setupController(controller, model) {

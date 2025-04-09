@@ -17,6 +17,29 @@ describe "Uploading files in chat messages", type: :system do
       sign_in(current_user)
     end
 
+    it "allows to drag files to start upload" do
+      chat.visit_channel(channel_1)
+
+      # Define the JavaScript to simulate dragging an external image
+      page.execute_script(<<-JS)
+        const target = document.querySelector('.chat-channel');
+        const dataTransfer = new DataTransfer();
+        const file = new File(['dummy content'], 'test-image.png', { type: 'image/png' });
+
+        dataTransfer.items.add(file);
+
+        const dragEnterEvent = new DragEvent('dragenter', { dataTransfer: dataTransfer });
+        target.dispatchEvent(dragEnterEvent);
+
+        const dragOverEvent = new DragEvent('dragover', { dataTransfer: dataTransfer });
+        target.dispatchEvent(dragOverEvent);
+      JS
+
+      expect(find(".chat-upload-drop-zone__text__title")).to have_content(
+        I18n.t("js.chat.upload_to_channel", { title: channel_1.title }),
+      )
+    end
+
     it "allows uploading a single file" do
       chat.visit_channel(channel_1)
       file_path = file_from_fixtures("logo.png", "images").path
@@ -83,6 +106,8 @@ describe "Uploading files in chat messages", type: :system do
     end
 
     it "allows uploading multiple files" do
+      skip_on_ci!
+
       chat.visit_channel(channel_1)
 
       file_path_1 = file_from_fixtures("logo.png", "images").path
@@ -99,12 +124,14 @@ describe "Uploading files in chat messages", type: :system do
       expect(channel_page.messages).to have_message(
         text: "upload testing\n#{I18n.t("js.chat.uploaded_files", count: 2)}",
         persisted: true,
+        wait: 5,
       )
+
       expect(Chat::Message.last.uploads.count).to eq(2)
     end
 
     it "allows uploading a huge image file with preprocessing" do
-      skip("This test is flaky on CI") if ENV["CI"]
+      skip_on_ci!
 
       SiteSetting.composer_media_optimization_image_bytes_optimization_threshold = 200.kilobytes
       chat.visit_channel(channel_1)

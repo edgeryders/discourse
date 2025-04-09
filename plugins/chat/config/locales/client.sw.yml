@@ -48,6 +48,7 @@ sw:
       browse:
         back: "Iliyopita"
         filter_all: Vyote
+        filter_open: Fungua
         filter_closed: Imefungwa
       chat_message_separator:
         today: Leo
@@ -129,6 +130,8 @@ sw:
             title: "Kawaida"
           tracking:
             title: "Fuatilia"
+          watching:
+            title: "Angalia"
       draft_channel_screen:
         header: "Ujumbe Mpya"
         cancel: "Ghairi"

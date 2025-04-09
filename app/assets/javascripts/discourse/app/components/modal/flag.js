@@ -1,11 +1,11 @@
 import Component from "@glimmer/component";
 import { tracked } from "@glimmer/tracking";
 import { action } from "@ember/object";
-import { inject as service } from "@ember/service";
+import { service } from "@ember/service";
 import { reload } from "discourse/helpers/page-reloader";
 import { MAX_MESSAGE_LENGTH } from "discourse/models/post-action-type";
 import User from "discourse/models/user";
-import I18n from "discourse-i18n";
+import { i18n } from "discourse-i18n";
 
 const NOTIFY_MODERATORS_KEY = "notify_moderators";
 
@@ -19,6 +19,7 @@ export default class Flag extends Component {
   @tracked userDetails;
   @tracked selected;
   @tracked message;
+  @tracked isConfirmed = false;
   @tracked isWarning = false;
   @tracked spammerDetails;
 
@@ -28,31 +29,35 @@ export default class Flag extends Component {
     this.adminTools
       ?.checkSpammer(this.args.model.flagModel.user_id)
       .then((result) => (this.spammerDetails = result));
+
+    if (this.flagsAvailable.length === 1) {
+      this.selected = this.flagsAvailable[0];
+    }
   }
 
   get flagActions() {
     return {
       icon: "gavel",
-      label: I18n.t("flagging.take_action"),
+      label: i18n("flagging.take_action"),
       actions: [
         {
           id: "agree_and_hide",
           icon: "thumbs-up",
-          label: I18n.t("flagging.take_action_options.default.title"),
-          description: I18n.t("flagging.take_action_options.default.details"),
+          label: i18n("flagging.take_action_options.default.title"),
+          description: i18n("flagging.take_action_options.default.details"),
         },
         {
           id: "agree_and_suspend",
           icon: "ban",
-          label: I18n.t("flagging.take_action_options.suspend.title"),
-          description: I18n.t("flagging.take_action_options.suspend.details"),
+          label: i18n("flagging.take_action_options.suspend.title"),
+          description: i18n("flagging.take_action_options.suspend.details"),
           client_action: "suspend",
         },
         {
           id: "agree_and_silence",
           icon: "microphone-slash",
-          label: I18n.t("flagging.take_action_options.silence.title"),
-          description: I18n.t("flagging.take_action_options.silence.details"),
+          label: i18n("flagging.take_action_options.silence.title"),
+          description: i18n("flagging.take_action_options.silence.details"),
           client_action: "silence",
         },
       ],
@@ -72,7 +77,7 @@ export default class Flag extends Component {
   }
 
   get submitLabel() {
-    if (this.selected?.is_custom_flag) {
+    if (this.selected?.require_message) {
       return this.args.model.flagTarget.customSubmitLabel();
     }
 
@@ -84,7 +89,7 @@ export default class Flag extends Component {
   }
 
   get flagsAvailable() {
-    return this.args.model.flagTarget.flagsAvailable(this);
+    return this.args.model.flagTarget.flagsAvailable(this).filterBy("enabled");
   }
 
   get staffFlagsAvailable() {
@@ -96,8 +101,12 @@ export default class Flag extends Component {
       return false;
     }
 
-    if (!this.selected.is_custom_flag) {
+    if (!this.selected.require_message) {
       return true;
+    }
+
+    if (this.selected.isIllegal && !this.isConfirmed) {
+      return false;
     }
 
     const len = this.message?.length || 0;
@@ -114,7 +123,7 @@ export default class Flag extends Component {
   get canTakeAction() {
     return (
       !this.args.model.flagTarget.targetsTopic() &&
-      !this.selected?.is_custom_flag &&
+      !this.selected?.require_message &&
       this.currentUser.staff
     );
   }
@@ -179,7 +188,7 @@ export default class Flag extends Component {
 
   @action
   createFlag(opts = {}) {
-    if (this.selected.is_custom_flag) {
+    if (this.selected.require_message) {
       opts.message = this.message;
     }
     this.args.model.flagTarget.create(this, opts);

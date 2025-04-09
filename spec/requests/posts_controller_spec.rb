@@ -59,7 +59,8 @@ RSpec.shared_examples "finding and showing post" do
       end
 
       it "can find posts in the allowed category" do
-        post.topic.category.update!(reviewable_by_group_id: group.id, topic_id: topic.id)
+        post.topic.category.update!(topic_id: topic.id)
+        Fabricate(:category_moderation_group, category: post.topic.category, group:)
         get url
         expect(response.status).to eq(200)
       end
@@ -92,7 +93,6 @@ RSpec.describe PostsController do
   let(:topicless_post) { Fabricate(:post, user: user, raw: "<p>Car 54, where are you?</p>") }
 
   let(:private_topic) { Fabricate(:topic, archetype: Archetype.private_message, category_id: nil) }
-
   let(:private_post) { Fabricate(:post, user: user, topic: private_topic) }
 
   describe "#show" do
@@ -208,6 +208,31 @@ RSpec.describe PostsController do
       expect(json[0]["user_custom_fields"]["hello"]).to eq("world")
       expect(json[0]["user_custom_fields"]["hidden"]).to be_blank
     end
+
+    it "supports pagination" do
+      parent = Fabricate(:post)
+      30.times do
+        reply = Fabricate(:post, topic: parent.topic, reply_to_post_number: parent.post_number)
+        PostReply.create!(post: parent, reply:)
+      end
+
+      get "/posts/#{parent.id}/replies.json", params: { after: parent.post_number }
+      expect(response.status).to eq(200)
+      replies = response.parsed_body
+      expect(replies.size).to eq(20)
+
+      after = replies.last["post_number"]
+
+      get "/posts/#{parent.id}/replies.json", params: { after: }
+      expect(response.status).to eq(200)
+      replies = response.parsed_body
+      expect(replies.size).to eq(10)
+      expect(replies[0][:post_number]).to eq(after + 1)
+
+      get "/posts/#{parent.id}/replies.json", params: { after: 999_999 }
+      expect(response.status).to eq(200)
+      expect(response.parsed_body.size).to eq(0)
+    end
   end
 
   describe "#destroy" do
@@ -300,6 +325,28 @@ RSpec.describe PostsController do
 
           delete "/posts/#{post.id}.json", params: { force_destroy: true }
           expect(response.status).to eq(403)
+        end
+
+        it "creates a log and clean up previously recorded sensitive information" do
+          sign_in(admin)
+
+          delete "/posts/#{post.id}.json"
+          expect(response.status).to eq(200)
+          expect(post.reload.deleted_by_id).to eq(admin.id)
+
+          post.update!(deleted_at: 10.minutes.ago)
+
+          delete "/posts/#{post.id}.json", params: { force_destroy: true }
+          expect(response.status).to eq(200)
+
+          expect(UserHistory.last).to have_attributes(
+            action: UserHistory.actions[:delete_post_permanently],
+            acting_user_id: admin.id,
+          )
+
+          expect(UserHistory.where(post_id: post.id, details: "(permanently deleted)").count).to eq(
+            2,
+          )
         end
       end
     end
@@ -500,7 +547,7 @@ RSpec.describe PostsController do
       end
 
       it "checks for an edit conflict" do
-        update_params[:post][:raw_old] = "old body"
+        update_params[:post][:original_text] = "old body"
         put "/posts/#{post.id}.json", params: update_params
 
         expect(response.status).to eq(409)
@@ -515,6 +562,13 @@ RSpec.describe PostsController do
 
       it "raises an error when the user doesn't have permission to see the post" do
         post = Fabricate(:private_message_post, post_number: 3)
+        put "/posts/#{post.id}.json", params: update_params
+        expect(response).to be_forbidden
+      end
+
+      it "raises an error when user is OP but can no longer see the post" do
+        post = Fabricate(:private_message_post, user: user)
+        post.topic.remove_allowed_user(admin, user)
         put "/posts/#{post.id}.json", params: update_params
         expect(response).to be_forbidden
       end
@@ -581,7 +635,8 @@ RSpec.describe PostsController do
 
       before do
         SiteSetting.enable_category_group_moderation = true
-        post.topic.category.update!(reviewable_by_group_id: group.id, topic_id: topic.id)
+        Fabricate(:category_moderation_group, category: post.topic.category, group:)
+        post.topic.category.update!(topic_id: topic.id)
         sign_in(user_gm)
       end
 
@@ -643,6 +698,24 @@ RSpec.describe PostsController do
       expect(post.topic.reload.category_id).not_to eq(category.id)
     end
 
+    describe "trying to add a link without permission" do
+      it "returns an error message if links are added to posts when not allowed" do
+        post = create_post
+        sign_in(post.user)
+        SiteSetting.post_links_allowed_groups = Group::AUTO_GROUPS[:admins]
+
+        put "/posts/#{post.id}",
+            params: {
+              post: {
+                raw: "I'm editing this post to add www.linkhere.com",
+              },
+            }
+
+        expect(response.status).to eq(422)
+        expect(response.body).to include("Sorry, you can't include links in your posts.")
+      end
+    end
+
     describe "with Post.plugin_permitted_update_params" do
       before do
         plugin = Plugin::Instance.new
@@ -660,7 +733,6 @@ RSpec.describe PostsController do
             params: {
               post: {
                 raw: "this is a random post",
-                raw_old: post.raw,
                 random_number: 244,
               },
             }
@@ -825,7 +897,7 @@ RSpec.describe PostsController do
     include_examples "action requires login", :post, "/posts.json"
 
     before do
-      SiteSetting.min_first_post_typing_time = 0
+      SiteSetting.fast_typing_threshold = "disabled"
       SiteSetting.whispers_allowed_groups = "#{Group::AUTO_GROUPS[:staff]}"
     end
 
@@ -1083,11 +1155,11 @@ RSpec.describe PostsController do
 
       context "when fast typing" do
         before do
-          SiteSetting.min_first_post_typing_time = 3000
+          SiteSetting.fast_typing_threshold = "standard"
           SiteSetting.auto_silence_fast_typers_max_trust_level = 1
         end
 
-        it "queues the post if min_first_post_typing_time is not met" do
+        it "queues the post if fast_typing_threshold is not met" do
           post "/posts.json",
                params: {
                  raw: "this is the test content",
@@ -2066,6 +2138,41 @@ RSpec.describe PostsController do
       end
     end
 
+    context "when the history on a specific post is hidden" do
+      it "works when hiding a revision" do
+        sign_in(admin)
+
+        message =
+          MessageBus
+            .track_publish("/topic/#{post.topic.id}") do
+              put "/posts/#{post_revision.post_id}/revisions/#{post_revision.number}/hide"
+            end
+            .first
+
+        expect(response.status).to eq(200)
+        expect(message.data[:type]).to eq(:revised)
+        expect(message.data[:version]).to eq(2)
+        expect(post_revision.reload[:hidden]).to eq(true)
+      end
+
+      it "works when showing a revision" do
+        post_revision.update!(hidden: true)
+        sign_in(admin)
+
+        message =
+          MessageBus
+            .track_publish("/topic/#{post.topic.id}") do
+              put "/posts/#{post_revision.post_id}/revisions/#{post_revision.number}/show"
+            end
+            .first
+
+        expect(response.status).to eq(200)
+        expect(message.data[:type]).to eq(:revised)
+        expect(message.data[:version]).to eq(2)
+        expect(post_revision.reload[:hidden]).to eq(false)
+      end
+    end
+
     context "when post is hidden" do
       before do
         post.hidden = true
@@ -2392,6 +2499,21 @@ RSpec.describe PostsController do
         expect(data.length).to eq(0)
       end
 
+      it "returns PMs for admins who are also moderators" do
+        admin.update!(moderator: true)
+
+        pm_post = Fabricate(:private_message_post)
+        PostDestroyer.new(admin, pm_post).destroy
+
+        sign_in(admin)
+
+        get "/posts/#{pm_post.user.username}/deleted.json"
+
+        expect(response.status).to eq(200)
+        expect(response.parsed_body.size).to eq(1)
+        expect(response.parsed_body.first["id"]).to eq(pm_post.id)
+      end
+
       it "only shows posts deleted by other users" do
         create_post(user: user)
         post_deleted_by_user = create_post(user: user)
@@ -2440,7 +2562,7 @@ RSpec.describe PostsController do
     it "can show whole topics" do
       topic = Fabricate(:topic)
       post = Fabricate(:post, topic: topic, post_number: 1, raw: "123456789")
-      post_2 = Fabricate(:post, topic: topic, post_number: 2, raw: "abcdefghij")
+      _post_2 = Fabricate(:post, topic: topic, post_number: 2, raw: "abcdefghij")
       post.save
       get "/raw/#{topic.id}"
       expect(response.status).to eq(200)
@@ -2478,6 +2600,8 @@ RSpec.describe PostsController do
   end
 
   describe "#user_posts_feed" do
+    before { user.user_stat.update!(post_count: 1) }
+
     it "returns public posts rss feed" do
       public_post
       private_post
@@ -2529,8 +2653,8 @@ RSpec.describe PostsController do
       expect(body).to include(public_post.topic.slug)
     end
 
-    it "returns 404 if `hide_profile_and_presence` user option is checked" do
-      user.user_option.update_columns(hide_profile_and_presence: true)
+    it "returns 404 if `hide_profile` user option is checked" do
+      user.user_option.update_columns(hide_profile: true)
 
       get "/u/#{user.username}/activity.rss"
       expect(response.status).to eq(404)
@@ -2540,7 +2664,7 @@ RSpec.describe PostsController do
     end
 
     it "succeeds when `allow_users_to_hide_profile` is false" do
-      user.user_option.update_columns(hide_profile_and_presence: true)
+      user.user_option.update_columns(hide_profile: true)
       SiteSetting.allow_users_to_hide_profile = false
 
       get "/u/#{user.username}/activity.rss"
@@ -2580,6 +2704,23 @@ RSpec.describe PostsController do
         expect(body).to_not include(public_post.url)
       end
 
+      it "properly secures private posts" do
+        sign_in(user)
+
+        private_post
+
+        pm = Fabricate(:private_message_topic, recipient: user)
+        post_id = Fabricate(:post, topic: pm).id
+
+        get "/private-posts.json"
+        expect(response.status).to eq(200)
+
+        json = response.parsed_body
+        post_ids = json["private_posts"].map { |p| p["id"] }
+
+        expect(post_ids).to eq([post_id])
+      end
+
       it "returns private posts for json" do
         sign_in(admin)
 
@@ -2612,6 +2753,24 @@ RSpec.describe PostsController do
 
         expect(body).to include(public_post.canonical_url)
         expect(body).to_not include(private_post.url)
+      end
+
+      it "doesn't include posts from secured categories you have no access to" do
+        public_post
+        private_post
+
+        category = Fabricate(:category, read_restricted: true)
+        topic = Fabricate(:topic, category: category)
+        secure_post = Fabricate(:post, topic: topic)
+
+        get "/posts.json"
+
+        expect(response.status).to eq(200)
+
+        body = response.parsed_body
+        ids = body["latest_posts"].map { |p| p["id"] }
+
+        expect(ids).not_to include secure_post.id
       end
 
       it "doesn't include posts from hidden topics" do
@@ -2701,6 +2860,17 @@ RSpec.describe PostsController do
         expect(response.status).to eq(403)
       end
 
+      it "can view raw email if the user is in the allowed group" do
+        sign_in(user)
+        SiteSetting.view_raw_email_allowed_groups = "trust_level_0"
+
+        get "/posts/#{post.id}/raw-email.json"
+        expect(response.status).to eq(200)
+
+        json = response.parsed_body
+        expect(json["raw_email"]).to eq("email_content")
+      end
+
       it "can view raw email" do
         sign_in(moderator)
 
@@ -2741,6 +2911,7 @@ RSpec.describe PostsController do
         "type" => Post.notices[:custom],
         "raw" => raw_notice,
         "cooked" => PrettyText.cook(raw_notice, features: { onebox: false }),
+        "created_by_user_id" => moderator.id,
       )
       expect(UserHistory.where(action: UserHistory.actions[:post_staff_note_create]).count).to eq(1)
 
@@ -2760,7 +2931,7 @@ RSpec.describe PostsController do
 
       before do
         SiteSetting.enable_category_group_moderation = true
-        topic.category.update!(reviewable_by_group_id: group.id)
+        Fabricate(:category_moderation_group, category: topic.category, group:)
 
         sign_in(user)
       end
@@ -2774,6 +2945,7 @@ RSpec.describe PostsController do
           "type" => Post.notices[:custom],
           "raw" => raw_notice,
           "cooked" => PrettyText.cook(raw_notice, features: { onebox: false }),
+          "created_by_user_id" => user.id,
         )
 
         put "/posts/#{public_post.id}/notice.json", params: { notice: nil }
@@ -2783,8 +2955,7 @@ RSpec.describe PostsController do
       end
 
       it "prevents a group moderator from altering notes outside of their category" do
-        moderatable_group = Fabricate(:group)
-        topic.category.update!(reviewable_by_group_id: moderatable_group.id)
+        topic.category.category_moderation_groups.where(group:).delete_all
 
         put "/posts/#{public_post.id}/notice.json", params: { notice: "Hello" }
 
@@ -2923,7 +3094,7 @@ RSpec.describe PostsController do
 
       before do
         sign_in(user)
-        SiteSetting.min_first_post_typing_time = 0
+        SiteSetting.fast_typing_threshold = "disabled"
       end
 
       it "allows strings to be added" do

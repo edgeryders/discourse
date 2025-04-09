@@ -35,8 +35,6 @@ ur:
       flag: "فلَیگ"
       join: "شمولیت اختیار کریں"
       last_visit: "آخری وزٹ"
-      summarization:
-        summarize: "خلاصہ"
       reply: "جواب"
       edit: "ترمیم کریں"
       rebake_message: "HTML دوبارہ بِلڈ کریں"
@@ -52,6 +50,7 @@ ur:
       browse:
         back: "واپس"
         filter_all: تمام
+        filter_open: کھولیں
         filter_closed: بند
       chat_message_separator:
         today: آج
@@ -137,6 +136,8 @@ ur:
             title: "عمومی"
           tracking:
             title: "ٹریک کیا جا رہا"
+          watching:
+            title: "نظر رکھی ہوئی ہے"
         participants_other_count:
           one: "+%{count}"
           other: "+%{count}"

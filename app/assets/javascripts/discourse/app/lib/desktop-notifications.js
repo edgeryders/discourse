@@ -1,21 +1,18 @@
 import { Promise } from "rsvp";
 import KeyValueStore from "discourse/lib/key-value-store";
+import discourseLater from "discourse/lib/later";
 import DiscourseURL from "discourse/lib/url";
 import { formatUsername } from "discourse/lib/utilities";
 import Site from "discourse/models/site";
 import User from "discourse/models/user";
-import discourseLater from "discourse-common/lib/later";
-import I18n from "discourse-i18n";
+import { i18n } from "discourse-i18n";
 
 let primaryTab = false;
 let liveEnabled = false;
 let havePermission = null;
 let mbClientId = "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx";
-let lastAction = -1;
 
 const focusTrackerKey = "focus-tracker";
-const idleThresholdTime = 1000 * 10; // 10 seconds
-
 const context = "discourse_desktop_notifications_";
 const keyValueStore = new KeyValueStore(context);
 
@@ -28,7 +25,7 @@ export function clearDesktopNotificationHandlers() {
 }
 
 // Called from an initializer
-function init(messageBus, appEvents) {
+function init(messageBus) {
   liveEnabled = false;
   mbClientId = messageBus.clientId;
 
@@ -38,7 +35,7 @@ function init(messageBus, appEvents) {
 
   try {
     keyValueStore.getItem(focusTrackerKey);
-  } catch (e) {
+  } catch {
     // eslint-disable-next-line no-console
     console.info(
       "Discourse desktop notifications are disabled - localStorage denied."
@@ -64,15 +61,14 @@ function init(messageBus, appEvents) {
   } catch (e) {
     // eslint-disable-next-line no-console
     console.warn(
-      "Unexpected error, Notification is defined on window but not a responding correctly " +
-        e
+      "Notification is defined on window but is not responding correctly " + e
     );
   }
 
   liveEnabled = true;
   try {
     // Preliminary checks passed, continue with setup
-    setupNotifications(appEvents);
+    setupNotifications();
   } catch (e) {
     // eslint-disable-next-line no-console
     console.error(e);
@@ -81,11 +77,11 @@ function init(messageBus, appEvents) {
 
 function confirmNotification(siteSettings) {
   const notification = new Notification(
-    I18n.t("notifications.popup.confirm_title", {
+    i18n("notifications.popup.confirm_title", {
       site_title: siteSettings.title,
     }),
     {
-      body: I18n.t("notifications.popup.confirm_body"),
+      body: i18n("notifications.popup.confirm_body"),
       icon: siteSettings.site_logo_small_url || siteSettings.site_logo_url,
       tag: "confirm-subscription",
     }
@@ -101,7 +97,7 @@ function confirmNotification(siteSettings) {
 }
 
 // This function is only called if permission was granted
-function setupNotifications(appEvents) {
+function setupNotifications() {
   window.addEventListener("storage", function (e) {
     // note: This event only fires when other tabs setItem()
     const key = e.key;
@@ -128,67 +124,66 @@ function setupNotifications(appEvents) {
     primaryTab = true;
     keyValueStore.setItem(focusTrackerKey, mbClientId);
   }
+}
 
-  if (document) {
-    document.addEventListener("scroll", resetIdle);
+function canUserReceiveNotifications(user) {
+  if (!primaryTab) {
+    return false;
   }
 
-  appEvents.on("page:changed", resetIdle);
-}
+  if (user.isInDoNotDisturb()) {
+    return false;
+  }
 
-export function resetIdle() {
-  lastAction = Date.now();
-}
-function isIdle() {
-  return lastAction + idleThresholdTime < Date.now();
+  if (keyValueStore.getItem("notifications-disabled") === "disabled") {
+    return false;
+  }
+
+  return true;
 }
 
 // Call-in point from message bus
-async function onNotification(data, siteSettings, user) {
-  if (!liveEnabled) {
-    return;
-  }
-  if (!primaryTab) {
-    return;
-  }
-  if (!isIdle()) {
-    return;
-  }
-  if (user.isInDoNotDisturb()) {
-    return;
-  }
-  if (keyValueStore.getItem("notifications-disabled")) {
-    return;
-  }
+async function onNotification(data, siteSettings, user, appEvents) {
+  const showNotifications = canUserReceiveNotifications(user) && liveEnabled;
 
-  const notificationTitle =
-    data.translated_title ||
-    I18n.t(i18nKey(data.notification_type), {
-      site_title: siteSettings.title,
-      topic: data.topic_title,
-      username: formatUsername(data.username),
+  if (showNotifications) {
+    const notificationTitle =
+      data.translated_title ||
+      i18n(i18nKey(data.notification_type), {
+        site_title: siteSettings.title,
+        topic: data.topic_title,
+        username: formatUsername(data.username),
+        group_name: data.group_name,
+      });
+
+    const notificationIcon =
+      siteSettings.site_logo_small_url || siteSettings.site_logo_url;
+    const notificationTag =
+      "discourse-notification-" +
+      siteSettings.title +
+      "-" +
+      (data.topic_id || 0);
+
+    await requestPermission();
+
+    const notification = new Notification(notificationTitle, {
+      body: data.excerpt,
+      icon: notificationIcon,
+      tag: notificationTag,
     });
 
-  const notificationBody = data.excerpt;
-
-  const notificationIcon =
-    siteSettings.site_logo_small_url || siteSettings.site_logo_url;
-
-  const notificationTag =
-    "discourse-notification-" + siteSettings.title + "-" + data.topic_id;
-
-  await requestPermission();
-
-  // This shows the notification!
-  const notification = new Notification(notificationTitle, {
-    body: notificationBody,
-    icon: notificationIcon,
-    tag: notificationTag,
-  });
-  notification.onclick = () => {
-    DiscourseURL.routeTo(data.post_url);
-    notification.close();
-  };
+    notification.addEventListener(
+      "click",
+      () => {
+        DiscourseURL.routeTo(data.post_url);
+        appEvents.trigger("desktop-notification-opened", {
+          url: data.post_url,
+        });
+        notification.close();
+      },
+      { once: true }
+    );
+  }
 
   desktopNotificationHandlers.forEach((handler) =>
     handler(data, siteSettings, user)
@@ -242,4 +237,5 @@ export {
   alertChannel,
   confirmNotification,
   disable,
+  canUserReceiveNotifications,
 };

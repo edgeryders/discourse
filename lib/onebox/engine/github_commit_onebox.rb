@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require_relative "../mixins/github_body"
+require_relative "../mixins/github_auth_header"
 
 module Onebox
   module Engine
@@ -9,12 +10,17 @@ module Onebox
       include LayoutSupport
       include JSON
       include Onebox::Mixins::GithubBody
+      include Onebox::Mixins::GithubAuthHeader
 
-      matches_regexp(%r{^https?://(?:www\.)?(?:(?:\w)+\.)?(github)\.com(?:/)?(?:.)*/commit/})
+      matches_domain("github.com", "www.github.com")
       always_https
 
+      def self.matches_path(path)
+        path.match?(%r{^/[\w\-]+/[\w\-]+/commit/[a-f0-9]{40}$})
+      end
+
       def url
-        "https://api.github.com/repos/#{match[:owner]}/#{match[:repository]}/commits/#{match[:sha]}"
+        "https://api.github.com/repos/#{match[:org]}/#{match[:repository]}/commits/#{match[:sha]}"
       end
 
       private
@@ -22,18 +28,17 @@ module Onebox
       def match
         return @match if defined?(@match)
 
-        @match =
-          @url.match(%{github\.com/(?<owner>[^/]+)/(?<repository>[^/]+)/commit/(?<sha>[^/]+)})
+        @match = @url.match(%{github\.com/(?<org>[^/]+)/(?<repository>[^/]+)/commit/(?<sha>[^/]+)})
         @match ||=
           @url.match(
-            %{github\.com/(?<owner>[^/]+)/(?<repository>[^/]+)/pull/(?<pr>[^/]+)/commit/(?<sha>[^/]+)},
+            %{github\.com/(?<org>[^/]+)/(?<repository>[^/]+)/pull/(?<pr>[^/]+)/commit/(?<sha>[^/]+)},
           )
 
         @match
       end
 
       def data
-        result = raw.clone
+        result = raw(github_auth_header(match[:org])).clone
 
         lines = result["commit"]["message"].split("\n")
         result["title"] = lines.first

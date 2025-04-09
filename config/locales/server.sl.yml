@@ -53,6 +53,10 @@ sl:
   components:
     enabled_filter: "Vključeno"
     disabled_filter: "Onemogočeno"
+  themes:
+    settings_errors:
+      objects:
+        not_valid_integer_value: "mora biti celo število"
   emails:
     incoming:
       default_subject: "Tema potrebuje naslov"
@@ -64,7 +68,6 @@ sl:
     format: ! "%{attribute} %{message}"
     format_with_full_message: "<b>%{attribute}</b>: %{message}"
     messages:
-      too_long_validation: "je omejeno na %{max} znakov; vnesli ste %{length}."
       taken: "je že uporabljeno"
       exclusion: je rezervirano
       has_already_been_used: "je že v uporabi"
@@ -260,6 +263,10 @@ sl:
         title: "Naziv"
         featured_link: "Izpostavljena povezava"
         category_id: "Kategorija"
+      user:
+        password: "Geslo"
+      user_password:
+        password: "Geslo"
     errors:
       models:
         user:
@@ -277,6 +284,15 @@ sl:
               same_as_password: "je enako kot vaše geslo."
             ip_address:
               max_new_accounts_per_registration_ip: "Nove registracije uporabnika niso več dovoljene z vašega IP naslova (dosežena je omejitev regitracij). Kontaktirajte člana osebja foruma."
+        user_password:
+          attributes:
+            password:
+              common: "je eno od 10000 najbolj uporabljenih gesel. Uporabite bolj varno geslo."
+              same_as_username: "je enako kot vaše uporabniško ime. Uporabite bolj varno geslo."
+              same_as_email: "je enako kot vaš e-naslov. Uporabite bolj varno geslo."
+              same_as_current: "je enako kot vaše trenutno geslo."
+              same_as_name: "je enako kot vaše ime."
+              unique_characters: "vsebuje preveč enakih znakov. Uporabite bolj varno geslo."
         topic_timer:
           attributes:
             duration_minutes:
@@ -487,9 +503,6 @@ sl:
   associated_accounts:
     revoke_failed: "Nismo uspeli razveljaviti vaš račun pri %{provider_name}."
   activation:
-    please_continue: "Vaš nov uporabniški račun je potrjen - preusmerjeni boste na začetno stran."
-    continue_button: "Nadaljujte na %{site_name}"
-    welcome_to: "Dobrodošli na %{site_name}!"
     approval_required: "Moderator mora ročno potrditi vaš nov uporabniški račun da boste lahko dostopali do foruma. Ko bo račun potrjen boste prejeli e-sporočilo."
   reviewable_score_types:
     needs_approval:
@@ -506,6 +519,9 @@ sl:
     inappropriate:
       title: "Neprimerno"
       short_description: 'Kršitev <a href="%{base_path}/guidelines">pravil skupnosti</a>'
+    illegal:
+      email_title: 'Prispevek v "%{title}" potrebuje pregled osebja'
+      email_body: "%{link}\n\n%{message}"
     notify_user:
       title: "Pošlji uporabniku @%{username} ZS"
       description: "Rad bi osebno opozoril uporabnika o njegovem prispevku preko zasebnega sporočila."
@@ -535,6 +551,9 @@ sl:
       long_form: "prijavljeno za pregled moderatorja"
       short_description: "Potrebuje pregled osebja iz drugega razloga"
       email_title: 'Tema "%{title}" potrebuje pregled moderatorja'
+      email_body: "%{link}\n\n%{message}"
+    illegal:
+      email_title: 'Prispevek v "%{title}" potrebuje pregled osebja'
       email_body: "%{link}\n\n%{message}"
   flagging:
     you_must_edit: '<p>Vaš prispevek je bil prijavljen s strani skupnosti. <a href="%{path}">Preverite vaša sporočila</a>.</p>'
@@ -636,8 +655,6 @@ sl:
         searches: Iskanj
     system_private_messages:
       title: "Sistem"
-    notify_user_private_messages:
-      description: "Kolikokrat so bili uporabniki zasebno opozorjeni s prijavo."
     top_referrers:
       xaxis: "Uporabnik"
       num_topics: "Tem"
@@ -688,9 +705,14 @@ sl:
       labels:
         user: Uporabnik
         qtt_like: Všečkov prejetih
+    topic_view_stats:
+      labels:
+        topic: Tema
+        anon_views: Anonimni
+        total_views: Skupaj
   dashboard:
-    s3_cdn_warning: 'Strežnik je konfiguriran za nalaganje datotek v S3, vendar hkrati ni konfiguriran tudi S3 CDN. To lahko privede do visokih stroškov uporabe S3 in počasnejšega delovanja strani. Če želite izvedeti več, glejte <a href="https://meta.discourse.org/t/-/148916" target="_blank">"Using Object Storage for Uploads"</a>.'
-    out_of_date_themes: "Posodobitve so na voljo za naslednje prilagoditve:"
+    problem:
+      s3_cdn: 'Strežnik je konfiguriran za nalaganje datotek v S3, vendar hkrati ni konfiguriran tudi S3 CDN. To lahko privede do visokih stroškov uporabe S3 in počasnejšega delovanja strani. Če želite izvedeti več, glejte <a href="https://meta.discourse.org/t/-/148916" target="_blank">"Using Object Storage for Uploads"</a>.'
   site_settings:
     disabled: "onemogočeno"
     allow_uncategorized_topics: "Dovoli ustvarjanje tem brez kategorije. OPOZORILO: Če obstajajo nerazvrščene teme, jih morate ponovno razvrstiti, preden izklopite to nastavitev."
@@ -851,7 +873,6 @@ sl:
     password_too_long: "Geslo je omejeno na 200 znakov."
     email_too_long: "Vaš e-naslov je predolg. E-naslov je lahko dolg največ 254 znakov, od tega domena največ 253 znakov."
     reserved_username: "Uporabniško ime ni dovoljeno."
-    missing_user_field: "Niste vnesli vseh uporabniških podatkov."
     auth_complete: "Avtentikacija je končana."
     click_to_continue: "Kliknite tukaj za nadaljevanje."
     second_factor_title: "Preverjanje v dveh korakih"
@@ -1514,7 +1535,6 @@ sl:
 
         Če imate kakršnakoli vprašanja [kontaktirajte naše prijazno osebje](%{base_url}/about).
     digest:
-      why: "Kratek povzetek %{site_link} od vašega zadnjega obiska %{last_seen_at}"
       since_last_visit: "Od vašega zadnjega obiska"
       new_topics: "Nove teme"
       unread_notifications: "Neprebrana obvestila"
@@ -1528,7 +1548,6 @@ sl:
       unsubscribe: "Ta povzetek je poslan s strani %{site_link}, ker vas nekaj časa ni bilo na strani. Spremenite %{email_preferences_link} ali %{unsubscribe_link} za odjavo."
       your_email_settings: "vaše nastavitve e-pošte"
       click_here: "kliknite tukaj"
-      preheader: "Strnjen povzetek od vašega zadnjega obiska %{last_seen_at}"
     forgot_password:
       title: "Pozabljeno geslo"
       subject_template: "[%{email_prefix}] Ponastavi geslo"
@@ -1666,6 +1685,7 @@ sl:
     Uredite prvi prispevek v tej temi da spremenite vsebino %{page_name} strani.
   guidelines_topic:
     title: "Pravila skupnosti"
+    guidelines_title: "Navodila"
   tos_topic:
     title: "Pogoji uporabe"
   privacy_topic:
@@ -1694,8 +1714,6 @@ sl:
     regular:
       name: Redni član
       description: <a href="https://blog.discourse.org/2018/06/understanding-discourse-trust-levels/">Dodeljena</a> možnost menjave kategorije, preimenovanja, sledenja povezav, wiki, več všečkov
-      long_description: |
-        Ta značka vam je podeljena, ko dosežete nivo zaupanja 3. Hvala, ker ste reden udeleženec naše skupnosti že nekaj mesecev. Ste eden bolj aktivnih bralcev in zanesljiv sodelavec, ki naredi našo skupnost enkratno. Sedaj lahko menjate kategorije temam, preimenujete teme, lahko uporabljate bolj zmogljive načine prijave, dostopate do zasebne lože in podelite več všečkov vsak dan.
     leader:
       name: Vodja
       description: <a href="https://blog.discourse.org/2018/06/understanding-discourse-trust-levels/">Dodeljena</a> možnost globalnega urejanja, pripenjanja, zapiranja, arhiviranja, razdruževanja in združevanja ter več všečkov
@@ -1939,21 +1957,20 @@ sl:
       privacy:
         fields:
           login_required:
-            placeholder: "Zasebno"
+            label: "Vidljivost"
+            choices:
+              public:
+                label: "Javno"
+              private:
+                label: "Zasebno"
       styling:
         fields:
           styling_preview:
             label: "Predogled"
           homepage_style:
             choices:
-              categories_only:
-                label: "Samo kategorije"
-              categories_with_featured_topics:
-                label: "Kategorije z izpostavljenimi temami"
-              categories_and_latest_topics:
-                label: "Kategorije in najnovejše teme"
-              categories_and_top_topics:
-                label: "Kategorije in najboljše teme"
+              latest:
+                label: "Najnovejše"
       invites:
         disabled: "Ker so prijave onemogočene, ni možno povabiti nikogar. Nadaljujte na naslednji korak."
   onebox:
@@ -1966,7 +1983,7 @@ sl:
       quoted: '%{username} vas je citiral v "%{topic}" - %{site_title}'
       replied: '%{username} vam je odgovoril v "%{topic}" - %{site_title}'
       posted: '%{username} je objavil v "%{topic}" - %{site_title}'
-      private_message: '%{username} vam je poslal zasebno sporočilo v "%{topic}" - %{site_title}'
+      private_message: '%{username} vam je poslal zasebno sporočilo "%{topic}" - %{site_title}'
       linked: '%{username} je objavil povezavo na vaš prispevek v "%{topic}" - %{site_title}'
       watching_first_post: '%{username} je ustvaril novo temo "%{topic}" - %{site_title}'
       confirm_title: "Obvestila omogočena - %{site_title}"

@@ -1,4 +1,4 @@
-import { getOwner } from "@ember/application";
+import { getOwner } from "@ember/owner";
 import { setupTest } from "ember-qunit";
 import MessageBus from "message-bus-client";
 import { module, test } from "qunit";
@@ -39,7 +39,7 @@ module("Unit | Model | private-message-topic-tracking-state", function (hooks) {
     pmTopicTrackingState.set("isTracking", true);
     pmTopicTrackingState.removeTopics([]);
 
-    assert.ok(callbackCalled);
+    assert.true(callbackCalled);
   });
 });
 

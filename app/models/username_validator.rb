@@ -40,10 +40,10 @@ class UsernameValidator
     errors.empty?
   end
 
-  CONFUSING_EXTENSIONS ||= /\.(js|json|css|htm|html|xml|jpg|jpeg|png|gif|bmp|ico|tif|tiff|woff)\z/i
-  MAX_CHARS ||= 60
+  CONFUSING_EXTENSIONS = /\.(js|json|css|htm|html|xml|jpg|jpeg|png|gif|bmp|ico|tif|tiff|woff)\z/i
+  MAX_CHARS = 60
 
-  ASCII_INVALID_CHAR_PATTERN ||= /[^\w.-]/
+  ASCII_INVALID_CHAR_PATTERN = /[^\w.-]/
   # All Unicode characters except for alphabetic and numeric character, marks and underscores are invalid.
   # In addition to that, the following letters and nonspacing marks are invalid:
   #   (U+034F) Combining Grapheme Joiner
@@ -56,7 +56,7 @@ class UsernameValidator
   #   (U+FFA0) Halfwidth Hangul Filler
   #   (U+FE00 - U+FE0F) "Variation Selectors" block
   #   (U+E0100 - U+E01EF) "Variation Selectors Supplement" block
-  UNICODE_INVALID_CHAR_PATTERN ||=
+  UNICODE_INVALID_CHAR_PATTERN =
     /
       [^\p{Alnum}\p{M}._-]|
       [
@@ -72,9 +72,9 @@ class UsernameValidator
         \p{In Variation Selectors Supplement}
       ]
     /x
-  INVALID_LEADING_CHAR_PATTERN ||= /\A[^\p{Alnum}\p{M}_]+/
-  INVALID_TRAILING_CHAR_PATTERN ||= /[^\p{Alnum}\p{M}]+\z/
-  REPEATED_SPECIAL_CHAR_PATTERN ||= /[-_.]{2,}/
+  INVALID_LEADING_CHAR_PATTERN = /\A[^\p{Alnum}\p{M}_]+/
+  INVALID_TRAILING_CHAR_PATTERN = /[^\p{Alnum}\p{M}]+\z/
+  REPEATED_SPECIAL_CHAR_PATTERN = /[-_.]{2,}/
 
   private
 
@@ -88,7 +88,7 @@ class UsernameValidator
     return unless errors.empty?
 
     if username_grapheme_clusters.size < User.username_length.begin
-      self.errors << I18n.t(:"user.username.short", min: User.username_length.begin)
+      self.errors << I18n.t(:"user.username.short", count: User.username_length.begin)
     end
   end
 
@@ -96,7 +96,7 @@ class UsernameValidator
     return unless errors.empty?
 
     if username_grapheme_clusters.size > User.username_length.end
-      self.errors << I18n.t(:"user.username.long", max: User.username_length.end)
+      self.errors << I18n.t(:"user.username.long", count: User.username_length.end)
     elsif username.length > MAX_CHARS
       self.errors << I18n.t(:"user.username.too_long")
     end

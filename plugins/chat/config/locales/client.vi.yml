@@ -35,8 +35,6 @@ vi:
       flag: "Gắn cờ"
       join: "Tham gia"
       last_visit: "lần thăm cuối"
-      summarization:
-        summarize: "Tóm tắt"
       mention_warning:
         groups:
           header:
@@ -58,6 +56,7 @@ vi:
       browse:
         back: "Quay lại"
         filter_all: All
+        filter_open: Mở
         filter_closed: Đã
       chat_message_separator:
         today: Hôm nay
@@ -102,6 +101,8 @@ vi:
         category_label: "Danh mục"
         history_label: "Lịch sử"
         members_label: "Các thành viên"
+      direct_messages:
+        title: "Tin nhắn"
       incoming_webhooks:
         back: "Quay lại"
         description: "Mô tả"
@@ -143,6 +144,8 @@ vi:
             title: "Bình thường"
           tracking:
             title: "Đang theo dõi"
+          watching:
+            title: "Theo dõi"
         participants_other_count:
           other: "+%{count}"
       draft_channel_screen:
@@ -150,6 +153,8 @@ vi:
         cancel: "Huỷ"
     notifications:
       chat_quoted: "<span>%{username}</span> %{description}"
+      chat_watched_thread_label:
+        other: "%{username} và %{count} người khác"
     discourse_automation:
       scriptables:
         send_chat_message:

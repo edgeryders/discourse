@@ -1,3 +1,7 @@
+<PluginOutlet
+  @name="before-panel-body"
+  @outletArgs={{hash closeUserMenu=@closeUserMenu}}
+/>
 {{#if this.loading}}
   <div class="spinner-container">
     <div class="spinner"></div>
@@ -10,13 +14,14 @@
   </ul>
   <div class="panel-body-bottom">
     {{#if this.showAllHref}}
-      <a
-        class="btn btn-default btn-icon no-text show-all"
-        href={{this.showAllHref}}
-        title={{this.showAllTitle}}
+      <DButton
+        class="btn-default show-all"
+        @href={{this.showAllHref}}
+        @translatedAriaLabel={{this.showAllTitle}}
+        @translatedTitle={{this.showAllTitle}}
       >
         {{d-icon "chevron-down" aria-label=this.showAllTitle}}
-      </a>
+      </DButton>
     {{/if}}
     {{#if this.showDismiss}}
       <button

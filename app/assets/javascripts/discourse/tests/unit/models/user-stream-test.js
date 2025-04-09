@@ -1,4 +1,4 @@
-import { getOwner } from "@ember/application";
+import { getOwner } from "@ember/owner";
 import { setupTest } from "ember-qunit";
 import { module, test } from "qunit";
 import UserAction from "discourse/models/user-action";
@@ -17,7 +17,7 @@ module("Unit | Model | user-stream", function (hooks) {
     assert.blank(stream.content, "no content by default");
     assert.blank(stream.filter, "no filter by default");
 
-    assert.ok(!stream.loaded, "the stream is not loaded by default");
+    assert.false(stream.loaded, "the stream is not loaded by default");
   });
 
   test("filterParam", function (assert) {

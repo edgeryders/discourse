@@ -10,7 +10,7 @@ describe "Emoji deny list", type: :system do
 
   describe "when editing admin settings" do
     before { SiteSetting.emoji_deny_list = "" }
-    let(:site_settings_page) { PageObjects::Pages::AdminSettings.new }
+    let(:site_settings_page) { PageObjects::Pages::AdminSiteSettings.new }
 
     skip "should allow admin to update emoji deny list" do
       site_settings_page.visit_category("posting")
@@ -51,7 +51,7 @@ describe "Emoji deny list", type: :system do
       topic_page.visit_topic_and_open_composer(topic)
       expect(composer).to be_opened
 
-      composer.click_toolbar_button("insert-emoji")
+      composer.click_toolbar_button("insert-composer-emoji")
       expect(composer.emoji_picker).to be_visible
 
       expect(emoji_picker).to have_no_emoji("fu")

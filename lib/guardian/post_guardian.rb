@@ -3,7 +3,7 @@
 # mixin for all guardian methods dealing with post permissions
 module PostGuardian
   def unrestricted_link_posting?
-    authenticated? && @user.in_any_groups?(SiteSetting.post_links_allowed_groups_map)
+    authenticated? && (is_staff? || @user.in_any_groups?(SiteSetting.post_links_allowed_groups_map))
   end
 
   def link_posting_access
@@ -37,10 +37,18 @@ module PostGuardian
     end
 
     taken = opts[:taken_actions].try(:keys).to_a
+    post_action_type_view = opts[:post_action_type_view] || PostActionTypeView.new
     is_flag =
-      PostActionType.notify_flag_types[action_key] || PostActionType.custom_types[action_key]
-    already_taken_this_action = taken.any? && taken.include?(PostActionType.types[action_key])
-    already_did_flagging = taken.any? && (taken & PostActionType.notify_flag_types.values).any?
+      if (opts[:notify_flag_types] && opts[:additional_message_types])
+        opts[:notify_flag_types][action_key] || opts[:additional_message_types][action_key]
+      else
+        post_action_type_view.notify_flag_types[action_key] ||
+          post_action_type_view.additional_message_types[action_key]
+      end
+    already_taken_this_action =
+      taken.any? && taken.include?(post_action_type_view.types[action_key])
+    already_did_flagging =
+      taken.any? && (taken & post_action_type_view.notify_flag_types.values).any?
 
     result =
       if authenticated? && post
@@ -55,6 +63,10 @@ module PostGuardian
 
         # post made by staff, but we don't allow staff flags
         return false if is_flag && (!SiteSetting.allow_flagging_staff?) && post&.user&.staff?
+
+        if is_flag && post_action_type_view.disabled_flag_types.keys.include?(action_key)
+          return false
+        end
 
         if action_key == :notify_user &&
              !@user.in_any_groups?(SiteSetting.personal_message_enabled_groups_map)
@@ -82,6 +94,10 @@ module PostGuardian
                 post.topic.private_message?
             )
         ) ||
+          (
+            action_key == :illegal &&
+              SiteSetting.allow_tl0_and_anonymous_users_to_flag_illegal_content
+          ) ||
           # not a flagging action, and haven't done it already
           not(is_flag || already_taken_this_action) &&
             # nothing except flagging on archived topics
@@ -104,12 +120,13 @@ module PostGuardian
     return true if is_admin?
     return false unless topic
 
-    type_symbol = PostActionType.types[post_action_type_id]
+    post_action_type_view = PostActionTypeView.new
+    type_symbol = post_action_type_view.types[post_action_type_id]
 
     return false if type_symbol == :bookmark
     return false if type_symbol == :notify_user && !is_moderator?
 
-    return can_see_flags?(topic) if PostActionType.is_flag?(type_symbol)
+    return can_see_flags?(topic) if post_action_type_view.is_flag?(type_symbol)
 
     true
   end
@@ -147,6 +164,7 @@ module PostGuardian
     if (is_staff? || is_in_edit_post_groups? || is_category_group_moderator?(post.topic&.category))
       return can_create_post?(post.topic)
     end
+    return false if !can_see_post_topic?(post)
 
     return false if post.topic&.archived? || post.user_deleted || post.deleted_at
 
@@ -163,7 +181,7 @@ module PostGuardian
       return can_create_post?(post.topic)
     end
 
-    return false if !trusted_with_edits?
+    return false if !trusted_with_post_edits?
 
     if is_my_own?(post)
       return false if @user.silenced?
@@ -261,8 +279,21 @@ module PostGuardian
   def can_delete_post_action?(post_action)
     return false unless is_my_own?(post_action) && !post_action.is_private_message?
 
-    post_action.created_at > SiteSetting.post_undo_action_window_mins.minutes.ago &&
-      !post_action.post&.topic&.archived?
+    ok_to_delete =
+      post_action.created_at > SiteSetting.post_undo_action_window_mins.minutes.ago &&
+        !post_action.post&.topic&.archived?
+
+    # NOTE: This looks strange...but we are checking if someone is posting anonymously
+    # as a AnonymousUser model, _not_ as Guardian::AnonymousUser which is a different thing
+    # used when !authenticated?
+    if authenticated? && is_anonymous?
+      return(
+        ok_to_delete && SiteSetting.allow_anonymous_likes? && post_action.is_like? &&
+          is_my_own?(post_action)
+      )
+    end
+
+    ok_to_delete
   end
 
   def can_receive_post_notifications?(post)
@@ -358,7 +389,7 @@ module PostGuardian
   end
 
   def can_view_raw_email?(post)
-    post && is_staff?
+    post && @user.in_any_groups?(SiteSetting.view_raw_email_allowed_groups_map)
   end
 
   def can_unhide?(post)
@@ -369,12 +400,11 @@ module PostGuardian
     is_staff? || @user.has_trust_level?(TrustLevel[4])
   end
 
-  private
-
-  def trusted_with_edits?
-    @user.trust_level >= SiteSetting.min_trust_to_edit_post ||
-      @user.in_any_groups?(SiteSetting.edit_post_allowed_groups_map)
+  def trusted_with_post_edits?
+    is_staff? || @user.in_any_groups?(SiteSetting.edit_post_allowed_groups_map)
   end
+
+  private
 
   def can_create_post_in_topic?(topic)
     if !SiteSetting.enable_system_message_replies? && topic.try(:subtype) == "system_message"

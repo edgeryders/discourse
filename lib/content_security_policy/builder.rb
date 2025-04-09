@@ -74,7 +74,27 @@ class ContentSecurityPolicy
       @directives[directive] ||= []
 
       sources = Array(sources).map { |s| normalize_source(s) }
-      @directives[directive].concat(sources)
+
+      if %w[script_src worker_src].include?(directive.to_s)
+        # Strip any sources which are ignored under strict-dynamic
+        # If/when we make strict-dynamic the only option, we could print deprecation warnings
+        # asking plugin/theme authors to remove the unnecessary config
+        sources =
+          sources.reject { |s| s == "'unsafe-inline'" || s == "'self'" || !s.start_with?("'") }
+      end
+
+      sources.each do |source|
+        # mirrors validation check in ActionDispatch::ContentSecurityPolicy https://github.com/rails/rails/blob/5558e72f22fc69c1c407b31ac5fb3b4ce087b542/actionpack/lib/action_dispatch/http/content_security_policy.rb#L337
+        if source.include?(";") || source != source.gsub(/[[:space:]]/, "")
+          Rails.logger.warn(<<~MSG.squish)
+            Skipping invalid Content Security Policy #{directive}: "#{source}".
+            Directive values must not contain whitespace or semicolons.
+            Please use multiple arguments or other directive methods instead.
+          MSG
+          next
+        end
+        @directives[directive] << source
+      end
 
       @directives[directive].delete(:none) if @directives[directive].count > 1
     end

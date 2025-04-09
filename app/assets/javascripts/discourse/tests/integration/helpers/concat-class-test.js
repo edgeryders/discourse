@@ -1,44 +1,51 @@
 import { render } from "@ember/test-helpers";
 import { hbs } from "ember-cli-htmlbars";
-import { assert, module, test } from "qunit";
+import { module, test } from "qunit";
 import { setupRenderingTest } from "discourse/tests/helpers/component-test";
-import { query } from "discourse/tests/helpers/qunit-helpers";
 
 module("Integration | Helper | concat-class", function (hooks) {
   setupRenderingTest(hooks);
 
-  test("One class given", async function () {
+  test("One class given", async function (assert) {
     await render(hbs`<button class={{concat-class "foo"}} />`);
 
-    assert.equal(query("button").className, "foo");
+    assert.dom("button").hasAttribute("class", "foo");
   });
 
-  test("Multiple class given", async function () {
+  test("Multiple class given", async function (assert) {
     this.set("bar", "bar");
     await render(hbs`<button class={{concat-class "foo" this.bar}} />`);
 
-    assert.equal(query("button").className, "foo bar");
+    assert.dom("button").hasAttribute("class", "foo bar");
   });
 
-  test("One undefined class given", async function () {
+  test("One undefined class given", async function (assert) {
     this.set("bar", null);
     await render(hbs`<button class={{concat-class "foo" this.bar}} />`);
 
-    assert.equal(query("button").className, "foo");
+    assert.dom("button").hasAttribute("class", "foo");
   });
 
-  test("Only undefined class given", async function () {
+  test("Only undefined class given", async function (assert) {
     this.set("bar", null);
     await render(hbs`<button class={{concat-class null this.bar}} />`);
 
-    assert.notOk(query("button").hasAttribute("class"));
+    assert.dom("button").doesNotHaveAttribute("class");
   });
 
-  test("Helpers used", async function () {
+  test("Helpers used", async function (assert) {
     await render(
       hbs`<button class={{concat-class (if true "foo") (if true "bar")}} />`
     );
 
-    assert.equal(query("button").className, "foo bar");
+    assert.dom("button").hasAttribute("class", "foo bar");
+  });
+
+  test("Arrays", async function (assert) {
+    await render(
+      hbs`<button class={{concat-class (array) (array "foo" "bar") (array null)}} />`
+    );
+
+    assert.dom("button").hasAttribute("class", "foo bar");
   });
 });

@@ -1,4 +1,4 @@
-import { inject as service } from "@ember/service";
+import { service } from "@ember/service";
 import ChatChannelPane from "./chat-channel-pane";
 
 export default class ChatThreadPane extends ChatChannelPane {
@@ -10,7 +10,10 @@ export default class ChatThreadPane extends ChatChannelPane {
   }
 
   get isOpened() {
-    return this.router.currentRoute.name === "chat.channel.thread";
+    return (
+      this.router.currentRoute.name === "chat.channel.thread" ||
+      this.router.currentRoute.name === "chat.channel.thread.index"
+    );
   }
 
   get selectedMessageIds() {

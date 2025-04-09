@@ -155,7 +155,13 @@ task "users:disable_2fa", [:username] => [:environment] do |_, args|
   username = args[:username]
   user = find_user(username)
   UserSecondFactor.where(user_id: user.id, method: UserSecondFactor.methods[:totp]).each(&:destroy!)
-  UserSecurityKey.where(user_id: user.id).destroy_all
+  UserSecurityKey.where(
+    user_id: user.id,
+    factor_type: UserSecurityKey.factor_types[:second_factor],
+  ).destroy_all
+  UserSecondFactor.where(user_id: user.id, method: UserSecondFactor.methods[:backup_codes]).each(
+    &:destroy!
+  )
   puts "2FA disabled for #{username}"
 end
 
@@ -208,6 +214,17 @@ task "users:list_recent_staff" => :environment do
   users.each { |user| puts "#{user.id}: #{user.username} (#{user.email})" }
   puts "----"
   puts "user_ids = [#{all_ids.uniq.join(",")}]"
+end
+
+desc "Check if a user exists for given email address"
+task "users:exists", [:email] => [:environment] do |_, args|
+  email = args[:email]
+  if User.find_by_email(email)
+    puts "User with email #{email} exists"
+    exit 0
+  end
+  puts "ERROR: User with email #{email} not found"
+  exit 1
 end
 
 def find_user(username)

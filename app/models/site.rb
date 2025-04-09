@@ -106,15 +106,30 @@ class Site
   end
 
   def categories
+    if @guardian.can_lazy_load_categories?
+      preloaded_category_ids = []
+      if @guardian.authenticated?
+        sidebar_category_ids = @guardian.user.secured_sidebar_category_ids(@guardian)
+        preloaded_category_ids.concat(
+          Category.secured(@guardian).ancestors_of(sidebar_category_ids).pluck(:id),
+        )
+        preloaded_category_ids.concat(sidebar_category_ids)
+      end
+    end
+
     @categories ||=
       begin
         categories = []
 
         self.class.all_categories_cache.each do |category|
-          if @guardian.can_see_serialized_category?(
-               category_id: category[:id],
-               read_restricted: category[:read_restricted],
-             )
+          if (
+               !@guardian.can_lazy_load_categories? ||
+                 preloaded_category_ids.include?(category[:id])
+             ) &&
+               @guardian.can_see_serialized_category?(
+                 category_id: category[:id],
+                 read_restricted: category[:read_restricted],
+               )
             categories << category
           end
         end
@@ -168,6 +183,13 @@ class Site
     query
   end
 
+  def anonymous_sidebar_sections
+    SidebarSection
+      .public_sections
+      .includes(:sidebar_urls)
+      .order("(section_type IS NOT NULL) DESC, (public IS TRUE) DESC")
+  end
+
   def archetypes
     Archetype.list.reject { |t| t.id == Archetype.private_message }
   end
@@ -192,6 +214,8 @@ class Site
             Discourse.enabled_auth_providers.map do |provider|
               AuthProviderSerializer.new(provider, root: false, scope: guardian)
             end,
+          full_name_required_for_signup:,
+          full_name_visible_in_signup:,
         }.to_json
       )
     end
@@ -229,5 +253,13 @@ class Site
     # publishing forces the sequence up
     # the cache is validated based on the sequence
     MessageBus.publish(SITE_JSON_CHANNEL, "")
+  end
+
+  def self.full_name_required_for_signup
+    SiteSetting.enable_names && SiteSetting.full_name_requirement == "required_at_signup"
+  end
+
+  def self.full_name_visible_in_signup
+    SiteSetting.enable_names && SiteSetting.full_name_requirement != "hidden_at_signup"
   end
 end

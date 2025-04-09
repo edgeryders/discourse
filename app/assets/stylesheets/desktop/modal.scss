@@ -1,27 +1,24 @@
+html.modal-open {
+  overflow: hidden;
+}
+
 .d-modal {
   --modal-max-width: 600px;
   --modal-width: 30em; // set in ems to scale with user font-size
   --modal-min-width: 400px;
+
   &__container {
     max-width: var(--modal-max-width);
     min-width: var(--modal-min-width);
+    min-height: var(--modal-min-height); // unset, optional theme utility
+
     .d-modal.-large & {
       max-width: 800px;
     }
+
     .d-modal.-max & {
       max-width: 90vw;
     }
-  }
-}
-//legacy
-// Hardcode to be the same as before for now. I would recommend not using bootbox, or finding a way so the html structure can be the same
-.bootbox.modal {
-  top: 50%;
-  left: 50%;
-  width: 610px;
-  margin: -250px 0 0 -305px;
-  .cancel {
-    margin-left: 1em;
   }
 }
 
@@ -32,23 +29,15 @@
   }
 }
 
-.modal-footer .btn.right {
-  float: right;
-}
-
-.modal-header {
-  h3 {
-    font-size: var(--font-up-3);
-  }
-}
-
 .close {
   font-size: var(--font-up-3);
   text-decoration: none;
+
   &:visited {
     color: var(--primary-high);
   }
   cursor: pointer;
+
   &:hover {
     color: var(--primary);
   }
@@ -58,20 +47,9 @@
   .category-chooser {
     width: 50%;
   }
-
-  .modal-body.insert-link {
-    input {
-      min-width: 450px;
-    }
-  }
 }
 
 .choose-topic-modal {
-  .modal-body {
-    position: relative;
-    min-height: 350px;
-  }
-
   #choosing-topic {
     // prevents content from moving when user selects different move options 525px
     // is the same width we set on category edit modal
@@ -113,12 +91,6 @@
   }
 }
 
-.change-post-notice-modal {
-  .modal-body {
-    min-width: 450px;
-  }
-}
-
 .create-invite-modal,
 .create-invite-bulk-modal,
 .share-topic-modal {
@@ -129,15 +101,5 @@
     .subtitle {
       margin-left: 0.5em;
     }
-  }
-
-  &.modal .modal-body {
-    margin: 1em;
-    padding: unset;
-  }
-
-  .modal-inner-container {
-    width: 40em; // scale with user font-size
-    max-width: 100vw; // prevent overflow if user font-size is enormous
   }
 }

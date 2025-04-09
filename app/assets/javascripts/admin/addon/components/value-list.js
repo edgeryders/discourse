@@ -2,9 +2,8 @@ import Component from "@ember/component";
 import { action } from "@ember/object";
 import { empty, reads } from "@ember/object/computed";
 import { classNames } from "@ember-decorators/component";
-import { on } from "@ember-decorators/object";
-import { makeArray } from "discourse-common/lib/helpers";
-import discourseComputed from "discourse-common/utils/decorators";
+import discourseComputed from "discourse/lib/decorators";
+import { makeArray } from "discourse/lib/helpers";
 
 @classNames("value-list")
 export default class ValueList extends Component {
@@ -15,20 +14,21 @@ export default class ValueList extends Component {
   newValue = "";
   collection = null;
   values = null;
+  onChange = null;
 
   @reads("addKey") noneKey;
 
-  @on("didReceiveAttrs")
-  _setupCollection() {
-    const values = this.values;
+  didReceiveAttrs() {
+    super.didReceiveAttrs(...arguments);
+
     if (this.inputType === "array") {
-      this.set("collection", values || []);
+      this.set("collection", this.values ? [...this.values] : []);
       return;
     }
 
     this.set(
       "collection",
-      this._splitValues(values, this.inputDelimiter || "\n")
+      this._splitValues(this.values, this.inputDelimiter || "\n")
     );
   }
 
@@ -115,6 +115,11 @@ export default class ValueList extends Component {
   }
 
   _saveValues() {
+    if (this.onChange) {
+      this.onChange([...this.collection]);
+      return;
+    }
+
     if (this.inputType === "array") {
       this.set("values", this.collection);
       return;

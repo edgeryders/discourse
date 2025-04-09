@@ -19,6 +19,7 @@ globalThis.console = {
 import { transform as babelTransform } from "@babel/standalone";
 import HTMLBarsInlinePrecompile from "babel-plugin-ember-template-compilation";
 import { Preprocessor } from "content-tag";
+import DecoratorTransforms from "decorator-transforms";
 import colocatedBabelPlugin from "ember-cli-htmlbars/lib/colocated-babel-plugin";
 import { precompile } from "ember-source/dist/ember-template-compiler";
 import EmberThisFallback from "ember-this-fallback";
@@ -27,9 +28,10 @@ import Handlebars from "handlebars";
 // so we polyfill it
 import getRandomValues from "polyfill-crypto.getrandomvalues";
 import { minify as terserMinify } from "terser";
-import RawHandlebars from "discourse-common/addon/lib/raw-handlebars";
+import RawHandlebars from "discourse/lib/raw-handlebars";
 import { WidgetHbsCompiler } from "discourse-widget-hbs/lib/widget-hbs-compiler";
 globalThis.crypto = { getRandomValues };
+import { browsers } from "../discourse/config/targets";
 
 const thisFallbackPlugin = EmberThisFallback._buildPlugin({
   enableLogging: false,
@@ -125,12 +127,11 @@ globalThis.compileRawTemplate = function (source, themeId) {
 };
 
 globalThis.transpile = function (source, options = {}) {
-  const { moduleId, filename, extension, skipModule, themeId, commonPlugins } =
-    options;
+  const { moduleId, filename, extension, skipModule, themeId } = options;
 
   if (extension === "gjs") {
     const preprocessor = new Preprocessor();
-    source = preprocessor.process(source);
+    source = preprocessor.process(source).code;
   }
 
   const plugins = [];
@@ -138,7 +139,7 @@ globalThis.transpile = function (source, options = {}) {
   if (moduleId && !skipModule) {
     plugins.push(["transform-modules-amd", { noInterop: true }]);
   }
-  plugins.push(...commonPlugins);
+  plugins.push([DecoratorTransforms, { runEarly: true }]);
 
   try {
     return babelTransform(source, {
@@ -146,6 +147,17 @@ globalThis.transpile = function (source, options = {}) {
       filename,
       ast: false,
       plugins,
+      presets: [
+        [
+          "env",
+          {
+            modules: false,
+            targets: {
+              browsers,
+            },
+          },
+        ],
+      ],
     }).code;
   } catch (error) {
     // Workaround for https://github.com/rubyjs/mini_racer/issues/262

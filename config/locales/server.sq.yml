@@ -41,16 +41,38 @@ sq:
   posts: "postime"
   views: "shikime"
   loading: "Loading"
+  powered_by_html: 'Mundësuar nga <a href="https://www.discourse.org">Discourse</a>, shikohet më së miri me JavaScript të aktivizuar'
   sign_up: "Regjistrohu"
   log_in: "Identifikohu"
   purge_reason: "Automatically deleted as abandoned, deactivated account"
   disable_remote_images_download_reason: "Remote images download was disabled because there wasn't enough disk space available."
   anonymous: "Anonim"
   remove_posts_deleted_by_author: "Fshirë nga autori"
+  redirect_warning: "Ne nuk ishim në gjendje të verifikonim që linku që zgjodhët ishte postuar në të vërtetë në forum. Nëse dëshironi të vazhdoni gjithsesi, zgjidhni linkun më poshtë."
+  topic_category_changed: "Nga %{from} në %{to}"
+  topic_tag_changed:
+    added_and_removed: "U shtua %{added} dhe u hoq %{removed}"
   inline_oneboxer:
     topic_page_title_post_number_by_user: "#%{post_number} nga %{username}"
   components:
     enabled_filter: "Aktivizuar"
+  themes:
+    bad_color_scheme: "Tema nuk mund të përditësohet, paleta e pavlefshme e ngjyrave"
+    other_error: "Ndodhi një gabim me përditësimin e temës"
+    ember_selector_error: "Ndodhi një gabim – përdorimi i përzgjedhësve CSS #ember ose .ember-view nuk lejohet, sepse këta emra gjenerohen në mënyrë të shpejtë në kohën e zbatimti dhe do të ndryshojnë me kalimin e kohës, duke rezultuar në CSS të anulluar. Provoni një përzgjedhës tjetër."
+    import_error:
+      generic: Ndodhi një gabim gjatë përcjelljes të kësaj teme
+      upload: "Gabim në ngarkim e sipër: %{name}. %{errors}"
+      screenshot_invalid_size: "Kopjet e temës duhet të jenë më pak se %{max_size}. Kopja %{file_name} është shumë e madhe."
+      screenshot_invalid_dimensions: "Kopjet e temës duhet të jenë maksimale %{max_width}x%{max_height}. Kopja %{file_name} e tejkalon këtë. Dimensionet janë %{width}x%{height}."
+      about_json: "Gabim transferimi: about.json nuk ekziston, ose është i pavlefshëm. Jeni i sigurt se kjo është një temë diskutimi?"
+      unpack_failed: "Hapja e dosjes dështoi"
+    settings_errors:
+      number_value_not_valid_min_max: "Value must be between %{min} and %{max}."
+      objects:
+        required: "must be present"
+        not_valid_integer_value: "must be an integer"
+        humanize_not_valid_categories_value: "Veçoria në JSON Pointer '%{property_json_pointer}' duhet të jetë një grup id i kategorive të vlefshme."
   emails:
     incoming:
       default_subject: "Duhet të shkruani titullin"
@@ -65,7 +87,6 @@ sq:
   errors: &errors
     format: ! "%{attribute} %{message}"
     messages:
-      too_long_validation: "ka limit maksimumi %{max} shkronja; ju vendosët %{length}."
       invalid_boolean: "Boolean jo i vlefshëm."
       taken: "është i marrë"
       accepted: duhet të pranohet
@@ -182,6 +203,10 @@ sq:
         raw: "Trupi"
       user_profile:
         bio_raw: "Rreth Meje"
+      user:
+        password: "Fjalëkalimi"
+      user_password:
+        password: "Fjalëkalimi"
     errors:
       models:
         topic:
@@ -198,6 +223,12 @@ sq:
             ip_address:
               blocked: "New registrations are not allowed from your IP address."
               max_new_accounts_per_registration_ip: "New registrations are not allowed from your IP address (maximum limit reached). Contact a staff member."
+        user_password:
+          attributes:
+            password:
+              common: "është një ndër 10000 fjalëkalimet më të përdorur. Ju ftojmë të përdorni një më të sigurtë."
+              same_as_username: "is the same as your username. Please use a more secure password."
+              same_as_email: "is the same as your email. Please use a more secure password."
         color_scheme_color:
           attributes:
             hex:
@@ -309,11 +340,7 @@ sq:
     error: "Hasëm një gabim gjatë ndryshimit të adresës email. Mos vallë është në përdorim nga një llogari tjetër në faqe?"
     already_done: "Na vjen keq, ky link nuk vlen më. Mbase adresa juaj email u ndryshua para pak kohësh?"
   activation:
-    action: "Klikoni këtu për të aktivizuar llogarinë tuaj"
     already_done: "Na vjen keq, ky link nuk vlen më. Mbase llogaria është që tani e aktivizuar?"
-    please_continue: "Llogaria juaj e re u konfirumua; ju po ridrejtoheni për tek faqja kryesore."
-    continue_button: "Vazhdo tek %{site_name}"
-    welcome_to: "Mirë se vini tek %{site_name}!"
     approval_required: "A moderator must manually approve your new account before you can access this forum. You'll get an email when your account is approved!"
   reviewable_score_types:
     needs_approval:
@@ -328,6 +355,8 @@ sq:
       email_body: "%{link}\n\n%{message}"
     inappropriate:
       title: "i papërshtatshëm"
+    illegal:
+      email_body: "%{link}\n\n%{message}"
     notify_user:
       title: "Dërgoji @%{username} një mesazh"
       email_title: 'Postimi juaj në "%{title}"'
@@ -356,6 +385,8 @@ sq:
       title: "Diçka Tjetër"
       long_form: "shënoje për vëmendjen e moderatorëve"
       email_title: 'Tema "%{title}" kërkon redaktimin e një moderatori'
+      email_body: "%{link}\n\n%{message}"
+    illegal:
       email_body: "%{link}\n\n%{message}"
   flagging:
     user_must_edit: "<p>Kjo temë u sinjalizua nga komuniteti dhe është fshehur përkohësisht.</p>"
@@ -429,6 +460,10 @@ sq:
       xaxis:
         api: "API"
         user_api: "API e përdoruesit"
+      yaxis: "Dit"
+    consolidated_page_views_browser_detection:
+      yaxis: "Dit"
+    site_traffic:
       yaxis: "Dit"
     dau_by_mau:
       xaxis: "Day"
@@ -530,9 +565,15 @@ sq:
       xaxis: "Day"
     page_view_total_reqs:
       xaxis: "Day"
+    page_view_legacy_total_reqs:
+      xaxis: "Dit"
     page_view_logged_in_mobile_reqs:
       xaxis: "Ditë"
     page_view_anon_mobile_reqs:
+      xaxis: "Dit"
+    page_view_anon_browser_reqs:
+      xaxis: "Dit"
+    page_view_logged_in_browser_reqs:
       xaxis: "Dit"
     http_background_reqs:
       title: "Background"
@@ -569,6 +610,8 @@ sq:
     mobile_visits:
       xaxis: "Ditë"
       yaxis: "Numri i vizitave"
+    web_hook_events_daily_aggregate:
+      xaxis: "Dit"
     suspicious_logins:
       labels:
         user: User
@@ -592,12 +635,18 @@ sq:
       labels:
         user: User
         qtt_like: Pëlqime të marra
+    topic_view_stats:
+      labels:
+        topic: Topic
+        logged_in_views: Logged In
+        anon_views: Anonim
+        total_views: Total
   dashboard:
-    rails_env_warning: "Your server is running in %{env} mode."
-    host_names_warning: "Your config/database.yml file is using the default localhost hostname. Update it to use your site's hostname."
-    sidekiq_warning: 'Sidekiq is not running. Many tasks, like sending emails, are executed asynchronously by sidekiq. Please ensure at least one sidekiq process is running. <a href="https://github.com/mperham/sidekiq" target="_blank">Learn about Sidekiq here</a>.'
-    queue_size_warning: "The number of queued jobs is %{queue_size}, which is high. This could indicate a problem with the Sidekiq process(es), or you may need to add more Sidekiq workers."
-    memory_warning: "Your server is running with less than 1 GB of total memory. At least 1 GB of memory is recommended."
+    problem:
+      rails_env: "Your server is running in %{env} mode."
+      host_names: "Your config/database.yml file is using the default localhost hostname. Update it to use your site's hostname."
+      queue_size: "The number of queued jobs is %{queue_size}, which is high. This could indicate a problem with the Sidekiq process(es), or you may need to add more Sidekiq workers."
+      ram: "Your server is running with less than 1 GB of total memory. At least 1 GB of memory is recommended."
   site_settings:
     censored_words: "Fjalët do të zhvendosen automatikisht me &#9632;&#9632;&#9632;&#9632;"
     delete_old_hidden_posts: "Auto-delete any hidden posts that stay hidden for more than 30 days."
@@ -637,9 +686,7 @@ sq:
     tl4_additional_likes_per_day_multiplier: "Increase limit of likes per day for tl4 (leader) by multiplying with this number"
     traditional_markdown_linebreaks: "Use traditional linebreaks in Markdown, which require two trailing spaces for a linebreak."
     post_undo_action_window_mins: "Number of minutes users are allowed to undo recent actions on a post (like, flag, etc)."
-    must_approve_users: "Staff must approve all new user accounts before they are allowed to access the site."
     cors_origins: "Allowed origins for cross-origin requests (CORS). Each origin must include http:// or https://. The DISCOURSE_ENABLE_CORS env variable must be set to true to enable CORS."
-    post_menu_hidden_items: "The menu items to hide by default in the post menu unless an expansion ellipsis is clicked on."
     share_links: "Determine which items appear on the share dialog, and in what order."
     site_contact_username: "A valid staff username to send all automated messages from. If left blank the default System account will be used."
     send_welcome_message: "Send all new users a welcome message with a quick start guide."
@@ -649,17 +696,13 @@ sq:
     max_reply_history: "Maximum number of replies to expand when expanding in-reply-to"
     topics_per_period_in_top_summary: "Number of top topics shown in the default top topics summary."
     topics_per_period_in_top_page: "Number of top topics shown on the expanded 'Show More' top topics."
-    redirect_users_to_top_page: "Automatically redirect new and long absent users to the top page."
     email_token_valid_hours: "Forgot password / activate account tokens are valid for (n) hours."
-    enable_badges: "Aktivizo sistemin e targetave"
     log_out_strict: "When logging out, log out ALL sessions for the user on all devices"
     new_version_emails: "Send an email to the contact_email address when a new version of Discourse is available."
     invite_expiry_days: "How long user invitation keys are valid, in days"
     login_required: "Require authentication to read content on this site, disallow anonymous access."
-    min_password_length: "Minimum password length."
     block_common_passwords: "Mos lejo fjalëkalimet që gjenden në 10,000 fjalëkalimet më të përdorshme."
     allow_new_registrations: "Allow new user registrations. Uncheck this to prevent anyone from creating a new account."
-    google_oauth2_client_id: "Client ID of your Google application."
     google_oauth2_client_secret: "Client secret of your Google application."
     s3_backup_bucket: "The remote bucket to hold backups. WARNING: Make sure it is a private bucket."
     active_user_rate_limit_secs: "How frequently we update the 'last_seen_at' field, in seconds"
@@ -742,15 +785,9 @@ sq:
     num_flaggers_to_close_topic: "Minimum number of unique flaggers that is required to automatically pause a topic for intervention"
     auto_respond_to_flag_actions: "Enable automatic reply when disposing a flag."
     min_first_post_typing_time: "Minimum amount of time in milliseconds a user must type during first post, if threshold is not met post will automatically enter the needs approval queue. Set to 0 to disable (not recommended)"
-    reply_by_email_enabled: "Enable replying to topics via email."
     reply_by_email_address: "Template for reply by email incoming email address, for example: %%{reply_key}@reply.example.com or replies+%%{reply_key}@example.com"
     strip_images_from_short_emails: "Strip images from emails having size less than 2800 Bytes"
-    short_email_length: "Short email length in Bytes"
-    pop3_polling_enabled: "Poll via POP3 for email replies."
     pop3_polling_ssl: "Use SSL while connecting to the POP3 server. (Recommended)"
-    pop3_polling_period_mins: "The period in minutes between checking the POP3 account for email. NOTE: requires restart."
-    pop3_polling_port: "The port to poll a POP3 account on."
-    pop3_polling_host: "The host to poll for email via POP3."
     pop3_polling_username: "The username for the POP3 account to poll for email."
     pop3_polling_password: "The password for the POP3 account to poll for email."
     email_in_min_trust: "The minimum trust level a user needs to have to be allowed to post new topics via email."
@@ -767,7 +804,6 @@ sq:
     detect_custom_avatars: "Whether or not to check that users have uploaded custom profile pictures."
     max_daily_gravatar_crawls: "Maximum number of times Discourse will check Gravatar for custom avatars in a day"
     enable_user_directory: "Provide a directory of users for browsing"
-    allow_anonymous_posting: "Allow users to switch to anonymous mode"
     anonymous_posting_min_trust_level: "Minimum trust level required to enable anonymous posting"
     anonymous_account_duration_minutes: "To protect anonymity create a new anonymous account every N minutes for each user. Example: if set to 600, as soon as 600 minutes elapse from last post AND user switches to anon, a new anonymous account is created."
     allow_profile_backgrounds: "Allow users to upload profile backgrounds."
@@ -777,18 +813,13 @@ sq:
     disable_system_edit_notifications: "Disables edit notifications by the system user when 'download_remote_images_to_local' is active."
     automatically_unpin_topics: "Çngjiti temat automatikisht kur përdoruesi arrin fundin e faqes."
     read_time_word_count: "Numërimi i fjalëve për minutë për të llogaritur kohën e vlerësuar të leximit."
-    full_name_required: "Full name is a required field of a user's profile."
     enable_names: "Show the user's full name on their profile, user card, and emails. Disable to hide full name everywhere."
     display_name_on_posts: "Show a user's full name on their posts in addition to their @username."
     show_time_gap_days: "If two posts are made this many days apart, display the time gap in the topic."
     short_progress_text_threshold: "After the number of posts in a topic goes above this number, the progress bar will only show the current post number. If you change the progress bar's width, you may need to change this value."
     warn_reviving_old_topic_age: "When someone starts replying to a topic where the last reply is older than this many days, a warning will be displayed. Disable by setting to 0."
-    embed_truncate: "Truncate the embedded posts."
     embed_post_limit: "Maximum number of posts to embed."
-    delete_drafts_older_than_n_days: "Delete drafts older than (n) days."
     slug_generation_method: "Choose a slug generation method. 'encoded' will generate percent encoding string. 'none' will disable slug at all."
-    enable_emoji: "Enable emoji"
-    emoji_set: "How would you like your emoji?"
     auto_close_messages_post_count: "Numri më i lartë i lejueshëm i postimeve të lejuara në një mesazh përpara se të mbyllet automatikisht (0 për ta çaktivizuar)"
     auto_close_topics_post_count: "Numri më i lartë i lejueshëm i postimeve të lejuara në një temë përpara se të mbyllet automatikisht (0 për ta çaktivizuar)"
     default_topics_automatic_unpin: "Çngjiti temat automatikisht kur përdoruesi arrin fundin e faqes, e paracaktuar."
@@ -803,8 +834,6 @@ sq:
       must_include_latest: "Top menu must include the 'latest' tab."
       invalid_string: "Invalid value."
       invalid_string_min_max: "Must be between %{min} and %{max} characters."
-      invalid_string_min: "Must be at least %{min} characters."
-      invalid_string_max: "Must be no more than %{max} characters."
       invalid_reply_by_email_address: "Value must contain '%{reply_key}' and be different from the notification email."
   search:
     within_post: "#%{post_number} nga %{username}"
@@ -866,14 +895,11 @@ sq:
     password_too_long: "Passwords are limited to 200 characters."
     email_too_long: "The email you provided is too long. Mailbox names must be no more than 254 characters, and domain names must be no more than 253 characters."
     reserved_username: "Ky emër nuk lejohet."
-    missing_user_field: "You have not completed all the user fields"
   admin:
     email:
       sent_test: "u dërgua!"
   user:
     username:
-      short: "must be at least %{min} characters"
-      long: "must be no more than %{max} characters"
       unique: "must be unique"
       blank: "must be present"
     email:
@@ -1117,14 +1143,12 @@ sq:
 
         %{message}
     digest:
-      why: "Një përmbledhje e shkurtër e temave tek %{site_link} që prej vizitës tuaj të fundit më %{last_seen_at}"
       new_topics: "Diskutimet e Reja"
       liked_received: "Pëlqime të marra"
       new_users: "Përdorues të rinj"
       join_the_discussion: "Më shumë"
       subject_template: "[%{email_prefix}] Përmbledhja"
       click_here: "klikoni këtu"
-      preheader: "Një përmbledhe e shkurtër e faqes që nga vizita juaj e fundit më %{last_seen_at}"
     forgot_password:
       title: "Harruat Fjalëkalimin"
     set_password:
@@ -1201,6 +1225,7 @@ sq:
     Modifiko postimin e parë të kësaj teme puer të ndryshuar përmbajtjen e faqes %{page_name}.
   guidelines_topic:
     title: "Pyetje dhe Përgjigje/Udhëzime"
+    guidelines_title: "Udhëzimet"
   tos_topic:
     title: "Termat e Shërbimit "
   privacy_topic:
@@ -1374,12 +1399,8 @@ sq:
             label: "Parashikimi"
           homepage_style:
             choices:
-              categories_only:
-                label: "Vetëm kategoritë"
-              categories_with_featured_topics:
-                label: "Kategoritë dhe temat e zgjedhura"
-              categories_and_latest_topics:
-                label: "Kategoritë dhe temat e fundit"
+              latest:
+                label: "Më të fundit"
   discourse_push_notifications:
     popup:
       mentioned: '%{username} ju përmendi në "%{topic}" - %{site_title}'

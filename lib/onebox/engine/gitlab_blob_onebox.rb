@@ -6,7 +6,7 @@ module Onebox
   module Engine
     class GitlabBlobOnebox
       def self.git_regexp
-        %r{^https?://(www\.)?gitlab\.com.*/blob/}
+        %r{^https?://(?:www\.)?gitlab\.com/.*/blob/.*}
       end
 
       def self.onebox_name
@@ -30,8 +30,14 @@ module Onebox
         "https://gitlab.com/#{m[:user]}/#{m[:repo]}/raw/#{m[:sha1]}/#{m[:file]}"
       end
 
-      def title
-        Sanitize.fragment(Onebox::Helpers.uri_unencode(link).sub(%r{^https?\://gitlab\.com/}, ""))
+      def auth_headers(_match)
+        {}
+      end
+
+      private
+
+      def data
+        super.merge({ domain: "gitlab.com/#{match[:user]}/#{match[:repo]}" })
       end
     end
   end

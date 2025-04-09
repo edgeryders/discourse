@@ -1,15 +1,16 @@
+import { tracked } from "@glimmer/tracking";
 import Controller from "@ember/controller";
 import { action } from "@ember/object";
-import { inject as service } from "@ember/service";
+import { service } from "@ember/service";
 import { htmlSafe } from "@ember/template";
 import DismissNotificationConfirmationModal from "discourse/components/modal/dismiss-notification-confirmation";
 import RelativeDate from "discourse/components/relative-date";
 import { ajax } from "discourse/lib/ajax";
+import discourseComputed from "discourse/lib/decorators";
+import getURL from "discourse/lib/get-url";
+import { iconHTML } from "discourse/lib/icon-library";
 import UserMenuNotificationItem from "discourse/lib/user-menu/notification-item";
-import getURL from "discourse-common/lib/get-url";
-import { iconHTML } from "discourse-common/lib/icon-library";
-import discourseComputed from "discourse-common/utils/decorators";
-import I18n from "discourse-i18n";
+import { i18n } from "discourse-i18n";
 
 const _beforeLoadMoreCallbacks = [];
 export function addBeforeLoadMoreCallback(fn) {
@@ -23,8 +24,9 @@ export default class UserNotificationsController extends Controller {
   @service site;
   @service siteSettings;
 
+  @tracked filter = "all";
+
   queryParams = ["filter"];
-  filter = "all";
 
   get listContainerClassNames() {
     return `user-notifications-list ${
@@ -61,9 +63,9 @@ export default class UserNotificationsController extends Controller {
     );
   }
 
-  @discourseComputed("isFiltered", "model.content.length")
-  doesNotHaveNotifications(isFiltered, contentLength) {
-    return !isFiltered && contentLength === 0;
+  @discourseComputed("isFiltered", "model.content.length", "loading")
+  doesNotHaveNotifications(isFiltered, contentLength, loading) {
+    return !loading && !isFiltered && contentLength === 0;
   }
 
   @discourseComputed("isFiltered", "model.content.length")
@@ -74,7 +76,7 @@ export default class UserNotificationsController extends Controller {
   @discourseComputed()
   emptyStateBody() {
     return htmlSafe(
-      I18n.t("user.no_notifications_page_body", {
+      i18n("user.no_notifications_page_body", {
         preferencesUrl: getURL("/my/preferences/notifications"),
         icon: iconHTML("bell"),
       })
@@ -87,11 +89,17 @@ export default class UserNotificationsController extends Controller {
   }
 
   @action
+  updateFilter(value) {
+    this.loading = true;
+    this.filter = value;
+  }
+
+  @action
   async resetNew() {
     if (this.currentUser.unread_high_priority_notifications > 0) {
       this.modal.show(DismissNotificationConfirmationModal, {
         model: {
-          confirmationMessage: I18n.t(
+          confirmationMessage: i18n(
             "notifications.dismiss_confirmation.body.default",
             {
               count: this.currentUser.unread_high_priority_notifications,

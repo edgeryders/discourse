@@ -26,7 +26,6 @@ ko:
       deleted_chat_username: 삭제되었습니다
       dates:
         yesterday: "어제"
-        time_tiny: "h:mm"
       all_loaded: "모든 메시지 보기"
       bot: "봇"
       create: "글"
@@ -75,7 +74,6 @@ ko:
       header_indicator_preference:
         title: "헤더에 활동 표시"
         all_new: "모든 새 메시지"
-        dm_and_mentions: "DM과 맨션"
         never: "알림 받지 않기"
       enable: "채팅 활성화"
       flag: "신고"
@@ -84,12 +82,6 @@ ko:
       heading: "채팅"
       join: "가입"
       last_visit: "마지막 방문"
-      summarization:
-        title: "메시지 요약"
-        description: "선택된 시간 동안 전송된 대화 내역을 요약하기 위한 옵션을 선택하십시오."
-        summarize: "요약하기"
-        since:
-          other: "약 %{count}시간"
       mention_warning:
         groups:
           unreachable_1: "@%{group}에서 멘션을 허용하지 않습니다."
@@ -104,7 +96,7 @@ ko:
         header: "채팅 헤더"
         composer: "채팅 작성기"
         channels_list: "채팅 채널 목록"
-      no_public_channels: "가입한 채널이 없습니다."
+      no_public_channels_cta: "채널 찾아보기"
       kicked_from_channel: "더 이상 이 채널에 접근할 수 없습니다."
       only_chat_push_notifications:
         title: "채팅 푸시 알림만 보내기"
@@ -158,7 +150,7 @@ ko:
         back: "뒤로"
         title: 채널
         filter_all: 전체
-        filter_open: 열림
+        filter_open: 열기
         filter_closed: 닫힘
         filter_archived: 보관됨
         filter_input_placeholder: 이름으로 채널 검색
@@ -232,7 +224,6 @@ ko:
       settings:
         channel_threading_label: "스레딩"
         auto_join_users_label: "자동으로 사용자 추가"
-        desktop_notification_level: "데스크톱 알림"
         follow: "가입"
         followed: "가입"
         threading_enabled: "활성화"
@@ -323,6 +314,8 @@ ko:
             title: "일반"
           tracking:
             title: "알림"
+          watching:
+            title: "모든 알림"
         participants_other_count:
           other: "+%{count}"
       draft_channel_screen:
@@ -332,10 +325,6 @@ ko:
       chat_quoted: "<span>%{username}</span> %{description} "
       popup:
         chat_message: "새 채팅 메시지"
-      titles:
-        chat_mention: "채팅 멘션"
-        chat_invitation: "채팅 초대"
-        chat_quoted: "인용된 채팅"
     discourse_automation:
       scriptables:
         send_chat_message:

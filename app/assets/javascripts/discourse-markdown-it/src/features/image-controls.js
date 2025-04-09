@@ -1,13 +1,39 @@
-import I18n from "discourse-i18n";
+import { i18n } from "discourse-i18n";
 
 const SCALES = ["100", "75", "50"];
+
+let apiExtraButton = [];
+let apiExtraButtonAllowList = [];
+
+export function addImageWrapperButton(label, btnClass, icon = null) {
+  const markup = [];
+  markup.push(`<span class="${btnClass}">`);
+  if (icon) {
+    markup.push(`
+      <svg class="fa d-icon d-icon-${icon} svg-icon svg-string" xmlns="http://www.w3.org/2000/svg">
+        <use href="#${icon}"></use>
+      </svg>
+    `);
+  }
+  markup.push(label);
+  markup.push("</span>");
+
+  apiExtraButton.push(markup.join(""));
+  apiExtraButtonAllowList.push(`span.${btnClass}`);
+  apiExtraButtonAllowList.push(
+    `svg[class=fa d-icon d-icon-${icon} svg-icon svg-string]`
+  );
+  apiExtraButtonAllowList.push(`use[href=#${icon}]`);
+}
 
 function isUpload(token) {
   return token.content.includes("upload://");
 }
 
 function hasMetadata(token) {
-  return token.content.match(/(\d{1,4}x\d{1,4})/);
+  return !!token.content
+    .split("|")
+    .find((part) => /^\d{1,4}x\d{1,4}(,\s*\d{1,3}%)?$/.test(part));
 }
 
 function appendMetaData(index, token) {
@@ -56,27 +82,25 @@ function rule(state) {
 
 function buildScaleButton(selectedScale, scale) {
   const activeScaleClass = selectedScale === scale ? " active" : "";
-  return (
-    "<span class='scale-btn" +
-    activeScaleClass +
-    "' data-scale='" +
-    scale +
-    "'>" +
-    scale +
-    "%</span>"
-  );
+  return `<span title="
+            ${i18n("composer.image_scale_button", { percent: scale })}" 
+            class='scale-btn${activeScaleClass}' data-scale='${scale}'
+          >
+            ${scale}%
+          </span>`;
 }
 
 function buildImageShowAltTextControls(altText) {
   return `
   <span class="alt-text-readonly-container">
-  <span class="alt-text-edit-btn">
-  <svg aria-hidden="true" class="fa d-icon d-icon-pencil svg-icon svg-string"><use href="#pencil-alt"></use></svg>
-</span>
-
-  <span class="alt-text" aria-label="${I18n.t(
-    "composer.image_alt_text.aria_label"
-  )}">${altText}</span>
+    <span class="alt-text-edit-btn" 
+      title="${i18n("composer.image_alt_text.title")}" 
+    >
+      <svg aria-hidden="true" class="fa d-icon d-icon-pencil svg-icon svg-string"><use href="#pencil"></use></svg>
+    </span>
+    <span class="alt-text" 
+      aria-label="${i18n("composer.image_alt_text.aria_label")}"
+    >${altText}</span>
   </span>
   `;
 }
@@ -89,7 +113,7 @@ function buildImageEditAltTextControls(altText) {
         <svg class="fa d-icon d-icon-check svg-icon svg-string"><use href="#check"></use></svg>
     </button>
     <button class="alt-text-edit-cancel btn btn-default">
-        <svg class="fa d-icon d-icon-times svg-icon svg-string"><use href="#times"></use></svg>
+        <svg class="fa d-icon d-icon-xmark svg-icon svg-string"><use href="#xmark"></use></svg>
     </button>
   </span>
   `;
@@ -97,23 +121,24 @@ function buildImageEditAltTextControls(altText) {
 
 function buildImageDeleteButton() {
   return `
-  <span class="delete-image-button" aria-label="${I18n.t(
-    "composer.delete_image_button"
-  )}">
-  <svg class="fa d-icon d-icon-trash-alt svg-icon svg-string" xmlns="http://www.w3.org/2000/svg">
-  <use href="#far-trash-alt"></use>
-  </svg>
-   </span>
+  <span class="delete-image-button" 
+    title="${i18n("composer.delete_image_button")}" 
+    aria-label="${i18n("composer.delete_image_button")}"
+  >
+    <svg class="fa d-icon d-icon-trash-can svg-icon svg-string" xmlns="http://www.w3.org/2000/svg">
+      <use href="#trash-can"></use>
+    </svg>
+  </span>
   `;
 }
 
 function buildImageGalleryControl(imageCount) {
   return `
-  <span class="wrap-image-grid-button" title="${I18n.t(
+  <span class="wrap-image-grid-button" title="${i18n(
     "composer.toggle_image_grid"
   )}" data-image-count="${imageCount}">
-    <svg class="fa d-icon d-icon-th svg-icon svg-string" xmlns="http://www.w3.org/2000/svg">
-    <use href="#th"></use>
+    <svg class="fa d-icon d-icon-table-cells svg-icon svg-string" xmlns="http://www.w3.org/2000/svg">
+    <use href="#table-cells"></use>
     </svg>
   </span>
   `;
@@ -157,6 +182,8 @@ function ruleWithImageControls(oldRule) {
       result += `</span>`;
       result += buildImageDeleteButton();
 
+      result += apiExtraButton.join("");
+
       result += "</span></span>";
 
       return result;
@@ -185,8 +212,8 @@ export function setup(helper) {
       "span.alt-text-readonly-container.alt-text",
       "span.alt-text-readonly-container.alt-text-edit-btn",
       "svg[class=fa d-icon d-icon-pencil svg-icon svg-string]",
-      "use[href=#pencil-alt]",
-      "use[href=#far-trash-alt]",
+      "use[href=#pencil]",
+      "use[href=#trash-can]",
 
       "span.alt-text-edit-container",
       "span.delete-image-button",
@@ -197,14 +224,16 @@ export function setup(helper) {
       "svg[class=fa d-icon d-icon-check svg-icon svg-string]",
       "use[href=#check]",
       "button[class=alt-text-edit-cancel btn btn-default]",
-      "svg[class=fa d-icon d-icon-times svg-icon svg-string]",
-      "svg[class=fa d-icon d-icon-trash-alt svg-icon svg-string]",
-      "use[href=#times]",
+      "svg[class=fa d-icon d-icon-xmark svg-icon svg-string]",
+      "svg[class=fa d-icon d-icon-trash-can svg-icon svg-string]",
+      "use[href=#xmark]",
 
       "span.wrap-image-grid-button",
       "span.wrap-image-grid-button[data-image-count]",
-      "svg[class=fa d-icon d-icon-th svg-icon svg-string]",
-      "use[href=#th]",
+      "svg[class=fa d-icon d-icon-table-cells svg-icon svg-string]",
+      "use[href=#table-cells]",
+
+      ...apiExtraButtonAllowList,
     ]);
 
     helper.registerPlugin((md) => {

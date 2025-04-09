@@ -1,4 +1,4 @@
-import { getOwner } from "@ember/application";
+import { getOwner } from "@ember/owner";
 import { setupTest } from "ember-qunit";
 import { module, test } from "qunit";
 import sinon from "sinon";
@@ -37,11 +37,10 @@ module("Unit | Service | presence | subscribing", function (hooks) {
   setupTest(hooks);
 
   hooks.beforeEach(function () {
-    pretender.get("/presence/get", async (request) => {
-      const channels = request.queryParams.channels;
+    pretender.get("/presence/get", (request) => {
       const result = {};
 
-      channels.forEach((c) => {
+      request.queryParams.channels.forEach((c) => {
         if (c.startsWith("/test/")) {
           result[c] = {
             count: 3,
@@ -169,7 +168,7 @@ module("Unit | Service | presence | subscribing", function (hooks) {
     await channel.subscribe();
 
     assert.strictEqual(channel.count, 3, "has the correct count");
-    assert.strictEqual(channel.countOnly, true, "identifies as countOnly");
+    assert.true(channel.countOnly, "identifies as countOnly");
     assert.strictEqual(channel.users, null, "has null users list");
 
     await publishToMessageBus(
@@ -215,8 +214,8 @@ module("Unit | Service | presence | subscribing", function (hooks) {
 
     await channelDup.subscribe();
     assert.true(channelDup.subscribed, "channelDup can subscribe");
-    assert.ok(
-      channelDup._presenceState,
+    assert.true(
+      !!channelDup._presenceState,
       "channelDup has a valid internal state"
     );
     assert.strictEqual(
@@ -267,11 +266,7 @@ module("Unit | Service | presence | entering and leaving", function (hooks) {
       const result = {};
       const channelsRequested = body.getAll("present_channels[]");
       channelsRequested.forEach((c) => {
-        if (c.startsWith("/test/")) {
-          result[c] = true;
-        } else {
-          result[c] = false;
-        }
+        result[c] = c.startsWith("/test/");
       });
 
       return response(result);
@@ -515,23 +510,27 @@ module("Unit | Service | presence | entering and leaving", function (hooks) {
     );
   });
 
-  test("don't spam requests when server returns 429", function (assert) {
-    const done = assert.async();
+  test("don't spam requests when server returns 429", async function (assert) {
     let requestCount = 0;
-    pretender.post("/presence/update", async () => {
+    pretender.post("/presence/update", () => {
       requestCount++;
-      return response(429, { extras: { wait_seconds: 2 } });
+      if (requestCount === 1) {
+        return response(429, { extras: { wait_seconds: 2 } });
+      } else {
+        return response({});
+      }
     });
 
     const presenceService = getOwner(this).lookup("service:presence");
     presenceService.currentUser = currentUser();
     const channel = presenceService.getChannel("/test/ch1");
 
-    setTimeout(function () {
+    setTimeout(() => {
       assert.strictEqual(requestCount, 1);
-      done();
+      assert.step("request");
     }, 500);
 
-    channel.enter();
+    await channel.enter();
+    assert.verifySteps(["request"]);
   });
 });

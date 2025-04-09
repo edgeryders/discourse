@@ -16,49 +16,64 @@ class Report
     include_subcategories
   ]
 
-  include Reports::PostEdits
-  include Reports::TopTrafficSources
-  include Reports::TopicsWithNoResponse
-  include Reports::DauByMau
-  include Reports::FlagsStatus
-  include Reports::Emails
-  include Reports::Likes
-  include Reports::SystemPrivateMessages
-  include Reports::UsersByType
-  include Reports::StorageStats
-  include Reports::NotifyModeratorsPrivateMessages
-  include Reports::SuspiciousLogins
-  include Reports::TopReferredTopics
-  include Reports::Signups
-  include Reports::NotifyUserPrivateMessages
-  include Reports::NewContributors
-  include Reports::TrendingSearch
-  include Reports::UserToUserPrivateMessages
-  include Reports::Flags
-  include Reports::Topics
-  include Reports::Posts
+  MODES = {
+    table: :table,
+    chart: :chart,
+    stacked_chart: :stacked_chart,
+    stacked_line_chart: :stacked_line_chart,
+    radar: :radar,
+    counters: :counters,
+    inline_table: :inline_table,
+    storage_stats: :storage_stats,
+  }
+
   include Reports::Bookmarks
-  include Reports::StaffLogins
-  include Reports::DailyEngagedUsers
-  include Reports::UserToUserPrivateMessagesWithReplies
-  include Reports::MobileVisits
-  include Reports::TopReferrers
-  include Reports::WebCrawlers
-  include Reports::ModeratorsActivity
-  include Reports::TopIgnoredUsers
-  include Reports::UserFlaggingRatio
-  include Reports::TrustLevelGrowth
-  include Reports::ConsolidatedPageViews
   include Reports::ConsolidatedApiRequests
-  include Reports::Visits
-  include Reports::TimeToFirstResponse
-  include Reports::UsersByTrustLevel
+  include Reports::ConsolidatedPageViews
+  include Reports::ConsolidatedPageViewsBrowserDetection
+  include Reports::SiteTraffic
+  include Reports::DailyEngagedUsers
+  include Reports::DauByMau
+  include Reports::Emails
+  include Reports::Flags
+  include Reports::FlagsStatus
+  include Reports::Likes
+  include Reports::MobileVisits
   include Reports::ModeratorWarningPrivateMessages
+  include Reports::ModeratorsActivity
+  include Reports::NewContributors
+  include Reports::NotifyModeratorsPrivateMessages
+  include Reports::NotifyUserPrivateMessages
+  include Reports::PostEdits
+  include Reports::Posts
   include Reports::ProfileViews
+  include Reports::Signups
+  include Reports::StaffLogins
+  include Reports::StorageStats
+  include Reports::SuspiciousLogins
+  include Reports::SystemPrivateMessages
+  include Reports::TimeToFirstResponse
+  include Reports::TopIgnoredUsers
+  include Reports::TopReferredTopics
+  include Reports::TopReferrers
+  include Reports::TopTrafficSources
   include Reports::TopUploads
   include Reports::TopUsersByLikesReceived
-  include Reports::TopUsersByLikesReceivedFromInferiorTrustLevel
   include Reports::TopUsersByLikesReceivedFromAVarietyOfPeople
+  include Reports::TopUsersByLikesReceivedFromInferiorTrustLevel
+  include Reports::Topics
+  include Reports::TopicsWithNoResponse
+  include Reports::TopicViewStats
+  include Reports::TrendingSearch
+  include Reports::TrustLevelGrowth
+  include Reports::UserFlaggingRatio
+  include Reports::UserToUserPrivateMessages
+  include Reports::UserToUserPrivateMessagesWithReplies
+  include Reports::UsersByTrustLevel
+  include Reports::UsersByType
+  include Reports::Visits
+  include Reports::WebCrawlers
+  include Reports::WebHookEventsDailyAggregate
 
   attr_accessor :type,
                 :data,
@@ -102,7 +117,7 @@ class Report
     @average = false
     @percent = false
     @higher_is_better = true
-    @modes = %i[table chart]
+    @modes = [MODES[:chart], MODES[:table]]
     @prev_data = nil
     @dates_filtering = true
     @available_filters = {}
@@ -220,6 +235,11 @@ class Report
     singleton_class.instance_eval { define_method("report_#{name}", &block) }
   end
 
+  # Only used for testing.
+  def Report.remove_report(name)
+    singleton_class.instance_eval { remove_method("report_#{name}") }
+  end
+
   def self._get(type, opts = nil)
     opts ||= {}
 
@@ -291,18 +311,19 @@ class Report
     report
   end
 
+  # NOTE: Once use_legacy_pageviews is always false or no longer needed
+  # we will no longer support the page_view_anon and page_view_logged_in reports,
+  # they can be removed.
   def self.req_report(report, filter = nil)
     data =
+      # For this report we intentionally do not want to count mobile pageviews.
       if filter == :page_view_total
-        ApplicationRequest.where(
-          req_type: [
-            ApplicationRequest
-              .req_types
-              .reject { |k, v| k =~ /mobile/ }
-              .map { |k, v| v if k =~ /page_view/ }
-              .compact,
-          ].flatten,
-        )
+        SiteSetting.use_legacy_pageviews ? legacy_page_view_requests : page_view_requests
+        # This is a separate report because if people have switched over
+        # to _not_ use legacy pageviews, we want to show both a Pageviews
+        # and Legacy Pageviews report.
+      elsif filter == :page_view_legacy_total
+        legacy_page_view_requests
       else
         ApplicationRequest.where(req_type: ApplicationRequest.req_types[filter])
       end
@@ -325,6 +346,31 @@ class Report
       )
   end
 
+  # We purposefully exclude "browser" pageviews. See
+  # `ConsolidatedPageViewsBrowserDetection` for browser pageviews.
+  def self.legacy_page_view_requests
+    ApplicationRequest.where(
+      req_type: [
+        ApplicationRequest.req_types[:page_view_crawler],
+        ApplicationRequest.req_types[:page_view_anon],
+        ApplicationRequest.req_types[:page_view_logged_in],
+      ].flatten,
+    )
+  end
+
+  # We purposefully exclude "crawler" pageviews here and by
+  # only doing browser pageviews we are excluding "other" pageviews
+  # too. This is to reflect what is shown in the "Site traffic" report
+  # by default.
+  def self.page_view_requests
+    ApplicationRequest.where(
+      req_type: [
+        ApplicationRequest.req_types[:page_view_anon_browser],
+        ApplicationRequest.req_types[:page_view_logged_in_browser],
+      ].flatten,
+    )
+  end
+
   def self.report_about(report, subject_class, report_method = :count_per_day)
     basic_report_about report, subject_class, report_method, report.start_date, report.end_date
     add_counts report, subject_class
@@ -339,7 +385,7 @@ class Report
   end
 
   def self.add_prev_data(report, subject_class, report_method, *args)
-    if report.modes.include?(:chart) && report.facets.include?(:prev_period)
+    if report.modes.include?(Report::MODES[:chart]) && report.facets.include?(:prev_period)
       prev_data = subject_class.public_send(report_method, *args)
       report.prev_data = prev_data.map { |k, v| { x: k, y: v } }
     end
@@ -418,7 +464,14 @@ class Report
   end
 
   def colors
-    %w[#1EB8D1 #9BC53D #721D8D #E84A5F #8A6916]
+    {
+      turquoise: "#1EB8D1",
+      lime: "#9BC53D",
+      purple: "#721D8D",
+      magenta: "#E84A5F",
+      brown: "#8A6916",
+      yellow: "#FFCD56",
+    }
   end
 
   private

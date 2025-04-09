@@ -1,6 +1,6 @@
 import { hash } from "@ember/helper";
+import { eq } from "truth-helpers";
 import concatClass from "discourse/helpers/concat-class";
-import eq from "truth-helpers/helpers/eq";
 import PluginOutlet from "./plugin-outlet";
 
 const ConditionalLoadingSpinner = <template>
@@ -15,6 +15,7 @@ const ConditionalLoadingSpinner = <template>
         (if @condition "visible")
         (if (eq @size "small") "inline-spinner")
       }}
+      ...attributes
     >
       {{#if @condition}}
         <div class="spinner {{@size}}"></div>

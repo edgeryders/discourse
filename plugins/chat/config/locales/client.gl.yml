@@ -49,6 +49,7 @@ gl:
       browse:
         back: "Volver"
         filter_all: Todas
+        filter_open: Abrir
         filter_closed: Pechado
       chat_message_separator:
         today: Hoxe
@@ -135,6 +136,8 @@ gl:
             title: "Normal"
           tracking:
             title: "Seguimento"
+          watching:
+            title: "Observando"
         participants_other_count:
           one: "+%{count}"
           other: "+%{count}"

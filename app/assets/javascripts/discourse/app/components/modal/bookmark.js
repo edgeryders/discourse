@@ -2,14 +2,14 @@ import Component from "@glimmer/component";
 import { tracked } from "@glimmer/tracking";
 import { action } from "@ember/object";
 import { and, notEmpty } from "@ember/object/computed";
-import { inject as service } from "@ember/service";
+import { service } from "@ember/service";
 import ItsATrap from "@discourse/itsatrap";
 import { Promise } from "rsvp";
 import { CLOSE_INITIATED_BY_CLICK_OUTSIDE } from "discourse/components/d-modal";
-import { ajax } from "discourse/lib/ajax";
 import { extractError } from "discourse/lib/ajax-error";
 import { formattedReminderTime } from "discourse/lib/bookmark";
 import KeyboardShortcuts from "discourse/lib/keyboard-shortcuts";
+import discourseLater from "discourse/lib/later";
 import { sanitize } from "discourse/lib/text";
 import {
   defaultTimeShortcuts,
@@ -17,8 +17,7 @@ import {
 } from "discourse/lib/time-shortcut";
 import { now, parseCustomDatetime, startOfDay } from "discourse/lib/time-utils";
 import { AUTO_DELETE_PREFERENCES } from "discourse/models/bookmark";
-import discourseLater from "discourse-common/lib/later";
-import I18n from "discourse-i18n";
+import { i18n } from "discourse-i18n";
 
 const BOOKMARK_BINDINGS = {
   enter: { handler: "saveAndClose" },
@@ -29,6 +28,7 @@ export default class BookmarkModal extends Component {
   @service dialog;
   @service currentUser;
   @service site;
+  @service bookmarkApi;
 
   @tracked postDetectedLocalDate = null;
   @tracked postDetectedLocalTime = null;
@@ -53,19 +53,26 @@ export default class BookmarkModal extends Component {
 
   _itsatrap = new ItsATrap();
 
+  willDestroy() {
+    super.willDestroy(...arguments);
+    this._itsatrap?.destroy();
+    this._itsatrap = null;
+    KeyboardShortcuts.unpause();
+  }
+
   get bookmark() {
     return this.args.model.bookmark;
   }
 
   get modalTitle() {
-    return I18n.t(this.bookmark.id ? "bookmarks.edit" : "bookmarks.create");
+    return i18n(this.bookmark.id ? "bookmarks.edit" : "bookmarks.create");
   }
 
   get autoDeletePreferences() {
     return Object.keys(AUTO_DELETE_PREFERENCES).map((key) => {
       return {
         id: AUTO_DELETE_PREFERENCES[key],
-        name: I18n.t(`bookmarks.auto_delete_preference.${key.toLowerCase()}`),
+        name: i18n(`bookmarks.auto_delete_preference.${key.toLowerCase()}`),
       };
     });
   }
@@ -127,13 +134,6 @@ export default class BookmarkModal extends Component {
     return labels;
   }
 
-  willDestroy() {
-    super.willDestroy(...arguments);
-    this._itsatrap?.destroy();
-    this._itsatrap = null;
-    KeyboardShortcuts.unpause();
-  }
-
   @action
   didInsert() {
     discourseLater(() => {
@@ -177,6 +177,7 @@ export default class BookmarkModal extends Component {
   onTimeSelected(type, time) {
     this.bookmark.selectedReminderType = type;
     this.bookmark.selectedDatetime = time;
+    this.bookmark.reminderAt = time;
 
     // If the type is custom, we need to wait for the user to click save, as
     // they could still be adjusting the date and time
@@ -233,7 +234,7 @@ export default class BookmarkModal extends Component {
 
     if (this.existingBookmarkHasReminder) {
       this.dialog.deleteConfirm({
-        message: I18n.t("bookmarks.confirm_delete"),
+        message: i18n("bookmarks.confirm_delete"),
         didConfirm: () => deleteAction(),
       });
     } else {
@@ -259,36 +260,24 @@ export default class BookmarkModal extends Component {
   #saveBookmark() {
     if (this.bookmark.selectedReminderType === TIME_SHORTCUT_TYPES.CUSTOM) {
       if (!this.bookmark.reminderAtISO) {
-        return Promise.reject(I18n.t("bookmarks.invalid_custom_datetime"));
+        return Promise.reject(i18n("bookmarks.invalid_custom_datetime"));
       }
     }
 
     if (this.editingExistingBookmark) {
-      return ajax(`/bookmarks/${this.bookmark.id}`, {
-        type: "PUT",
-        data: this.bookmark.saveData,
-      }).then(() => {
-        this.args.model.afterSave?.(this.bookmark.saveData);
+      return this.bookmarkApi.update(this.bookmark).then(() => {
+        this.args.model.afterSave?.(this.bookmark);
       });
     } else {
-      return ajax("/bookmarks", {
-        type: "POST",
-        data: this.bookmark.saveData,
-      }).then((response) => {
-        this.bookmark.id = response.id;
-        this.args.model.afterSave?.(this.bookmark.saveData);
+      return this.bookmarkApi.create(this.bookmark).then(() => {
+        this.args.model.afterSave?.(this.bookmark);
       });
     }
   }
 
   #deleteBookmark() {
-    return ajax("/bookmarks/" + this.bookmark.id, {
-      type: "DELETE",
-    }).then((response) => {
-      this.args.model.afterDelete?.(
-        response.topic_bookmarked,
-        this.bookmark.id
-      );
+    return this.bookmarkApi.delete(this.bookmark.id).then((response) => {
+      this.args.model.afterDelete?.(response, this.bookmark.id);
     });
   }
 

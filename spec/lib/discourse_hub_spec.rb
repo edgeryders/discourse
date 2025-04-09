@@ -17,6 +17,31 @@ RSpec.describe DiscourseHub do
     end
   end
 
+  describe ".discover_enrollment" do
+    it "should trigger a POST request to hub" do
+      stub_request(
+        :post,
+        (ENV["HUB_BASE_URL"] || "http://local.hub:3000/api") + "/discover/enroll",
+      ).with(body: JSON[DiscourseHub.discover_enrollment_payload]).to_return(
+        status: 200,
+        body: "",
+        headers: {
+        },
+      )
+
+      DiscourseHub.discover_enrollment
+    end
+  end
+
+  describe ".discover_enrollment_payload" do
+    it "should return the correct payload" do
+      payload = DiscourseHub.discover_enrollment_payload
+      expect(payload[:forum_url]).to eq(Discourse.base_url)
+      expect(payload[:forum_title]).to eq(SiteSetting.title)
+      expect(payload[:locale]).to eq(I18n.locale)
+    end
+  end
+
   describe ".version_check_payload" do
     describe "when Discourse Hub has not fetched stats since past 7 days" do
       it "should include stats" do
@@ -37,6 +62,8 @@ RSpec.describe DiscourseHub do
         expect(json["likes_count"]).to be_present
         expect(json["likes_7_days"]).to be_present
         expect(json["likes_30_days"]).to be_present
+        expect(json["participating_users_7_days"]).to be_present
+        expect(json["participating_users_30_days"]).to be_present
         expect(json["installed_version"]).to be_present
         expect(json["branch"]).to be_present
       end
@@ -79,12 +106,11 @@ RSpec.describe DiscourseHub do
   end
 
   describe ".collection_action" do
-    before do
-      @orig_logger = Rails.logger
-      Rails.logger = @fake_logger = FakeLogger.new
-    end
+    let(:fake_logger) { FakeLogger.new }
 
-    after { Rails.logger = @orig_logger }
+    before { Rails.logger.broadcast_to(fake_logger) }
+
+    after { Rails.logger.stop_broadcasting_to(fake_logger) }
 
     it "should log correctly on error" do
       stub_request(:get, (ENV["HUB_BASE_URL"] || "http://local.hub:3000/api") + "/test").to_return(
@@ -96,9 +122,9 @@ RSpec.describe DiscourseHub do
 
       DiscourseHub.collection_action(:get, "/test")
 
-      expect(@fake_logger.warnings).to eq([DiscourseHub.response_status_log_message("/test", 500)])
+      expect(fake_logger.warnings).to eq([DiscourseHub.response_status_log_message("/test", 500)])
 
-      expect(@fake_logger.errors).to eq([DiscourseHub.response_body_log_message("")])
+      expect(fake_logger.errors).to eq([DiscourseHub.response_body_log_message("")])
     end
   end
 end

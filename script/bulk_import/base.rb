@@ -25,8 +25,8 @@ module BulkImport
 end
 
 class BulkImport::Base
-  NOW ||= "now()"
-  PRIVATE_OFFSET ||= 2**30
+  NOW = "now()"
+  PRIVATE_OFFSET = 2**30
 
   CHARSET_MAP = {
     "armscii8" => nil,
@@ -110,7 +110,18 @@ class BulkImport::Base
     ActiveSupport::Inflector.transliterate("test")
   end
 
-  MAPPING_TYPES = Enum.new(upload: 1, badge: 2, poll: 3, poll_option: 4)
+  MAPPING_TYPES =
+    Enum.new(
+      upload: 1,
+      badge: 2,
+      poll: 3,
+      poll_option: 4,
+      direct_message_channel: 5,
+      chat_channel: 6,
+      chat_thread: 7,
+      chat_message: 8,
+      discourse_reactions_reaction: 9,
+    )
 
   def create_migration_mappings_table
     puts "Creating migration mappings table..."
@@ -224,7 +235,7 @@ class BulkImport::Base
   def load_indexes
     puts "Loading groups indexes..."
     @last_group_id = last_id(Group)
-    group_names = Group.unscoped.pluck(:name).map(&:downcase).to_set
+    @group_names_lower = Group.unscoped.pluck(:name).map(&:downcase).to_set
 
     puts "Loading users indexes..."
     @last_user_id = last_id(User)
@@ -232,7 +243,7 @@ class BulkImport::Base
     @last_sso_record_id = last_id(SingleSignOnRecord)
     @emails = UserEmail.pluck(:email, :user_id).to_h
     @external_ids = SingleSignOnRecord.pluck(:external_id, :user_id).to_h
-    @usernames_and_groupnames_lower = User.unscoped.pluck(:username_lower).to_set.merge(group_names)
+    @usernames_lower = User.unscoped.pluck(:username_lower).to_set
     @anonymized_user_suffixes =
       DB.query_single(
         "SELECT SUBSTRING(username_lower, 5)::BIGINT FROM users WHERE username_lower ~* '^anon\\d+$'",
@@ -245,6 +256,9 @@ class BulkImport::Base
         .to_h
     @last_user_avatar_id = last_id(UserAvatar)
     @last_upload_id = last_id(Upload)
+    @user_ids_by_username_lower = User.unscoped.pluck(:id, :username_lower).to_h
+    @usernames_by_id = User.unscoped.pluck(:id, :username).to_h
+    @user_full_names_by_id = User.unscoped.where("name IS NOT NULL").pluck(:id, :name).to_h
 
     puts "Loading categories indexes..."
     @last_category_id = last_id(Category)
@@ -283,6 +297,29 @@ class BulkImport::Base
     @poll_option_mapping = load_index(MAPPING_TYPES[:poll_option])
     @last_poll_id = last_id(Poll)
     @last_poll_option_id = last_id(PollOption)
+
+    puts "Loading chat indexes..."
+    @chat_direct_message_channel_mapping = load_index(MAPPING_TYPES[:direct_message_channel])
+    @last_chat_direct_message_channel_id = last_id(Chat::DirectMessage)
+
+    @chat_channel_mapping = load_index(MAPPING_TYPES[:chat_channel])
+    @last_chat_channel_id = last_id(Chat::Channel)
+
+    @chat_thread_mapping = load_index(MAPPING_TYPES[:chat_thread])
+    @last_chat_thread_id = last_id(Chat::Thread)
+
+    @chat_message_mapping = load_index(MAPPING_TYPES[:chat_message])
+    @last_chat_message_id = last_id(Chat::Message)
+
+    if defined?(::DiscourseReactions)
+      puts "Loading reaction indexes..."
+      @discourse_reaction_mapping = load_index(MAPPING_TYPES[:discourse_reactions_reaction])
+      @last_discourse_reaction_id = last_id(DiscourseReactions::Reaction)
+    else
+      puts "Skipping reaction indexes - plugin not installed"
+      @discourse_reaction_mapping = {}
+      @last_discourse_reaction_id = 0
+    end
   end
 
   def use_bbcode_to_md?
@@ -344,6 +381,31 @@ class BulkImport::Base
     if @last_poll_option_id > 0
       @raw_connection.exec("SELECT setval('#{PollOption.sequence_name}', #{@last_poll_option_id})")
     end
+    if @last_chat_direct_message_channel_id > 0
+      @raw_connection.exec(
+        "SELECT setval('#{Chat::DirectMessage.sequence_name}', #{@last_chat_direct_message_channel_id})",
+      )
+    end
+    if @last_chat_channel_id > 0
+      @raw_connection.exec(
+        "SELECT setval('#{Chat::Channel.sequence_name}', #{@last_chat_channel_id})",
+      )
+    end
+    if @last_chat_thread_id > 0
+      @raw_connection.exec(
+        "SELECT setval('#{Chat::Thread.sequence_name}', #{@last_chat_thread_id})",
+      )
+    end
+    if @last_chat_message_id > 0
+      @raw_connection.exec(
+        "SELECT setval('#{Chat::Message.sequence_name}', #{@last_chat_message_id})",
+      )
+    end
+    if @last_discourse_reaction_id > 0
+      @raw_connection.exec(
+        "SELECT setval('#{DiscourseReactions::Reaction.sequence_name}', #{@last_discourse_reaction_id})",
+      )
+    end
   end
 
   def group_id_from_imported_id(id)
@@ -352,6 +414,19 @@ class BulkImport::Base
 
   def user_id_from_imported_id(id)
     @users[id.to_i]
+  end
+
+  def user_id_from_original_username(username)
+    normalized_username = User.normalize_username(@mapped_usernames[username] || username)
+    @user_ids_by_username_lower[normalized_username]
+  end
+
+  def username_from_id(id)
+    @usernames_by_id[id]
+  end
+
+  def user_full_name_from_id(id)
+    @user_full_names_by_id[id]
   end
 
   def category_id_from_imported_id(id)
@@ -400,7 +475,27 @@ class BulkImport::Base
     @poll_option_mapping[id.to_s]&.to_i
   end
 
-  GROUP_COLUMNS ||= %i[
+  def chat_channel_id_from_original_id(id)
+    @chat_channel_mapping[id.to_s]&.to_i
+  end
+
+  def chat_direct_message_channel_id_from_original_id(id)
+    @chat_direct_message_channel_mapping[id.to_s]&.to_i
+  end
+
+  def chat_thread_id_from_original_id(id)
+    @chat_thread_mapping[id.to_s]&.to_i
+  end
+
+  def chat_message_id_from_original_id(id)
+    @chat_message_mapping[id.to_s]&.to_i
+  end
+
+  def discourse_reaction_id_from_original_id(id)
+    @discourse_reaction_mapping[id.to_s]&.to_i
+  end
+
+  GROUP_COLUMNS = %i[
     id
     name
     full_name
@@ -415,7 +510,7 @@ class BulkImport::Base
     updated_at
   ]
 
-  USER_COLUMNS ||= %i[
+  USER_COLUMNS = %i[
     id
     username
     username_lower
@@ -436,9 +531,9 @@ class BulkImport::Base
     updated_at
   ]
 
-  USER_EMAIL_COLUMNS ||= %i[id user_id email primary created_at updated_at]
+  USER_EMAIL_COLUMNS = %i[id user_id email primary created_at updated_at]
 
-  USER_STAT_COLUMNS ||= %i[
+  USER_STAT_COLUMNS = %i[
     user_id
     topics_entered
     time_read
@@ -456,13 +551,13 @@ class BulkImport::Base
     digest_attempted_at
   ]
 
-  USER_HISTORY_COLUMNS ||= %i[action acting_user_id target_user_id details created_at updated_at]
+  USER_HISTORY_COLUMNS = %i[action acting_user_id target_user_id details created_at updated_at]
 
-  USER_AVATAR_COLUMNS ||= %i[id user_id custom_upload_id created_at updated_at]
+  USER_AVATAR_COLUMNS = %i[id user_id custom_upload_id created_at updated_at]
 
-  USER_PROFILE_COLUMNS ||= %i[user_id location website bio_raw bio_cooked views]
+  USER_PROFILE_COLUMNS = %i[user_id location website bio_raw bio_cooked views]
 
-  USER_SSO_RECORD_COLUMNS ||= %i[
+  USER_SSO_RECORD_COLUMNS = %i[
     id
     user_id
     external_id
@@ -477,7 +572,19 @@ class BulkImport::Base
     external_card_background_url
   ]
 
-  USER_OPTION_COLUMNS ||= %i[
+  USER_ASSOCIATED_ACCOUNT_COLUMNS = %i[
+    provider_name
+    provider_uid
+    user_id
+    last_used
+    info
+    credentials
+    extra
+    created_at
+    updated_at
+  ]
+
+  USER_OPTION_COLUMNS = %i[
     user_id
     mailing_list_mode
     mailing_list_mode_frequency
@@ -490,6 +597,7 @@ class BulkImport::Base
     include_tl0_in_digests
     automatically_unpin_topics
     enable_quoting
+    enable_smart_lists
     external_links_in_new_tab
     dynamic_favicon
     new_topic_duration_minutes
@@ -498,22 +606,24 @@ class BulkImport::Base
     like_notification_frequency
     skip_new_user_tips
     hide_profile_and_presence
+    hide_profile
+    hide_presence
     sidebar_link_to_filtered_list
     sidebar_show_count_of_new_items
     timezone
   ]
 
-  USER_FOLLOWER_COLUMNS ||= %i[user_id follower_id level created_at updated_at]
+  USER_FOLLOWER_COLUMNS = %i[user_id follower_id level created_at updated_at]
 
-  GROUP_USER_COLUMNS ||= %i[group_id user_id created_at updated_at]
+  GROUP_USER_COLUMNS = %i[group_id user_id created_at updated_at]
 
-  USER_CUSTOM_FIELD_COLUMNS ||= %i[user_id name value created_at updated_at]
+  USER_CUSTOM_FIELD_COLUMNS = %i[user_id name value created_at updated_at]
 
-  POST_CUSTOM_FIELD_COLUMNS ||= %i[post_id name value created_at updated_at]
+  POST_CUSTOM_FIELD_COLUMNS = %i[post_id name value created_at updated_at]
 
-  TOPIC_CUSTOM_FIELD_COLUMNS ||= %i[topic_id name value created_at updated_at]
+  TOPIC_CUSTOM_FIELD_COLUMNS = %i[topic_id name value created_at updated_at]
 
-  USER_ACTION_COLUMNS ||= %i[
+  USER_ACTION_COLUMNS = %i[
     action_type
     user_id
     target_topic_id
@@ -524,9 +634,9 @@ class BulkImport::Base
     updated_at
   ]
 
-  MUTED_USER_COLUMNS ||= %i[user_id muted_user_id created_at updated_at]
+  MUTED_USER_COLUMNS = %i[user_id muted_user_id created_at updated_at]
 
-  CATEGORY_COLUMNS ||= %i[
+  CATEGORY_COLUMNS = %i[
     id
     name
     name_lower
@@ -541,13 +651,15 @@ class BulkImport::Base
     updated_at
   ]
 
-  CATEGORY_CUSTOM_FIELD_COLUMNS ||= %i[category_id name value created_at updated_at]
+  CATEGORY_CUSTOM_FIELD_COLUMNS = %i[category_id name value created_at updated_at]
 
-  CATEGORY_GROUP_COLUMNS ||= %i[id category_id group_id permission_type created_at updated_at]
+  CATEGORY_GROUP_COLUMNS = %i[id category_id group_id permission_type created_at updated_at]
 
-  CATEGORY_TAG_GROUP_COLUMNS ||= %i[category_id tag_group_id created_at updated_at]
+  CATEGORY_TAG_GROUP_COLUMNS = %i[category_id tag_group_id created_at updated_at]
 
-  TOPIC_COLUMNS ||= %i[
+  CATEGORY_USER_COLUMNS = %i[category_id user_id notification_level last_seen_at]
+
+  TOPIC_COLUMNS = %i[
     id
     archetype
     title
@@ -559,6 +671,8 @@ class BulkImport::Base
     visible
     closed
     pinned_at
+    pinned_until
+    pinned_globally
     views
     subtype
     created_at
@@ -566,7 +680,7 @@ class BulkImport::Base
     updated_at
   ]
 
-  POST_COLUMNS ||= %i[
+  POST_COLUMNS = %i[
     id
     user_id
     last_editor_id
@@ -584,7 +698,7 @@ class BulkImport::Base
     updated_at
   ]
 
-  POST_ACTION_COLUMNS ||= %i[
+  POST_ACTION_COLUMNS = %i[
     id
     post_id
     user_id
@@ -604,11 +718,13 @@ class BulkImport::Base
     disagreed_by_id
   ]
 
-  TOPIC_ALLOWED_USER_COLUMNS ||= %i[topic_id user_id created_at updated_at]
+  TOPIC_ALLOWED_USER_COLUMNS = %i[topic_id user_id created_at updated_at]
 
-  TOPIC_TAG_COLUMNS ||= %i[topic_id tag_id created_at updated_at]
+  TOPIC_ALLOWED_GROUP_COLUMNS = %i[topic_id group_id created_at updated_at]
 
-  TOPIC_USER_COLUMNS ||= %i[
+  TOPIC_TAG_COLUMNS = %i[topic_id tag_id created_at updated_at]
+
+  TOPIC_USER_COLUMNS = %i[
     user_id
     topic_id
     last_read_post_number
@@ -620,9 +736,9 @@ class BulkImport::Base
     total_msecs_viewed
   ]
 
-  TAG_USER_COLUMNS ||= %i[tag_id user_id notification_level created_at updated_at]
+  TAG_USER_COLUMNS = %i[tag_id user_id notification_level created_at updated_at]
 
-  UPLOAD_COLUMNS ||= %i[
+  UPLOAD_COLUMNS = %i[
     id
     user_id
     original_filename
@@ -649,9 +765,9 @@ class BulkImport::Base
     dominant_color
   ]
 
-  UPLOAD_REFERENCE_COLUMNS ||= %i[upload_id target_type target_id created_at updated_at]
+  UPLOAD_REFERENCE_COLUMNS = %i[upload_id target_type target_id created_at updated_at]
 
-  OPTIMIZED_IMAGE_COLUMNS ||= %i[
+  OPTIMIZED_IMAGE_COLUMNS = %i[
     sha1
     extension
     width
@@ -665,9 +781,11 @@ class BulkImport::Base
     updated_at
   ]
 
-  POST_VOTING_VOTE_COLUMNS ||= %i[user_id votable_type votable_id direction created_at]
+  POST_VOTING_VOTE_COLUMNS = %i[user_id votable_type votable_id direction created_at]
 
-  BADGE_COLUMNS ||= %i[
+  TOPIC_VOTING_COLUMNS = %i[topic_id user_id archive created_at updated_at]
+
+  BADGE_COLUMNS = %i[
     id
     name
     description
@@ -681,11 +799,11 @@ class BulkImport::Base
     query
   ]
 
-  USER_BADGE_COLUMNS ||= %i[badge_id user_id granted_at granted_by_id seq post_id created_at]
+  USER_BADGE_COLUMNS = %i[badge_id user_id granted_at granted_by_id seq post_id created_at]
 
-  GAMIFICATION_SCORE_EVENT_COLUMNS ||= %i[user_id date points description created_at updated_at]
+  GAMIFICATION_SCORE_EVENT_COLUMNS = %i[user_id date points description created_at updated_at]
 
-  POST_EVENT_COLUMNS ||= %i[
+  POST_EVENT_COLUMNS = %i[
     id
     status
     original_starts_at
@@ -701,7 +819,7 @@ class BulkImport::Base
     minimal
   ]
 
-  POST_EVENT_DATES_COLUMNS ||= %i[
+  POST_EVENT_DATES_COLUMNS = %i[
     event_id
     starts_at
     ends_at
@@ -713,7 +831,7 @@ class BulkImport::Base
     updated_at
   ]
 
-  POLL_COLUMNS ||= %i[
+  POLL_COLUMNS = %i[
     id
     post_id
     name
@@ -733,19 +851,108 @@ class BulkImport::Base
     title
   ]
 
-  POLL_OPTION_COLUMNS ||= %i[id poll_id digest html anonymous_votes created_at updated_at]
+  POLL_OPTION_COLUMNS = %i[id poll_id digest html anonymous_votes created_at updated_at]
 
-  POLL_VOTE_COLUMNS ||= %i[poll_id poll_option_id user_id created_at updated_at]
+  POLL_VOTE_COLUMNS = %i[poll_id poll_option_id user_id created_at updated_at]
 
-  PLUGIN_STORE_ROW_COLUMNS ||= %i[plugin_name key type_name value]
+  PLUGIN_STORE_ROW_COLUMNS = %i[plugin_name key type_name value]
 
-  PERMALINK_COLUMNS ||= %i[
+  PERMALINK_COLUMNS = %i[
     url
     topic_id
     post_id
     category_id
     tag_id
+    user_id
     external_url
+    created_at
+    updated_at
+  ]
+
+  CHAT_DIRECT_MESSAGE_CHANNEL_COLUMNS = %i[id group created_at updated_at]
+
+  CHAT_CHANNEL_COLUMNS = %i[
+    id
+    name
+    description
+    slug
+    status
+    chatable_id
+    chatable_type
+    user_count
+    messages_count
+    type
+    created_at
+    updated_at
+    allow_channel_wide_mentions
+    auto_join_users
+    threading_enabled
+  ]
+
+  USER_CHAT_CHANNEL_MEMBERSHIP_COLUMNS = %i[
+    chat_channel_id
+    user_id
+    created_at
+    updated_at
+    following
+    muted
+    desktop_notification_level
+    mobile_notification_level
+    last_read_message_id
+    join_mode
+    last_viewed_at
+  ]
+
+  DIRECT_MESSAGE_USER_COLUMNS = %i[direct_message_channel_id user_id created_at updated_at]
+
+  CHAT_THREAD_COLUMNS = %i[
+    id
+    channel_id
+    original_message_id
+    original_message_user_id
+    status
+    title
+    created_at
+    updated_at
+    replies_count
+  ]
+
+  USER_CHAT_THREAD_MEMBERSHIP_COLUMNS = %i[
+    user_id
+    thread_id
+    notification_level
+    created_at
+    updated_at
+  ]
+
+  CHAT_MESSAGE_COLUMNS = %i[
+    id
+    chat_channel_id
+    user_id
+    created_at
+    updated_at
+    deleted_at
+    deleted_by_id
+    in_reply_to_id
+    message
+    cooked
+    cooked_version
+    last_editor_id
+    thread_id
+  ]
+
+  CHAT_MESSAGE_REACTION_COLUMNS = %i[chat_message_id user_id emoji created_at updated_at]
+
+  CHAT_MENTION_COLUMNS = %i[chat_message_id target_id type created_at updated_at]
+
+  REACTION_USER_COLUMNS = %i[reaction_id user_id created_at updated_at post_id]
+
+  REACTION_COLUMNS = %i[
+    id
+    post_id
+    reaction_type
+    reaction_value
+    reaction_users_count
     created_at
     updated_at
   ]
@@ -796,6 +1003,10 @@ class BulkImport::Base
     create_records(rows, "single_sign_on_record", USER_SSO_RECORD_COLUMNS, &block)
   end
 
+  def create_user_associated_accounts(rows, &block)
+    create_records(rows, "user_associated_account", USER_ASSOCIATED_ACCOUNT_COLUMNS, &block)
+  end
+
   def create_user_custom_fields(rows, &block)
     create_records(rows, "user_custom_field", USER_CUSTOM_FIELD_COLUMNS, &block)
   end
@@ -824,6 +1035,10 @@ class BulkImport::Base
     create_records(rows, "category_tag_group", CATEGORY_TAG_GROUP_COLUMNS, &block)
   end
 
+  def create_category_users(rows, &block)
+    create_records(rows, "category_user", CATEGORY_USER_COLUMNS, &block)
+  end
+
   def create_topics(rows, &block)
     create_records(rows, "topic", TOPIC_COLUMNS, &block)
   end
@@ -838,6 +1053,10 @@ class BulkImport::Base
 
   def create_topic_allowed_users(rows, &block)
     create_records(rows, "topic_allowed_user", TOPIC_ALLOWED_USER_COLUMNS, &block)
+  end
+
+  def create_topic_allowed_groups(rows, &block)
+    create_records(rows, "topic_allowed_group", TOPIC_ALLOWED_GROUP_COLUMNS, &block)
   end
 
   def create_topic_tags(rows, &block)
@@ -866,6 +1085,10 @@ class BulkImport::Base
 
   def create_post_voting_votes(rows, &block)
     create_records(rows, "post_voting_vote", POST_VOTING_VOTE_COLUMNS, &block)
+  end
+
+  def create_topic_voting_votes(rows, &block)
+    create_records(rows, "topic_voting_vote", TOPIC_VOTING_COLUMNS, &block)
   end
 
   def create_post_custom_fields(rows, &block)
@@ -920,14 +1143,68 @@ class BulkImport::Base
     create_records(rows, "permalink", PERMALINK_COLUMNS, &block)
   end
 
+  def create_chat_channels(rows, &block)
+    create_records_with_mapping(rows, "chat_channel", CHAT_CHANNEL_COLUMNS, &block)
+  end
+
+  def create_chat_direct_message(rows, &block)
+    create_records_with_mapping(
+      rows,
+      "direct_message_channel",
+      CHAT_DIRECT_MESSAGE_CHANNEL_COLUMNS,
+      &block
+    )
+  end
+
+  def create_user_chat_channel_memberships(rows, &block)
+    create_records(
+      rows,
+      "user_chat_channel_membership",
+      USER_CHAT_CHANNEL_MEMBERSHIP_COLUMNS,
+      &block
+    )
+  end
+
+  def create_direct_message_users(rows, &block)
+    create_records(rows, "direct_message_user", DIRECT_MESSAGE_USER_COLUMNS, &block)
+  end
+
+  def create_chat_threads(rows, &block)
+    create_records_with_mapping(rows, "chat_thread", CHAT_THREAD_COLUMNS, &block)
+  end
+
+  def create_thread_users(rows, &block)
+    create_records(rows, "user_chat_thread_membership", USER_CHAT_THREAD_MEMBERSHIP_COLUMNS, &block)
+  end
+
+  def create_chat_messages(rows, &block)
+    create_records_with_mapping(rows, "chat_message", CHAT_MESSAGE_COLUMNS, &block)
+  end
+
+  def create_chat_message_reactions(rows, &block)
+    create_records(rows, "chat_message_reaction", CHAT_MESSAGE_REACTION_COLUMNS, &block)
+  end
+
+  def create_chat_mentions(rows, &block)
+    create_records(rows, "chat_mention", CHAT_MENTION_COLUMNS, &block)
+  end
+
+  def create_reaction_users(rows, &block)
+    create_records(rows, "discourse_reactions_reaction_user", REACTION_USER_COLUMNS, &block)
+  end
+
+  def create_reactions(rows, &block)
+    create_records_with_mapping(rows, "discourse_reactions_reaction", REACTION_COLUMNS, &block)
+  end
+
   def process_group(group)
     @groups[group[:imported_id].to_i] = group[:id] = @last_group_id += 1
 
     group[:name] = fix_name(group[:name])
 
-    unless @usernames_and_groupnames_lower.add?(group[:name].downcase)
+    if group_or_user_exist?(group[:name])
       group_name = group[:name] + "_1"
-      group_name.next! until @usernames_and_groupnames_lower.add?(group_name.downcase)
+      group_name.next! while group_or_user_exist?(group_name)
       group[:name] = group_name
     end
 
@@ -945,9 +1222,15 @@ class BulkImport::Base
     group
   end
 
+  def group_or_user_exist?(name)
+    name_lowercase = name.downcase
+    return true if @usernames_lower.include?(name_lowercase)
+    @group_names_lower.add?(name_lowercase).nil?
+  end
+
   def process_user(user)
     if user[:email].present?
-      user[:email].downcase!
+      user[:email] = user[:email].downcase
 
       if (existing_user_id = @emails[user[:email]])
         @users[user[:imported_id].to_i] = existing_user_id
@@ -976,9 +1259,9 @@ class BulkImport::Base
     end
 
     # unique username_lower
-    unless @usernames_and_groupnames_lower.add?(user[:username].downcase)
+    if user_exist?(user[:username])
       username = user[:username] + "_1"
-      username.next! until @usernames_and_groupnames_lower.add?(username.downcase)
+      username.next! while user_exist?(username)
       user[:username] = username
     end
 
@@ -998,7 +1281,16 @@ class BulkImport::Base
       user[:date_of_birth] = Date.new(1904, date_of_birth.month, date_of_birth.day)
     end
 
+    @user_ids_by_username_lower[user[:username_lower]] = user[:id]
+    @usernames_by_id[user[:id]] = user[:username]
+    @user_full_names_by_id[user[:id]] = user[:name] if user[:name].present?
+
     user
+  end
+
+  def user_exist?(username)
+    username_lowercase = username.downcase
+    @usernames_lower.add?(username_lowercase).nil?
   end
 
   def process_user_email(user_email)
@@ -1063,6 +1355,7 @@ class BulkImport::Base
     include_tl0_in_digests: SiteSetting.default_include_tl0_in_digests,
     automatically_unpin_topics: SiteSetting.default_topics_automatic_unpin,
     enable_quoting: SiteSetting.default_other_enable_quoting,
+    enable_smart_lists: SiteSetting.default_other_enable_smart_lists,
     external_links_in_new_tab: SiteSetting.default_other_external_links_in_new_tab,
     dynamic_favicon: SiteSetting.default_other_dynamic_favicon,
     new_topic_duration_minutes: SiteSetting.default_other_new_topic_duration_minutes,
@@ -1070,7 +1363,8 @@ class BulkImport::Base
     notification_level_when_replying: SiteSetting.default_other_notification_level_when_replying,
     like_notification_frequency: SiteSetting.default_other_like_notification_frequency,
     skip_new_user_tips: SiteSetting.default_other_skip_new_user_tips,
-    hide_profile_and_presence: SiteSetting.default_hide_profile_and_presence,
+    hide_profile: SiteSetting.default_hide_profile,
+    hide_presence: SiteSetting.default_hide_presence,
     sidebar_link_to_filtered_list: SiteSetting.default_sidebar_link_to_filtered_list,
     sidebar_show_count_of_new_items: SiteSetting.default_sidebar_show_count_of_new_items,
   }
@@ -1092,6 +1386,16 @@ class BulkImport::Base
     sso_record[:created_at] = NOW
     sso_record[:updated_at] = NOW
     sso_record
+  end
+
+  def process_user_associated_account(account)
+    account[:last_used] ||= NOW
+    account[:info] ||= "{}"
+    account[:credentials] ||= "{}"
+    account[:extra] ||= "{}"
+    account[:created_at] = NOW
+    account[:updated_at] = NOW
+    account
   end
 
   def process_group_user(group_user)
@@ -1161,6 +1465,10 @@ class BulkImport::Base
     category_tag_group[:created_at] = NOW
     category_tag_group[:updated_at] = NOW
     category_tag_group
+  end
+
+  def process_category_user(category_user)
+    category_user
   end
 
   def process_topic(topic)
@@ -1239,6 +1547,12 @@ class BulkImport::Base
     topic_allowed_user
   end
 
+  def process_topic_allowed_group(topic_allowed_group)
+    topic_allowed_group[:created_at] = NOW
+    topic_allowed_group[:updated_at] = NOW
+    topic_allowed_group
+  end
+
   def process_topic_tag(topic_tag)
     topic_tag[:created_at] = NOW
     topic_tag[:updated_at] = NOW
@@ -1291,6 +1605,12 @@ class BulkImport::Base
   def process_post_voting_vote(vote)
     vote[:created_at] ||= NOW
     vote
+  end
+
+  def process_topic_voting_vote(topic_vote)
+    topic_vote[:created_at] ||= NOW
+    topic_vote[:updated_at] ||= NOW
+    topic_vote
   end
 
   def process_user_avatar(avatar)
@@ -1552,6 +1872,154 @@ class BulkImport::Base
     permalink
   end
 
+  def process_direct_message_channel(chat_channel)
+    chat_channel[:id] = @last_chat_direct_message_channel_id += 1
+    chat_channel[:group] = false if chat_channel[:group].nil?
+    chat_channel[:created_at] ||= NOW
+    chat_channel[:updated_at] ||= NOW
+
+    @imported_records[chat_channel[:original_id].to_s] = chat_channel[:id]
+    @chat_direct_message_channel_mapping[chat_channel[:original_id].to_s] = chat_channel[:id]
+
+    chat_channel
+  end
+
+  def process_chat_channel(chat_channel)
+    chat_channel[:id] = @last_chat_channel_id += 1
+
+    if chat_channel[:name].present?
+      chat_channel[:name] = chat_channel[:name][0..SiteSetting.max_topic_title_length]
+        .scrub
+        .strip
+        .presence
+      chat_channel[:slug] ||= Slug.ascii_generator(chat_channel[:name])
+    end
+
+    chat_channel[:description] = chat_channel[:description][0..500].scrub.strip if chat_channel[
+      :description
+    ].present?
+    chat_channel[:slug] = chat_channel[:slug][0..100] if chat_channel[:slug].present?
+    chat_channel[:allow_channel_wide_mentions] ||= true if chat_channel[
+      :allow_channel_wide_mentions
+    ].nil?
+    chat_channel[:auto_join_users] ||= false if chat_channel[:auto_join_users].nil?
+    chat_channel[:threading_enabled] ||= false if chat_channel[:threading_enabled].nil?
+    chat_channel[:user_count] ||= 0
+    chat_channel[:messages_count] ||= 0
+    chat_channel[:status] ||= 0
+    chat_channel[:created_at] ||= NOW
+    chat_channel[:updated_at] ||= NOW
+
+    @imported_records[chat_channel[:original_id].to_s] = chat_channel[:id]
+    @chat_channel_mapping[chat_channel[:original_id].to_s] = chat_channel[:id]
+
+    chat_channel
+  end
+
+  def process_user_chat_channel_membership(membership)
+    membership[:created_at] ||= NOW
+    membership[:updated_at] ||= NOW
+    membership[:following] = false if membership[:following].nil?
+    membership[:muted] = false if membership[:muted].nil?
+    membership[
+      :desktop_notification_level
+    ] ||= Chat::UserChatChannelMembership.desktop_notification_levels[:mention]
+    membership[
+      :mobile_notification_level
+    ] ||= Chat::UserChatChannelMembership.mobile_notification_levels[:mention]
+    membership[:join_mode] ||= Chat::UserChatChannelMembership.join_modes[:manual]
+
+    membership
+  end
+
+  def process_direct_message_user(user)
+    user[:created_at] ||= NOW
+    user[:updated_at] ||= NOW
+
+    user
+  end
+
+  def process_chat_thread(thread)
+    thread[:id] = @last_chat_thread_id += 1
+    thread[:created_at] ||= NOW
+    thread[:updated_at] ||= NOW
+
+    @imported_records[thread[:original_id].to_s] = thread[:id]
+    @chat_thread_mapping[thread[:original_id].to_s] = thread[:id]
+
+    thread
+  end
+
+  def process_user_chat_thread_membership(membership)
+    membership[:created_at] ||= NOW
+    membership[:updated_at] ||= NOW
+    membership[:notification_level] ||= Chat::UserChatThreadMembership.notification_levels[
+      :tracking
+    ]
+    membership[:thread_title_prompt_seen] = false if membership[:thread_title_prompt_seen].nil?
+
+    membership
+  end
+
+  def process_chat_message(message)
+    message[:id] = @last_chat_message_id += 1
+    message[:user_id] ||= Discourse::SYSTEM_USER_ID
+    message[:last_editor_id] ||= message[:user_id]
+    message[:message] = (message[:message] || "").scrub.strip
+    message[:message] = normalize_text(message[:message])
+    message[:cooked] = ::Chat::Message.cook(message[:message], user_id: message[:last_editor_id])
+    message[:cooked_version] = ::Chat::Message::BAKED_VERSION
+    message[:created_at] ||= NOW
+    message[:updated_at] ||= NOW
+
+    @imported_records[message[:original_id].to_s] = message[:id]
+    @chat_message_mapping[message[:original_id].to_s] = message[:id]
+
+    if message[:message].bytes.include?(0)
+      STDERR.puts "Skipping chat message with original ID #{message[:original_id]} because `message` contains null bytes"
+      message[:skip] = true
+    end
+
+    if message[:cooked].bytes.include?(0)
+      STDERR.puts "Skipping chat message with original ID #{message[:original_id]} because `cooked` contains null bytes"
+      message[:skip] = true
+    end
+
+    message
+  end
+
+  def process_chat_message_reaction(reaction)
+    reaction[:created_at] ||= NOW
+    reaction[:updated_at] ||= NOW
+
+    reaction
+  end
+
+  def process_chat_mention(mention)
+    mention[:created_at] ||= NOW
+    mention[:updated_at] ||= NOW
+
+    mention
+  end
+
+  def process_discourse_reactions_reaction_user(reaction_user)
+    reaction_user[:created_at] ||= NOW
+    reaction_user[:updated_at] ||= NOW
+    reaction_user
+  end
+
+  def process_discourse_reactions_reaction(reaction)
+    reaction[:id] = @last_discourse_reaction_id += 1
+    reaction[:created_at] ||= NOW
+    reaction[:updated_at] ||= NOW
+    reaction[:reaction_users_count] ||= 0
+
+    @imported_records[reaction[:original_id].to_s] = reaction[:id]
+    @discourse_reaction_mapping[reaction[:original_id].to_s] = reaction[:id]
+
+    reaction
+  end
+
   def create_records(all_rows, name, columns, &block)
     start = Time.now
     imported_ids = []
@@ -1682,21 +2150,22 @@ class BulkImport::Base
 
     cooked = @markdown.render(cooked).scrub.strip
 
-    cooked.gsub!(%r{\[QUOTE="?([^,"]+)(?:, post:(\d+), topic:(\d+))?"?\](.+?)\[/QUOTE\]}im) do
-      username, post_id, topic_id, quote = $1, $2, $3, $4
+    cooked.gsub!(
+      %r{\[QUOTE=(?:"|&quot;)?(.+?)(?:, post:(\d+), topic:(\d+))?(?:, username:(.+?))?(?:"|&quot;)?\](.+?)\[/QUOTE\]}im,
+    ) do
+      name_or_username, post_id, topic_id, username, quote = $1, $2, $3, $4, $5
+      username ||= name_or_username
 
       quote = quote.scrub.strip
       quote.gsub!(/^(<br>\n?)+/, "")
       quote.gsub!(/(<br>\n?)+$/, "")
-
-      user = User.find_by(username: username)
 
       if post_id.present? && topic_id.present?
         <<-HTML
           <aside class="quote" data-post="#{post_id}" data-topic="#{topic_id}">
             <div class="title">
               <div class="quote-controls"></div>
-              #{user ? user_avatar(user) : username}:
+              #{name_or_username}:
             </div>
             <blockquote>#{quote}</blockquote>
           </aside>
@@ -1706,7 +2175,7 @@ class BulkImport::Base
           <aside class="quote no-group" data-username="#{username}">
             <div class="title">
               <div class="quote-controls"></div>
-              #{user ? user_avatar(user) : username}:
+              #{name_or_username}:
             </div>
             <blockquote>#{quote}</blockquote>
           </aside>
@@ -1726,8 +2195,8 @@ class BulkImport::Base
       upload_sha1 = Upload.sha1_from_short_url(short_url)
       upload_base62 = Upload.base62_sha1(upload_sha1)
       upload_id = @uploads_by_sha1[upload_sha1]
-      upload_url = @upload_urls_by_id[upload_id]
-      cdn_url = Discourse.store.cdn_url(upload_url)
+      upload_url = upload_id ? @upload_urls_by_id[upload_id] : nil
+      cdn_url = upload_url ? Discourse.store.cdn_url(upload_url) : ""
 
       attributes = +%{loading="lazy"}
       attributes << %{ alt="#{alt}"} if alt.present?
@@ -1744,9 +2213,9 @@ class BulkImport::Base
       name = @mapped_usernames[$1] || $1
       normalized_name = User.normalize_username(name)
 
-      if User.where(username_lower: normalized_name).exists?
+      if @usernames_lower.include?(normalized_name)
         %|<a class="mention" href="/u/#{normalized_name}">@#{name}</a>|
-      elsif Group.where("LOWER(name) = ?", normalized_name).exists?
+      elsif @group_names_lower.include?(normalized_name)
         %|<a class="mention-group" href="/groups/#{normalized_name}">@#{name}</a>|
       else
         "@#{name}"
@@ -1761,7 +2230,8 @@ class BulkImport::Base
 
   def user_avatar(user)
     url = user.avatar_template.gsub("{size}", "45")
-    "<img alt=\"\" width=\"20\" height=\"20\" src=\"#{url}\" class=\"avatar\"> #{user.username}"
+    # TODO name/username preference check
+    "<img alt=\"\" width=\"20\" height=\"20\" src=\"#{url}\" class=\"avatar\"> #{user.name.presence || user.username}"
   end
 
   def pre_fancy(title)
@@ -1769,7 +2239,7 @@ class BulkImport::Base
   end
 
   def normalize_text(text)
-    return nil unless text.present?
+    return nil if text.blank?
     @html_entities.decode(normalize_charset(text.presence || "").scrub)
   end
 

@@ -1,10 +1,8 @@
 import Component from "@ember/component";
 import { action } from "@ember/object";
 import { equal } from "@ember/object/computed";
-import discourseComputed, {
-  afterRender,
-} from "discourse-common/utils/decorators";
-import I18n from "discourse-i18n";
+import discourseComputed, { afterRender } from "discourse/lib/decorators";
+import { i18n } from "discourse-i18n";
 
 const ACTIONS = ["delete", "delete_replies", "edit", "none"];
 
@@ -17,7 +15,7 @@ export default class AdminPenaltyPostAction extends Component {
   @discourseComputed
   penaltyActions() {
     return ACTIONS.map((id) => {
-      return { id, name: I18n.t(`admin.user.penalty_post_${id}`) };
+      return { id, name: i18n(`admin.user.penalty_post_${id}`) };
     });
   }
 
@@ -34,7 +32,7 @@ export default class AdminPenaltyPostAction extends Component {
   @afterRender
   _focusEditTextarea() {
     const elem = this.element;
-    const body = elem.closest(".modal-body");
+    const body = elem.closest(".d-modal__body");
     body.scrollTo(0, body.clientHeight);
     elem.querySelector(".post-editor").focus();
   }

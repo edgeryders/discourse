@@ -1,2 +1,7 @@
+!/db/**/*.sql
+!/spec/support/fixtures/**/*.sql
+
 tmp/*
-!/common/intermediate_db_schema/*.sql
+private/
+Gemfile.lock
+/config/upload.yml

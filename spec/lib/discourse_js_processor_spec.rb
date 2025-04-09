@@ -92,7 +92,7 @@ RSpec.describe DiscourseJsProcessor do
     JS
 
     result = DiscourseJsProcessor.transpile(script, "blah", "blah/mymodule")
-    expect(result).to include("_applyDecoratedDescriptor")
+    expect(result).to include("static #_ = (() => dt7948.n")
   end
 
   it "correctly transpiles widget hbs" do
@@ -128,7 +128,7 @@ RSpec.describe DiscourseJsProcessor do
         */
         {
           "id": null,
-          "block": "[[[1,[34,0]]],[],false,[\\"somevalue\\"]]",
+          "block": "[[[1,[35,0]]],[],false,[\\"somevalue\\"]]",
           "moduleName": "/blah/mymodule",
           "isStrictMode": false
         });
@@ -161,7 +161,7 @@ RSpec.describe DiscourseJsProcessor do
       ctx = MiniRacer::Context.new
       ctx.eval(
         File.open(
-          "#{Rails.root}/app/assets/javascripts/node_modules/handlebars/dist/handlebars.js",
+          "#{Rails.root}/app/assets/javascripts/discourse/node_modules/handlebars/dist/handlebars.js",
         ).read,
       )
       ctx.eval(helpers)

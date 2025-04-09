@@ -1,31 +1,32 @@
 import Controller from "@ember/controller";
 import { action } from "@ember/object";
-import { inject as service } from "@ember/service";
-import discourseDebounce from "discourse-common/lib/debounce";
-import deprecated from "discourse-common/lib/deprecated";
-import discourseComputed from "discourse-common/utils/decorators";
+import { service } from "@ember/service";
+import runAfterFramePaint from "discourse/lib/after-frame-paint";
+import discourseDebounce from "discourse/lib/debounce";
+import discourseComputed from "discourse/lib/decorators";
+import deprecated from "discourse/lib/deprecated";
+import { isTesting } from "discourse/lib/environment";
 
 const HIDE_SIDEBAR_KEY = "sidebar-hidden";
 
-export default Controller.extend({
-  queryParams: [{ navigationMenuQueryParamOverride: "navigation_menu" }],
+export default class ApplicationController extends Controller {
+  @service router;
+  @service footer;
+  @service header;
+  @service sidebarState;
 
-  showTop: true,
-  router: service(),
-  footer: service(),
-  showSidebar: false,
-  navigationMenuQueryParamOverride: null,
-  sidebarDisabledRouteOverride: false,
-  showSiteHeader: true,
+  queryParams = [{ navigationMenuQueryParamOverride: "navigation_menu" }];
+  showTop = true;
 
-  init() {
-    this._super(...arguments);
-    this.showSidebar = this.calculateShowSidebar();
-  },
+  showSidebar = this.calculateShowSidebar();
+  sidebarDisabledRouteOverride = false;
+  navigationMenuQueryParamOverride = null;
+  showSiteHeader = true;
+  showSkipToContent = true;
 
   get showFooter() {
     return this.footer.showFooter;
-  },
+  }
 
   set showFooter(value) {
     deprecated(
@@ -33,7 +34,11 @@ export default Controller.extend({
       { id: "discourse.application-show-footer" }
     );
     this.footer.showFooter = value;
-  },
+  }
+
+  get showPoweredBy() {
+    return this.showFooter && this.siteSettings.enable_powered_by_discourse;
+  }
 
   @discourseComputed
   canSignUp() {
@@ -42,52 +47,45 @@ export default Controller.extend({
       this.siteSettings.allow_new_registrations &&
       !this.siteSettings.enable_discourse_connect
     );
-  },
+  }
 
   @discourseComputed
   canDisplaySidebar() {
     return this.currentUser || !this.siteSettings.login_required;
-  },
+  }
 
   @discourseComputed
   loginRequired() {
     return this.siteSettings.login_required && !this.currentUser;
-  },
+  }
 
   @discourseComputed
   showFooterNav() {
     return this.capabilities.isAppWebview || this.capabilities.isiOSPWA;
-  },
+  }
 
   _mainOutletAnimate() {
     document.body.classList.remove("sidebar-animate");
-  },
+  }
 
-  @discourseComputed(
-    "navigationMenuQueryParamOverride",
-    "siteSettings.navigation_menu",
-    "canDisplaySidebar",
-    "sidebarDisabledRouteOverride"
-  )
-  sidebarEnabled(
-    navigationMenuQueryParamOverride,
-    navigationMenu,
-    canDisplaySidebar,
-    sidebarDisabledRouteOverride
-  ) {
-    if (!canDisplaySidebar) {
+  get sidebarEnabled() {
+    if (!this.canDisplaySidebar) {
       return false;
     }
 
-    if (sidebarDisabledRouteOverride) {
+    if (this.sidebarState.sidebarHidden) {
       return false;
     }
 
-    if (navigationMenuQueryParamOverride === "sidebar") {
+    if (this.sidebarDisabledRouteOverride) {
+      return false;
+    }
+
+    if (this.navigationMenuQueryParamOverride === "sidebar") {
       return true;
     }
 
-    if (navigationMenuQueryParamOverride === "header_dropdown") {
+    if (this.navigationMenuQueryParamOverride === "header_dropdown") {
       return false;
     }
 
@@ -96,8 +94,16 @@ export default Controller.extend({
       return false;
     }
 
-    return navigationMenu === "sidebar";
-  },
+    // Always show sidebar for admin if user can see the admin sidbar
+    if (
+      this.sidebarState.isForcingAdminSidebar &&
+      this.sidebarState.currentUserUsingAdminSidebar
+    ) {
+      return true;
+    }
+
+    return this.siteSettings.navigation_menu === "sidebar";
+  }
 
   calculateShowSidebar() {
     return (
@@ -105,7 +111,7 @@ export default Controller.extend({
       !this.keyValueStore.getItem(HIDE_SIDEBAR_KEY) &&
       !this.site.narrowDesktopView
     );
-  },
+  }
 
   @action
   toggleSidebar() {
@@ -123,5 +129,25 @@ export default Controller.extend({
         this.keyValueStore.setItem(HIDE_SIDEBAR_KEY, "true");
       }
     }
-  },
-});
+  }
+
+  @action
+  trackDiscoursePainted() {
+    if (isTesting()) {
+      return;
+    }
+    runAfterFramePaint(() => {
+      performance.mark("discourse-paint");
+      try {
+        performance.measure(
+          "discourse-init-to-paint",
+          "discourse-init",
+          "discourse-paint"
+        );
+      } catch (e) {
+        // eslint-disable-next-line no-console
+        console.warn("Failed to measure init-to-paint", e);
+      }
+    });
+  }
+}

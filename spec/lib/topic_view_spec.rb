@@ -72,6 +72,8 @@ RSpec.describe TopicView do
     fab!(:p0) { Fabricate(:post, topic: topic) }
     fab!(:p1) { Fabricate(:post, topic: topic, wiki: true) }
 
+    after { TopicView.custom_filters.clear }
+
     it "allows to register custom filters" do
       tv = TopicView.new(topic.id, evil_trout, { filter: "wiki" })
       expect(tv.filter_posts({ filter: "wiki" })).to eq([p0, p1])
@@ -83,8 +85,6 @@ RSpec.describe TopicView do
 
       tv = TopicView.new(topic.id, evil_trout, { filter: "whatever" })
       expect(tv.filter_posts).to eq([p0, p1])
-    ensure
-      TopicView.instance_variable_set(:@custom_filters, {})
     end
   end
 
@@ -797,6 +797,18 @@ RSpec.describe TopicView do
       end
     end
 
+    context "when a page number is specified" do
+      it "does not include the page number for first page" do
+        title = TopicView.new(topic.id, admin, page: 1).page_title
+        expect(title).to eq("#{topic.title}")
+      end
+
+      it "includes page number for subsequent pages" do
+        title = TopicView.new(topic.id, admin, page: 2).page_title
+        expect(title).to eq("#{topic.title} - #{I18n.t("page_num", num: 2)}")
+      end
+    end
+
     context "with uncategorized topic" do
       context "when topic_page_title_includes_category is false" do
         before { SiteSetting.topic_page_title_includes_category = false }
@@ -935,6 +947,17 @@ RSpec.describe TopicView do
 
       SiteSetting.read_time_word_count = 0
       expect(topic_view.read_time).to eq(nil)
+    end
+  end
+
+  describe "#mentioned_users" do
+    it "works with capitalized usernames" do
+      user = Fabricate(:user, username: "JoJo")
+      post_1 = Fabricate(:post, topic: topic, raw: "Hey @#{user.username}")
+
+      view = TopicView.new(topic.id, user).mentioned_users
+
+      expect(view[post_1.id]).to eq([user])
     end
   end
 
@@ -1100,29 +1123,50 @@ RSpec.describe TopicView do
     end
   end
 
-  describe "with topic_view_suggested_topics_options modifier" do
-    let!(:topic1) { Fabricate(:topic) }
-    let!(:topic2) { Fabricate(:topic) }
+  describe "plugin modifiers" do
+    let(:plugin) { Plugin::Instance.new }
 
-    after { DiscoursePluginRegistry.clear_modifiers! }
+    context "with topic_view_link_counts modifier registered" do
+      let(:modifier) do
+        Proc.new do |link_counts|
+          link_counts["hijacked hehe"] = true
+          link_counts
+        end
+      end
 
-    it "allows disabling of random suggested" do
-      topic_view = TopicView.new(topic1)
+      it "allows modifications to link_counts" do
+        expect(TopicView.new(topic).link_counts).to eq({})
 
-      Plugin::Instance
-        .new
-        .register_modifier(
-          :topic_view_suggested_topics_options,
-        ) do |suggested_options, inner_topic_view|
-          expect(inner_topic_view).to eq(topic_view)
+        plugin.register_modifier(:topic_view_link_counts, &modifier)
+
+        expect(TopicView.new(topic).link_counts).to eq({ "hijacked hehe" => true })
+      ensure
+        DiscoursePluginRegistry.unregister_modifier(plugin, :topic_view_link_counts, &modifier)
+      end
+    end
+
+    context "with topic_view_suggested_topics_options modifier" do
+      let!(:topic1) { Fabricate(:topic) }
+      let!(:topic2) { Fabricate(:topic) }
+      let(:modifier) do
+        Proc.new do |suggested_options, inner_topic_view|
           suggested_options.merge(include_random: false)
         end
+      end
 
-      expect(topic_view.suggested_topics.topics.count).to eq(0)
+      it "allows modifications to suggested topics (disabling of random suggested)" do
+        expect(TopicView.new(topic1).suggested_topics.topics.count).to be > 0
 
-      DiscoursePluginRegistry.clear_modifiers!
+        plugin.register_modifier(:topic_view_suggested_topics_options, &modifier)
 
-      expect(TopicView.new(topic1).suggested_topics.topics.count).to be > 0
+        expect(TopicView.new(topic1).suggested_topics.topics.count).to eq(0)
+      ensure
+        DiscoursePluginRegistry.unregister_modifier(
+          plugin,
+          :topic_view_suggested_topics_options,
+          &modifier
+        )
+      end
     end
   end
 end

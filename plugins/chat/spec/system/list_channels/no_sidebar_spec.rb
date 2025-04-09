@@ -74,25 +74,30 @@ RSpec.describe "List channels | no sidebar", type: :system do
   end
 
   context "when no category channels" do
-    it "doesn’t show the section" do
+    it "shows the empty channel list" do
       visit("/chat")
-      expect(page).to have_no_css(".public-channels-section")
+      expect(page).to have_css(".c-list-empty-state")
+    end
+
+    it "does not show the create channel button" do
+      visit("/chat")
+      expect(page).to have_no_css(".-navbar__new-channel-button")
     end
 
     context "when user can create channels" do
       before { current_user.update!(admin: true) }
 
-      it "shows the section" do
+      it "shows the new channel button" do
         visit("/chat")
-        expect(page).to have_css(".public-channels-section")
+        expect(page).to have_css(".c-navbar__new-channel-button")
       end
     end
   end
 
   context "when no direct message channels" do
-    it "shows the section" do
+    it "shows the empty channel list" do
       visit("/chat")
-      expect(page).to have_css(".direct-message-channels-section")
+      expect(page).to have_css(".c-list-empty-state")
     end
   end
 
@@ -116,6 +121,27 @@ RSpec.describe "List channels | no sidebar", type: :system do
       visit("/chat")
       expect(page).to have_no_css(".public-channels-section")
       expect(page).to have_no_css(".direct-message-channels-section")
+    end
+  end
+
+  context "when public channels are disabled" do
+    before { SiteSetting.enable_public_channels = false }
+
+    it "shows the create direct message button" do
+      visit("/chat")
+
+      expect(chat).to have_direct_message_channels_section
+    end
+
+    context "with drawer prefered" do
+      before { chat.prefers_drawer }
+
+      it "shows the create direct message button in the drawer" do
+        visit("/")
+        chat.open_from_header
+
+        expect(PageObjects::Pages::ChatDrawer.new).to have_direct_message_channels_section
+      end
     end
   end
 end

@@ -61,7 +61,7 @@ class Cache
   # this removes a bunch of stuff we do not need like instrumentation and versioning
   def read(name)
     key = normalize_key(name)
-    read_entry(key)
+    read_entry(key).tap { |entry| break if entry == :__corrupt_cache__ }
   end
 
   def write(name, value, expires_in: nil)
@@ -73,50 +73,51 @@ class Cache
   end
 
   def fetch(name, expires_in: nil, force: nil, &blk)
-    if block_given?
-      key = normalize_key(name)
-      raw = nil
-
-      raw = redis.get(key) if !force
-
-      if raw
-        begin
-          Marshal.load(raw) # rubocop:disable Security/MarshalLoad
-        rescue => e
-          log_first_exception(e)
-        end
-      else
-        val = blk.call
-        write_entry(key, val, expires_in: expires_in)
-        val
+    if !block_given?
+      if force
+        raise ArgumentError,
+              "Missing block: Calling `Cache#fetch` with `force: true` requires a block."
       end
-    elsif force
-      raise ArgumentError,
-            "Missing block: Calling `Cache#fetch` with `force: true` requires a block."
-    else
-      read(name)
+      return read(name)
     end
+
+    key = normalize_key(name)
+
+    if !force
+      if raw = redis.get(key)
+        entry = decode_entry(raw, key)
+        return entry if entry != :__corrupt_cache__
+      end
+    end
+
+    val = blk.call
+    write_entry(key, val, expires_in: expires_in)
+    val
   end
 
   protected
 
-  def log_first_exception(e)
-    if !defined?(@logged_a_warning)
-      @logged_a_warning = true
-      Discourse.warn_exception(e, "Corrupt cache... skipping entry for key #{key}")
-    end
+  def log_first_exception(e, key)
+    return if defined?(@logged_a_warning)
+    @logged_a_warning = true
+    Discourse.warn_exception(e, message: "Corrupt cache... skipping entry for key #{key}")
   end
 
-  def read_entry(key)
-    if data = redis.get(key)
-      Marshal.load(data) # rubocop:disable Security/MarshalLoad
-    end
+  def decode_entry(raw, key)
+    Marshal.load(raw) # rubocop:disable Security/MarshalLoad
   rescue => e
     # corrupt cache, this can happen if Marshal version
     # changes. Log it once so we can tell it is happening.
     # should not happen under any normal circumstances, but we
     # do not want to flood logs
-    log_first_exception(e)
+    log_first_exception(e, key)
+    :__corrupt_cache__
+  end
+
+  def read_entry(key)
+    if data = redis.get(key)
+      decode_entry(data, key)
+    end
   end
 
   def write_entry(key, value, expires_in: nil)

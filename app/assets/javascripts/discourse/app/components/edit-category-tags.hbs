@@ -17,7 +17,7 @@
     @everyTag={{true}}
     @excludeSynonyms={{true}}
     @unlimitedTagCount={{true}}
-    @onChange={{action (mut this.category.allowed_tags)}}
+    @onChange={{fn (mut this.category.allowed_tags)}}
     @options={{hash filterPlaceholder="category.tags_placeholder"}}
   />
 </section>
@@ -27,7 +27,7 @@
   <TagGroupChooser
     @id="category-allowed-tag-groups"
     @tagGroups={{this.category.allowed_tag_groups}}
-    @onChange={{action (mut this.category.allowed_tag_groups)}}
+    @onChange={{fn (mut this.category.allowed_tag_groups)}}
   />
   <LinkTo @route="tagGroups" class="manage-tag-groups">{{i18n
       "category.manage_tag_groups_link"
@@ -70,7 +70,7 @@
         <DButton
           @label="category.required_tag_group.delete"
           @action={{fn this.deleteRequiredTagGroup rtg}}
-          @icon="trash-alt"
+          @icon="trash-can"
           class="delete-required-tag-group"
         />
       </div>
@@ -79,7 +79,7 @@
       @label="category.required_tag_group.add"
       @action={{this.addRequiredTagGroup}}
       @icon="plus"
-      class="add-required-tag-group"
+      class="btn-default add-required-tag-group"
     />
   </section>
 </section>

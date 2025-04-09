@@ -4,10 +4,19 @@
   @flash={{this.flash}}
   @flashType="error"
   id="bookmark-reminder-modal"
-  class="bookmark-reminder-modal bookmark-with-reminder"
+  class="bookmark-reminder-modal"
   data-bookmark-id={{this.bookmark.id}}
   {{did-insert this.didInsert}}
 >
+  <:headerPrimaryAction>
+    <DButton
+      @label="bookmarks.save"
+      @action={{this.saveAndClose}}
+      @title="modal.close"
+      class="btn-transparent btn-primary"
+    />
+  </:headerPrimaryAction>
+
   <:body>
     <div class="control-group bookmark-name-wrap">
       <Input
@@ -19,7 +28,7 @@
         aria-label={{i18n "post.bookmarks.name_input_label"}}
       />
       <DButton
-        @icon="cog"
+        @icon="gear"
         @action={{this.toggleShowOptions}}
         @ariaLabel="post.bookmarks.options"
         @title="post.bookmarks.options"
@@ -37,7 +46,7 @@
           @content={{this.autoDeletePreferences}}
           @value={{this.bookmark.autoDeletePreference}}
           @id="bookmark-auto-delete-preference"
-          @onChange={{action (mut this.bookmark.autoDeletePreference)}}
+          @onChange={{fn (mut this.bookmark.autoDeletePreference)}}
           class="bookmark-option-selector"
         />
       </div>
@@ -85,7 +94,7 @@
     <DModalCancel @close={{this.closeWithoutSavingBookmark}} />
     {{#if this.showDelete}}
       <DButton
-        @icon="trash-alt"
+        @icon="trash-can"
         @action={{this.delete}}
         @ariaLabel="post.bookmarks.actions.delete_bookmark.name"
         @title="post.bookmarks.actions.delete_bookmark.name"

@@ -20,7 +20,6 @@ RSpec.describe DraftsController do
       Draft.set(user, "xxx", 0, "{}")
       get "/drafts.json"
       expect(response.status).to eq(200)
-      parsed = response.parsed_body
       expect(response.parsed_body["drafts"].length).to eq(1)
     end
 
@@ -49,6 +48,21 @@ RSpec.describe DraftsController do
       get "/drafts.json"
       expect(response.status).to eq(200)
       expect(response.parsed_body["drafts"].first["title"]).to eq(nil)
+    end
+
+    it "returns categories when lazy load categories is enabled" do
+      SiteSetting.lazy_load_categories_groups = "#{Group::AUTO_GROUPS[:everyone]}"
+      category = Fabricate(:category)
+      topic = Fabricate(:topic, category: category)
+      Draft.set(topic.user, "topic_#{topic.id}", 0, "{}")
+      sign_in(topic.user)
+
+      get "/drafts.json"
+      expect(response.status).to eq(200)
+      draft_keys = response.parsed_body["drafts"].map { |draft| draft["draft_key"] }
+      expect(draft_keys).to contain_exactly("topic_#{topic.id}")
+      category_ids = response.parsed_body["categories"].map { |cat| cat["id"] }
+      expect(category_ids).to contain_exactly(category.id)
     end
   end
 
@@ -84,15 +98,15 @@ RSpec.describe DraftsController do
       expect(response.status).to eq(404)
     end
 
-    it "checks for an conflict on update" do
+    it "checks for a raw conflict on update" do
       sign_in(user)
-      post = Fabricate(:post, user: user)
+      post = Fabricate(:post, user:)
 
       post "/drafts.json",
            params: {
              draft_key: "topic",
              sequence: 0,
-             data: { postId: post.id, originalText: post.raw, action: "edit" }.to_json,
+             data: { postId: post.id, original_text: post.raw, action: "edit" }.to_json,
            }
 
       expect(response.status).to eq(200)
@@ -102,12 +116,85 @@ RSpec.describe DraftsController do
            params: {
              draft_key: "topic",
              sequence: 0,
-             data: { postId: post.id, originalText: "something else", action: "edit" }.to_json,
+             data: { postId: post.id, original_text: "something else", action: "edit" }.to_json,
            }
 
       expect(response.status).to eq(200)
       expect(response.parsed_body["conflict_user"]["id"]).to eq(post.last_editor.id)
       expect(response.parsed_body["conflict_user"]).to include("avatar_template")
+    end
+
+    it "checks for a title conflict on update" do
+      sign_in(user)
+      post = Fabricate(:post, user:)
+
+      post "/drafts.json",
+           params: {
+             draft_key: "topic",
+             sequence: 0,
+             data: {
+               postId: post.id,
+               original_text: post.raw,
+               original_title: "something else",
+               action: "edit",
+             }.to_json,
+           }
+
+      expect(response.status).to eq(200)
+      expect(response.parsed_body["conflict_user"]["id"]).to eq(post.last_editor.id)
+    end
+
+    it "checks for a tag conflict on update" do
+      sign_in(user)
+      post = Fabricate(:post, user:)
+
+      post "/drafts.json",
+           params: {
+             draft_key: "topic",
+             sequence: 0,
+             data: {
+               postId: post.id,
+               original_text: post.raw,
+               original_tags: %w[tag1 tag2],
+               action: "edit",
+             }.to_json,
+           }
+
+      expect(response.status).to eq(200)
+      expect(response.parsed_body["conflict_user"]["id"]).to eq(post.last_editor.id)
+    end
+
+    it "handles hidden tags when checking for tag conflict" do
+      sign_in(user)
+
+      regular_tag = Fabricate(:tag)
+      admin_only_tag_one = Fabricate(:tag)
+      admin_only_tag_two = Fabricate(:tag)
+
+      admin_only_tag_group = Fabricate(:tag_group)
+      admin_only_tag_group.tags = [admin_only_tag_one, admin_only_tag_two]
+      admin_only_tag_group.permissions = [
+        [Group::AUTO_GROUPS[:admins], TagGroupPermission.permission_types[:full]],
+      ]
+      admin_only_tag_group.save!
+
+      post = Fabricate(:post, user:)
+      post.topic.tags = [regular_tag, admin_only_tag_one]
+
+      post "/drafts.json",
+           params: {
+             draft_key: "topic",
+             sequence: 0,
+             data: {
+               postId: post.id,
+               original_text: post.raw,
+               original_tags: [regular_tag.name],
+               action: "edit",
+             }.to_json,
+           }
+
+      expect(response.status).to eq(200)
+      expect(response.parsed_body["conflict_user"]).to eq(nil)
     end
 
     it "cant trivially resolve conflicts without interaction" do

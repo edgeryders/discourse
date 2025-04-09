@@ -34,8 +34,8 @@ nl:
         icons:
           title: "Pictogrammen"
           full_list: "Zie de volledige lijst van Font Awesome-pictogrammen"
-        input_fields:
-          title: "Invoervelden"
+        forms:
+          title: "Formulieren"
         buttons:
           title: "Knoppen"
         dropdowns:
@@ -74,6 +74,10 @@ nl:
           title: "Topicmeldingen"
         post:
           title: "Bericht"
+        post_list:
+          title: "Berichtenlijst"
+          empty_example: "<PostList /> lege toestand"
+          populated_example: "<PostList /> gevulde toestand"
         topic_map:
           title: "Topickaart"
         site_header:

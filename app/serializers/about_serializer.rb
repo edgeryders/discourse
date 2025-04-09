@@ -1,22 +1,28 @@
 # frozen_string_literal: true
 
 class AboutSerializer < ApplicationSerializer
+  class CategoryAboutSerializer < CategoryBadgeSerializer
+    has_one :parent_category, serializer: CategoryBadgeSerializer, root: :categories
+  end
+
   class UserAboutSerializer < BasicUserSerializer
     attributes :title, :last_seen_at
   end
 
   class AboutCategoryModsSerializer < ApplicationSerializer
-    attributes :category_id
-
-    has_many :moderators, serializer: UserAboutSerializer, embed: :objects
+    has_one :category, serializer: CategoryAboutSerializer
+    has_many :moderators, serializer: UserAboutSerializer, root: :users
   end
 
-  has_many :moderators, serializer: UserAboutSerializer, embed: :objects
-  has_many :admins, serializer: UserAboutSerializer, embed: :objects
+  has_many :moderators, serializer: UserAboutSerializer, root: :users
+  has_many :admins, serializer: UserAboutSerializer, root: :users
   has_many :category_moderators, serializer: AboutCategoryModsSerializer, embed: :objects
 
   attributes :stats,
              :description,
+             :extended_site_description,
+             :banner_image,
+             :site_creation_date,
              :title,
              :locale,
              :version,

@@ -38,6 +38,46 @@ RSpec.describe Middleware::RequestTracker do
 
       expect(WebCrawlerRequest.where(user_agent: agent.encode("utf-8")).count).to eq(1)
     end
+
+    it "can handle rogue user agents with invalid bytes sequences" do
+      agent = (+"Evil Googlebot String \xc3\x28").force_encoding("ASCII") # encode("utf-8") -> InvalidByteSequenceError
+
+      expect {
+        middleware =
+          Middleware::RequestTracker.new(
+            ->(env) { ["200", { "Content-Type" => "text/html" }, [""]] },
+          )
+        middleware.call(env("HTTP_USER_AGENT" => agent))
+
+        CachedCounting.flush
+
+        expect(
+          WebCrawlerRequest.where(
+            user_agent: agent.encode("utf-8", invalid: :replace, undef: :replace),
+          ).count,
+        ).to eq(1)
+      }.not_to raise_error
+    end
+
+    it "can handle rogue user agents with undefined characters in the destination encoding" do
+      agent = (+"Evil Googlebot String \xc3\x28").force_encoding("ASCII-8BIT") # encode("utf-8") -> UndefinedConversionError
+
+      expect {
+        middleware =
+          Middleware::RequestTracker.new(
+            ->(env) { ["200", { "Content-Type" => "text/html" }, [""]] },
+          )
+        middleware.call(env("HTTP_USER_AGENT" => agent))
+
+        CachedCounting.flush
+
+        expect(
+          WebCrawlerRequest.where(
+            user_agent: agent.encode("utf-8", invalid: :replace, undef: :replace),
+          ).count,
+        ).to eq(1)
+      }.not_to raise_error
+    end
   end
 
   describe "log_request" do
@@ -66,6 +106,7 @@ RSpec.describe Middleware::RequestTracker do
       CachedCounting.flush
 
       expect(ApplicationRequest.page_view_anon.first.count).to eq(2)
+      expect(ApplicationRequest.page_view_anon_browser.first.count).to eq(2)
     end
 
     it "can log requests correctly" do
@@ -119,6 +160,23 @@ RSpec.describe Middleware::RequestTracker do
       expect(ApplicationRequest.page_view_anon_mobile.first.count).to eq(1)
 
       expect(ApplicationRequest.page_view_crawler.first.count).to eq(1)
+
+      expect(ApplicationRequest.page_view_anon_browser.first.count).to eq(1)
+    end
+
+    it "logs deferred pageviews correctly" do
+      data =
+        Middleware::RequestTracker.get_data(
+          env(:path => "/message-bus/abcde/poll", "HTTP_DISCOURSE_DEFERRED_TRACK_VIEW" => "1"),
+          ["200", { "Content-Type" => "text/html" }],
+          0.1,
+        )
+      Middleware::RequestTracker.log_request(data)
+
+      expect(data[:deferred_track]).to eq(true)
+      CachedCounting.flush
+
+      expect(ApplicationRequest.page_view_anon_browser.first.count).to eq(1)
     end
 
     it "logs API requests correctly" do
@@ -183,6 +241,202 @@ RSpec.describe Middleware::RequestTracker do
 
       expect(ApplicationRequest.page_view_crawler.first.count).to eq(1)
       expect(ApplicationRequest.page_view_anon.first.count).to eq(1)
+    end
+
+    describe "topic views" do
+      fab!(:topic)
+      fab!(:post) { Fabricate(:post, topic: topic) }
+      fab!(:user) { Fabricate(:user, active: true) }
+
+      let!(:auth_cookie) do
+        token = UserAuthToken.generate!(user_id: user.id)
+        create_auth_cookie(
+          token: token.unhashed_auth_token,
+          user_id: user.id,
+          trust_level: user.trust_level,
+          issued_at: 5.minutes.ago,
+        )
+      end
+
+      def log_topic_view(authenticated: false, deferred: false)
+        headers = { "action_dispatch.remote_ip" => "127.0.0.1" }
+
+        headers["HTTP_COOKIE"] = "_t=#{auth_cookie};" if authenticated
+
+        if deferred
+          headers["HTTP_DISCOURSE_DEFERRED_TRACK_VIEW"] = "1"
+          headers["HTTP_DISCOURSE_DEFERRED_TRACK_VIEW_TOPIC_ID"] = topic.id
+          path = "/message-bus/abcde/poll"
+        else
+          headers["HTTP_DISCOURSE_TRACK_VIEW"] = "1"
+          headers["HTTP_DISCOURSE_TRACK_VIEW_TOPIC_ID"] = topic.id
+          path = URI.parse(topic.url).path
+        end
+
+        data =
+          Middleware::RequestTracker.get_data(
+            env(path: path, **headers),
+            ["200", { "Content-Type" => "text/html" }],
+            0.1,
+          )
+        Middleware::RequestTracker.log_request(data)
+        data
+      end
+
+      it "logs deferred topic views correctly for logged in users" do
+        data = log_topic_view(authenticated: true, deferred: true)
+
+        expect(data[:topic_id]).to eq(topic.id)
+        expect(data[:request_remote_ip]).to eq("127.0.0.1")
+        expect(data[:current_user_id]).to eq(user.id)
+        CachedCounting.flush
+
+        expect(TopicViewItem.exists?(topic_id: topic.id, user_id: user.id, ip_address: nil)).to eq(
+          true,
+        )
+        expect(
+          TopicViewStat.exists?(
+            topic_id: topic.id,
+            anonymous_views: 0,
+            logged_in_views: 1,
+            viewed_at: Time.zone.now.to_date,
+          ),
+        ).to eq(true)
+      end
+
+      it "does not log deferred topic views for topics the user cannot access" do
+        topic.update!(category: Fabricate(:private_category, group: Fabricate(:group)))
+        log_topic_view(authenticated: true, deferred: true)
+        CachedCounting.flush
+        expect(TopicViewItem.exists?(topic_id: topic.id, user_id: user.id, ip_address: nil)).to eq(
+          false,
+        )
+        expect(
+          TopicViewStat.exists?(
+            topic_id: topic.id,
+            anonymous_views: 0,
+            logged_in_views: 1,
+            viewed_at: Time.zone.now.to_date,
+          ),
+        ).to eq(false)
+      end
+
+      it "logs deferred topic views correctly for anonymous" do
+        data = log_topic_view(authenticated: false, deferred: true)
+
+        expect(data[:topic_id]).to eq(topic.id)
+        expect(data[:request_remote_ip]).to eq("127.0.0.1")
+        expect(data[:current_user_id]).to eq(nil)
+        CachedCounting.flush
+
+        expect(
+          TopicViewItem.exists?(topic_id: topic.id, user_id: nil, ip_address: "127.0.0.1"),
+        ).to eq(true)
+        expect(
+          TopicViewStat.exists?(
+            topic_id: topic.id,
+            anonymous_views: 1,
+            logged_in_views: 0,
+            viewed_at: Time.zone.now.to_date,
+          ),
+        ).to eq(true)
+      end
+
+      it "does not log deferred topic views for topics the anonymous user cannot access" do
+        topic.update!(category: Fabricate(:private_category, group: Fabricate(:group)))
+        log_topic_view(authenticated: false, deferred: true)
+        CachedCounting.flush
+
+        expect(
+          TopicViewItem.exists?(topic_id: topic.id, user_id: nil, ip_address: "127.0.0.1"),
+        ).to eq(false)
+        expect(
+          TopicViewStat.exists?(
+            topic_id: topic.id,
+            anonymous_views: 1,
+            logged_in_views: 0,
+            viewed_at: Time.zone.now.to_date,
+          ),
+        ).to eq(false)
+      end
+
+      it "logs explicit topic views correctly for logged in users" do
+        data = log_topic_view(authenticated: true, deferred: false)
+
+        expect(data[:topic_id]).to eq(topic.id)
+        expect(data[:request_remote_ip]).to eq("127.0.0.1")
+        expect(data[:current_user_id]).to eq(user.id)
+        CachedCounting.flush
+
+        expect(TopicViewItem.exists?(topic_id: topic.id, user_id: user.id, ip_address: nil)).to eq(
+          true,
+        )
+        expect(
+          TopicViewStat.exists?(
+            topic_id: topic.id,
+            anonymous_views: 0,
+            logged_in_views: 1,
+            viewed_at: Time.zone.now.to_date,
+          ),
+        ).to eq(true)
+      end
+
+      it "does not log explicit topic views for topics the user cannot access" do
+        topic.update!(category: Fabricate(:private_category, group: Fabricate(:group)))
+        log_topic_view(authenticated: true, deferred: false)
+        CachedCounting.flush
+
+        expect(TopicViewItem.exists?(topic_id: topic.id, user_id: user.id, ip_address: nil)).to eq(
+          false,
+        )
+        expect(
+          TopicViewStat.exists?(
+            topic_id: topic.id,
+            anonymous_views: 0,
+            logged_in_views: 1,
+            viewed_at: Time.zone.now.to_date,
+          ),
+        ).to eq(false)
+      end
+
+      it "logs explicit topic views correctly for anonymous" do
+        data = log_topic_view(authenticated: false, deferred: false)
+
+        expect(data[:topic_id]).to eq(topic.id)
+        expect(data[:request_remote_ip]).to eq("127.0.0.1")
+        expect(data[:current_user_id]).to eq(nil)
+        CachedCounting.flush
+
+        expect(
+          TopicViewItem.exists?(topic_id: topic.id, user_id: nil, ip_address: "127.0.0.1"),
+        ).to eq(true)
+        expect(
+          TopicViewStat.exists?(
+            topic_id: topic.id,
+            anonymous_views: 1,
+            logged_in_views: 0,
+            viewed_at: Time.zone.now.to_date,
+          ),
+        ).to eq(true)
+      end
+
+      it "does not log explicit topic views for topics the anonymous user cannot access" do
+        topic.update!(category: Fabricate(:private_category, group: Fabricate(:group)))
+        log_topic_view(authenticated: false, deferred: false)
+        CachedCounting.flush
+
+        expect(
+          TopicViewItem.exists?(topic_id: topic.id, user_id: nil, ip_address: "127.0.0.1"),
+        ).to eq(false)
+        expect(
+          TopicViewStat.exists?(
+            topic_id: topic.id,
+            anonymous_views: 1,
+            logged_in_views: 0,
+            viewed_at: Time.zone.now.to_date,
+          ),
+        ).to eq(false)
+      end
     end
 
     context "when ignoring anonymous page views" do
@@ -251,21 +505,19 @@ RSpec.describe Middleware::RequestTracker do
   end
 
   describe "rate limiting" do
+    let(:fake_logger) { FakeLogger.new }
+
     before do
       RateLimiter.enable
       RateLimiter.clear_all_global!
 
-      @orig_logger = Rails.logger
-      Rails.logger = @fake_logger = FakeLogger.new
-
+      Rails.logger.broadcast_to(fake_logger)
       # rate limiter tests depend on checks for retry-after
       # they can be sensitive to clock skew during test runs
-      freeze_time DateTime.parse("2021-01-01 01:00")
+      freeze_time_safe
     end
 
-    use_redis_snapshotting
-
-    after { Rails.logger = @orig_logger }
+    after { Rails.logger.stop_broadcasting_to(fake_logger) }
 
     let :middleware do
       app = lambda { |env| [200, {}, ["OK"]] }
@@ -307,7 +559,7 @@ RSpec.describe Middleware::RequestTracker do
         status, _ = middleware.call(env1)
         status, _ = middleware.call(env1)
 
-        expect(@fake_logger.warnings.count { |w| w.include?("Global rate limit exceeded") }).to eq(
+        expect(fake_logger.warnings.count { |w| w.include?("Global rate limit exceeded") }).to eq(
           warn_count,
         )
         expect(status).to eq(429)
@@ -329,7 +581,7 @@ RSpec.describe Middleware::RequestTracker do
       stub_const(
         Middleware::RequestTracker,
         "STATIC_IP_SKIPPER",
-        "177.33.14.73 191.209.88.192/30"&.split&.map { |ip| IPAddr.new(ip) },
+        "177.33.14.73 191.209.88.192/30".split.map { |ip| IPAddr.new(ip) },
       ) do
         global_setting :max_reqs_per_ip_per_10_seconds, 1
         global_setting :max_reqs_per_ip_mode, "block"
@@ -348,6 +600,31 @@ RSpec.describe Middleware::RequestTracker do
 
         status, _ = middleware.call(env2)
         expect(status).to eq(200)
+      end
+    end
+
+    describe "crawler rate limits" do
+      context "when there are multiple matching crawlers" do
+        before { SiteSetting.slow_down_crawler_user_agents = "badcrawler2|badcrawler22" }
+
+        it "only checks limits for the first match" do
+          env = env("HTTP_USER_AGENT" => "badcrawler")
+
+          status, _ = middleware.call(env)
+          expect(status).to eq(200)
+        end
+      end
+
+      it "compares user agents in a case-insensitive manner" do
+        SiteSetting.slow_down_crawler_user_agents = "BaDCRawLer"
+        env1 = env("HTTP_USER_AGENT" => "bADcrAWLer")
+        env2 = env("HTTP_USER_AGENT" => "bADcrAWLer")
+
+        status, _ = middleware.call(env1)
+        expect(status).to eq(200)
+
+        status, _ = middleware.call(env2)
+        expect(status).to eq(429)
       end
     end
 
@@ -398,9 +675,7 @@ RSpec.describe Middleware::RequestTracker do
         status, _ = middleware.call(env1)
         status, _ = middleware.call(env1)
 
-        expect(@fake_logger.warnings.count { |w| w.include?("Global rate limit exceeded") }).to eq(
-          0,
-        )
+        expect(fake_logger.warnings.count { |w| w.include?("Global rate limit exceeded") }).to eq(0)
         expect(status).to eq(200)
       end
     end
@@ -409,10 +684,11 @@ RSpec.describe Middleware::RequestTracker do
       global_setting :max_reqs_per_ip_per_10_seconds, 1
       global_setting :max_reqs_per_ip_mode, "warn+block"
 
-      status, _ = middleware.call(env)
-      status, headers = middleware.call(env)
+      env1 = env("REMOTE_ADDR" => "192.0.2.42")
+      status, _ = middleware.call(env1)
+      status, headers = middleware.call(env1)
 
-      expect(@fake_logger.warnings.count { |w| w.include?("Global rate limit exceeded") }).to eq(1)
+      expect(fake_logger.warnings.count { |w| w.include?("Global rate limit exceeded") }).to eq(1)
       expect(status).to eq(429)
       expect(headers["Retry-After"]).to eq("10")
     end
@@ -421,10 +697,11 @@ RSpec.describe Middleware::RequestTracker do
       global_setting :max_reqs_per_ip_per_10_seconds, 1
       global_setting :max_reqs_per_ip_mode, "warn"
 
-      status, _ = middleware.call(env)
-      status, _ = middleware.call(env)
+      env1 = env("REMOTE_ADDR" => "192.0.2.42")
+      status, _ = middleware.call(env1)
+      status, _ = middleware.call(env1)
 
-      expect(@fake_logger.warnings.count { |w| w.include?("Global rate limit exceeded") }).to eq(1)
+      expect(fake_logger.warnings.count { |w| w.include?("Global rate limit exceeded") }).to eq(1)
       expect(status).to eq(200)
     end
 
@@ -491,8 +768,12 @@ RSpec.describe Middleware::RequestTracker do
         expect(status).to eq(429)
         expect(called).to eq(1)
         expect(headers["Discourse-Rate-Limit-Error-Code"]).to eq("ip_10_secs_limit")
-        expect(response.first).to include("too many requests from this IP address")
-        expect(response.first).to include("Error code: ip_10_secs_limit.")
+
+        expect(response.first).to eq(<<~MSG)
+        Slow down, you're making too many requests.
+        Please retry again in 10 seconds.
+        Error code: ip_10_secs_limit.
+        MSG
       end
 
       it "is included when the requests-per-minute limit is reached" do
@@ -515,8 +796,12 @@ RSpec.describe Middleware::RequestTracker do
         expect(status).to eq(429)
         expect(called).to eq(1)
         expect(headers["Discourse-Rate-Limit-Error-Code"]).to eq("ip_60_secs_limit")
-        expect(response.first).to include("too many requests from this IP address")
-        expect(response.first).to include("Error code: ip_60_secs_limit.")
+
+        expect(response.first).to eq(<<~MSG)
+        Slow down, you're making too many requests.
+        Please retry again in 60 seconds.
+        Error code: ip_60_secs_limit.
+        MSG
       end
 
       it "is included when the assets-requests-per-10-seconds limit is reached" do
@@ -540,8 +825,12 @@ RSpec.describe Middleware::RequestTracker do
         expect(status).to eq(429)
         expect(called).to eq(1)
         expect(headers["Discourse-Rate-Limit-Error-Code"]).to eq("ip_assets_10_secs_limit")
-        expect(response.first).to include("too many requests from this IP address")
-        expect(response.first).to include("Error code: ip_assets_10_secs_limit.")
+
+        expect(response.first).to eq(<<~MSG)
+        Slow down, you're making too many requests.
+        Please retry again in 10 seconds.
+        Error code: ip_assets_10_secs_limit.
+        MSG
       end
     end
 
@@ -580,10 +869,15 @@ RSpec.describe Middleware::RequestTracker do
         middleware = Middleware::RequestTracker.new(app)
         status, headers, response = middleware.call(env)
         expect(status).to eq(429)
-        expect(headers["Discourse-Rate-Limit-Error-Code"]).to eq("id_60_secs_limit")
-        expect(response.first).to include("too many requests from this user")
-        expect(response.first).to include("Error code: id_60_secs_limit.")
+        expect(headers["Discourse-Rate-Limit-Error-Code"]).to eq("user_60_secs_limit")
+
+        expect(response.first).to eq(<<~MSG)
+        Slow down, you're making too many requests.
+        Please retry again in 60 seconds.
+        Error code: user_60_secs_limit.
+        MSG
       end
+
       expect(called).to eq(3)
     end
 
@@ -603,11 +897,13 @@ RSpec.describe Middleware::RequestTracker do
       env = env("HTTP_COOKIE" => "_t=#{cookie}", "REMOTE_ADDR" => "1.1.1.1")
 
       called = 0
+
       app =
         lambda do |_|
           called += 1
           [200, {}, ["OK"]]
         end
+
       freeze_time(12.minutes.from_now) do
         middleware = Middleware::RequestTracker.new(app)
         status, = middleware.call(env)
@@ -617,8 +913,12 @@ RSpec.describe Middleware::RequestTracker do
         status, headers, response = middleware.call(env)
         expect(status).to eq(429)
         expect(headers["Discourse-Rate-Limit-Error-Code"]).to eq("ip_60_secs_limit")
-        expect(response.first).to include("too many requests from this IP address")
-        expect(response.first).to include("Error code: ip_60_secs_limit.")
+
+        expect(response.first).to eq(<<~MSG)
+        Slow down, you're making too many requests.
+        Please retry again in 60 seconds.
+        Error code: ip_60_secs_limit.
+        MSG
       end
     end
 
@@ -653,8 +953,53 @@ RSpec.describe Middleware::RequestTracker do
       status, headers, response = middleware.call(env)
       expect(status).to eq(429)
       expect(headers["Discourse-Rate-Limit-Error-Code"]).to eq("ip_60_secs_limit")
-      expect(response.first).to include("too many requests from this IP address")
-      expect(response.first).to include("Error code: ip_60_secs_limit.")
+
+      expect(response.first).to eq(<<~MSG)
+      Slow down, you're making too many requests.
+      Please retry again in 60 seconds.
+      Error code: ip_60_secs_limit.
+      MSG
+    end
+
+    context "for `add_request_rate_limiter` plugin API" do
+      after { described_class.reset_rate_limiters_stack }
+
+      it "can be used to add a custom rate limiter" do
+        global_setting :max_reqs_per_ip_per_minute, 1
+
+        plugin = Plugin::Instance.new
+
+        plugin.add_request_rate_limiter(
+          identifier: :crawlers,
+          key: ->(_request) { "crawlers" },
+          activate_when: ->(request) { request.user_agent =~ /crawler/ },
+        )
+
+        env1 = env("HTTP_USER_AGENT" => "some crawler")
+
+        called = 0
+
+        app =
+          lambda do |_|
+            called += 1
+            [200, {}, ["OK"]]
+          end
+
+        middleware = Middleware::RequestTracker.new(app)
+        status, = middleware.call(env1)
+        expect(status).to eq(200)
+
+        middleware = Middleware::RequestTracker.new(app)
+        status, headers, response = middleware.call(env1)
+        expect(status).to eq(429)
+        expect(headers["Discourse-Rate-Limit-Error-Code"]).to eq("crawlers_60_secs_limit")
+
+        expect(response.first).to eq(<<~MSG)
+        Slow down, you're making too many requests.
+        Please retry again in 60 seconds.
+        Error code: crawlers_60_secs_limit.
+        MSG
+      end
     end
   end
 
@@ -796,6 +1141,23 @@ RSpec.describe Middleware::RequestTracker do
       tracker.call(env("HTTP_DONT_CHUNK" => "True", :path => "/message-bus/abcde/poll"))
       expect(@data[:is_background]).to eq(true)
       expect(@data[:background_type]).to eq("message-bus-dontchunk")
+    end
+  end
+
+  describe "error handling" do
+    let(:fake_logger) { FakeLogger.new }
+
+    before { Rails.logger.broadcast_to(fake_logger) }
+
+    after { Rails.logger.stop_broadcasting_to(fake_logger) }
+
+    it "logs requests even if they cause exceptions" do
+      app = lambda { |env| raise RateLimiter::LimitExceeded, 1 }
+      tracker = Middleware::RequestTracker.new(app)
+      expect { tracker.call(env) }.to raise_error(RateLimiter::LimitExceeded)
+      CachedCounting.flush
+      expect(ApplicationRequest.stats).to include("http_total_total" => 1)
+      expect(fake_logger.warnings).to be_empty
     end
   end
 end

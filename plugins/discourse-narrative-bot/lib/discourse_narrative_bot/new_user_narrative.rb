@@ -173,12 +173,6 @@ module DiscourseNarrativeBot
       topic = @post.topic
       post = topic.first_post
 
-      MessageBus.publish(
-        "/new_user_narrative/tutorial_search/#{@user.id}",
-        {},
-        user_ids: [@user.id],
-      )
-
       raw = <<~MD
       #{post.raw}
 
@@ -574,7 +568,7 @@ module DiscourseNarrativeBot
       return unless @post.user.id == -2
 
       raw = <<~MD
-        #{I18n.t("#{I18N_KEY}.flag.reply", i18n_post_args)}
+        #{I18n.t("#{I18N_KEY}.flag.reply", i18n_post_args(group_url: Group.find(Group::AUTO_GROUPS[:staff]).full_url))}
 
         #{instance_eval(&@next_instructions)}
       MD

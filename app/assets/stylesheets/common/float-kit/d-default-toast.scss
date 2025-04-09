@@ -20,17 +20,21 @@
       background-color: var(--success-low);
       color: var(--primary);
     }
+
     &.alert-error {
       background-color: var(--danger-low);
       color: var(--primary);
     }
+
     &.alert-warning {
       background-color: var(--highlight-bg);
       color: var(--primary);
     }
+
     &.alert-info {
       background-color: var(--tertiary-low);
       color: var(--primary);
+
       &.clickable {
         color: var(--tertiary);
         z-index: z("base");
@@ -70,6 +74,20 @@
     min-height: 30px;
   }
 
+  &__progress-bar {
+    width: 100%;
+    height: 5px;
+    top: 0;
+    left: 0;
+    position: absolute;
+    background-color: var(--success);
+    transform-origin: 0 0;
+  }
+
+  .fk-d-default-toast:has(&__progress-bar) {
+    padding-top: 15px;
+  }
+
   &__texts {
     min-height: 30px;
     display: flex;
@@ -96,5 +114,6 @@
 
   &__message {
     display: flex;
+    color: var(--primary-high);
   }
 }

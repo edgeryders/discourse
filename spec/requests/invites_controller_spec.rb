@@ -771,8 +771,6 @@ RSpec.describe InvitesController do
       describe "rate limiting" do
         before { RateLimiter.enable }
 
-        use_redis_snapshotting
-
         it "can send invite email" do
           sign_in(user)
 
@@ -963,6 +961,14 @@ RSpec.describe InvitesController do
 
       it "fails when local login is disabled and no external auth is configured" do
         SiteSetting.enable_local_logins = false
+
+        put "/invites/show/#{invite.invite_key}.json"
+        expect(response.status).to eq(404)
+      end
+
+      it "fails when discourse connect is enabled" do
+        SiteSetting.discourse_connect_url = "https://example.com/sso"
+        SiteSetting.enable_discourse_connect = true
 
         put "/invites/show/#{invite.invite_key}.json"
         expect(response.status).to eq(404)
@@ -1597,8 +1603,6 @@ RSpec.describe InvitesController do
       SiteSetting.invite_expiry_days = 30
       RateLimiter.enable
     end
-
-    use_redis_snapshotting
 
     it "resends all non-redeemed invites by a user" do
       freeze_time

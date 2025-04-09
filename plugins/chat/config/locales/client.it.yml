@@ -39,6 +39,10 @@ it:
       chat_messages_count: "Messaggi di chat"
       chat_channels_count: "Canali di chat"
       chat_users_count: "Utenti della chat"
+      activities:
+        chat_messages:
+          one: "%{formatted_number} messaggio di chat"
+          other: "%{formatted_number} messaggi di chat"
     chat:
       text_copied: Testo copiato negli appunti
       link_copied: Link copiato negli appunti
@@ -46,7 +50,6 @@ it:
       deleted_chat_username: eliminato
       dates:
         yesterday: "Ieri"
-        time_tiny: "h:mm"
       all_loaded: "Mostra tutti i messaggi"
       already_enabled: "La chat è già abilitata su questo argomento. Prova ad aggiornare."
       disabled_for_topic: "La chat è disabilitata su questo argomento."
@@ -56,12 +59,17 @@ it:
       cancel_reply: "Annulla risposta"
       chat_channels: "Canali"
       browse_all_channels: "Sfoglia tutti i canali"
+      see_in: "Da' un'occhiata"
       move_to_channel:
         title: "Sposta i messaggi sul canale"
         instructions:
           one: "Stai spostando il messaggio <strong>%{count}</strong> . Seleziona un canale di destinazione. Verrà creato un messaggio segnaposto nel canale <strong>%{channelTitle}</strong> per indicare che questo messaggio è stato spostato. Tieni presente che le catene di risposta non verranno mantenute nel nuovo canale e i messaggi nel vecchio canale non verranno più visualizzati come risposta ai messaggi spostati."
           other: "Stai spostando <strong>%{count}</strong> messaggi. Seleziona un canale di destinazione. Verrà creato un messaggio segnaposto nel canale <strong>%{channelTitle}</strong> per indicare che questi messaggi sono stati spostati. Tieni presente che le catene di risposta non verranno mantenute nel nuovo canale e i messaggi nel vecchio canale non verranno più visualizzati come risposta ai messaggi spostati."
         confirm_move: "Sposta messaggi"
+      delete_messages:
+        confirm:
+          one: "Intendi davvero eliminare questo messaggio?"
+          other: "Intendi davvero eliminare questi %{count} messaggi?"
       channel_settings:
         title: "Impostazioni del canale"
         edit: "Modifica"
@@ -99,7 +107,6 @@ it:
       channels_list_popup:
         browse: "Sfoglia i canali"
         create: "Nuovo canale"
-      click_to_join: "Fai clic qui per visualizzare i canali disponibili."
       close: "Chiudi"
       remove: "Rimuovi"
       collapse: "Comprimi il cassetto della chat"
@@ -117,6 +124,7 @@ it:
         direct_message_cta: "Avvia una chat personale"
         direct_message: "Puoi anche avviare una chat personale con uno o più utenti."
         title: "Nessun canale trovato"
+        my_threads: "Ancora nessun thread. I thread a cui parteciperai appariranno qui."
       email_frequency:
         description: "Ti invieremo un'e-mail solo se non ti sei fatto vedere negli ultimi 15 minuti."
         never: "Mai"
@@ -125,11 +133,18 @@ it:
       header_indicator_preference:
         title: "Mostra l'indicatore di attività nell'intestazione"
         all_new: "Tutti i nuovi messaggi"
-        dm_and_mentions: "Messaggi diretti e menzioni"
+        dm_and_mentions: "Messaggi diretti, menzioni e discussioni seguite"
         only_mentions: "Solo menzioni"
         never: "Mai"
       separate_sidebar_mode:
         title: "Mostra modalità separate della barra laterale per forum e chat"
+      send_shortcut:
+        enter:
+          label: "Invia tramite Invio"
+          description: "Nuova riga con Maiusc + Invio"
+        meta_enter:
+          label: "Invia tramite %{meta_key} + Invio"
+          description: "Nuova riga con Invio"
       enable: "Abilita chat"
       flag: "Segnala"
       emoji: "Inserisci emoji"
@@ -140,13 +155,6 @@ it:
       heading: "Chat"
       join: "Partecipa"
       last_visit: "ultima visita"
-      summarization:
-        title: "Riassumi i messaggi"
-        description: "Seleziona un'opzione qui sotto per riepilogare la conversazione inviata nel periodo di tempo desiderato."
-        summarize: "Riassumi"
-        since:
-          one: "Ultima ora"
-          other: "Ultime %{count} ore"
       mention_warning:
         invitations_sent:
           one: "Invito inviato"
@@ -226,7 +234,10 @@ it:
         header: "Intestazione della chat"
         composer: "Compositore di chat"
         channels_list: "Elenco dei canali di chat"
-      no_public_channels: "Non hai partecipato a nessun canale."
+      no_direct_message_channels: "Non hai ancora aderito a nessun messaggio diretto!"
+      no_direct_message_channels_cta: "Iniziare una conversazione"
+      no_public_channels: "Non hai ancora aderito a nessun canale!"
+      no_public_channels_cta: "Sfoglia i canali"
       kicked_from_channel: "Non puoi più accedere a questo canale."
       only_chat_push_notifications:
         title: "Invia solo le notifiche push della chat"
@@ -234,6 +245,9 @@ it:
       ignore_channel_wide_mention:
         title: "Ignora le menzioni a livello di canale"
         description: "Non inviare notifiche per menzioni a livello di canale (@here e @all)"
+      show_thread_title_prompts:
+        title: "Mostra suggerimenti per i titoli di thread"
+        description: "Mostra suggerimenti per scegliere il titolo dei nuovi thread"
       open: "Apri chat"
       open_full_page: "Apri chat a schermo intero"
       close_full_page: "Chiudi la chat a schermo intero"
@@ -242,6 +256,7 @@ it:
       placeholder_channel: "Chatta in %{channelName}"
       placeholder_thread: "Chat nel thread"
       placeholder_users: "Chatta con %{commaSeparatedNames}"
+      placeholder_group: "Chatta in gruppo"
       placeholder_new_message_disallowed:
         archived: "Il canale è archiviato, non puoi inviare nuovi messaggi in questo momento."
         closed: "Il canale è chiuso, non puoi inviare nuovi messaggi in questo momento."
@@ -254,6 +269,7 @@ it:
       copy_link: "Copia link"
       copy_text: "Copia testo"
       rebake_message: "Ricompila HTML"
+      message_too_long: "Il messaggio è troppo lungo. I messaggi devono contenere al massimo %{count} caratteri."
       retry_staged_message:
         title: "Errore di rete"
         action: "Inviare di nuovo?"
@@ -267,7 +283,7 @@ it:
       return_to_channel: "Torna al canale"
       return_to_threads_list: "Torna all'elenco dei thread"
       unread_threads_count:
-        one: "Hai %{count} discussione non lette"
+        one: "Hai %{count} discussione non letta"
         other: "Hai %{count} discussioni non lette"
       scroll_to_bottom: "Scorri fino in fondo"
       scroll_to_new_messages: "Vedi nuovi messaggi"
@@ -303,7 +319,7 @@ it:
         back: "Indietro"
         title: Canali
         filter_all: Tutti
-        filter_open: Aperti
+        filter_open: Aperta
         filter_closed: Chiusi
         filter_archived: Archiviati
         filter_input_placeholder: Cerca canale per nome
@@ -343,6 +359,7 @@ it:
         filter: "Filtro"
         cant_add_more_members: "Numero massimo di membri raggiunto"
         create_new_group_chat: "Crea chat di gruppo"
+        group_with_too_many_members: "ha troppi membri (%{membersCount})"
       channel_edit_name_slug_modal:
         title: Modifica canale
         input_placeholder: Aggiungi un nome
@@ -450,10 +467,9 @@ it:
         auto_join_users_info: "Controlla ogni ora quali utenti sono stati attivi negli ultimi 3 mesi. Aggiungili a questo canale se hanno accesso alla categoria %{category}."
         auto_join_users_info_no_category: "Controlla ogni ora quali utenti sono stati attivi negli ultimi tre mesi. Aggiungili a questo canale se hanno accesso alla categoria selezionata."
         auto_join_users_warning: "Tutti gli utenti che non sono membri di questo canale e hanno accesso alla categoria %{category} parteciperanno. Vuoi procedere?"
-        desktop_notification_level: "Notifiche sul desktop"
+        notification_level: "Invia notifiche push"
         follow: "Partecipa"
         followed: "Partecipante"
-        mobile_notification_level: "Notifiche push su dispositivi mobili"
         mute: "Silenzia canale"
         threading_enabled: "Abilitato"
         threading_disabled: "Disabilitato"
@@ -476,8 +492,14 @@ it:
           title: "Esporta i messaggi della chat"
           description: "Questa operazione esporta tutti i messaggi da tutti i canali."
           create_export: "Crea esportazione"
+          confirm_export: "Questa operazione esporta tutti i messaggi da tutti i canali e ti invia il risultato in un messaggio personale. Vuoi esportare?"
           export_has_started: "L'esportazione è iniziata. Riceverai un messaggio personale quando sarà pronto."
+      my_threads:
+        title: I miei thread
+        aria_label: "Passa all'elenco dei miei thread"
       direct_messages:
+        title: "DM"
+        aria_label: "Passa ai messaggi diretti"
         new: "Crea una chat personale"
         create: "Vai"
         leave: "Lascia questa chat personale"
@@ -485,9 +507,11 @@ it:
         cannot_create: "Spiacenti, non puoi inviare messaggi diretti."
       channel_list:
         title: "Canali"
+        aria_label: "Passa all'elenco dei canali"
       incoming_webhooks:
         back: "Indietro"
         channel_placeholder: "Seleziona un canale"
+        channel: "Canale"
         confirm_destroy: "Vuoi eliminare questo webhook in ingresso? L'operazione non può essere annullata."
         current_emoji: "Emoji attuale"
         description: "Descrizione"
@@ -511,10 +535,13 @@ it:
         username: "Nome utente"
         username_instructions: "Nome utente del bot che pubblica sul canale. Il valore predefinito è 'system' se l'impostazione è lasciata vuota."
         instructions: "I webhook in entrata possono essere utilizzati da sistemi esterni per pubblicare messaggi in un canale di chat designato come utente bot tramite l'endpoint <code>/hooks/:key</code>. Il carico utile è costituito da un solo parametro di <code>testo</code>, che è limitato a 2000 caratteri.<br><br>Supportiamo anche i parametri di <code>testo</code> con formattazione Slack limitata, l'estrazione di link e menzioni in base al formato su <a href=\"https://api.slack.com/reference/surfaces/formatting\">https://api. lack.com/reference/surfaces/formatting</a>, ma l'endpoint <code>/hooks/:key/slack</code> deve essere utilizzato per questo."
+        saved: "Modifiche al webhook salvate"
+        created: "Webhook creato"
       selection:
         cancel: "Annulla"
         quote_selection: "Cita in argomento"
         copy: "Copia"
+        delete: "Elimina (%{selectionCount}/%{totalCount})"
         move_selection_to_channel: "Sposta nel canale"
         error: "Si è verificato un errore durante lo spostamento dei messaggi di chat"
         title: "Sposta la chat nell'argomento"
@@ -553,6 +580,7 @@ it:
       flags:
         off_topic: "Questo messaggio non è rilevante per la discussione in corso in base alla definizione del titolo del canale e probabilmente dovrebbe essere spostato altrove."
         inappropriate: "Questo messaggio ha contenuti che chiunque considererebbe offensivi o ingiuriosi, oppure contiene violazioni delle <a href=\"%{basePath}/guidelines\">nostre linee guida della community</a>."
+        illegal: "Ho portato questo messaggio all'attenzione dello staff perché ritengo che il suo contenuto sia illegale."
         spam: "Questo messaggio è un annuncio pubblicitario o un atto vandalico. Non è utile o rilevante per il canale corrente."
         notify_user: "Voglio parlare con questa persona direttamente e personalmente del suo messaggio."
         notify_moderators: "Questo messaggio richiede l'attenzione dello staff per motivi diversi da quelli sopra indicati"
@@ -586,13 +614,27 @@ it:
         notifications:
           regular:
             title: "Normale"
-            description: "Riceverai notifiche se qualcuno menziona il tuo @nome o ti risponde."
+            description: "Ricevi una notifica quando qualcuno ti menziona in questa discussione."
           tracking:
             title: "Contenuto seguito"
-            description: "Il conteggio delle nuove risposte a questa discussione sarà visualizzato nell'elenco delle discussioni e nel canale. Sarai avvisato se qualcuno menziona il tuo @nome in questa discussione."
+            description: "Ricevi una notifica quando qualcuno ti menziona in questa discussione e visualizza il numero di nuove risposte nell'elenco delle discussioni."
+          watching:
+            title: "In osservazione"
+            description: "Ricevi notifiche su tutte le risposte in questa discussione e visualizza il numero di nuove risposte nell'elenco delle discussioni."
         participants_other_count:
           one: "+%{count}"
           other: "+%{count}"
+      thread_title_toast:
+        title: "Imposta un titolo per il thread"
+        message: "Aiuta altri membri a scoprire questa conversazione."
+        dismiss_action: "Non mostrare più"
+        primary_action: "Imposta titolo"
+      thread_title_modal:
+        title: "Imposta titolo thread"
+        input_placeholder: "Spiega agli altri membri l'argomento della conversazione..."
+        discourse_ai:
+          title: "Genera i titoli dei thread automaticamente"
+          description: "Vai a %{url} per ulteriori informazioni su questo miglioramento della tua esperienza su Discourse e altri ancora."
       threads:
         open: "Apri Discussione"
         list: "Thread"
@@ -604,6 +646,9 @@ it:
       chat_invitation: "ti ha inviato un invito a partecipare a un canale di chat"
       chat_invitation_html: "<span>%{username}</span> <span>ti ha inviato un invito a partecipare a un canale di chat</span>"
       chat_quoted: "<span>%{username}</span> %{description}"
+      chat_watched_thread_label:
+        one: "%{username} e %{username2}"
+        other: "%{username} e altri %{count}"
       popup:
         chat_mention:
           direct: 'ti ha menzionato in "%{channel}"'
@@ -619,8 +664,9 @@ it:
         chat_quoted: "%{username} ha citato il tuo messaggio di chat"
       titles:
         chat_mention: "Menzione in chat"
-        chat_invitation: "Invito alla chat"
-        chat_quoted: "Chat citata"
+        chat_invitation: "Invito al canale di chat"
+        chat_quoted: "Messaggio di chat citato"
+        chat_watched_thread: "Thread della chat osservato"
     action_codes:
       chat:
         enabled: '%{who} ha abilitato la <button class="btn-link open-chat">chat</button> %{when}'
@@ -651,6 +697,7 @@ it:
         title: "Chat"
         keyboard_shortcuts:
           switch_channel_arrows: "%{shortcut} Cambia canale"
+          switch__unread_channel_arrows: "%{shortcut} Cambia canale non letto"
           open_quick_channel_selector: "%{shortcut} Apri il selettore rapido dei canali"
           open_insert_link_modal: "%{shortcut} Inserisci collegamento ipertestuale (solo compositore)"
           composer_bold: "%{shortcut} Grassetto (solo compositore)"

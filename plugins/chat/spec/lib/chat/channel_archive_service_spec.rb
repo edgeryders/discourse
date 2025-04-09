@@ -1,13 +1,11 @@
 # frozen_string_literal: true
 
-require "rails_helper"
-
 describe Chat::ChannelArchiveService do
   class FakeArchiveError < StandardError
   end
 
   fab!(:channel) { Fabricate(:category_channel) }
-  fab!(:user) { Fabricate(:user, admin: true, refresh_auto_groups: true) }
+  fab!(:user) { Fabricate(:admin, refresh_auto_groups: true) }
   fab!(:category)
 
   let(:topic_params) { { topic_title: "This will be a new topic", category_id: category.id } }
@@ -117,7 +115,7 @@ describe Chat::ChannelArchiveService do
         reaction_message = Chat::Message.last
         Chat::MessageReaction.create!(
           chat_message: reaction_message,
-          user: Fabricate(:user),
+          user: Fabricate(:user, refresh_auto_groups: true),
           emoji: "+1",
         )
         stub_const(Chat::ChannelArchiveService, "ARCHIVED_MESSAGES_PER_POST", 5) do
@@ -415,7 +413,6 @@ describe Chat::ChannelArchiveService do
       end
 
       it "handles errors gracefully, sends a private message to the archiving user, and is idempotent on retry" do
-        Rails.logger = @fake_logger = FakeLogger.new
         create_messages(35) && start_archive
 
         Chat::ChannelArchiveService

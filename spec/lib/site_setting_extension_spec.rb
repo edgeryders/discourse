@@ -330,6 +330,8 @@ RSpec.describe SiteSettingExtension do
 
   describe "string setting with regex" do
     it "Supports custom validation errors" do
+      I18n.backend.store_translations(:en, { oops: "oops" })
+
       settings.setting(:test_str, "bob", regex: "hi", regex_error: "oops")
       settings.refresh!
 
@@ -420,9 +422,7 @@ RSpec.describe SiteSettingExtension do
       end
     end
 
-    let :test_enum_class do
-      TestEnumClass
-    end
+    let(:test_enum_class) { TestEnumClass }
 
     before do
       settings.setting(:test_enum, "en", enum: test_enum_class)
@@ -487,6 +487,39 @@ RSpec.describe SiteSettingExtension do
           :tests,
         )
       end
+    end
+  end
+
+  describe "a setting with an area" do
+    before do
+      settings.setting(:test_setting, 88, area: "flags")
+      settings.setting(:test_setting2, 89, area: "flags")
+      settings.setting(:test_setting4, 90)
+      settings.refresh!
+    end
+
+    it "should allow to filter by area" do
+      expect(settings.all_settings(filter_area: "flags").map { |s| s[:setting].to_sym }).to eq(
+        %i[default_locale test_setting test_setting2],
+      )
+    end
+
+    it "raised an error when area is invalid" do
+      expect {
+        settings.setting(:test_setting, 89, area: "invalid")
+        settings.refresh!
+      }.to raise_error(Discourse::InvalidParameters)
+    end
+
+    it "allows plugin to register valid areas" do
+      plugin = Plugin::Instance.new nil, "/tmp/test.rb"
+      plugin.register_site_setting_area("plugin_area")
+      settings.setting(:test_plugin_setting, 88, area: "plugin_area")
+      expect(
+        settings
+          .all_settings(filter_area: "plugin_area", include_locale_setting: false)
+          .map { |s| s[:setting].to_sym },
+      ).to eq(%i[test_plugin_setting])
     end
   end
 
@@ -566,6 +599,16 @@ RSpec.describe SiteSettingExtension do
       expect(settings.title).to eq("Discourse v2")
       expect(UserHistory.last.previous_value).to eq("Discourse v1")
       expect(UserHistory.last.new_value).to eq("Discourse v2")
+    end
+
+    context "when a detailed message is provided" do
+      let(:message) { "We really need to do this, see https://meta.discourse.org/t/123" }
+
+      it "adds the detailed message to the user history record" do
+        expect {
+          settings.set_and_log("title", "Discourse v2", Discourse.system_user, message)
+        }.to change { UserHistory.last.try(:details) }.to(message)
+      end
     end
   end
 
@@ -814,6 +857,45 @@ RSpec.describe SiteSettingExtension do
         expect(setting[:default]).to eq(system_upload.url)
       end
     end
+
+    context "with the filter_allowed_hidden argument" do
+      it "includes the specified hidden settings only if include_hidden is true" do
+        result =
+          SiteSetting
+            .all_settings(include_hidden: true, filter_allowed_hidden: [:about_banner_image])
+            .map { |ss| ss[:setting] }
+
+        expect(result).to include(:about_banner_image)
+        expect(result).not_to include(:community_owner)
+
+        result =
+          SiteSetting
+            .all_settings(include_hidden: false, filter_allowed_hidden: [:about_banner_image])
+            .map { |ss| ss[:setting] }
+
+        expect(result).not_to include(:about_banner_image)
+        expect(result).not_to include(:community_owner)
+
+        result =
+          SiteSetting
+            .all_settings(include_hidden: true, filter_allowed_hidden: [:community_owner])
+            .map { |ss| ss[:setting] }
+
+        expect(result).not_to include(:about_banner_image)
+        expect(result).to include(:community_owner)
+
+        result =
+          SiteSetting
+            .all_settings(
+              include_hidden: true,
+              filter_allowed_hidden: %i[about_banner_image community_owner],
+            )
+            .map { |ss| ss[:setting] }
+
+        expect(result).to include(:about_banner_image)
+        expect(result).to include(:community_owner)
+      end
+    end
   end
 
   describe ".client_settings_json_uncached" do
@@ -857,6 +939,47 @@ RSpec.describe SiteSettingExtension do
     end
   end
 
+  describe "mandatory_values for group list settings" do
+    it "adds mandatory values" do
+      expect(SiteSetting.embedded_media_post_allowed_groups).to eq("1|2|10")
+
+      SiteSetting.embedded_media_post_allowed_groups = 14
+      expect(SiteSetting.embedded_media_post_allowed_groups).to eq("1|2|14")
+
+      SiteSetting.embedded_media_post_allowed_groups = ""
+      expect(SiteSetting.embedded_media_post_allowed_groups).to eq("1|2")
+
+      test_provider = SiteSetting.provider
+      SiteSetting.provider = SiteSettings::DbProvider.new(SiteSetting)
+      SiteSetting.embedded_media_post_allowed_groups = "13|14"
+      expect(SiteSetting.embedded_media_post_allowed_groups).to eq("1|2|13|14")
+      expect(SiteSetting.find_by(name: "embedded_media_post_allowed_groups").value).to eq(
+        "1|2|13|14",
+      )
+    ensure
+      SiteSetting.find_by(name: "embedded_media_post_allowed_groups").destroy
+      SiteSetting.provider = test_provider
+    end
+  end
+
+  describe "requires_confirmation settings" do
+    it "returns 'simple' for settings that require confirmation with 'simple' type" do
+      expect(
+        SiteSetting.all_settings.find { |s| s[:setting] == :min_password_length }[
+          :requires_confirmation
+        ],
+      ).to eq("simple")
+    end
+
+    it "returns nil for settings that do not require confirmation" do
+      expect(
+        SiteSetting.all_settings.find { |s| s[:setting] == :display_local_time_in_user_card }[
+          :requires_confirmation
+        ],
+      ).to eq(nil)
+    end
+  end
+
   describe "_map extension for list settings" do
     it "handles splitting group_list settings" do
       SiteSetting.personal_message_enabled_groups = "1|2"
@@ -883,6 +1006,16 @@ RSpec.describe SiteSettingExtension do
       expect(SiteSetting.respond_to?(:discourse_connect_provider_secrets_map)).to eq(false)
     end
 
+    it "handles splitting emoji_list settings" do
+      SiteSetting.emoji_deny_list = "smile|frown"
+      expect(SiteSetting.emoji_deny_list_map).to eq(%w[smile frown])
+    end
+
+    it "handles splitting tag_list settings" do
+      SiteSetting.digest_suppress_tags = "blah|blah2"
+      expect(SiteSetting.digest_suppress_tags_map).to eq(%w[blah blah2])
+    end
+
     it "handles null values for settings" do
       SiteSetting.ga_universal_auto_link_domains = nil
       SiteSetting.pm_tags_allowed_for_groups = nil
@@ -891,6 +1024,36 @@ RSpec.describe SiteSettingExtension do
       expect(SiteSetting.ga_universal_auto_link_domains_map).to eq([])
       expect(SiteSetting.pm_tags_allowed_for_groups_map).to eq([])
       expect(SiteSetting.exclude_rel_nofollow_domains_map).to eq([])
+    end
+  end
+
+  describe "keywords" do
+    it "gets the list of I18n keywords for the setting" do
+      expect(SiteSetting.keywords(:clean_up_inactive_users_after_days)).to eq(
+        I18n.t("site_settings.keywords.clean_up_inactive_users_after_days").split("|"),
+      )
+    end
+
+    it "gets the current locale keywords and the english keywords for the setting" do
+      I18n.locale = :de
+      expect(SiteSetting.keywords(:clean_up_inactive_users_after_days)).to match_array(
+        (
+          I18n.t("site_settings.keywords.clean_up_inactive_users_after_days").split("|") +
+            I18n.t("site_settings.keywords.clean_up_inactive_users_after_days", locale: :en).split(
+              "|",
+            )
+        ).flatten,
+      )
+    end
+
+    context "when a setting also has an alias after renaming" do
+      before { SiteSetting.stubs(:deprecated_setting_alias).returns("some_old_setting") }
+
+      it "is included with the keywords" do
+        expect(SiteSetting.keywords(:clean_up_inactive_users_after_days)).to include(
+          "some_old_setting",
+        )
+      end
     end
   end
 end

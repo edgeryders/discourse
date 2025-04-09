@@ -6,7 +6,8 @@ require "plugin/metadata"
 require "auth"
 
 class Plugin::CustomEmoji
-  CACHE_KEY ||= "plugin-emoji"
+  CACHE_KEY = "plugin-emoji"
+
   def self.cache_key
     @@cache_key ||= CACHE_KEY
   end
@@ -49,7 +50,6 @@ class Plugin::Instance
   # Memoized array readers
   %i[
     assets
-    color_schemes
     initializers
     javascripts
     locales
@@ -64,6 +64,11 @@ class Plugin::Instance
         @#{att} ||= []
       end
     }
+  end
+
+  def root_dir
+    return if Rails.env.production?
+    File.dirname(path)
   end
 
   def seed_data
@@ -105,8 +110,37 @@ class Plugin::Instance
     Middleware::AnonymousCache.compile_key_builder
   end
 
-  def add_admin_route(label, location)
-    @admin_route = { label: label, location: location }
+  def add_admin_route(label, location, opts = {})
+    @admin_route = {
+      label: label,
+      location: location,
+      use_new_show_route: opts.fetch(:use_new_show_route, false),
+    }
+  end
+
+  def full_admin_route
+    route = self.admin_route
+
+    if route.blank?
+      return if !any_settings?
+
+      route = default_admin_route
+    end
+
+    route
+      .slice(:location, :label, :use_new_show_route)
+      .tap do |admin_route|
+        path = admin_route[:use_new_show_route] ? "show" : admin_route[:location]
+        admin_route[:full_location] = "adminPlugins.#{path}"
+      end
+  end
+
+  def any_settings?
+    return false if !configurable?
+
+    SiteSetting
+      .all_settings(filter_plugin: self.name)
+      .any? { |s| s[:setting] != @enabled_site_setting }
   end
 
   def configurable?
@@ -125,7 +159,11 @@ class Plugin::Instance
   delegate :name, to: :metadata
 
   def humanized_name
-    (setting_category_name || name).delete_prefix("Discourse ").delete_prefix("discourse-")
+    (setting_category_name || name)
+      .delete_prefix("Discourse ")
+      .delete_prefix("discourse-")
+      .gsub("-", " ")
+      .upcase_first
   end
 
   def add_to_serializer(
@@ -188,6 +226,9 @@ class Plugin::Instance
 
   # Applies to all sites in a multisite environment. Ignores plugin.enabled?
   def replace_flags(settings: ::FlagSettings.new, score_type_names: [])
+    Discourse.deprecate(
+      "replace flags should not be used as flags were moved to the database. Instead, a flag record should be added to the database. Alternatively, soon, the admin will be able to do this in the admin panel.",
+    )
     next_flag_id = ReviewableScore.types.values.max + 1
 
     yield(settings, next_flag_id) if block_given?
@@ -225,6 +266,25 @@ class Plugin::Instance
 
   def register_editable_group_custom_field(field)
     DiscoursePluginRegistry.register_editable_group_custom_field(field, self)
+  end
+
+  # Allows to define custom filter utilizing the user's input.
+  # Ensure proper input sanitization before using it in a query.
+  #
+  # Example usage:
+  #   add_filter_custom_filter("word_count") do |scope, value|
+  #     scope.where(word_count: value)
+  #   end
+  def add_filter_custom_filter(name, &block)
+    DiscoursePluginRegistry.register_custom_filter_mapping({ name => block }, self)
+  end
+
+  # Allows to define custom "status:" filter. Example usage:
+  #   register_custom_filter_by_status("foobar") do |scope|
+  #     scope.where("word_count = 42")
+  #   end
+  def register_custom_filter_by_status(status, &block)
+    TopicsFilter.add_filter_by_status(status, &block)
   end
 
   # Allows to define custom search order. Example usage:
@@ -306,6 +366,10 @@ class Plugin::Instance
   #   register_preloaded_category_custom_fields("custom_field")
   def register_preloaded_category_custom_fields(field)
     Site.preloaded_category_custom_fields << field
+  end
+
+  def register_problem_check(klass)
+    DiscoursePluginRegistry.register_problem_check(klass, self)
   end
 
   def custom_avatar_column(column)
@@ -541,13 +605,23 @@ class Plugin::Instance
     DiscourseEvent.on(event_name) { |*args, **kwargs| block.call(*args, **kwargs) if enabled? }
   end
 
-  def notify_after_initialize
-    color_schemes.each do |c|
-      unless ColorScheme.where(name: c[:name]).exists?
-        ColorScheme.create_from_base(name: c[:name], colors: c[:colors])
+  # A proxy to `DiscourseEvent.on(:site_setting_changed)` triggered when the plugin enabled setting specified by
+  # `enabled_site_setting` value is changed, including when the plugin is turned off.
+  #
+  # It is useful when the plugin needs to perform tasks like properly clearing caches when enabled/disabled
+  # note it will not be triggered when a plugin is installed/uninstalled by adding/removing its code
+  def on_enabled_change(&block)
+    event_proc =
+      Proc.new do |setting_name, old_value, new_value|
+        block.call(old_value, new_value) if setting_name == @enabled_site_setting
       end
-    end
+    DiscourseEvent.on(:site_setting_changed, &event_proc)
 
+    # returns the block to be used for DiscourseEvent.off(:site_setting_changed, &block) for testing purposes
+    event_proc
+  end
+
+  def notify_after_initialize
     initializers.each do |callback|
       begin
         callback.call(self)
@@ -663,6 +737,11 @@ class Plugin::Instance
         Any hbs files under `assets/javascripts` will be automatically compiled and included."
       ERROR
 
+    raise <<~ERROR if file.start_with?("javascripts/") && file.end_with?(".js", ".js.es6")
+        [#{name}] Javascript files under `assets/javascripts` are automatically included in JS bundles.
+        Manual register_asset calls should be removed. (attempted to add #{file})
+      ERROR
+
     if opts && opts == :vendored_core_pretty_text
       full_path = DiscoursePluginRegistry.core_asset_for_name(file)
     else
@@ -676,10 +755,6 @@ class Plugin::Instance
     service_workers << [File.join(File.dirname(path), "assets", file), opts]
   end
 
-  def register_color_scheme(name, colors)
-    color_schemes << { name: name, colors: colors }
-  end
-
   def register_seed_data(key, value)
     seed_data[key] = value
   end
@@ -689,7 +764,7 @@ class Plugin::Instance
   end
 
   def register_emoji(name, url, group = Emoji::DEFAULT_GROUP)
-    name = name.gsub(/[^a-z0-9]+/i, "_").gsub(/_{2,}/, "_").downcase
+    name = Emoji.sanitize_emoji_name(name)
     Plugin::CustomEmoji.register(name, url, group)
     Emoji.clear_cache
   end
@@ -719,56 +794,19 @@ class Plugin::Instance
   # this allows us to present information about a plugin in the UI
   # prior to activations
   def activate!
-    if @path
-      root_dir_name = File.dirname(@path)
-
-      # Automatically include all ES6 JS and hbs files
-      root_path = "#{root_dir_name}/assets/javascripts"
-      DiscoursePluginRegistry.register_glob(root_path, "js")
-      DiscoursePluginRegistry.register_glob(root_path, "js.es6")
-      DiscoursePluginRegistry.register_glob(root_path, "hbs")
-      DiscoursePluginRegistry.register_glob(root_path, "hbr")
-
-      admin_path = "#{root_dir_name}/admin/assets/javascripts"
-      DiscoursePluginRegistry.register_glob(admin_path, "js", admin: true)
-      DiscoursePluginRegistry.register_glob(admin_path, "js.es6", admin: true)
-      DiscoursePluginRegistry.register_glob(admin_path, "hbs", admin: true)
-      DiscoursePluginRegistry.register_glob(admin_path, "hbr", admin: true)
-
-      DiscourseJsProcessor.plugin_transpile_paths << root_path.sub(Rails.root.to_s, "").sub(
-        %r{\A/*},
-        "",
-      )
-      DiscourseJsProcessor.plugin_transpile_paths << admin_path.sub(Rails.root.to_s, "").sub(
-        %r{\A/*},
-        "",
-      )
-
-      test_path = "#{root_dir_name}/test/javascripts"
-      DiscourseJsProcessor.plugin_transpile_paths << test_path.sub(Rails.root.to_s, "").sub(
-        %r{\A/*},
-        "",
-      )
-    end
-
     self.instance_eval File.read(path), path
     if auto_assets = generate_automatic_assets!
       assets.concat(auto_assets)
     end
 
-    register_assets! unless assets.blank?
+    register_assets! if assets.present?
     register_locales!
     register_service_workers!
 
     seed_data.each { |key, value| DiscoursePluginRegistry.register_seed_data(key, value) }
 
-    # TODO: possibly amend this to a rails engine
-
-    # Automatically include assets
-    Rails.configuration.assets.paths << auto_generated_path
+    # Allow plugins to `register_asset` for images under /assets
     Rails.configuration.assets.paths << File.dirname(path) + "/assets"
-    Rails.configuration.assets.paths << File.dirname(path) + "/admin/assets"
-    Rails.configuration.assets.paths << File.dirname(path) + "/test/javascripts"
 
     # Automatically include rake tasks
     Rake.add_rakelib(File.dirname(path) + "/lib/tasks")
@@ -791,29 +829,7 @@ class Plugin::Instance
       Discourse::Utils.atomic_ln_s(public_data, target)
     end
 
-    ensure_directory(js_file_path)
-
-    contents = []
-    handlebars_includes.each { |hb| contents << "require_asset('#{hb}')" }
-    javascript_includes.each { |js| contents << "require_asset('#{js}')" }
-
-    if !contents.present?
-      [js_file_path, extra_js_file_path].each do |f|
-        File.delete(f)
-      rescue Errno::ENOENT
-      end
-      return
-    end
-
-    contents.insert(0, "<%")
-    contents << "%>"
-
-    Discourse::Utils.atomic_write_file(extra_js_file_path, contents.join("\n"))
-
-    begin
-      File.delete(js_file_path)
-    rescue Errno::ENOENT
-    end
+    write_extra_js!
   end
 
   def auth_provider(opts)
@@ -822,25 +838,6 @@ class Plugin::Instance
 
       Auth::AuthProvider.auth_attributes.each do |sym|
         provider.public_send("#{sym}=", opts.delete(sym)) if opts.has_key?(sym)
-      end
-
-      begin
-        provider.authenticator.enabled?
-      rescue NotImplementedError
-        provider
-          .authenticator
-          .define_singleton_method(:enabled?) do
-            Discourse.deprecate(
-              "#{provider.authenticator.class.name} should define an `enabled?` function. Patching for now.",
-              drop_from: "2.9.0",
-            )
-            return SiteSetting.get(provider.enabled_setting) if provider.enabled_setting
-            Discourse.deprecate(
-              "#{provider.authenticator.class.name} has not defined an enabled_setting. Defaulting to true.",
-              drop_from: "2.9.0",
-            )
-            true
-          end
       end
 
       DiscoursePluginRegistry.register_auth_provider(provider)
@@ -869,58 +866,47 @@ class Plugin::Instance
     end
   end
 
-  def handlebars_includes
-    assets
-      .map do |asset, opts|
-        next if opts == :admin
-        next unless asset =~ DiscoursePluginRegistry::HANDLEBARS_REGEX
-        asset
-      end
-      .compact
+  # Site setting areas are a way to group site settings below
+  # the setting category level. This is useful for creating focused
+  # config areas that update a small selection of settings, and otherwise
+  # grouping related settings in the UI.
+  def register_site_setting_area(area)
+    DiscoursePluginRegistry.site_setting_areas << area
   end
 
   def javascript_includes
     assets
       .map do |asset, opts|
         next if opts == :vendored_core_pretty_text
-        next if opts == :admin
         next unless asset =~ DiscoursePluginRegistry::JS_REGEX
         asset
       end
       .compact
   end
 
-  def each_globbed_asset
-    if @path
-      # Automatically include all ES6 JS and hbs files
-      root_path = "#{File.dirname(@path)}/assets/javascripts"
-      admin_path = "#{File.dirname(@path)}/admin/assets/javascripts"
-
-      Dir
-        .glob(["#{root_path}/**/*", "#{admin_path}/**/*"])
-        .sort
-        .each do |f|
-          f_str = f.to_s
-          if File.directory?(f)
-            yield [f, true]
-          elsif f_str.end_with?(".js.es6") || f_str.end_with?(".hbs") || f_str.end_with?(".hbr")
-            yield [f, false]
-          elsif f_str.end_with?(".js")
-            yield [f, false]
-          end
-        end
-    end
-  end
-
   def register_reviewable_type(reviewable_type_class)
-    extend_list_method Reviewable, :types, [reviewable_type_class.name]
+    return unless reviewable_type_class < Reviewable
+    extend_list_method(Reviewable, :types, reviewable_type_class)
   end
 
   def extend_list_method(klass, method, new_attributes)
-    current_list = klass.public_send(method)
-    current_list.concat(new_attributes)
+    register_name = [klass, method].join("_").underscore
+    DiscoursePluginRegistry.define_filtered_register(register_name)
+    DiscoursePluginRegistry.public_send(
+      "register_#{register_name.singularize}",
+      new_attributes,
+      self,
+    )
 
-    reloadable_patch { klass.public_send(:define_singleton_method, method) { current_list } }
+    original_method_alias = "__original_#{method}__"
+    return if klass.respond_to?(original_method_alias)
+    reloadable_patch do
+      klass.singleton_class.alias_method(original_method_alias, method)
+      klass.define_singleton_method(method) do
+        public_send(original_method_alias) |
+          DiscoursePluginRegistry.public_send(register_name).flatten
+      end
+    end
   end
 
   def directory_name
@@ -1157,16 +1143,11 @@ class Plugin::Instance
   #   "chat_messages_30_days": 100,
   #   "chat_messages_count": 1000,
   # }
-  #
-  # The show_in_ui option (default false) is used to determine whether the
-  # group of stats is shown on the site About page in the Site Statistics
-  # table. Some stats may be needed purely for reporting purposes and thus
-  # do not need to be shown in the UI to admins/users.
-  def register_stat(name, show_in_ui: false, expose_via_api: false, &block)
+  def register_stat(name, expose_via_api: false, &block)
     # We do not want to register and display the same group multiple times.
     return if DiscoursePluginRegistry.stats.any? { |stat| stat.name == name }
 
-    stat = Stat.new(name, show_in_ui: show_in_ui, expose_via_api: expose_via_api, &block)
+    stat = Stat.new(name, expose_via_api: expose_via_api, &block)
     DiscoursePluginRegistry.register_stat(stat, self)
   end
 
@@ -1264,6 +1245,9 @@ class Plugin::Instance
   # to summarize content. Staff can select which strategy to use
   # through the `summarization_strategy` setting.
   def register_summarization_strategy(strategy)
+    Discourse.deprecate(
+      "register_summarization_strategy is deprecated. Summarization code is now moved to Discourse AI",
+    )
     if !strategy.class.ancestors.include?(Summarization::Base)
       raise ArgumentError.new("Not a valid summarization strategy")
     end
@@ -1290,18 +1274,108 @@ class Plugin::Instance
     DiscoursePluginRegistry.register_search_groups_set_query_callback(callback, self)
   end
 
+  # This is an experimental API and may be changed or removed in the future without deprecation.
+  #
+  # Adds a custom rate limiter to the request rate limiters stack. Only one rate limiter is used per request and the
+  # first rate limiter in the stack that is active is used. By default the rate limiters stack contains the following
+  # rate limiters:
+  #
+  #   `RequestTracker::RateLimiters::User` - Rate limits authenticated requests based on the user's id
+  #   `RequestTracker::RateLimiters::IP` - Rate limits requests based on the IP address
+  #
+  # @param identifier [Symbol] A unique identifier for the rate limiter.
+  #
+  # @param key [Proc] A lambda/proc that defines the `rate_limit_key`.
+  #   - Receives `request` (An instance of `Rack::Request`) as argument.
+  #   - Should return a string representing the rate limit key.
+  #
+  # @param activate_when [Proc] A lambda/proc that defines when the rate limiter should be used for a request.
+  #   - Receives `request` (An instance of `Rack::Request`) as argument.
+  #   - Should return `true` if the rate limiter is active, otherwise `false`.
+  #
+  # @param global [Boolean] Whether the rate limiter applies globally across all sites. Defaults to `false`.
+  #   - Ignored if `klass` is provided.
+  #
+  # @param after [Class, nil] The rate limiter class after which the new rate limiter should be added.
+  #
+  # @param before [Class, nil] The rate limiter class before which the new rate limiter should be added.
+  #
+  # @example Adding a rate limiter that rate limits all requests based on the country of the IP address
+  #
+  #   add_request_rate_limiter(
+  #     identifier: :country,
+  #     key: ->(request) { "country/#{DiscourseIpInfo.get(request.ip)[:country]}" },
+  #     activate_when: ->(request) { DiscourseIpInfo.get(request.ip)[:country].present? },
+  #   )
+  def add_request_rate_limiter(
+    identifier:,
+    key:,
+    activate_when:,
+    global: false,
+    after: nil,
+    before: nil
+  )
+    raise ArgumentError, "only one of `after` or `before` can be provided" if after && before
+
+    stack = Middleware::RequestTracker.rate_limiters_stack
+
+    if (reference_klass = after || before) && !stack.include?(reference_klass)
+      raise ArgumentError, "#{reference_klass} is not a valid value. Must be one of #{stack}"
+    end
+
+    klass =
+      Class.new(RequestTracker::RateLimiters::Base) do
+        define_method(:rate_limit_key) { key.call(@request) }
+        define_method(:rate_limit_globally?) { global }
+        define_method(:active?) { activate_when.call(@request) }
+        define_method(:error_code_identifier) { identifier }
+      end
+
+    if after
+      stack.insert_after(after, klass)
+    elsif before
+      stack.insert_before(before, klass)
+    else
+      stack.prepend(klass)
+    end
+  end
+
   protected
 
   def self.js_path
     File.expand_path "#{Rails.root}/app/assets/javascripts/plugins"
   end
 
-  def js_file_path
-    "#{Plugin::Instance.js_path}/#{directory_name}.js.erb"
+  def legacy_asset_paths
+    [
+      "#{Plugin::Instance.js_path}/#{directory_name}.js.erb",
+      "#{Plugin::Instance.js_path}/#{directory_name}_extra.js.erb",
+    ]
   end
 
   def extra_js_file_path
-    @extra_js_file_path ||= "#{Plugin::Instance.js_path}/#{directory_name}_extra.js.erb"
+    @extra_js_file_path ||= "#{Plugin::Instance.js_path}/#{directory_name}_extra.js"
+  end
+
+  def write_extra_js!
+    # No longer used, but we want to make sure the files are no longer present
+    # so they don't accidently get compiled by Sprockets.
+    legacy_asset_paths.each do |path|
+      File.delete(path)
+    rescue Errno::ENOENT
+    end
+
+    contents = javascript_includes.map { |js| File.read(js) }
+
+    if contents.present?
+      ensure_directory(extra_js_file_path)
+      Discourse::Utils.atomic_write_file(extra_js_file_path, contents.join("\n;\n"))
+    else
+      begin
+        File.delete(extra_js_file_path)
+      rescue Errno::ENOENT
+      end
+    end
   end
 
   def register_assets!
@@ -1329,13 +1403,6 @@ class Plugin::Instance
 
       locale_chain = opts[:fallbackLocale] ? [locale, opts[:fallbackLocale]] : [locale]
       lib_locale_path = File.join(root_path, "lib/javascripts/locale")
-
-      path = File.join(lib_locale_path, "message_format")
-      opts[:message_format] = find_locale_file(locale_chain, path)
-      opts[:message_format] = JsLocaleHelper.find_message_format_locale(
-        locale_chain,
-        fallback_to_english: false,
-      ) unless opts[:message_format]
 
       path = File.join(lib_locale_path, "moment_js")
       opts[:moment_js] = find_locale_file(locale_chain, path)
@@ -1412,8 +1479,7 @@ class Plugin::Instance
   def valid_locale?(custom_locale)
     File.exist?(custom_locale[:client_locale_file]) &&
       File.exist?(custom_locale[:server_locale_file]) &&
-      File.exist?(custom_locale[:js_locale_file]) && custom_locale[:message_format] &&
-      custom_locale[:moment_js]
+      File.exist?(custom_locale[:js_locale_file]) && custom_locale[:moment_js]
   end
 
   def find_locale_file(locale_chain, path)
@@ -1426,5 +1492,9 @@ class Plugin::Instance
 
   def register_permitted_bulk_action_parameter(name)
     DiscoursePluginRegistry.register_permitted_bulk_action_parameter(name, self)
+  end
+
+  def default_admin_route
+    { label: "#{name.underscore}.title", location: name, use_new_show_route: true }
   end
 end

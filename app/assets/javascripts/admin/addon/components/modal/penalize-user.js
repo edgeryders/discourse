@@ -1,10 +1,10 @@
 import Component from "@glimmer/component";
 import { tracked } from "@glimmer/tracking";
 import { action } from "@ember/object";
-import { inject as service } from "@ember/service";
+import { service } from "@ember/service";
 import { isEmpty } from "@ember/utils";
 import { extractError } from "discourse/lib/ajax-error";
-import I18n from "discourse-i18n";
+import I18n, { i18n } from "discourse-i18n";
 
 export default class PenalizeUser extends Component {
   @service dialog;
@@ -114,12 +114,17 @@ export default class PenalizeUser extends Component {
   warnBeforeClosing() {
     if (!this.confirmClose && (this.reason?.length || this.message?.length)) {
       this.dialog.confirm({
-        message: I18n.t("admin.user.confirm_cancel_penalty"),
+        message: i18n("admin.user.confirm_cancel_penalty"),
         didConfirm: () => this.args.closeModal(),
       });
       return false;
     }
 
     this.args.closeModal();
+  }
+
+  @action
+  similarUsersChanged(userIds) {
+    this.otherUserIds = userIds;
   }
 }

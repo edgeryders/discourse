@@ -12,7 +12,12 @@ class TopicListSerializer < ApplicationSerializer
   has_many :topics, serializer: TopicListItemSerializer, embed: :objects
   has_many :shared_drafts, serializer: TopicListItemSerializer, embed: :objects
   has_many :tags, serializer: TagSerializer, embed: :objects
-  has_many :categories, serializer: TopicCategorySerializer, embed: :objects
+  has_many :categories, serializer: CategoryBadgeSerializer, embed: :objects
+
+  def initialize(object, options = {})
+    super
+    options[:filter] = object.filter
+  end
 
   def can_create_topic
     scope.can_create?(Topic)

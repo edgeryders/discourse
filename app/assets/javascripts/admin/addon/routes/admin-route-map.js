@@ -14,10 +14,6 @@ export default function () {
         path: "/dashboard/reports",
         resetNamespace: true,
       });
-      this.route("admin.dashboardNewFeatures", {
-        path: "/dashboard/whats-new",
-        resetNamespace: true,
-      });
     });
 
     this.route(
@@ -42,6 +38,13 @@ export default function () {
         this.route("rejected");
         this.route("previewDigest", { path: "/preview-digest" });
         this.route("advancedTest", { path: "/advanced-test" });
+        this.route(
+          "adminEmailTemplates",
+          { path: "/templates", resetNamespace: true },
+          function () {
+            this.route("edit", { path: "/:id" });
+          }
+        );
       }
     );
 
@@ -52,21 +55,16 @@ export default function () {
         this.route("colors", function () {
           this.route("show", { path: "/:scheme_id" });
         });
-
         this.route(
           "adminCustomizeThemes",
-          { path: "themes", resetNamespace: true },
+          { path: "/:type", resetNamespace: true },
           function () {
-            this.route("show", { path: "/:theme_id" });
+            this.route("show", { path: "/:theme_id" }, function () {
+              this.route("schema", { path: "schema/:setting_name" });
+            });
             this.route("edit", { path: "/:theme_id/:target/:field_name/edit" });
           }
         );
-
-        this.route("adminCustomizeThemeComponents", {
-          path: "theme-components",
-          resetNamespace: true,
-        });
-
         this.route(
           "adminSiteText",
           { path: "/site_texts", resetNamespace: true },
@@ -74,24 +72,18 @@ export default function () {
             this.route("edit", { path: "/:id" });
           }
         );
-
-        this.route("adminUserFields", {
-          path: "/user_fields",
-          resetNamespace: true,
-        });
-        this.route("adminEmojis", { path: "/emojis", resetNamespace: true });
-        this.route("adminPermalinks", {
-          path: "/permalinks",
-          resetNamespace: true,
-        });
-        this.route("adminEmbedding", {
-          path: "/embedding",
-          resetNamespace: true,
-        });
         this.route(
-          "adminCustomizeEmailTemplates",
-          { path: "/email_templates", resetNamespace: true },
+          "adminEmbedding",
+          {
+            path: "/embedding",
+            resetNamespace: true,
+          },
           function () {
+            this.route("index", { path: "/" });
+            this.route("settings");
+            this.route("postsAndTopics", { path: "/posts_and_topics" });
+            this.route("crawlers");
+            this.route("new");
             this.route("edit", { path: "/:id" });
           }
         );
@@ -138,6 +130,7 @@ export default function () {
         "adminWebHooks",
         { path: "/web_hooks", resetNamespace: true },
         function () {
+          this.route("new");
           this.route("show", { path: "/:web_hook_id" });
           this.route("edit", { path: "/:web_hook_id/edit" });
         }
@@ -149,6 +142,7 @@ export default function () {
       { path: "/backups", resetNamespace: true },
       function () {
         this.route("logs");
+        this.route("settings");
       }
     );
 
@@ -156,6 +150,7 @@ export default function () {
       "adminReports",
       { path: "/reports", resetNamespace: true },
       function () {
+        this.route("index", { path: "/" });
         this.route("show", { path: ":type" });
       }
     );
@@ -212,21 +207,158 @@ export default function () {
     );
 
     this.route(
+      "adminConfig",
+      { path: "/config", resetNamespace: true },
+      function () {
+        this.route("flags", function () {
+          this.route("index", { path: "/" });
+          this.route("new");
+          this.route("edit", { path: "/:flag_id" });
+          this.route("settings");
+        });
+
+        this.route("about");
+        this.route(
+          "loginAndAuthentication",
+          { path: "/login-and-authentication" },
+          function () {
+            this.route("settings", {
+              path: "/",
+            });
+          }
+        );
+        this.route("localization", function () {
+          this.route("settings", {
+            path: "/",
+          });
+        });
+        this.route("notifications", function () {
+          this.route("settings", {
+            path: "/",
+          });
+        });
+        this.route("search", function () {
+          this.route("settings", {
+            path: "/",
+          });
+        });
+        this.route("legal", function () {
+          this.route("settings", {
+            path: "/",
+          });
+        });
+        this.route("experimental", function () {
+          this.route("settings", {
+            path: "/",
+          });
+        });
+        this.route("other", function () {
+          this.route("settings", {
+            path: "/",
+          });
+        });
+        this.route("files", function () {
+          this.route("settings", {
+            path: "/",
+          });
+        });
+        this.route(
+          "groupPermissions",
+          { path: "/group-permissions" },
+          function () {
+            this.route("settings", {
+              path: "/",
+            });
+          }
+        );
+        this.route("trustLevels", { path: "/trust-levels" }, function () {
+          this.route("settings", {
+            path: "/",
+          });
+        });
+        this.route("lookAndFeel", { path: "/look-and-feel" }, function () {
+          this.route("themes");
+        });
+        this.route(
+          "adminPermalinks",
+          { path: "/permalinks", resetNamespace: true },
+          function () {
+            this.route("new");
+            this.route("index", { path: "/" });
+            this.route("settings");
+            this.route("edit", { path: "/:permalink_id" });
+          }
+        );
+        this.route(
+          "adminUserFields",
+          { path: "/user-fields", resetNamespace: true },
+          function () {
+            this.route("new");
+            this.route("edit", { path: "/:id/edit" });
+            this.route("index", { path: "/" });
+          }
+        );
+        this.route(
+          "adminEmojis",
+          { path: "/emoji", resetNamespace: true },
+          function () {
+            this.route("new");
+            this.route("index", { path: "/" });
+            this.route("settings");
+          }
+        );
+        this.route("developer", function () {
+          this.route("settings", { path: "/" });
+        });
+        this.route("fonts", function () {
+          this.route("settings", { path: "/" });
+        });
+        this.route("logo", function () {
+          this.route("settings", { path: "/" });
+        });
+        this.route("navigation", function () {
+          this.route("settings", { path: "/" });
+        });
+        this.route("onebox", function () {
+          this.route("settings", { path: "/" });
+        });
+        this.route("rate-limits", function () {
+          this.route("settings", { path: "/" });
+        });
+        this.route("security", function () {
+          this.route("settings", { path: "/" });
+        });
+        this.route("spam", function () {
+          this.route("settings", { path: "/" });
+        });
+        this.route("user-api", function () {
+          this.route("settings", { path: "/" });
+        });
+      }
+    );
+
+    this.route(
       "adminPlugins",
       { path: "/plugins", resetNamespace: true },
       function () {
         this.route("index", { path: "/" });
+        this.route("show", { path: "/:plugin_id" }, function () {
+          this.route("settings");
+        });
       }
     );
-  });
 
-  // EXPERIMENTAL: These admin routes are hidden behind an `enable_experimental_admin_ui_groups`
-  // site setting and are subject to constant change.
-  this.route("admin-revamp", { resetNamespace: true }, function () {
-    this.route("lobby", { path: "/" }, function () {});
-
-    this.route("config", function () {
-      this.route("area", { path: "/:area" });
+    this.route("admin.whatsNew", {
+      path: "/whats-new",
+      resetNamespace: true,
     });
+
+    this.route(
+      "adminSection",
+      { path: "/section", resetNamespace: true },
+      function () {
+        this.route("account");
+      }
+    );
   });
 }

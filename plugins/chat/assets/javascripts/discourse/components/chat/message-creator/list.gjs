@@ -2,16 +2,16 @@ import Component from "@glimmer/component";
 import { fn } from "@ember/helper";
 import { on } from "@ember/modifier";
 import { action } from "@ember/object";
+import { eq } from "truth-helpers";
 import concatClass from "discourse/helpers/concat-class";
-import I18n from "discourse-i18n";
-import eq from "truth-helpers/helpers/eq";
+import { i18n } from "discourse-i18n";
 import Channel from "./channel";
 import Group from "./group";
 import ListAction from "./list-action";
 import User from "./user";
 
 export default class List extends Component {
-  cantAddMoreMembersLabel = I18n.t(
+  cantAddMoreMembersLabel = i18n(
     "chat.new_message_modal.cant_add_more_members"
   );
 

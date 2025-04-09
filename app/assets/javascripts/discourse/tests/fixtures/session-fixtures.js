@@ -1,7 +1,5 @@
-import { deepFreeze } from "discourse-common/lib/object";
-import {
-  AUTO_GROUPS,
-} from "discourse/lib/constants";
+import { AUTO_GROUPS } from "discourse/lib/constants";
+import { deepFreeze } from "discourse/lib/object";
 
 export default {
   "/session/current.json": deepFreeze({
@@ -26,6 +24,8 @@ export default {
       trust_level: 4,
       can_edit: true,
       can_invite_to_forum: true,
+      can_ignore_users: true,
+      can_mute_users: true,
       can_send_private_messages: true,
       custom_fields: {},
       muted_category_ids: [],
@@ -43,6 +43,7 @@ export default {
       user_option: {
         external_links_in_new_tab: false,
         enable_quoting: true,
+        enable_smart_lists: true,
         dynamic_favicon: true,
         title_count_mode: "notifications",
         timezone: "Australia/Brisbane",
@@ -76,7 +77,7 @@ export default {
               id: 331,
               name: "About",
               value: "/about",
-              icon: "info-circle",
+              icon: "circle-info",
               external: false,
               segment: "secondary",
             },
@@ -84,7 +85,7 @@ export default {
               id: 332,
               name: "Faq",
               value: "/faq",
-              icon: "question-circle",
+              icon: "circle-question",
               external: false,
               segment: "secondary",
             },
@@ -116,7 +117,7 @@ export default {
               id: 336,
               name: "Groups",
               value: "/g",
-              icon: "user-friends",
+              icon: "user-group",
               external: false,
               segment: "secondary",
             },
@@ -128,9 +129,17 @@ export default {
               external: false,
               segment: "secondary",
             },
+            {
+              id: 338,
+              name: "Invite",
+              value: "/new-invite",
+              icon: "paper-plane",
+              external: false,
+              segment: "primary",
+            },
           ],
         },
-      ]
+      ],
     },
   }),
 };

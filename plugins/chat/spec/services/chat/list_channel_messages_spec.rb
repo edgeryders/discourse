@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
 RSpec.describe Chat::ListChannelMessages do
-  subject(:result) { described_class.call(params) }
+  subject(:result) { described_class.call(params:, **dependencies) }
 
   fab!(:user)
   fab!(:channel) { Fabricate(:chat_channel) }
@@ -9,7 +9,8 @@ RSpec.describe Chat::ListChannelMessages do
   let(:guardian) { Guardian.new(user) }
   let(:channel_id) { channel.id }
   let(:optional_params) { {} }
-  let(:params) { { guardian: guardian, channel_id: channel_id }.merge(optional_params) }
+  let(:params) { { channel_id: }.merge(optional_params) }
+  let(:dependencies) { { guardian: } }
 
   before { channel.add(user) }
 
@@ -29,6 +30,8 @@ RSpec.describe Chat::ListChannelMessages do
     end
 
     context "when channel exists" do
+      it { is_expected.to run_successfully }
+
       it "finds the correct channel" do
         expect(result.channel).to eq(channel)
       end
@@ -37,6 +40,8 @@ RSpec.describe Chat::ListChannelMessages do
 
   context "when fetch_eventual_membership" do
     context "when user has membership" do
+      it { is_expected.to run_successfully }
+
       it "finds the correct membership" do
         expect(result.membership).to eq(channel.membership_for(user))
       end
@@ -44,6 +49,8 @@ RSpec.describe Chat::ListChannelMessages do
 
     context "when user has no membership" do
       before { channel.membership_for(user).destroy! }
+
+      it { is_expected.to run_successfully }
 
       it "finds no membership" do
         expect(result.membership).to be_blank
@@ -86,7 +93,7 @@ RSpec.describe Chat::ListChannelMessages do
 
   context "when target_message_exists" do
     context "when no target_message_id is given" do
-      it { is_expected.to be_a_success }
+      it { is_expected.to run_successfully }
     end
 
     context "when target message is not found" do
@@ -99,7 +106,7 @@ RSpec.describe Chat::ListChannelMessages do
       fab!(:target_message) { Fabricate(:chat_message, chat_channel: channel) }
       let(:optional_params) { { target_message_id: target_message.id } }
 
-      it { is_expected.to be_a_success }
+      it { is_expected.to run_successfully }
     end
 
     context "when target message is trashed" do
@@ -117,13 +124,13 @@ RSpec.describe Chat::ListChannelMessages do
       context "when user is the message creator" do
         fab!(:target_message) { Fabricate(:chat_message, chat_channel: channel, user: user) }
 
-        it { is_expected.to be_a_success }
+        it { is_expected.to run_successfully }
       end
 
       context "when user is admin" do
         fab!(:user) { Fabricate(:admin) }
 
-        it { is_expected.to be_a_success }
+        it { is_expected.to run_successfully }
       end
     end
   end
@@ -131,6 +138,8 @@ RSpec.describe Chat::ListChannelMessages do
   context "when fetch_messages" do
     context "with no params" do
       fab!(:messages) { Fabricate.times(20, :chat_message, chat_channel: channel) }
+
+      it { is_expected.to be_a_success }
 
       it "returns messages" do
         expect(result.can_load_more_past).to eq(false)
@@ -149,6 +158,8 @@ RSpec.describe Chat::ListChannelMessages do
 
       let(:optional_params) { { target_date: 2.days.ago } }
 
+      it { is_expected.to be_a_success }
+
       it "includes past and future messages" do
         expect(result.messages).to eq([past_message, future_message])
       end
@@ -159,10 +170,47 @@ RSpec.describe Chat::ListChannelMessages do
     context "when threads are disabled" do
       fab!(:thread_1) { Fabricate(:chat_thread, channel: channel) }
 
-      before { channel.update!(threading_enabled: false) }
+      before do
+        channel.update!(threading_enabled: false)
+        thread_1.add(user)
+      end
 
-      it "returns empty tracking" do
-        expect(result.tracking).to eq({})
+      it { is_expected.to be_a_success }
+
+      it "returns tracking" do
+        Fabricate(:chat_message, chat_channel: channel, thread: thread_1)
+
+        expect(result.tracking.thread_tracking).to eq(
+          {
+            thread_1.id => {
+              channel_id: channel.id,
+              mention_count: 0,
+              unread_count: 0,
+              watched_threads_unread_count: 0,
+            },
+          },
+        )
+      end
+
+      context "when thread is forced" do
+        before { thread_1.update!(force: true) }
+
+        it { is_expected.to be_a_success }
+
+        it "returns tracking" do
+          Fabricate(:chat_message, chat_channel: channel, thread: thread_1)
+
+          expect(result.tracking.thread_tracking).to eq(
+            {
+              thread_1.id => {
+                channel_id: channel.id,
+                mention_count: 0,
+                unread_count: 1,
+                watched_threads_unread_count: 0,
+              },
+            },
+          )
+        end
       end
     end
 
@@ -174,12 +222,21 @@ RSpec.describe Chat::ListChannelMessages do
         thread_1.add(user)
       end
 
+      it { is_expected.to be_a_success }
+
       it "returns tracking" do
         Fabricate(:chat_message, chat_channel: channel, thread: thread_1)
 
         expect(result.tracking.channel_tracking).to eq({})
         expect(result.tracking.thread_tracking).to eq(
-          { thread_1.id => { channel_id: channel.id, mention_count: 0, unread_count: 1 } },
+          {
+            thread_1.id => {
+              channel_id: channel.id,
+              mention_count: 0,
+              unread_count: 1,
+              watched_threads_unread_count: 0,
+            },
+          },
         )
       end
     end
@@ -190,6 +247,21 @@ RSpec.describe Chat::ListChannelMessages do
       expect { result }.to change { channel.membership_for(user).last_viewed_at }.to be_within(
         1.second,
       ).of(Time.zone.now)
+    end
+  end
+
+  context "when update_user_last_channel" do
+    it "updates the custom field" do
+      expect { result }.to change { user.custom_fields[Chat::LAST_CHAT_CHANNEL_ID] }.from(nil).to(
+        channel.id,
+      )
+    end
+
+    it "doesn’t update the custom field when it was already set to this value" do
+      user.upsert_custom_fields(::Chat::LAST_CHAT_CHANNEL_ID => channel.id)
+      field = UserCustomField.find_by(name: Chat::LAST_CHAT_CHANNEL_ID, user_id: user.id)
+
+      expect { result }.to_not change { field.reload.updated_at }
     end
   end
 end

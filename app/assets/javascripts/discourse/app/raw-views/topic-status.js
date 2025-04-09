@@ -1,14 +1,34 @@
 import EmberObject from "@ember/object";
-import discourseComputed from "discourse-common/utils/decorators";
-import I18n from "discourse-i18n";
+import discourseComputed from "discourse/lib/decorators";
+import deprecated from "discourse/lib/deprecated";
+import { RAW_TOPIC_LIST_DEPRECATION_OPTIONS } from "discourse/lib/plugin-api";
+import { i18n } from "discourse-i18n";
 
-export default EmberObject.extend({
-  showDefault: null,
+export default class TopicStatus extends EmberObject {
+  static reopen() {
+    deprecated(
+      "Modifying raw-view:topic-status with `reopen` is deprecated. Use the value transformer `topic-list-columns` and other new topic-list plugin APIs instead.",
+      RAW_TOPIC_LIST_DEPRECATION_OPTIONS
+    );
+
+    return super.reopen(...arguments);
+  }
+
+  static reopenClass() {
+    deprecated(
+      "Modifying raw-view:topic-status with `reopenClass` is deprecated. Use the value transformer `topic-list-columns` and other new topic-list plugin APIs instead.",
+      RAW_TOPIC_LIST_DEPRECATION_OPTIONS
+    );
+
+    return super.reopenClass(...arguments);
+  }
+
+  showDefault = null;
 
   @discourseComputed("defaultIcon")
   renderDiv(defaultIcon) {
     return (defaultIcon || this.statuses.length > 0) && !this.noDiv;
-  },
+  }
 
   @discourseComputed
   statuses() {
@@ -16,13 +36,13 @@ export default EmberObject.extend({
     const results = [];
 
     // TODO, custom statuses? via override?
-    if (topic.get("is_warning")) {
+    if (topic.is_warning) {
       results.push({ icon: "envelope", key: "warning" });
     }
 
-    if (topic.get("bookmarked")) {
-      const postNumbers = topic.get("bookmarked_post_numbers");
-      let url = topic.get("url");
+    if (topic.bookmarked) {
+      const postNumbers = topic.bookmarked_post_numbers;
+      let url = topic.url;
       let extraClasses = "";
       if (postNumbers && postNumbers[0] > 1) {
         url += "/" + postNumbers[0];
@@ -38,23 +58,23 @@ export default EmberObject.extend({
       });
     }
 
-    if (topic.get("closed") && topic.get("archived")) {
+    if (topic.closed && topic.archived) {
       results.push({ icon: "lock", key: "locked_and_archived" });
-    } else if (topic.get("closed")) {
+    } else if (topic.closed) {
       results.push({ icon: "lock", key: "locked" });
-    } else if (topic.get("archived")) {
+    } else if (topic.archived) {
       results.push({ icon: "lock", key: "archived" });
     }
 
-    if (topic.get("pinned")) {
+    if (topic.pinned) {
       results.push({ icon: "thumbtack", key: "pinned" });
     }
 
-    if (topic.get("unpinned")) {
+    if (topic.unpinned) {
       results.push({ icon: "thumbtack", key: "unpinned" });
     }
 
-    if (topic.get("invisible")) {
+    if (topic.invisible) {
       results.push({ icon: "far-eye-slash", key: "unlisted" });
     }
 
@@ -67,7 +87,17 @@ export default EmberObject.extend({
     }
 
     results.forEach((result) => {
-      result.title = I18n.t(`topic_statuses.${result.key}.help`);
+      const translationParams = {};
+
+      if (result.key === "unlisted") {
+        translationParams.unlistedReason = topic.visibilityReasonTranslated;
+      }
+
+      result.title = i18n(
+        `topic_statuses.${result.key}.help`,
+        translationParams
+      );
+
       if (
         this.currentUser &&
         (result.key === "pinned" || result.key === "unpinned")
@@ -85,5 +115,5 @@ export default EmberObject.extend({
       this.set("showDefault", defaultIcon);
     }
     return results;
-  },
-});
+  }
+}

@@ -20,11 +20,14 @@ class SiteSettings::TypeSupervisor
     list_type
     textarea
     json_schema
+    requires_confirmation
   ].freeze
   VALIDATOR_OPTS = %i[min max regex hidden regex_error json_schema].freeze
 
   # For plugins, so they can tell if a feature is supported
   SUPPORTED_TYPES = %i[email username list enum].freeze
+
+  REQUIRES_CONFIRMATION_TYPES = { simple: "simple", user_option: "user_option" }.freeze
 
   def self.types
     @types ||=
@@ -259,14 +262,18 @@ class SiteSettings::TypeSupervisor
           raise Discourse::InvalidParameters.new(name)
         end
 
-        raise Discourse::InvalidParameters.new(:value) unless choice.include?(val)
+        raise Discourse::InvalidParameters.new(:value) if choice.exclude?(val)
       end
     end
 
     if type == self.class.types[:list] || type == self.class.types[:string]
       if @allow_any.key?(name) && !@allow_any[name]
         split = val.to_s.split("|")
-        diff = (split - @choices[name])
+        resolved_choices = @choices[name]
+        if resolved_choices.first.is_a?(Hash)
+          resolved_choices = resolved_choices.map { |c| c[:value] }
+        end
+        diff = (split - resolved_choices)
         if diff.length > 0
           raise Discourse::InvalidParameters.new(
                   I18n.t(

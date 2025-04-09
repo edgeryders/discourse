@@ -1,13 +1,8 @@
-import EmberObject from "@ember/object";
-import { ajax } from "discourse/lib/ajax";
 import DiscourseRoute from "discourse/routes/discourse";
+import { i18n } from "discourse-i18n";
 
 export default class AdminEmojisRoute extends DiscourseRoute {
-  model() {
-    return ajax("/admin/customize/emojis.json").then(function (emojis) {
-      return emojis.map(function (emoji) {
-        return EmberObject.create(emoji);
-      });
-    });
+  titleToken() {
+    return i18n("admin.emoji.title");
   }
 }

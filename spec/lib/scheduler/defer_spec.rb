@@ -22,13 +22,19 @@ RSpec.describe Scheduler::Defer do
     Discourse.reset_catch_job_exceptions!
   end
 
+  it "can finish work properly without crashing" do
+    @defer.later {}
+    sleep 0.005
+    @defer.stop!(finish_work: true)
+  end
+
   it "supports basic instrumentation" do
     @defer.later("first") {}
     @defer.later("first") {}
     @defer.later("second") {}
     @defer.later("bad") { raise "boom" }
 
-    wait_for(200) { @defer.length == 0 }
+    @defer.stop!(finish_work: true)
 
     stats = Hash[@defer.stats]
 
@@ -105,11 +111,44 @@ RSpec.describe Scheduler::Defer do
 
   it "can queue jobs properly" do
     s = nil
-
     @defer.later { s = "good" }
-
-    wait_for(1000) { s == "good" }
-
+    @defer.stop!(finish_work: true)
     expect(s).to eq("good")
+  end
+
+  describe "#later" do
+    let!(:ivar) { Concurrent::IVar.new }
+    let!(:responses) { Thread::Queue.new }
+
+    def later(db, current_user, request)
+      @defer.later(nil, db, current_user: current_user) do
+        ivar.value
+        responses.push([db, current_user, request])
+      end
+    end
+
+    it "runs jobs in a fair order" do
+      later("site1", 1, 1)
+      later("site1", 1, 2)
+      later("site1", 2, 3)
+      later("site2", 3, 4)
+      later("site2", 4, 5)
+      later("site2", 4, 6)
+
+      ivar.set(nil)
+
+      result = 6.times.map { responses.shift }
+
+      expect(result).to eq(
+        [
+          ["site1", 1, 1],
+          ["site2", 3, 4],
+          ["site1", 2, 3],
+          ["site2", 4, 5],
+          ["site1", 1, 2],
+          ["site2", 4, 6],
+        ],
+      )
+    end
   end
 end

@@ -1,7 +1,5 @@
 # frozen_string_literal: true
 
-require "rails_helper"
-
 RSpec.describe Chat::Api::ChannelMessagesController do
   fab!(:current_user) { Fabricate(:user) }
   fab!(:channel) { Fabricate(:chat_channel) }
@@ -13,7 +11,7 @@ RSpec.describe Chat::Api::ChannelMessagesController do
     sign_in(current_user)
   end
 
-  describe "index" do
+  describe "#index" do
     describe "success" do
       fab!(:message_1) { Fabricate(:chat_message, chat_channel: channel) }
       fab!(:message_2) { Fabricate(:chat_message) }
@@ -25,6 +23,14 @@ RSpec.describe Chat::Api::ChannelMessagesController do
         expect(response.parsed_body["messages"].map { |m| m["id"] }).to contain_exactly(
           message_1.id,
         )
+      end
+    end
+
+    context "when params are invalid" do
+      it "returns a 400" do
+        get "/chat/api/channels/#{channel.id}/messages?page_size=9999"
+
+        expect(response.status).to eq(400)
       end
     end
 
@@ -41,7 +47,7 @@ RSpec.describe Chat::Api::ChannelMessagesController do
       end
     end
 
-    context "when channnel doesn’t exist" do
+    context "when channel doesn’t exist" do
       it "returns a 404" do
         get "/chat/api/channels/-999/messages"
 
@@ -64,6 +70,101 @@ RSpec.describe Chat::Api::ChannelMessagesController do
         get "/chat/api/channels/#{channel.id}/messages"
 
         expect(response.status).to eq(403)
+      end
+    end
+  end
+
+  describe "#create" do
+    let(:blocks) { nil }
+    let(:message) { "test" }
+    let(:force_thread) { nil }
+    let(:in_reply_to_id) { nil }
+    let(:params) do
+      {
+        in_reply_to_id: in_reply_to_id,
+        message: message,
+        blocks: blocks,
+        force_thread: force_thread,
+      }
+    end
+
+    before { sign_in(current_user) }
+
+    context "when force_thread param is given" do
+      let!(:message) { Fabricate(:chat_message, chat_channel: channel) }
+
+      let(:force_thread) { true }
+      let(:in_reply_to_id) { message.id }
+
+      it "ignores it" do
+        expect { post "/chat/#{channel.id}.json", params: params }.not_to change {
+          Chat::Thread.where(force: true).count
+        }
+      end
+    end
+
+    context "when blocks is provided" do
+      context "when user is not a bot" do
+        let(:blocks) do
+          [
+            {
+              type: "actions",
+              elements: [{ type: "button", text: { type: "plain_text", text: "Click Me" } }],
+            },
+          ]
+        end
+
+        it "raises invalid acces" do
+          post "/chat/#{channel.id}.json", params: params
+
+          expect(response.status).to eq(403)
+        end
+      end
+    end
+  end
+
+  describe "#update" do
+    context "when message is updated" do
+      fab!(:message_1) { Fabricate(:chat_message, chat_channel: channel, user: current_user) }
+      it "works" do
+        put "/chat/api/channels/#{channel.id}/messages/#{message_1.id}",
+            params: {
+              message: "abcdefg",
+            }
+
+        expect(response.status).to eq(200)
+        expect(message_1.reload.message).to eq("abcdefg")
+      end
+
+      context "when params are invalid" do
+        it "returns a 400" do
+          put "/chat/api/channels/#{channel.id}/messages/#{message_1.id}"
+
+          expect(response.status).to eq(400)
+        end
+      end
+
+      context "when user is not part of the channel" do
+        before { channel.membership_for(current_user).destroy! }
+
+        it "returns a 404" do
+          put "/chat/api/channels/#{channel.id}/messages/#{message_1.id}"
+
+          expect(response.status).to eq(400)
+        end
+      end
+
+      context "when user is not the author" do
+        fab!(:message_1) { Fabricate(:chat_message, chat_channel: channel) }
+
+        it "returns a 422" do
+          put "/chat/api/channels/#{channel.id}/messages/#{message_1.id}",
+              params: {
+                message: "abcdefg",
+              }
+
+          expect(response.status).to eq(422)
+        end
       end
     end
   end

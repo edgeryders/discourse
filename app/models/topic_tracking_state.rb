@@ -90,7 +90,7 @@ class TopicTrackingState
 
     group_ids =
       if whisper
-        [Group::AUTO_GROUPS[:staff], *SiteSetting.whispers_allowed_group_ids]
+        [Group::AUTO_GROUPS[:staff], *SiteSetting.whispers_allowed_groups_map].flatten
       else
         secure_category_group_ids(topic)
       end
@@ -152,7 +152,7 @@ class TopicTrackingState
 
     group_ids =
       if post.post_type == Post.types[:whisper]
-        [Group::AUTO_GROUPS[:staff], *SiteSetting.whispers_allowed_group_ids]
+        [Group::AUTO_GROUPS[:staff], *SiteSetting.whispers_allowed_groups_map].flatten
       else
         post.topic.category && post.topic.category.secure_group_ids
       end
@@ -238,31 +238,34 @@ class TopicTrackingState
   end
 
   def self.new_filter_sql
-    TopicQuery
-      .new_filter(Topic, treat_as_new_topic_clause_sql: treat_as_new_topic_clause)
-      .where_clause
-      .ast
-      .to_sql + " AND topics.created_at > :min_new_topic_date" +
-      " AND dismissed_topic_users.id IS NULL"
+    ActiveRecord::Base.connection.to_sql(
+      TopicQuery
+        .new_filter(Topic, treat_as_new_topic_clause_sql: treat_as_new_topic_clause)
+        .where_clause
+        .ast,
+    ) + " AND topics.created_at > :min_new_topic_date" + " AND dismissed_topic_users.id IS NULL"
   end
 
   def self.unread_filter_sql(whisperer: false)
-    TopicQuery.unread_filter(Topic, whisperer: whisperer).where_clause.ast.to_sql
+    ActiveRecord::Base.connection.to_sql(
+      TopicQuery.unread_filter(Topic, whisperer: whisperer).where_clause.ast,
+    )
   end
 
   def self.treat_as_new_topic_clause
-    User
-      .where(
-        "GREATEST(CASE
+    ActiveRecord::Base.connection.to_sql(
+      User
+        .where(
+          "GREATEST(CASE
                   WHEN COALESCE(uo.new_topic_duration_minutes, :default_duration) = :always THEN u.created_at
                   WHEN COALESCE(uo.new_topic_duration_minutes, :default_duration) = :last_visit THEN COALESCE(u.previous_visit_at,u.created_at)
                   ELSE (:now::timestamp - INTERVAL '1 MINUTE' * COALESCE(uo.new_topic_duration_minutes, :default_duration))
                END, u.created_at, :min_date)",
-        treat_as_new_topic_params,
-      )
-      .where_clause
-      .ast
-      .to_sql
+          treat_as_new_topic_params,
+        )
+        .where_clause
+        .ast,
+    )
   end
 
   def self.treat_as_new_topic_params
@@ -575,6 +578,44 @@ class TopicTrackingState
     return if groups.empty?
     opts = { readers_count: post.readers_count, reader_id: user_id }
     post.publish_change_to_clients!(:read, opts)
+  end
+
+  def self.report_count_by_type(user, type:)
+    tag_ids = muted_tag_ids(user)
+    sql =
+      report_raw_sql(
+        topic_id: nil,
+        skip_unread: type == "new",
+        skip_new: type == "unread",
+        skip_order: true,
+        staff: user.staff?,
+        admin: user.admin?,
+        whisperer: user.whisperer?,
+        user: user,
+        muted_tag_ids: tag_ids,
+      )
+    sql = tags_included_wrapped_sql(sql)
+
+    DB.query(
+      sql + "\n\n LIMIT :max_topics",
+      {
+        user_id: user.id,
+        topic_id: nil,
+        min_new_topic_date: Time.at(SiteSetting.min_new_topics_time).to_datetime,
+        max_topics: TopicTrackingState::MAX_TOPICS,
+        user_first_unread_at: user.user_stat.first_unread_at,
+      }.merge(treat_as_new_topic_params),
+    ).count
+  end
+
+  def self.report_totals(user)
+    if user.new_new_view_enabled?
+      { new: report(user).count }
+    else
+      new = report_count_by_type(user, type: "new")
+      unread = report_count_by_type(user, type: "unread")
+      { new: new, unread: unread }
+    end
   end
 
   def self.secure_category_group_ids(topic)

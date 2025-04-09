@@ -1,16 +1,13 @@
 // --------------------------------------------------
 // Discourse header
 // --------------------------------------------------
-
 .d-header {
-  left: 0;
   height: 4em;
-  #site-logo {
-    height: 2.667em; // 40px with default 15px font size
-  }
+
   #site-text-logo {
     font-size: var(--font-up-3);
   }
+
   .extra-info {
     &:not(.two-rows) {
       .header-title {
@@ -20,7 +17,7 @@
   }
 }
 
-@media all and (max-width: 570px) {
+@include breakpoint(mobile-extra-large) {
   .extra-info-wrapper {
     display: none;
   }
@@ -36,6 +33,7 @@
   word-wrap: break-word;
   font-size: var(--font-down-2);
   line-height: var(--line-height-large);
+
   .search-highlight {
     color: var(--primary-high-or-secondary-low);
   }

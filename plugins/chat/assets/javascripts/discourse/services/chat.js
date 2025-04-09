@@ -2,16 +2,16 @@ import { tracked } from "@glimmer/tracking";
 import { action, computed } from "@ember/object";
 import { and } from "@ember/object/computed";
 import { cancel, next } from "@ember/runloop";
-import Service, { inject as service } from "@ember/service";
+import Service, { service } from "@ember/service";
 import { ajax } from "discourse/lib/ajax";
 import { popupAjaxError } from "discourse/lib/ajax-error";
+import { bind } from "discourse/lib/decorators";
+import deprecated from "discourse/lib/deprecated";
+import discourseLater from "discourse/lib/later";
 import {
   onPresenceChange,
   removeOnPresenceChange,
 } from "discourse/lib/user-presence";
-import deprecated from "discourse-common/lib/deprecated";
-import discourseLater from "discourse-common/lib/later";
-import { bind } from "discourse-common/utils/decorators";
 import ChatMessage from "discourse/plugins/chat/discourse/models/chat-message";
 
 const CHAT_ONLINE_OPTIONS = {
@@ -35,13 +35,35 @@ export default class Chat extends Service {
 
   cook = null;
   presenceChannel = null;
-  sidebarActive = false;
   isNetworkUnreliable = false;
 
   @and("currentUser.has_chat_enabled", "siteSettings.chat_enabled") userCanChat;
 
   @tracked _activeMessage = null;
   @tracked _activeChannel = null;
+
+  init() {
+    super.init(...arguments);
+
+    if (this.userCanChat) {
+      this.presenceChannel = this.presence.getChannel("/chat/online");
+
+      onPresenceChange({
+        callback: this.onPresenceChangeCallback,
+        browserHiddenTime: 150000,
+        userUnseenTime: 150000,
+      });
+    }
+  }
+
+  willDestroy() {
+    super.willDestroy(...arguments);
+
+    if (this.userCanChat) {
+      this.chatSubscriptionsManager.stopChannelsSubscriptions();
+      removeOnPresenceChange(this.onPresenceChangeCallback);
+    }
+  }
 
   get activeChannel() {
     return this._activeChannel;
@@ -65,13 +87,7 @@ export default class Chat extends Service {
       return false;
     }
 
-    return (
-      this.currentUser.staff ||
-      this.siteSettings.userInAnyGroups(
-        "direct_message_enabled_groups",
-        this.currentUser
-      )
-    );
+    return this.currentUser.staff || this.currentUser.can_direct_message;
   }
 
   @computed("chatChannelsManager.directMessageChannels")
@@ -100,20 +116,6 @@ export default class Chat extends Service {
     }
   }
 
-  init() {
-    super.init(...arguments);
-
-    if (this.userCanChat) {
-      this.presenceChannel = this.presence.getChannel("/chat/online");
-
-      onPresenceChange({
-        callback: this.onPresenceChangeCallback,
-        browserHiddenTime: 150000,
-        userUnseenTime: 150000,
-      });
-    }
-  }
-
   @bind
   onPresenceChangeCallback(present) {
     if (present) {
@@ -135,7 +137,7 @@ export default class Chat extends Service {
               if (!channel) {
                 return;
               }
-              // TODO (martin) We need to do something here for thread tracking
+              // NOTE: We need to do something here for thread tracking
               // state as well on presence change, otherwise we will be back in
               // the same place as the channels were.
               //
@@ -150,6 +152,8 @@ export default class Chat extends Service {
               const state = channelsView.tracking.channel_tracking[channel.id];
               channel.tracking.unreadCount = state.unread_count;
               channel.tracking.mentionCount = state.mention_count;
+              channel.tracking.watchedThreadsUnreadCount =
+                state.watched_threads_unread_count;
 
               channel.currentUserMembership =
                 channelObject.current_user_membership;
@@ -179,6 +183,32 @@ export default class Chat extends Service {
     cancel(this._networkCheckHandler);
 
     this.set("isNetworkUnreliable", false);
+  }
+
+  async loadChannels() {
+    // We want to be able to call this method multiple times, but only
+    // actually load the channels once. This is because we might call
+    // this method before the chat is fully initialized, and we don't
+    // want to load the channels multiple times in that case.
+    try {
+      if (this.chatStateManager.hasPreloadedChannels) {
+        return;
+      }
+
+      if (this.loadingChannels) {
+        return this.loadingChannels;
+      }
+
+      this.loadingChannels = new Promise((resolve) => {
+        this.chatApi.listCurrentUserChannels().then((result) => {
+          this.setupWithPreloadedChannels(result);
+          this.chatStateManager.hasPreloadedChannels = true;
+          resolve();
+        });
+      });
+    } catch (e) {
+      popupAjaxError(e);
+    }
   }
 
   setupWithPreloadedChannels(channelsView) {
@@ -223,22 +253,13 @@ export default class Chat extends Service {
     );
   }
 
-  willDestroy() {
-    super.willDestroy(...arguments);
-
-    if (this.userCanChat) {
-      this.chatSubscriptionsManager.stopChannelsSubscriptions();
-      removeOnPresenceChange(this.onPresenceChangeCallback);
-    }
-  }
-
   updatePresence() {
     next(() => {
       if (this.isDestroyed || this.isDestroying) {
         return;
       }
 
-      if (this.currentUser.user_option?.hide_profile_and_presence) {
+      if (this.currentUser.user_option?.hide_presence) {
         return;
       }
 
@@ -251,24 +272,73 @@ export default class Chat extends Service {
   }
 
   getDocumentTitleCount() {
-    return this.chatNotificationManager.shouldCountChatInDocTitle()
-      ? this.chatTrackingStateManager.allChannelUrgentCount
-      : 0;
+    return this.chatTrackingStateManager.allChannelUrgentCount;
   }
 
-  switchChannelUpOrDown(direction) {
+  switchChannelUpOrDown(direction, unreadOnly = false) {
     const { activeChannel } = this;
     if (!activeChannel) {
       return; // Chat isn't open. Return and do nothing!
     }
 
+    let publicChannels, directChannels;
+
+    if (unreadOnly) {
+      publicChannels =
+        this.chatChannelsManager.publicMessageChannelsWithActivity;
+      directChannels =
+        this.chatChannelsManager.directMessageChannelsWithActivity;
+
+      // If the active channel has no unread messages, we need to manually insert it into
+      // the list, so we can find the next/previous unread channel.
+      if (!activeChannel.hasUnread) {
+        const allChannels = activeChannel.isDirectMessageChannel
+          ? this.chatChannelsManager.directMessageChannels
+          : this.chatChannelsManager.publicMessageChannels;
+
+        // Find the ID of the channel before the active channel, which is unread
+        let checkChannelIndex =
+          allChannels.findIndex((c) => c.id === activeChannel.id) - 1;
+
+        // If we get back to the start of the list, we can stop
+        while (checkChannelIndex >= 0) {
+          if (allChannels[checkChannelIndex].hasUnread) {
+            break;
+          }
+          checkChannelIndex--;
+        }
+
+        // Insert the active channel after unread channel we found (or at the start of the list)
+        if (activeChannel.isDirectMessageChannel) {
+          const unreadChannelIndex =
+            checkChannelIndex < 0
+              ? 0
+              : directChannels.findIndex(
+                  (c) => c.id === allChannels[checkChannelIndex].id
+                );
+          directChannels.splice(unreadChannelIndex + 1, 0, activeChannel);
+        } else {
+          const unreadChannelIndex =
+            checkChannelIndex < 0
+              ? -1
+              : publicChannels.findIndex(
+                  (c) => c.id === allChannels[checkChannelIndex].id
+                );
+          publicChannels.splice(unreadChannelIndex + 1, 0, activeChannel);
+        }
+      }
+    } else {
+      publicChannels = this.chatChannelsManager.publicMessageChannels;
+      directChannels = this.chatChannelsManager.directMessageChannels;
+    }
+
     let currentList, otherList;
     if (activeChannel.isDirectMessageChannel) {
-      currentList = this.chatChannelsManager.truncatedDirectMessageChannels;
-      otherList = this.chatChannelsManager.publicMessageChannels;
+      currentList = directChannels;
+      otherList = publicChannels;
     } else {
-      currentList = this.chatChannelsManager.publicMessageChannels;
-      otherList = this.chatChannelsManager.truncatedDirectMessageChannels;
+      currentList = publicChannels;
+      otherList = directChannels;
     }
 
     const directionUp = direction === "up";
@@ -298,68 +368,6 @@ export default class Chat extends Service {
         ...nextChannel.routeModels
       );
     }
-  }
-
-  getIdealFirstChannelId() {
-    // When user opens chat we need to give them the 'best' channel when they enter.
-    //
-    // Look for public channels with mentions. If one exists, enter that.
-    // Next best is a DM channel with unread messages.
-    // Next best is a public channel with unread messages.
-    // Then we fall back to the chat_default_channel_id site setting
-    // if that is present and in the list of channels the user can access.
-    // If none of these options exist, then we get the first public channel,
-    // or failing that the first DM channel.
-    // Defined in order of significance.
-    let publicChannelWithMention,
-      dmChannelWithUnread,
-      publicChannelWithUnread,
-      publicChannel,
-      dmChannel,
-      defaultChannel;
-
-    this.chatChannelsManager.channels.forEach((channel) => {
-      const membership = channel.currentUserMembership;
-
-      if (!membership.following) {
-        return;
-      }
-
-      if (channel.isDirectMessageChannel) {
-        if (!dmChannelWithUnread && channel.tracking.unreadCount > 0) {
-          dmChannelWithUnread = channel.id;
-        } else if (!dmChannel) {
-          dmChannel = channel.id;
-        }
-      } else {
-        if (membership.unread_mentions > 0) {
-          publicChannelWithMention = channel.id;
-          return; // <- We have a public channel with a mention. Break and return this.
-        } else if (
-          !publicChannelWithUnread &&
-          channel.tracking.unreadCount > 0
-        ) {
-          publicChannelWithUnread = channel.id;
-        } else if (
-          !defaultChannel &&
-          parseInt(this.siteSettings.chat_default_channel_id || 0, 10) ===
-            channel.id
-        ) {
-          defaultChannel = channel.id;
-        } else if (!publicChannel) {
-          publicChannel = channel.id;
-        }
-      }
-    });
-
-    return (
-      publicChannelWithMention ||
-      dmChannelWithUnread ||
-      publicChannelWithUnread ||
-      defaultChannel ||
-      publicChannel ||
-      dmChannel
-    );
   }
 
   _fireOpenFloatAppEvent(channel, messageId = null) {
@@ -397,14 +405,17 @@ export default class Chat extends Service {
   // channel for. The current user will automatically be included in the channel when it is created.
   // @param {array} [targets.usernames] - The usernames to include in the direct message channel.
   // @param {array} [targets.groups] - The groups to include in the direct message channel.
-  // @param {string|null} [name=null] - Optional name for the direct message channel.
-  upsertDmChannel(targets, name = null) {
+  // @param {object} opts - Optional values when fetching or creating the direct message channel.
+  // @param {string|null} [opts.name] - Name for the direct message channel.
+  // @param {boolean} [opts.upsert] - Should we attempt to fetch existing channel before creating a new one.
+  createDmChannel(targets, opts = { name: null, upsert: false }) {
     return ajax("/chat/api/direct-message-channels.json", {
       method: "POST",
       data: {
         target_usernames: targets.usernames?.uniq(),
         target_groups: targets.groups?.uniq(),
-        name,
+        upsert: opts.upsert,
+        name: opts.name,
       },
     })
       .then((response) => {
@@ -413,6 +424,10 @@ export default class Chat extends Service {
         return channel;
       })
       .catch(popupAjaxError);
+  }
+
+  upsertDmChannel(targets, name = null) {
+    return this.createDmChannel(targets, { name, upsert: true });
   }
 
   // @param {array} usernames - The usernames to fetch the direct message
@@ -426,7 +441,8 @@ export default class Chat extends Service {
 
   addToolbarButton() {
     deprecated(
-      "Use the new chat API `api.registerChatComposerButton` instead of `chat.addToolbarButton`"
+      "Use the new chat API `api.registerChatComposerButton` instead of `chat.addToolbarButton`",
+      { id: "discourse.chat.addToolbarButton" }
     );
   }
 

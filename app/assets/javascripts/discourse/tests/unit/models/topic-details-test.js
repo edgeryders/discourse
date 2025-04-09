@@ -1,4 +1,4 @@
-import { getOwner } from "@ember/application";
+import { getOwner } from "@ember/owner";
 import { setupTest } from "ember-qunit";
 import { module, test } from "qunit";
 import User from "discourse/models/user";
@@ -12,7 +12,7 @@ module("Unit | Model | topic-details", function (hooks) {
     const details = topic.details;
 
     assert.present(details, "the details are present by default");
-    assert.ok(!details.loaded, "details are not loaded by default");
+    assert.false(details.loaded, "details are not loaded by default");
   });
 
   test("updateFromJson", function (assert) {

@@ -4,18 +4,22 @@ require "rotp"
 
 RSpec.describe UsersController do
   fab!(:user) { Fabricate(:user, refresh_auto_groups: true) }
-  fab!(:user1) { Fabricate(:user, username: "someusername", refresh_auto_groups: true) }
+  fab!(:user1) do
+    Fabricate(:user, username: "someusername", refresh_auto_groups: true, created_at: 6.minutes.ago)
+  end
   fab!(:another_user) { Fabricate(:user, refresh_auto_groups: true) }
   fab!(:invitee) { Fabricate(:user) }
   fab!(:inviter) { Fabricate(:user) }
 
-  fab!(:admin) { Fabricate(:admin, refresh_auto_groups: true) }
+  fab!(:admin)
   fab!(:moderator)
   fab!(:inactive_user)
 
   # Unfortunately, there are tests that depend on the user being created too
   # late for fab! to work.
   let(:user_deferred) { Fabricate(:user, refresh_auto_groups: true) }
+
+  before { SiteSetting.hide_email_address_taken = false }
 
   describe "#full account registration flow" do
     it "will correctly handle honeypot and challenge" do
@@ -56,11 +60,17 @@ RSpec.describe UsersController do
 
     before { UsersController.any_instance.stubs(:honeypot_or_challenge_fails?).returns(false) }
 
+    context "with inexistent token" do
+      it "return 404" do
+        put "/u/activate-account/123abc"
+        expect(response.status).to eq(422)
+      end
+    end
+
     context "with invalid token" do
-      it "return success" do
-        put "/u/activate-account/invalid-tooken"
-        expect(response.status).to eq(200)
-        expect(flash[:error]).to be_present
+      it "return 404" do
+        put "/u/activate-account/123%2f%252e"
+        expect(response.status).to eq(404)
       end
     end
 
@@ -106,12 +116,11 @@ RSpec.describe UsersController do
           )
 
           expect(response.status).to eq(200)
-          expect(flash[:error]).to be_blank
-          expect(session[:current_user_id]).to be_present
 
-          expect(CGI.unescapeHTML(response.body)).to_not include(
-            I18n.t("activation.approval_required"),
-          )
+          data = JSON.parse(response.body)
+          expect(data["needs_approval"]).to eq(false)
+
+          expect(session[:current_user_id]).to be_present
         end
       end
 
@@ -122,12 +131,48 @@ RSpec.describe UsersController do
           put "/u/activate-account/#{email_token.token}"
           expect(response.status).to eq(200)
 
-          expect(CGI.unescapeHTML(response.body)).to include(I18n.t("activation.approval_required"))
+          data = JSON.parse(response.body)
+          expect(data["needs_approval"]).to eq(true)
 
-          expect(response.body).to_not have_tag(:script, with: { src: "/assets/application.js" })
-
-          expect(flash[:error]).to be_blank
           expect(session[:current_user_id]).to be_blank
+        end
+      end
+
+      context "when bootstrap mode is enabled" do
+        before { SiteSetting.bootstrap_mode_enabled = true }
+
+        it "adds the user to the user directory" do
+          token = Fabricate(:email_token, user: inactive_user)
+
+          expect do put "/u/activate-account/#{token.token}" end.to change {
+            DirectoryItem.where(user_id: inactive_user.id).count
+          }.by(DirectoryItem.period_types.count)
+
+          expect(response.status).to eq(200)
+        end
+      end
+
+      context "when bootstrap mode is disabled" do
+        before { SiteSetting.bootstrap_mode_enabled = false }
+
+        it "adds the user to the user directory" do
+          token = Fabricate(:email_token, user: inactive_user)
+
+          expect do put "/u/activate-account/#{token.token}" end.not_to change {
+            DirectoryItem.where(user_id: inactive_user.id).count
+          }
+
+          expect(response.status).to eq(200)
+        end
+      end
+
+      context "when user is already logged in" do
+        it "returns 404" do
+          sign_in(user1)
+
+          get "/u/activate-account/some-token"
+
+          expect(response.status).to eq(404)
         end
       end
     end
@@ -139,7 +184,8 @@ RSpec.describe UsersController do
 
         put "/u/activate-account/#{email_token.token}"
 
-        expect(response).to redirect_to(destination_url)
+        expect(response.status).to eq(200)
+        expect(response.parsed_body["redirect_to"]).to eq(destination_url)
       end
     end
 
@@ -156,7 +202,8 @@ RSpec.describe UsersController do
       it "should redirect to the topic" do
         put "/u/activate-account/#{email_token.token}"
 
-        expect(response).to redirect_to(topic.relative_url)
+        expect(response.status).to eq(200)
+        expect(response.parsed_body["redirect_to"]).to eq(topic.relative_url)
       end
     end
   end
@@ -302,6 +349,31 @@ RSpec.describe UsersController do
         expect(user1.user_option.reload.timezone).to eq("America/Chicago")
       end
 
+      it "deletes user associated accounts" do
+        SiteSetting.delete_associated_accounts_on_password_reset = true
+        UserAssociatedAccount.create(
+          user_id: user.id,
+          provider_uid: "example0",
+          provider_name: "facebook",
+        )
+        UserAssociatedAccount.create(
+          user_id: user1.id,
+          provider_uid: "example1",
+          provider_name: "facebook",
+        )
+
+        get "/u/password-reset/#{email_token.token}"
+
+        expect do
+          put "/u/password-reset/#{email_token.token}",
+              params: {
+                password: "hg9ow8yhg98oadminlonger",
+              }
+        end.to change { UserAssociatedAccount.count }.by(-1)
+
+        expect(UserAssociatedAccount.count).to eq(1)
+      end
+
       it "logs the password change" do
         get "/u/password-reset/#{email_token.token}"
 
@@ -326,8 +398,6 @@ RSpec.describe UsersController do
 
       context "with rate limiting" do
         before { RateLimiter.enable }
-
-        use_redis_snapshotting
 
         it "rate limits reset passwords" do
           freeze_time
@@ -549,6 +619,30 @@ RSpec.describe UsersController do
         expect(response.parsed_body["errors"]).to be_blank
         expect(session[:current_user_id]).to be_blank
       end
+
+      context "when in staff writes only mode" do
+        before { Discourse.enable_readonly_mode(Discourse::STAFF_WRITES_ONLY_MODE_KEY) }
+
+        it "allows staff to reset their password" do
+          admin = Fabricate(:admin)
+          email_token =
+            Fabricate(:email_token, user: admin, scope: EmailToken.scopes[:password_reset])
+
+          put "/u/password-reset/#{email_token.token}.json",
+              params: {
+                password: "hg9ow8yhg98oadminlonger",
+              }
+
+          expect(response.parsed_body["errors"]).to be_blank
+          expect(session[:current_user_id]).to eq(admin.id)
+        end
+
+        it "doesn't allow non-staff to reset their password" do
+          put "/u/password-reset/#{email_token.token}.json", params: { password: "ksjafh928r" }
+          expect(response.parsed_body["errors"]).to_not be_blank
+          expect(session[:current_user_id]).to be_blank
+        end
+      end
     end
   end
 
@@ -651,6 +745,28 @@ RSpec.describe UsersController do
       end
     end
 
+    context "when using an encoded email that decodes to an invalid email" do
+      it "blocks the registration" do
+        post_user(email: "=?x?q?hacker=40hackerdomain.com=3e=00?=osama@discourseemail.com")
+        expect(response.status).to eq(200)
+        expect(response.parsed_body["success"]).to eq(false)
+        expect(response.parsed_body["message"]).to eq("Primary email is invalid.")
+        expect(response.parsed_body["user_id"]).to be_blank
+      end
+    end
+
+    context "when using an encoded email that decodes to a valid email" do
+      it "accepts the registration" do
+        post_user(
+          email:
+            "=?utf-8?q?=6f=73=61=6d=61=2d=69=6e=2d=71=2d=65=6e=63=6f=64=69=6e=67?=@discourse.org",
+        )
+        expect(response.status).to eq(200)
+        expect(response.parsed_body["success"]).to eq(true)
+        expect(User.find_by(id: response.parsed_body["user_id"])).to be_present
+      end
+    end
+
     context "when creating a user" do
       it "sets the user locale to I18n.locale" do
         SiteSetting.default_locale = "en"
@@ -682,6 +798,23 @@ RSpec.describe UsersController do
           expect(response.status).to eq(200)
           expect(User.find_by(username: @user.username).user_option.timezone).to eq(
             "Australia/Brisbane",
+          )
+        end
+      end
+
+      context "with discourse connect enabled" do
+        before do
+          SiteSetting.discourse_connect_url = "http://example.com/sso"
+          SiteSetting.enable_discourse_connect = true
+        end
+
+        it "blocks registration for local logins" do
+          SiteSetting.enable_local_logins = true
+          post_user
+
+          response_body = response.parsed_body
+          expect(response_body["message"]).to eq(
+            "New account registrations are only allowed through Discourse Connect.",
           )
         end
       end
@@ -1430,7 +1563,7 @@ RSpec.describe UsersController do
     context "with custom fields" do
       fab!(:user_field)
       fab!(:another_field) { Fabricate(:user_field) }
-      fab!(:optional_field) { Fabricate(:user_field, required: false) }
+      fab!(:optional_field) { Fabricate(:user_field, requirement: "optional") }
 
       context "without a value for the fields" do
         let(:create_params) do
@@ -1490,7 +1623,7 @@ RSpec.describe UsersController do
           it "value can't be nil or empty if the field is required" do
             put update_user_url, params: { user_fields: { field_id => valid_options } }
 
-            user_field.update!(required: true)
+            user_field.for_all_users!
 
             expect do
               put update_user_url, params: { user_fields: { field_id => nil } }
@@ -1501,10 +1634,24 @@ RSpec.describe UsersController do
             end.not_to change { user1.reload.user_fields[field_id] }
           end
 
+          it "value is required only on sign-up" do
+            user_field.on_signup!
+
+            expect do
+              put update_user_url, params: { user_fields: { field_id => "" } }
+            end.to change { user1.reload.user_fields[field_id] }.from(nil).to("")
+
+            put update_user_url, params: { user_fields: { field_id => valid_options } }
+
+            expect do
+              put update_user_url, params: { user_fields: { field_id => "" } }
+            end.not_to change { user1.reload.user_fields[field_id] }
+          end
+
           it "value can nil or empty if the field is not required" do
             put update_user_url, params: { user_fields: { field_id => valid_options } }
 
-            user_field.update!(required: false)
+            user_field.optional!
 
             expect do
               put update_user_url, params: { user_fields: { field_id => nil } }
@@ -1545,7 +1692,7 @@ RSpec.describe UsersController do
           it "value can't be nil if the field is required" do
             put update_user_url, params: { user_fields: { field_id => valid_options.first } }
 
-            user_field.update!(required: true)
+            user_field.for_all_users!
 
             expect do
               put update_user_url, params: { user_fields: { field_id => nil } }
@@ -1555,7 +1702,7 @@ RSpec.describe UsersController do
           it "value can be set to nil if the field is not required" do
             put update_user_url, params: { user_fields: { field_id => valid_options.last } }
 
-            user_field.update!(required: false)
+            user_field.optional!
 
             expect do
               put update_user_url, params: { user_fields: { field_id => nil } }
@@ -1612,7 +1759,7 @@ RSpec.describe UsersController do
     end
 
     context "with only optional custom fields" do
-      fab!(:user_field) { Fabricate(:user_field, required: false) }
+      fab!(:user_field) { Fabricate(:user_field, requirement: "optional") }
 
       context "without values for the fields" do
         let(:create_params) do
@@ -1716,7 +1863,7 @@ RSpec.describe UsersController do
 
       it "raises an error without a new_username param" do
         put "/u/#{user.username}/preferences/username.json", params: { username: user.username }
-        expect(response.status).to eq(400)
+        expect(response).to be_bad_request
         expect(user.reload.username).to eq(old_username)
       end
 
@@ -1732,12 +1879,12 @@ RSpec.describe UsersController do
       it "raises an error when change_username fails" do
         put "/u/#{user.username}/preferences/username.json", params: { new_username: "@" }
 
-        expect(response.status).to eq(422)
+        expect(response).to be_unprocessable
 
         body = response.parsed_body
 
         expect(body["errors"].first).to include(
-          I18n.t("user.username.short", min: User.username_length.begin),
+          I18n.t("user.username.short", count: User.username_length.begin),
         )
 
         expect(user.reload.username).to eq(old_username)
@@ -1746,7 +1893,7 @@ RSpec.describe UsersController do
       it "should succeed in normal circumstances" do
         put "/u/#{user.username}/preferences/username.json", params: { new_username: new_username }
 
-        expect(response.status).to eq(200)
+        expect(response).to be_successful
         expect(user.reload.username).to eq(new_username)
       end
 
@@ -1765,9 +1912,30 @@ RSpec.describe UsersController do
         SiteSetting.reserved_usernames = "reserved"
 
         put "/u/#{user.username}/preferences/username.json", params: { new_username: "reserved" }
-        body = response.parsed_body
+        expect(response).to be_unprocessable
 
-        expect(body["errors"].first).to include(I18n.t("login.reserved_username"))
+        expect(response.parsed_body["errors"].first).to include(I18n.t("login.reserved_username"))
+      end
+
+      it "allows admins to change a username to one in the reserved list" do
+        sign_in(admin)
+        SiteSetting.reserved_usernames = "reserved"
+
+        put "/u/#{user.username}/preferences/username.json", params: { new_username: "reserved" }
+        expect(response).to be_successful
+
+        expect(response.parsed_body["username"]).to eq("reserved")
+      end
+
+      it "does not allow admins to change a username to one in the reserved list if that user already exists" do
+        sign_in(admin)
+        SiteSetting.reserved_usernames = "reserved"
+        Fabricate(:user, username: "reserved")
+
+        put "/u/#{user.username}/preferences/username.json", params: { new_username: "reserved" }
+        expect(response).to be_unprocessable
+
+        expect(response.parsed_body["errors"].first).to include("Username must be unique")
       end
 
       it "should fail if the user is old" do
@@ -1791,7 +1959,7 @@ RSpec.describe UsersController do
 
         put "/u/#{user.username}/preferences/username.json", params: { new_username: new_username }
 
-        expect(response.status).to eq(200)
+        expect(response).to be_successful
         expect(
           UserHistory.where(
             action: UserHistory.actions[:change_username],
@@ -1817,7 +1985,7 @@ RSpec.describe UsersController do
 
         put "/u/#{user.username}/preferences/username.json", params: { new_username: new_username }
 
-        expect(response.status).to eq(422)
+        expect(response).to be_unprocessable
         expect(response.parsed_body["errors"].first).to include(
           I18n.t("errors.messages.auth_overrides_username"),
         )
@@ -1861,6 +2029,30 @@ RSpec.describe UsersController do
       include_examples "when username is unavailable"
     end
 
+    describe "reserved usernames" do
+      before { SiteSetting.reserved_usernames = SiteSetting.reserved_usernames + "|reserved" }
+
+      context "when checking a reserved username" do
+        before { get "/u/check_username.json", params: { username: "reserved" } }
+        include_examples "when username is unavailable"
+      end
+
+      context "when checking a reserved username as an admin" do
+        before { sign_in(admin) }
+
+        context "when user already exists" do
+          fab!(:user) { Fabricate(:user, username: "reserved") }
+          before { get "/u/check_username.json", params: { username: "reserved" } }
+          include_examples "when username is unavailable"
+        end
+
+        context "when user does not exist" do
+          before { get "/u/check_username.json", params: { username: "reserved" } }
+          include_examples "when username is available"
+        end
+      end
+    end
+
     shared_examples "checking an invalid username" do
       it "should not return an available key but should return an error message" do
         expect(response.status).to eq(200)
@@ -1891,7 +2083,7 @@ RSpec.describe UsersController do
       it 'should return the "too long" message' do
         expect(response.status).to eq(200)
         expect(response.parsed_body["errors"]).to include(
-          I18n.t(:"user.username.long", max: SiteSetting.max_username_length),
+          I18n.t(:"user.username.long", count: SiteSetting.max_username_length),
         )
       end
     end
@@ -2376,8 +2568,8 @@ RSpec.describe UsersController do
 
         context "with user fields" do
           context "with an editable field" do
-            fab!(:user_field)
-            fab!(:optional_field) { Fabricate(:user_field, required: false) }
+            fab!(:user_field) { Fabricate(:user_field, requirement: "for_all_users") }
+            fab!(:optional_field) { Fabricate(:user_field, requirement: "optional") }
 
             it "should update the user field" do
               put "/u/#{user.username}.json",
@@ -3170,7 +3362,10 @@ RSpec.describe UsersController do
       fab!(:badge) { Fabricate(:badge, name: "Demogorgon", allow_title: true) }
       let(:user_badge) { BadgeGranter.grant(badge, user1) }
 
-      before { TranslationOverride.upsert!("en", "badges.demogorgon.name", "Boss") }
+      before do
+        I18n.backend.store_translations(:en, { badges: { demogorgon: { name: "D'Artagnan" } } })
+        TranslationOverride.upsert!("en", "badges.demogorgon.name", "Boss")
+      end
 
       after { TranslationOverride.revert!("en", ["badges.demogorgon.name"]) }
 
@@ -3790,7 +3985,7 @@ RSpec.describe UsersController do
 
         context "when expiring_at param is set" do
           it "changes notification level to ignore" do
-            freeze_time(Time.now) do
+            freeze_time do
               expiring_at = 3.days.from_now
               put "/u/#{another_user.username}/notification_level.json",
                   params: {
@@ -4138,6 +4333,12 @@ RSpec.describe UsersController do
   end
 
   describe "#summary" do
+    before do
+      user.user_stat.update!(post_count: 1)
+      user1.user_stat.update!(post_count: 1)
+      user_deferred.user_stat.update!(post_count: 1)
+    end
+
     it "generates summary info" do
       create_post(user: user)
 
@@ -4147,7 +4348,7 @@ RSpec.describe UsersController do
       json = response.parsed_body
 
       expect(json["user_summary"]["topic_count"]).to eq(1)
-      expect(json["user_summary"]["post_count"]).to eq(0)
+      expect(json["user_summary"]["post_count"]).to eq(1)
     end
 
     context "when `hide_user_profiles_from_public` site setting is enabled" do
@@ -4168,8 +4369,8 @@ RSpec.describe UsersController do
       end
     end
 
-    context "when `hide_profile_and_presence` user option is checked" do
-      before_all { user1.user_option.update_columns(hide_profile_and_presence: true) }
+    context "when `hide_profile` user option is checked" do
+      before_all { user1.user_option.update_columns(hide_profile: true) }
 
       it "returns 404" do
         get "/u/#{user1.username_lower}/summary.json"
@@ -4318,8 +4519,6 @@ RSpec.describe UsersController do
     end
 
     context "with a session variable" do
-      use_redis_snapshotting
-
       it "raises an error with an invalid session value" do
         post_user
 
@@ -4526,10 +4725,11 @@ RSpec.describe UsersController do
         expect(parsed["username"]).to eq(user.username)
         expect(parsed["profile_hidden"]).to be_blank
         expect(parsed["trust_level"]).to be_present
+        expect(response.headers["X-Robots-Tag"]).to eq("noindex")
       end
 
       it "returns a hidden profile" do
-        user.user_option.update_column(:hide_profile_and_presence, true)
+        user.user_option.update_column(:hide_profile, true)
 
         get "/u/#{user.username}.json"
         expect(response.status).to eq(200)
@@ -4538,14 +4738,24 @@ RSpec.describe UsersController do
         expect(parsed["username"]).to eq(user.username)
         expect(parsed["profile_hidden"]).to eq(true)
         expect(parsed["trust_level"]).to be_blank
+        expect(response.headers["X-Robots-Tag"]).to eq("noindex")
       end
 
-      it "should redirect to login page for anonymous user when profiles are hidden" do
+      it "should 403 for anonymous user when profiles are hidden" do
         SiteSetting.hide_user_profiles_from_public = true
         get "/u/#{user.username}.json"
+        expect(response.headers["X-Robots-Tag"]).to eq("noindex")
         expect(response).to have_http_status(:forbidden)
         get "/u/#{user.username}/messages.json"
         expect(response).to have_http_status(:forbidden)
+      end
+
+      it "should 403 correctly for crawlers when profiles are hidden" do
+        SiteSetting.hide_user_profiles_from_public = true
+        get "/u/#{user.username}", headers: { "User-Agent" => "Googlebot" }
+        expect(response).to have_http_status(:forbidden)
+        expect(response.body).to have_tag("body.crawler")
+        expect(response.headers["X-Robots-Tag"]).to eq("noindex")
       end
 
       describe "user profile views" do
@@ -4578,12 +4788,14 @@ RSpec.describe UsersController do
       it "returns not found when the username doesn't exist" do
         get "/u/madeuppity.json"
         expect(response).not_to be_successful
+        expect(response.headers["X-Robots-Tag"]).to eq("noindex")
       end
 
       it "returns not found when the user is inactive" do
         inactive = Fabricate(:user, active: false)
         get "/u/#{inactive.username}.json"
         expect(response).not_to be_successful
+        expect(response.headers["X-Robots-Tag"]).to eq("noindex")
       end
 
       it "returns success when show_inactive_accounts is true and user is logged in" do
@@ -4597,6 +4809,7 @@ RSpec.describe UsersController do
         Guardian.any_instance.expects(:can_see?).with(user1).returns(false)
         get "/u/#{user1.username}.json"
         expect(response).to be_forbidden
+        expect(response.headers["X-Robots-Tag"]).to eq("noindex")
       end
 
       describe "user profile views" do
@@ -4714,7 +4927,7 @@ RSpec.describe UsersController do
 
     it "should not be able to view a private user profile" do
       user1.user_profile.update!(bio_raw: "Hello world!")
-      user1.user_option.update!(hide_profile_and_presence: true)
+      user1.user_option.update!(hide_profile: true)
 
       get "/u/#{user1.username}"
 
@@ -4780,17 +4993,30 @@ RSpec.describe UsersController do
         expect(response.parsed_body["user"]["inactive"]).to eq(true)
       end
 
-      it "returns partial response when hidden users" do
-        user.user_option.update!(hide_profile_and_presence: true)
-        get "/u/#{user.username}/card.json"
-        expect(response).to be_successful
-        expect(response.parsed_body["user"]["profile_hidden"]).to eq(true)
-      end
-
       it "raises an error on invalid access" do
         Guardian.any_instance.expects(:can_see?).with(user).returns(false)
         get "/u/#{user.username}/card.json"
         expect(response).to be_forbidden
+      end
+
+      context "when hidden users" do
+        before { user.user_option.update!(hide_profile: true) }
+
+        it "returns the correct partial response when the user has messages enabled" do
+          user.user_option.update!(allow_private_messages: true)
+          get "/u/#{user.username}/card.json"
+          expect(response).to be_successful
+          expect(response.parsed_body["user"]["profile_hidden"]).to eq(true)
+          expect(response.parsed_body["user"]["can_send_private_message_to_user"]).to eq(true)
+        end
+
+        it "returns the correct partial response when the user has messages disabled" do
+          user.user_option.update!(allow_private_messages: false)
+          get "/u/#{user.username}/card.json"
+          expect(response).to be_successful
+          expect(response.parsed_body["user"]["profile_hidden"]).to eq(true)
+          expect(response.parsed_body["user"]["can_send_private_message_to_user"]).to eq(false)
+        end
       end
     end
   end
@@ -4798,6 +5024,8 @@ RSpec.describe UsersController do
   describe "#cards" do
     fab!(:user) { Discourse.system_user }
     fab!(:user2) { Fabricate(:user) }
+
+    before { user2.user_stat.update!(post_count: 1) }
 
     it "returns success" do
       get "/user-cards.json?user_ids=#{user.id},#{user2.id}"
@@ -4813,8 +5041,8 @@ RSpec.describe UsersController do
       expect(response).to have_http_status(:forbidden)
     end
 
-    context "when `hide_profile_and_presence` user option is checked" do
-      before { user2.user_option.update_columns(hide_profile_and_presence: true) }
+    context "when `hide_profile` user option is checked" do
+      before { user2.user_option.update_columns(hide_profile: true) }
 
       it "does not include hidden profiles" do
         get "/user-cards.json?user_ids=#{user.id},#{user2.id}"
@@ -4901,7 +5129,7 @@ RSpec.describe UsersController do
   end
 
   describe "#search_users" do
-    fab!(:topic) { Fabricate :topic }
+    fab!(:topic)
     let(:user) { Fabricate :user, username: "joecabot", name: "Lawrence Tierney" }
     let(:post1) { Fabricate(:post, user: user, topic: topic) }
     let(:staged_user) { Fabricate(:user, staged: true) }
@@ -5486,14 +5714,25 @@ RSpec.describe UsersController do
           expect(response_body["key"]).to be_present
           expect(response_body["qr"]).to be_present
         end
+
+        it "raises an error for a user created > 5 mins ago without a confirmed session" do
+          post "/users/create_second_factor_totp.json"
+
+          expect(response.status).to eq(403)
+        end
+
+        it "does not require confirming session for a user created < 5 mins ago" do
+          user1.update(created_at: Time.now.utc - 4.minutes)
+          post "/users/create_second_factor_totp.json"
+
+          expect(response.status).to eq(200)
+        end
       end
     end
   end
 
   describe "#enable_second_factor_totp" do
     before { sign_in(user1) }
-
-    use_redis_snapshotting
 
     def create_totp
       stub_secure_session_confirmed
@@ -6498,12 +6737,21 @@ RSpec.describe UsersController do
       expect(response.status).to eq(403)
     end
 
-    it "resopnds with a 'failed' result by default" do
+    it "responds with a 'failed' result by default" do
       sign_in(user1)
 
       get "/u/trusted-session.json"
       expect(response.status).to eq(200)
       expect(response.parsed_body["failed"]).to eq("FAILED")
+    end
+
+    it "responds with a 'success' result if user was recently created" do
+      sign_in(user1)
+      user1.update(created_at: Time.now.utc - 4.minutes)
+
+      get "/u/trusted-session.json"
+      expect(response.status).to eq(200)
+      expect(response.parsed_body["success"]).to eq("OK")
     end
 
     it "response with 'success' on a confirmed session" do
@@ -6600,7 +6848,7 @@ RSpec.describe UsersController do
       expect(response.status).to eq(403)
     end
 
-    it "returns an error if the the current user does not have access" do
+    it "returns an error if the current user does not have access" do
       sign_in(user1)
       topic.update(user_id: another_user.id)
       put "/u/#{another_user.username}/clear-featured-topic.json"
@@ -7061,6 +7309,37 @@ RSpec.describe UsersController do
         notifications = response.parsed_body["notifications"]
         expect(notifications.size).to eq(1)
         expect(notifications.first["data"]["bookmark_id"]).to eq(bookmark_with_reminder.id)
+      end
+
+      it "shows unread notifications even if the bookmark has been deleted if they have bookmarkable data" do
+        bookmark_with_reminder.destroy!
+
+        get "/u/#{user.username}/user-menu-bookmarks"
+        expect(response.status).to eq(200)
+
+        notifications = response.parsed_body["notifications"]
+        expect(notifications.size).to eq(1)
+        expect(notifications.first["data"]["bookmark_id"]).to eq(bookmark_with_reminder.id)
+      end
+
+      it "does not show unread notifications if the bookmark has been deleted if they only have the bookmark_id data" do
+        notif =
+          Notification.find_by(
+            topic: bookmark_with_reminder.bookmarkable.topic,
+            post_number: bookmark_with_reminder.bookmarkable.post_number,
+          )
+        new_data = notif.data_hash
+        new_data.delete(:bookmarkable_type)
+        new_data.delete(:bookmarkable_id)
+        notif.update!(data: JSON.dump(new_data))
+
+        bookmark_with_reminder.destroy!
+
+        get "/u/#{user.username}/user-menu-bookmarks"
+        expect(response.status).to eq(200)
+
+        notifications = response.parsed_body["notifications"]
+        expect(notifications.size).to eq(0)
       end
 
       context "with `show_user_menu_avatars` setting enabled" do

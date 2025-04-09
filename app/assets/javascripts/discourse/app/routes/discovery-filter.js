@@ -1,20 +1,26 @@
+import { setTopicList } from "discourse/lib/topic-list-tracker";
+import { escapeExpression } from "discourse/lib/utilities";
 import DiscourseRoute from "discourse/routes/discourse";
-import I18n from "discourse-i18n";
+import { i18n } from "discourse-i18n";
 
 export default class DiscoveryFilterRoute extends DiscourseRoute {
   queryParams = {
-    q: { replace: true, refreshModel: true },
+    q: { refreshModel: true },
   };
 
-  model(data) {
-    return this.store.findFiltered("topicList", {
+  async model(data) {
+    const list = await this.store.findFiltered("topicList", {
       filter: "filter",
       params: { q: data.q },
     });
+
+    setTopicList(list);
+
+    return list;
   }
 
   titleToken() {
-    const filterText = I18n.t("filters.filter.title");
-    return I18n.t("filters.with_topics", { filter: filterText });
+    const query = this.paramsFor(this.routeName).q;
+    return i18n("filters.filter.title", { filter: escapeExpression(query) });
   }
 }

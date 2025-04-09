@@ -23,10 +23,11 @@ class S3Helper
   # Controls the following:
   #
   # * presigned put_object URLs for direct S3 uploads
-  UPLOAD_URL_EXPIRES_AFTER_SECONDS ||= 10.minutes.to_i
+  UPLOAD_URL_EXPIRES_AFTER_SECONDS = 10.minutes.to_i
 
   def initialize(s3_bucket_name, tombstone_prefix = "", options = {})
     @s3_client = options.delete(:client)
+    @s3_bucket = options.delete(:bucket)
     @s3_options = default_s3_options.merge(options)
 
     @s3_bucket_name, @s3_bucket_folder_path =
@@ -49,6 +50,7 @@ class S3Helper
     options[:client] = s3_client if s3_client.present?
     options[:use_accelerate_endpoint] = !for_backup &&
       SiteSetting.Upload.enable_s3_transfer_acceleration
+    options[:use_dualstack_endpoint] = SiteSetting.Upload.use_dualstack_endpoint
 
     bucket =
       if for_backup
@@ -264,6 +266,7 @@ class S3Helper
 
     opts[:endpoint] = SiteSetting.s3_endpoint if SiteSetting.s3_endpoint.present?
     opts[:http_continue_timeout] = SiteSetting.s3_http_continue_timeout
+    opts[:use_dualstack_endpoint] = SiteSetting.Upload.use_dualstack_endpoint
 
     unless obj.s3_use_iam_profile
       opts[:access_key_id] = obj.s3_access_key_id
@@ -281,7 +284,12 @@ class S3Helper
   end
 
   def s3_client
-    @s3_client ||= Aws::S3::Client.new(@s3_options)
+    @s3_client ||= init_aws_s3_client
+  end
+
+  def stub_client_responses!
+    raise "This method is only allowed to be used in the testing environment" if !Rails.env.test?
+    @s3_client = init_aws_s3_client(stub_responses: true)
   end
 
   def s3_inventory_path(path = "inventory")
@@ -356,6 +364,7 @@ class S3Helper
         key: key,
         expires_in: expires_in,
         use_accelerate_endpoint: @s3_options[:use_accelerate_endpoint],
+        use_dualstack_endpoint: @s3_options[:use_dualstack_endpoint],
       }.merge(opts),
     )
   end
@@ -374,11 +383,18 @@ class S3Helper
         key: key,
         expires_in: expires_in,
         use_accelerate_endpoint: @s3_options[:use_accelerate_endpoint],
+        use_dualstack_endpoint: @s3_options[:use_dualstack_endpoint],
       }.merge(opts),
     )
   end
 
   private
+
+  def init_aws_s3_client(stub_responses: false)
+    options = @s3_options
+    options = options.merge(stub_responses: true) if stub_responses
+    Aws::S3::Client.new(options)
+  end
 
   def fetch_bucket_cors_rules
     begin

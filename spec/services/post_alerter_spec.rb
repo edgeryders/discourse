@@ -61,12 +61,13 @@ RSpec.describe PostAlerter do
 
   def setup_push_notification_subscription_for(user:)
     2.times do |i|
-      UserApiKey.create!(
-        user_id: user.id,
-        client_id: "xxx#{i}",
-        application_name: "iPhone#{i}",
+      client = Fabricate(:user_api_key_client, client_id: "xxx#{i}", application_name: "iPhone#{i}")
+      Fabricate(
+        :user_api_key,
+        user: user,
         scopes: ["notifications"].map { |name| UserApiKeyScope.new(name: name) },
         push_url: "https://site2.com/push",
+        user_api_key_client_id: client.id,
       )
     end
   end
@@ -112,7 +113,7 @@ RSpec.describe PostAlerter do
       expect(Notification.where(user_id: pm.user_id).count).to eq(1)
     end
 
-    it "notifies about private message even if direct mention" do
+    it "prioritises 'private_message' type even if direct mention" do
       pm = Fabricate(:topic, archetype: "private_message", category_id: nil)
       op =
         Fabricate(:post, topic: pm, user: pm.user, raw: "Hello @#{user.username}, nice to meet you")
@@ -1188,21 +1189,29 @@ RSpec.describe PostAlerter do
     end
 
     describe "DiscoursePluginRegistry#push_notification_filters" do
+      after { DiscoursePluginRegistry.reset_register!(:push_notification_filters) }
+
       it "sends push notifications when all filters pass" do
+        evil_trout.update!(last_seen_at: 10.minutes.ago)
         Plugin::Instance.new.register_push_notification_filter { |user, payload| true }
 
-        expect { mention_post }.to change { Jobs::PushNotification.jobs.count }.by(1)
-        DiscoursePluginRegistry.reset!
+        alerts =
+          MessageBus.track_publish("/notification-alert/#{evil_trout.id}") do
+            expect { mention_post }.to change { Jobs::PushNotification.jobs.count }.by(1)
+          end
+
+        expect(alerts).not_to be_empty
       end
 
       it "does not send push notifications when a filters returns false" do
         Plugin::Instance.new.register_push_notification_filter { |user, payload| false }
-        expect { mention_post }.not_to change { Jobs::PushNotification.jobs.count }
 
-        events = DiscourseEvent.track_events { mention_post }
-        expect(events.find { |event| event[:event_name] == :push_notification }).not_to be_present
+        alerts =
+          MessageBus.track_publish("/notification-alert/#{evil_trout.id}") do
+            expect { mention_post }.not_to change { Jobs::PushNotification.jobs.count }
+          end
 
-        DiscoursePluginRegistry.reset!
+        expect(alerts).to be_empty
       end
     end
 
@@ -1351,6 +1360,16 @@ RSpec.describe PostAlerter do
       )
     end
 
+    it "delays push notification for active online user" do
+      SiteSetting.push_notification_time_window_mins = 10
+      evil_trout.update!(last_seen_at: 5.minutes.ago)
+
+      expect { mention_post }.to change { Jobs::PushNotification.jobs.count }
+      expect(Jobs::PushNotification.jobs[0]["at"]).to be_within(30.second).of(
+        5.minutes.from_now.to_f,
+      )
+    end
+
     context "with push subscriptions" do
       before do
         Fabricate(:push_subscription, user: evil_trout)
@@ -1386,6 +1405,59 @@ RSpec.describe PostAlerter do
   end
 
   describe ".create_notification_alert" do
+    before { evil_trout.update_columns(last_seen_at: 10.minutes.ago) }
+
+    it "publishes notification to notification-alert MessageBus channel" do
+      messages =
+        MessageBus.track_publish("/notification-alert/#{evil_trout.id}") do
+          PostAlerter.create_notification_alert(
+            user: evil_trout,
+            post: post,
+            notification_type: Notification.types[:mentioned],
+            excerpt: "excerpt",
+            username: "username",
+          )
+        end
+
+      expect(messages.size).to eq(1)
+      expect(messages.first.data[:username]).to eq("username")
+      expect(messages.first.data[:post_url]).to eq(post.url)
+    end
+
+    let(:modifier_block) do
+      Proc.new do |payload|
+        payload[:username] = "gotcha"
+        payload[:post_url] = "stolen_url"
+        payload
+      end
+    end
+
+    it "applies the post_alerter_live_notification_payload modifier" do
+      plugin_instance = Plugin::Instance.new
+      plugin_instance.register_modifier(:post_alerter_live_notification_payload, &modifier_block)
+
+      messages =
+        MessageBus.track_publish("/notification-alert/#{evil_trout.id}") do
+          PostAlerter.create_notification_alert(
+            user: evil_trout,
+            post: post,
+            notification_type: Notification.types[:mentioned],
+            excerpt: "excerpt",
+            username: "username",
+          )
+        end
+
+      expect(messages.size).to eq(1)
+      expect(messages.first.data[:username]).to eq("gotcha")
+      expect(messages.first.data[:post_url]).to eq("stolen_url")
+    ensure
+      DiscoursePluginRegistry.unregister_modifier(
+        plugin_instance,
+        :post_alerter_live_notification_payload,
+        &modifier_block
+      )
+    end
+
     it "does nothing for suspended users" do
       evil_trout.update_columns(suspended_till: 1.year.from_now)
 
@@ -1413,10 +1485,9 @@ RSpec.describe PostAlerter do
       evil_trout.update_columns(last_seen_at: 31.days.ago)
 
       SiteSetting.allowed_user_api_push_urls = "https://site2.com/push"
-      UserApiKey.create!(
-        user_id: evil_trout.id,
-        client_id: "xxx#1",
-        application_name: "iPhone1",
+      Fabricate(
+        :user_api_key,
+        user: evil_trout,
         scopes: ["notifications"].map { |name| UserApiKeyScope.new(name: name) },
         push_url: "https://site2.com/push",
       )
@@ -2347,7 +2418,7 @@ RSpec.describe PostAlerter do
         :group,
         smtp_server: "smtp.gmail.com",
         smtp_port: 587,
-        smtp_ssl: true,
+        smtp_ssl_mode: Group.smtp_ssl_modes[:starttls],
         imap_server: "imap.gmail.com",
         imap_port: 993,
         imap_ssl: true,

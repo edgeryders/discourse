@@ -6,6 +6,16 @@
   @additionalTags={{this.additionalTags}}
 />
 
+<PluginOutlet
+  @name="after-breadcrumbs"
+  @outletArgs={{hash
+    categories=this.categories
+    category=this.category
+    tag=this.tag
+    additionalTags=this.additionalTags
+  }}
+/>
+
 {{#unless this.additionalTags}}
   {{! nav bar doesn't work with tag intersections }}
   <NavigationBar
@@ -20,6 +30,16 @@
   {{#if (and this.notCategoriesRoute this.site.mobileView @canBulkSelect)}}
     <BulkSelectToggle @bulkSelectHelper={{@bulkSelectHelper}} />
   {{/if}}
+
+  <TopicDismissButtons
+    @position="top"
+    @selectedTopics={{@bulkSelectHelper.selected}}
+    @model={{@model}}
+    @showResetNew={{@showResetNew}}
+    @showDismissRead={{@showDismissRead}}
+    @resetNew={{@resetNew}}
+    @dismissRead={{@dismissRead}}
+  />
 
   {{#if this.showCategoryAdmin}}
     {{#if this.fixedCategoryPositions}}
@@ -54,7 +74,7 @@
   {{#if this.tag}}
     {{#if this.showToggleInfo}}
       <DButton
-        @icon={{if this.currentUser.staff "wrench" "info-circle"}}
+        @icon={{if this.currentUser.staff "wrench" "circle-info"}}
         @ariaLabel="tagging.info"
         @action={{this.toggleInfo}}
         id="show-tag-info"
@@ -82,6 +102,7 @@
     @label={{this.createTopicLabel}}
     @btnClass={{this.createTopicClass}}
     @canCreateTopicOnTag={{this.canCreateTopicOnTag}}
+    @showDrafts={{if (gt this.draftCount 0) true false}}
   />
 
   <PluginOutlet
@@ -99,11 +120,14 @@
     {{#unless this.tag}}
       {{! don't show category notification menu on tag pages }}
       {{#if this.showCategoryNotifications}}
-        <CategoryNotificationsButton
-          @value={{this.categoryNotificationLevel}}
-          @category={{this.category}}
-          @onChange={{action "changeCategoryNotificationLevel"}}
-        />
+        {{#unless this.category.deleted}}
+          <CategoryNotificationsTracking
+            @levelId={{this.categoryNotificationLevel}}
+            @showFullTitle={{false}}
+            @showCaret={{false}}
+            @onChange={{this.changeCategoryNotificationLevel}}
+          />
+        {{/unless}}
       {{/if}}
     {{/unless}}
   {{/if}}
@@ -112,9 +136,9 @@
     {{#unless this.category}}
       {{! don't show tag notification menu on category pages }}
       {{#if this.showTagNotifications}}
-        <TagNotificationsButton
+        <TagNotificationsTracking
           @onChange={{this.changeTagNotificationLevel}}
-          @value={{this.tagNotification.notification_level}}
+          @levelId={{this.tagNotification.notification_level}}
         />
       {{/if}}
     {{/unless}}

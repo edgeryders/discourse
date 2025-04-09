@@ -41,6 +41,8 @@ export default {
         "posted",
         "search",
         "bookmarks",
+        "hot",
+        "unseen"
       ],
       periods: ["all", "yearly", "quarterly", "monthly", "weekly", "daily"],
       top_menu_items: [
@@ -51,12 +53,15 @@ export default {
         "read",
         "posted",
         "categories",
-        "top",
+        "hot",
         "bookmarks",
+        "unseen",
       ],
-      anonymous_top_menu_items: ["latest", "top", "categories"],
+      anonymous_top_menu_items: ["latest", "hot", "categories"],
       uncategorized_category_id: 17,
       is_readonly: false,
+      full_name_required_for_signup: false,
+      full_name_visible_in_signup: true,
       categories: [
         {
           id: 3,
@@ -521,6 +526,7 @@ export default {
           notification_level: null,
           background_url: null,
           has_children: true,
+          subcategory_count: 2,
         },
         {
           id: 1002,
@@ -567,7 +573,7 @@ export default {
           is_flag: false,
           icon: null,
           id: 1,
-          is_custom_flag: false,
+          require_message: false,
         },
         {
           name_key: "like",
@@ -577,7 +583,7 @@ export default {
           is_flag: false,
           icon: "heart",
           id: 2,
-          is_custom_flag: false,
+          require_message: false,
         },
         {
           name_key: "off_topic",
@@ -588,7 +594,9 @@ export default {
           is_flag: true,
           icon: null,
           id: 3,
-          is_custom_flag: false,
+          require_message: false,
+          enabled: true,
+          applies_to: ["Post", "Chat::Message"]
         },
         {
           name_key: "inappropriate",
@@ -600,7 +608,9 @@ export default {
           is_flag: true,
           icon: null,
           id: 4,
-          is_custom_flag: false,
+          require_message: false,
+          enabled: true,
+          applies_to: ["Post", "Topic", "Chat::Message"]
         },
         {
           name_key: "vote",
@@ -610,7 +620,8 @@ export default {
           is_flag: false,
           icon: null,
           id: 5,
-          is_custom_flag: false,
+          require_message: false,
+          enabled: true
         },
         {
           name_key: "spam",
@@ -621,7 +632,9 @@ export default {
           is_flag: true,
           icon: null,
           id: 8,
-          is_custom_flag: false,
+          require_message: false,
+          enabled: true,
+          applies_to: ["Post", "Topic", "Chat::Message"]
         },
         {
           name_key: "notify_user",
@@ -633,7 +646,9 @@ export default {
           is_flag: true,
           icon: null,
           id: 6,
-          is_custom_flag: true,
+          require_message: true,
+          enabled: true,
+          applies_to: ["Post", "Topic", "Chat::Message"]
         },
         {
           name_key: "notify_moderators",
@@ -644,7 +659,9 @@ export default {
           is_flag: true,
           icon: null,
           id: 7,
-          is_custom_flag: true,
+          require_message: true,
+          enabled: true,
+          applies_to: ["Post", "Topic", "Chat::Message"]
         },
       ],
       topic_flag_types: [
@@ -656,7 +673,9 @@ export default {
           is_flag: true,
           icon: null,
           id: 4,
-          is_custom_flag: false,
+          require_message: false,
+          enabled: true,
+          applies_to: ["Post", "Topic", "Chat::Message"]
         },
         {
           name_key: "spam",
@@ -666,7 +685,9 @@ export default {
           is_flag: true,
           icon: null,
           id: 8,
-          is_custom_flag: false,
+          require_message: false,
+          enabled: true,
+          applies_to: ["Post", "Topic", "Chat::Message"]
         },
         {
           name_key: "notify_moderators",
@@ -676,7 +697,9 @@ export default {
           is_flag: true,
           icon: null,
           id: 7,
-          is_custom_flag: true,
+          require_message: true,
+          enabled: true,
+          applies_to: ["Post", "Topic", "Chat::Message"]
         },
       ],
       archetypes: [
@@ -703,7 +726,6 @@ export default {
           can_revoke: true,
         },
       ],
-      displayed_about_plugin_stat_groups: ["chat_messages"],
       hashtag_configurations: { "topic-composer": ["category", "tag"] },
       hashtag_icons: { "category": "folder", "tag": "tag" },
       anonymous_sidebar_sections: [
@@ -731,7 +753,7 @@ export default {
               id: 331,
               name: "About",
               value: "/about",
-              icon: "info-circle",
+              icon: "circle-info",
               external: false,
               segment: "secondary",
             },
@@ -739,7 +761,7 @@ export default {
               id: 332,
               name: "Faq",
               value: "/faq",
-              icon: "question-circle",
+              icon: "circle-question",
               external: false,
               segment: "secondary",
             },
@@ -771,7 +793,7 @@ export default {
               id: 336,
               name: "Groups",
               value: "/g",
-              icon: "user-friends",
+              icon: "user-group",
               external: false,
               segment: "secondary",
             },
@@ -782,6 +804,14 @@ export default {
               icon: "certificate",
               external: false,
               segment: "secondary",
+            },
+            {
+              id: 338,
+              name: "Invite",
+              value: "/new-invite",
+              icon: "paper-plane",
+              external: false,
+              segment: "primary",
             },
           ],
           slug: "community",

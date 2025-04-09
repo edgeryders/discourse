@@ -38,14 +38,16 @@ module ChatSystemHelpers
       last_user = ((users - [last_user]).presence || users).sample
       creator =
         Chat::CreateMessage.call(
-          chat_channel_id: channel.id,
-          in_reply_to_id: in_reply_to,
-          thread_id: thread_id,
           guardian: last_user.guardian,
-          message: Faker::Alphanumeric.alpha(number: SiteSetting.chat_minimum_message_length),
+          params: {
+            chat_channel_id: channel.id,
+            in_reply_to_id: in_reply_to,
+            thread_id: thread_id,
+            message: fake_chat_message,
+          },
         )
 
-      raise "#{creator.inspect_steps.inspect}\n\n#{creator.inspect_steps.error}" if creator.failure?
+      raise creator.inspect_steps if creator.failure?
       last_message = creator.message_instance
     end
 
@@ -55,83 +57,101 @@ module ChatSystemHelpers
   end
 
   def thread_excerpt(message)
-    CGI.escapeHTML(
-      message.censored_excerpt(max_length: ::Chat::Thread::EXCERPT_LENGTH).gsub("&hellip;", "…"),
-    )
+    message.excerpt
   end
 end
 
 module ChatSpecHelpers
   def service_failed!(result)
     raise RSpec::Expectations::ExpectationNotMetError.new(
-            "Service failed, see below for step details:\n\n" + result.inspect_steps.inspect,
+            "Service failed, see below for step details:\n\n" + result.inspect_steps,
           )
   end
 
+  def fake_chat_message
+    Faker::Alphanumeric.alpha(number: [15, SiteSetting.chat_minimum_message_length].max)
+  end
+
   def update_message!(message, text: nil, user: Discourse.system_user, upload_ids: nil)
-    result =
-      Chat::UpdateMessage.call(
-        guardian: user.guardian,
+    Chat::UpdateMessage.call(
+      guardian: user.guardian,
+      params: {
         message_id: message.id,
         upload_ids: upload_ids,
         message: text,
+      },
+      options: {
         process_inline: true,
-      )
-    service_failed!(result) if result.failure?
-    result.message_instance
+      },
+    ) do |result|
+      on_success { result.message_instance }
+      on_failure { service_failed!(result) }
+    end
   end
 
   def trash_message!(message, user: Discourse.system_user)
-    result =
-      Chat::TrashMessage.call(
+    Chat::TrashMessage.call(
+      params: {
         message_id: message.id,
         channel_id: message.chat_channel_id,
-        guardian: user.guardian,
-      )
-    service_failed!(result) if result.failure?
-    result
+      },
+      guardian: user.guardian,
+    ) do |result|
+      on_success { result }
+      on_failure { service_failed!(result) }
+    end
   end
 
   def restore_message!(message, user: Discourse.system_user)
-    result =
-      Chat::RestoreMessage.call(
+    Chat::RestoreMessage.call(
+      params: {
         message_id: message.id,
         channel_id: message.chat_channel_id,
-        guardian: user.guardian,
-      )
-    service_failed!(result) if result.failure?
-    result
+      },
+      guardian: user.guardian,
+    ) do |result|
+      on_success { result }
+      on_failure { service_failed!(result) }
+    end
   end
 
   def add_users_to_channel(users, channel, user: Discourse.system_user)
-    result =
-      ::Chat::AddUsersToChannel.call(
-        guardian: user.guardian,
+    ::Chat::AddUsersToChannel.call(
+      guardian: user.guardian,
+      params: {
         channel_id: channel.id,
         usernames: Array(users).map(&:username),
-      )
-    service_failed!(result) if result.failure?
-    result
+      },
+    ) do |result|
+      on_success { result }
+      on_failure { service_failed!(result) }
+    end
   end
 
   def create_draft(channel, thread: nil, user: Discourse.system_user, data: { message: "draft" })
-    result =
-      ::Chat::UpsertDraft.call(
-        guardian: user.guardian,
+    if data[:uploads]
+      data[:uploads] = data[:uploads].map do |upload|
+        UploadSerializer.new(upload, root: false).as_json
+      end
+    end
+
+    ::Chat::UpsertDraft.call(
+      guardian: user.guardian,
+      params: {
         channel_id: channel.id,
         thread_id: thread&.id,
         data: data.to_json,
-      )
-    service_failed!(result) if result.failure?
-    result
+      },
+    ) do |result|
+      on_success { result }
+      on_failure { service_failed!(result) }
+    end
   end
 end
 
 RSpec.configure do |config|
   config.include ChatSystemHelpers, type: :system
   config.include ChatSpecHelpers
-  config.include Chat::WithServiceHelper
-  config.include Chat::ServiceMatchers
 
   config.expect_with :rspec do |c|
     # Or a very large value, if you do want to truncate at some point

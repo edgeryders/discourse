@@ -21,6 +21,13 @@ ar:
         few: "أصوات إجمالية"
         many: "صوتًا إجماليًا"
         other: "صوت إجمالي"
+      votes:
+        zero: "%{count} صوت"
+        one: "صوت واحد"
+        two: "صوتان"
+        few: "%{count} أصوات"
+        many: "%{count} صوتًا"
+        other: "%{count} صوت"
       average_rating: "متوسط التقييمات: <strong>%{average}</strong>."
       public:
         title: "تكون الأصوات <strong>مرئية للعامة</strong>."
@@ -33,6 +40,9 @@ ar:
           title: "ستظهر النتائج بعد <strong>إغلاق الاستطلاع</strong>."
         staff:
           title: "تظهر النتائج لأعضاء <strong>فريق العمل</strong> فقط."
+        tabs:
+          votes: "الأصوات"
+          outcome: "النتيجة"
       multiple:
         help:
           at_least_min_options:
@@ -63,6 +73,12 @@ ar:
       show-results:
         title: "عرض نتائج استطلاع الرأي"
         label: "النتائج"
+      show-tally:
+        title: "إظهار نتائج التصويت حسب عدد الأصوات"
+        label: "عرض العداد"
+      show-percentage:
+        title: "إظهار نتائج التصويت كنسبة مئوية"
+        label: "العرض كنسبة مئوية"
       remove-vote:
         title: "إزالة صوتك"
         label: "التراجع عن التصويت"
@@ -92,8 +108,35 @@ ar:
         breakdown: "التفاصيل"
         percentage: "النسبة المئوية"
         count: "العدد"
+      ranked_choice:
+        title:
+          rounds: "الجولات"
+          outcome: "النتيجة"
+        none: "لا يوجد"
+        majority: "الأغلبية"
+        eliminated: "مستبعد"
+        round: "الجولة"
+        winner:
+          zero: "كان الفائز هو‎ %{winner} ‎بعد‎ %{count} ‎جولة‎."
+          one: "كان الفائز هو‎ %{winner} ‎بعد جولة واحدة‎."
+          two: "كان الفائز هو‎ %{winner} ‎بعد جولتَين ‎(%{count})"
+          few: "كان الفائز هو‎ %{winner} ‎بعد‎ %{count} ‎جولات‎."
+          many: "كان الفائز هو‎ %{winner} ‎بعد‎ %{count} ‎جولة‎."
+          other: "كان الفائز هو‎ %{winner} ‎بعد‎ %{count} ‎جولة‎."
+        tied:
+          zero: "تعادل بعد‎ %{count} ‎جولة بين المرشحين التاليين‎:"
+          one: "تعادل بعد جولة واحدة بين المرشحين التاليين‎:"
+          two: "تعادل بعد جولتَين‎ (%{count}) ‎بين المرشحين التاليين‎:"
+          few: "تعادل بعد‎ %{count} ‎جولات بين المرشحين التاليين‎:"
+          many: "تعادل بعد‎ %{count} ‎جولة بين المرشحين التاليين‎:"
+          other: "تعادل بعد‎ %{count} ‎جولة بين المرشحين التاليين‎:"
       options:
         label: "الخيارات"
+        ranked_choice:
+          abstain: "الامتناع"
+          highest_priority: "(أعلى درجة أولوية)"
+          lowest_priority: "(أدنى درجة أولوية)"
+          login: "سجِّل الدخول للتصويت‎!"
       error_while_toggling_status: "عذرًا، حدث خطأ أدى إلى تبديل حالة استطلاع الرأي هذا."
       error_while_casting_votes: "عذرًا، حدث خطأ في الإدلاء بأصواتك."
       error_while_fetching_voters: "عذرًا، حدث خطأ في عرض الناخبين."
@@ -112,6 +155,7 @@ ar:
           label: النوع
           regular: اختيار فردي
           multiple: اختيارات متعددة
+          ranked_choice: اختيار مصنَّف
           number: التقييم بالأرقام
         poll_result:
           label: عرض النتائج...

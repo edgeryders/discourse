@@ -1,72 +1,97 @@
 import Component from "@ember/component";
 import { dependentKeyCompat } from "@ember/object/compat";
 import { alias } from "@ember/object/computed";
-import { on } from "@ember/object/evented";
-import { inject as service } from "@ember/service";
+import { service } from "@ember/service";
+import {
+  classNameBindings,
+  classNames,
+  tagName,
+} from "@ember-decorators/component";
+import { observes, on } from "@ember-decorators/object";
+import discourseComputed from "discourse/lib/decorators";
+import deprecated from "discourse/lib/deprecated";
+import { RAW_TOPIC_LIST_DEPRECATION_OPTIONS } from "discourse/lib/plugin-api";
 import LoadMore from "discourse/mixins/load-more";
-import discourseComputed, { observes } from "discourse-common/utils/decorators";
-import TopicBulkActions from "./modal/topic-bulk-actions";
 
-export default Component.extend(LoadMore, {
-  modal: service(),
-  router: service(),
+@tagName("table")
+@classNames("topic-list")
+@classNameBindings("bulkSelectEnabled:sticky-header")
+export default class TopicList extends Component.extend(LoadMore) {
+  static reopen() {
+    deprecated(
+      "Modifying topic-list with `reopen` is deprecated. Use the value transformer `topic-list-columns` and other new topic-list plugin APIs instead.",
+      RAW_TOPIC_LIST_DEPRECATION_OPTIONS
+    );
 
-  tagName: "table",
-  classNames: ["topic-list"],
-  classNameBindings: ["bulkSelectEnabled:sticky-header"],
-  showTopicPostBadges: true,
-  listTitle: "topic.title",
+    return super.reopen(...arguments);
+  }
+
+  static reopenClass() {
+    deprecated(
+      "Modifying topic-list with `reopenClass` is deprecated. Use the value transformer `topic-list-columns` and other new topic-list plugin APIs instead.",
+      RAW_TOPIC_LIST_DEPRECATION_OPTIONS
+    );
+
+    return super.reopenClass(...arguments);
+  }
+
+  @service modal;
+  @service router;
+  @service siteSettings;
+
+  showTopicPostBadges = true;
+  listTitle = "topic.title";
+  lastCheckedElementId = null;
+
+  // Overwrite this to perform client side filtering of topics, if desired
+  @alias("topics") filteredTopics;
 
   get canDoBulkActions() {
     return (
       this.currentUser?.canManageTopic && this.bulkSelectHelper?.selected.length
     );
-  },
+  }
 
-  // Overwrite this to perform client side filtering of topics, if desired
-  filteredTopics: alias("topics"),
-
-  _init: on("init", function () {
+  @on("init")
+  _init() {
     this.addObserver("hideCategory", this.rerender);
     this.addObserver("order", this.rerender);
     this.addObserver("ascending", this.rerender);
     this.refreshLastVisited();
-  }),
+  }
 
   get selected() {
     return this.bulkSelectHelper?.selected;
-  },
+  }
 
-  @dependentKeyCompat // for the classNameBindings
+  // for the classNameBindings
+  @dependentKeyCompat
   get bulkSelectEnabled() {
-    return this.bulkSelectHelper?.bulkSelectEnabled;
-  },
+    return (
+      this.get("canBulkSelect") && this.bulkSelectHelper?.bulkSelectEnabled
+    );
+  }
 
   get toggleInTitle() {
     return (
       !this.bulkSelectHelper?.bulkSelectEnabled && this.get("canBulkSelect")
     );
-  },
-
-  @discourseComputed
-  experimentalTopicBulkActionsEnabled() {
-    return this.currentUser?.use_experimental_topic_bulk_actions;
-  },
+  }
 
   @discourseComputed
   sortable() {
     return !!this.changeSort;
-  },
+  }
 
   @discourseComputed("order")
   showLikes(order) {
     return order === "likes";
-  },
+  }
 
   @discourseComputed("order")
   showOpLikes(order) {
     return order === "op_likes";
-  },
+  }
 
   @observes("topics.[]")
   topicsAdded() {
@@ -74,24 +99,24 @@ export default Component.extend(LoadMore, {
     if (!this.lastVisitedTopic) {
       this.refreshLastVisited();
     }
-  },
+  }
 
-  @observes("topics", "order", "ascending", "category", "top")
+  @observes("topics", "order", "ascending", "category", "top", "hot")
   lastVisitedTopicChanged() {
     this.refreshLastVisited();
-  },
+  }
 
   scrolled() {
-    this._super(...arguments);
+    super.scrolled(...arguments);
     let onScroll = this.onScroll;
     if (!onScroll) {
       return;
     }
 
     onScroll.call(this);
-  },
+  }
 
-  _updateLastVisitedTopic(topics, order, ascending, top) {
+  _updateLastVisitedTopic(topics, order, ascending, top, hot) {
     this.set("lastVisitedTopic", null);
 
     if (!this.highlightLastVisited) {
@@ -102,7 +127,7 @@ export default Component.extend(LoadMore, {
       return;
     }
 
-    if (top) {
+    if (top || hot) {
       return;
     }
 
@@ -149,16 +174,17 @@ export default Component.extend(LoadMore, {
     }
 
     this.set("lastVisitedTopic", lastVisitedTopic);
-  },
+  }
 
   refreshLastVisited() {
     this._updateLastVisitedTopic(
       this.topics,
       this.order,
       this.ascending,
-      this.top
+      this.top,
+      this.hot
     );
-  },
+  }
 
   click(e) {
     const onClick = (sel, callback) => {
@@ -193,16 +219,6 @@ export default Component.extend(LoadMore, {
       this.rerender();
     });
 
-    onClick("button.bulk-select-actions", () => {
-      this.modal.show(TopicBulkActions, {
-        model: {
-          topics: this.bulkSelectHelper.selected,
-          category: this.category,
-          refreshClosure: () => this.router.refresh(),
-        },
-      });
-    });
-
     onClick("button.topics-replies-toggle", (element) => {
       if (element.classList.contains("--all")) {
         this.changeNewListSubset(null);
@@ -213,7 +229,7 @@ export default Component.extend(LoadMore, {
       }
       this.rerender();
     });
-  },
+  }
 
   keyDown(e) {
     if (e.key === "Enter" || e.key === " ") {
@@ -226,9 +242,10 @@ export default Component.extend(LoadMore, {
       };
 
       onKeyDown("th.sortable", (element) => {
+        e.preventDefault();
         this.changeSort(element.dataset.sortOrder);
         this.rerender();
       });
     }
-  },
-});
+  }
+}

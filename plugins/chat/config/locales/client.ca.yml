@@ -50,6 +50,7 @@ ca:
       browse:
         back: "Enrere"
         filter_all: Tot
+        filter_open: Obre
         filter_closed: Tancat
       chat_message_separator:
         today: Avui
@@ -136,6 +137,8 @@ ca:
             title: "Normal"
           tracking:
             title: "Seguint"
+          watching:
+            title: "Vigilant"
       draft_channel_screen:
         header: "Missatge nou"
         cancel: "Cancel·la"

@@ -34,8 +34,8 @@ pt_BR:
         icons:
           title: "Ícones"
           full_list: "Exibir a lista completa de ícones incríveis de fonte"
-        input_fields:
-          title: "Campos de entrada"
+        forms:
+          title: "Formulários"
         buttons:
           title: "Botões"
         dropdowns:
@@ -74,6 +74,10 @@ pt_BR:
           title: "Notificações de tópico"
         post:
           title: "Postagem"
+        post_list:
+          title: "Lista de postagens"
+          empty_example: "<PostList /> estado vazio"
+          populated_example: "<PostList /> estado preenchido"
         topic_map:
           title: "Mapa do tópico"
         site_header:

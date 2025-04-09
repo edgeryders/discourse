@@ -17,7 +17,7 @@ export function initializeSpoiler(api) {
   api.decorateCookedElement(spoil, { id: "spoiler-alert" });
 
   api.addComposerToolbarPopupMenuOption({
-    icon: "magic",
+    icon: "wand-magic",
     label: "spoiler.title",
     action: (toolbarEvent) => {
       toolbarEvent.applySurround("[spoiler]", "[/spoiler]", "spoiler_text", {
@@ -28,7 +28,9 @@ export function initializeSpoiler(api) {
   });
 
   addTagDecorateCallback(function () {
-    if (this.element.attributes.class === "spoiled") {
+    const { attributes } = this.element;
+
+    if (/\bspoiled\b/.test(attributes.class)) {
       this.prefix = "[spoiler]";
       this.suffix = "[/spoiler]";
     }
@@ -37,9 +39,9 @@ export function initializeSpoiler(api) {
   addBlockDecorateCallback(function (text) {
     const { name, attributes } = this.element;
 
-    if (name === "div" && attributes.class === "spoiled") {
-      this.prefix = "[spoiler]";
-      this.suffix = "[/spoiler]";
+    if (name === "div" && /\bspoiled\b/.test(attributes.class)) {
+      this.prefix = "[spoiler]\n";
+      this.suffix = "\n[/spoiler]";
       return text.trim();
     }
   });

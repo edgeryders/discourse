@@ -1,28 +1,18 @@
-import ArrayProxy from "@ember/array/proxy";
+import deprecated from "discourse/lib/deprecated";
+import { RAW_TOPIC_LIST_DEPRECATION_OPTIONS } from "discourse/lib/plugin-api";
 
-export default ArrayProxy.extend({
-  render(topic, renderIcon) {
-    const renderIconIf = (conditionProp, name, key) => {
-      if (!topic.get(conditionProp)) {
-        return;
-      }
-      renderIcon(name, key);
-    };
+const TopicStatusIcons = new (class {
+  entries = [];
 
-    if (topic.get("closed") && topic.get("archived")) {
-      renderIcon("lock", "locked_and_archived");
-    } else {
-      renderIconIf("closed", "lock", "locked");
-      renderIconIf("archived", "lock", "archived");
-    }
+  addObject(entry) {
+    deprecated(
+      "TopicStatusIcons is deprecated. Use 'after-topic-status' plugin outlet instead.",
+      RAW_TOPIC_LIST_DEPRECATION_OPTIONS
+    );
 
-    this.forEach((args) => renderIconIf(...args));
-  },
-}).create({
-  content: [
-    ["is_warning", "envelope", "warning"],
-    ["pinned", "thumbtack", "pinned"],
-    ["unpinned", "thumbtack", "unpinned"],
-    ["invisible", "far-eye-slash", "unlisted"],
-  ],
-});
+    const [attribute, iconName, titleKey] = entry;
+    this.entries.push({ attribute, iconName, titleKey });
+  }
+})();
+
+export default TopicStatusIcons;

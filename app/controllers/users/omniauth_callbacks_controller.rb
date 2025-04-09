@@ -2,7 +2,7 @@
 # frozen_string_literal: true
 
 class Users::OmniauthCallbacksController < ApplicationController
-  skip_before_action :redirect_to_login_if_required
+  skip_before_action :redirect_to_login_if_required, :redirect_to_profile_if_required
 
   layout "no_ember"
 
@@ -110,6 +110,9 @@ class Users::OmniauthCallbacksController < ApplicationController
   end
 
   def self.find_authenticator(name)
+    if SiteSetting.enable_discourse_connect
+      raise Discourse::InvalidAccess.new(I18n.t("authenticator_not_found"))
+    end
     Discourse.enabled_authenticators.each do |authenticator|
       return authenticator if authenticator.name == name
     end
@@ -143,12 +146,16 @@ class Users::OmniauthCallbacksController < ApplicationController
   end
 
   def user_found(user)
-    if user.has_any_second_factor_methods_enabled?
+    if user.has_any_second_factor_methods_enabled? &&
+         SiteSetting.enforce_second_factor_on_external_auth
       @auth_result.omniauth_disallow_totp = true
       @auth_result.email = user.email
       return
     end
+    handle_account_activation(user)
+  end
 
+  def handle_account_activation(user)
     # automatically activate any account if a provider marked the email valid
     if @auth_result.email_valid && @auth_result.email == user.email
       if !user.active || !user.email_confirmed?
@@ -181,7 +188,7 @@ class Users::OmniauthCallbacksController < ApplicationController
         return
       end
 
-      log_on_user(user)
+      log_on_user(user, { authenticated_with_oauth: true })
       Invite.invalidate_for_email(user.email) # invite link can't be used to log in anymore
       session[:authentication] = nil # don't carry around old auth info, perhaps move elsewhere
       @auth_result.authenticated = true

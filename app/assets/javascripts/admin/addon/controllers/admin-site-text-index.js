@@ -1,9 +1,9 @@
 import { tracked } from "@glimmer/tracking";
 import Controller from "@ember/controller";
 import { action } from "@ember/object";
-import { inject as service } from "@ember/service";
+import { service } from "@ember/service";
+import discourseDebounce from "discourse/lib/debounce";
 import { disableImplicitInjections } from "discourse/lib/implicit-injections";
-import discourseDebounce from "discourse-common/lib/debounce";
 import ReseedModal from "admin/components/modal/reseed";
 
 let lastSearch;
@@ -19,13 +19,22 @@ export default class AdminSiteTextIndexController extends Controller {
   @tracked q;
   @tracked overridden;
   @tracked outdated;
+  @tracked untranslated;
+  @tracked onlySelectedLocale;
 
   @tracked model;
 
   @tracked searching = false;
   @tracked preferred = false;
 
-  queryParams = ["q", "overridden", "outdated", "locale"];
+  queryParams = [
+    "q",
+    "overridden",
+    "outdated",
+    "locale",
+    "untranslated",
+    "onlySelectedLocale",
+  ];
 
   get resolvedOverridden() {
     return [true, "true"].includes(this.overridden) ?? false;
@@ -35,8 +44,23 @@ export default class AdminSiteTextIndexController extends Controller {
     return [true, "true"].includes(this.outdated) ?? false;
   }
 
+  get resolvedUntranslated() {
+    return [true, "true"].includes(this.untranslated) ?? false;
+  }
+
+  get resolvedOnlySelectedLocale() {
+    return [true, "true"].includes(this.onlySelectedLocale) ?? false;
+  }
+
   get resolvedLocale() {
     return this.locale ?? this.siteSettings.default_locale;
+  }
+
+  get showUntranslated() {
+    return (
+      this.siteSettings.admin_allow_filter_untranslated_text &&
+      this.resolvedLocale !== "en"
+    );
   }
 
   async _performSearch() {
@@ -46,6 +70,8 @@ export default class AdminSiteTextIndexController extends Controller {
         overridden: this.resolvedOverridden,
         outdated: this.resolvedOutdated,
         locale: this.resolvedLocale,
+        untranslated: this.resolvedUntranslated,
+        only_selected_locale: this.resolvedOnlySelectedLocale,
       });
     } finally {
       this.searching = false;
@@ -90,6 +116,28 @@ export default class AdminSiteTextIndexController extends Controller {
       this.outdated = null;
     } else {
       this.outdated = true;
+    }
+    this.searching = true;
+    discourseDebounce(this, this._performSearch, 400);
+  }
+
+  @action
+  toggleUntranslated() {
+    if (this.resolvedUntranslated) {
+      this.untranslated = null;
+    } else {
+      this.untranslated = true;
+    }
+    this.searching = true;
+    discourseDebounce(this, this._performSearch, 400);
+  }
+
+  @action
+  toggleOnlySelectedLocale() {
+    if (this.resolvedOnlySelectedLocale) {
+      this.onlySelectedLocale = null;
+    } else {
+      this.onlySelectedLocale = true;
     }
     this.searching = true;
     discourseDebounce(this, this._performSearch, 400);

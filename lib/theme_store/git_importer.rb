@@ -111,29 +111,30 @@ class ThemeStore::GitImporter < ThemeStore::BaseImporter
   def clone_http!
     uri = redirected_uri
 
-    raise_import_error! unless %w[http https].include?(@uri.scheme)
+    raise_import_error! if %w[http https].exclude?(@uri.scheme)
 
     addresses = FinalDestination::SSRFDetector.lookup_and_filter_ips(uri.host)
 
-    unless addresses.empty?
-      env = { "GIT_TERMINAL_PROMPT" => "0" }
+    raise_import_error! if addresses.empty?
 
-      args =
-        clone_args(
-          uri.to_s,
-          "http.followRedirects" => "false",
-          "http.curloptResolve" => "#{uri.host}:#{uri.port}:#{addresses.join(",")}",
-        )
+    env = { "GIT_TERMINAL_PROMPT" => "0" }
 
-      begin
-        Discourse::Utils.execute_command(env, *args, timeout: COMMAND_TIMEOUT_SECONDS)
-      rescue RuntimeError
-      end
+    args =
+      clone_args(
+        uri.to_s,
+        "http.followRedirects" => "false",
+        "http.curloptResolve" => "#{uri.host}:#{uri.port}:#{addresses.join(",")}",
+      )
+
+    begin
+      Discourse::Utils.execute_command(env, *args, timeout: COMMAND_TIMEOUT_SECONDS)
+    rescue RuntimeError
+      raise_import_error!
     end
   end
 
   def clone_ssh!
-    raise_import_error! unless @private_key.present?
+    raise_import_error! if @private_key.blank?
 
     with_ssh_private_key do |ssh_folder|
       # Use only the specified SSH key

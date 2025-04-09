@@ -1,13 +1,6 @@
-.add-pm-participants.modal {
-  .modal-body {
-    max-width: 475px;
-    min-width: 320px;
-  }
-
-  .modal-header {
-    .modal-close {
-      padding-left: 0;
-    }
+.d-modal.add-pm-participants {
+  .d-modal__body {
+    overflow-y: visible;
   }
 }
 
@@ -103,6 +96,7 @@
 
     .invite-user-input-wrapper {
       display: flex;
+
       div.ac-wrap {
         flex: 1;
       }

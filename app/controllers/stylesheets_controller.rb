@@ -3,6 +3,7 @@
 class StylesheetsController < ApplicationController
   skip_before_action :preload_json,
                      :redirect_to_login_if_required,
+                     :redirect_to_profile_if_required,
                      :check_xhr,
                      :verify_authenticity_token,
                      only: %i[show show_source_map color_scheme]
@@ -70,7 +71,7 @@ class StylesheetsController < ApplicationController
     unless File.exist?(location)
       if current = query.pick(source_map ? :source_map : :content)
         FileUtils.mkdir_p(cache_path)
-        File.write(location, current)
+        Discourse::Utils.atomic_write_file(location, current)
       else
         raise Discourse::NotFound
       end

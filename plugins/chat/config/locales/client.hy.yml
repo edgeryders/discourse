@@ -39,6 +39,7 @@ hy:
       edit: "Խմբագրել"
       rebake_message: "Վերակառուցել HTML-ը"
       bookmark_message: "Էջանշել"
+      bookmark_message_edit: "Խմբագրել Էջանիշը"
       save: "Պահպանել"
       sounds:
         none: "Ոչ մի"
@@ -49,6 +50,7 @@ hy:
       browse:
         back: "Ետ"
         filter_all: Բոլորը
+        filter_open: Բացել
         filter_closed: Փակված
       chat_message_separator:
         today: Այսօրվա
@@ -68,6 +70,10 @@ hy:
       direct_message_creator:
         title: Նոր Հաղորդագրություն
         prefix: "Ում:"
+      channel:
+        memberships_count:
+          one: "%{count} անդամ"
+          other: "%{count} անդամ"
       create_channel:
         type: "Տիպը"
         types:
@@ -134,6 +140,8 @@ hy:
             title: "Նորմալ"
           tracking:
             title: "Հետևում Եմ"
+          watching:
+            title: "Դիտում Եմ"
       draft_channel_screen:
         header: "Նոր Հաղորդագրություն"
         cancel: "Չեղարկել"

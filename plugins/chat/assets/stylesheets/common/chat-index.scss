@@ -8,31 +8,33 @@
   padding: 0.5rem;
   transition: transform 0.25s ease, box-shadow 0.25s ease;
   z-index: z("usercard");
-  box-shadow: 0px 5px 5px -1px rgba(0, 0, 0, 0.25);
+  box-shadow: 0 5px 5px -1px rgba(0, 0, 0, 0.25);
 
   .d-icon {
     color: var(--primary-very-low);
   }
 
   &:active {
-    box-shadow: 0px 0px 5px -1px rgba(0, 0, 0, 0.25);
+    box-shadow: 0 0 5px -1px rgba(0, 0, 0, 0.25);
     transform: scale(0.9);
   }
 
   &:focus {
     @include default-focus;
-    border-color: var(--quaternary);
-    outline-color: var(--quaternary);
+    border-color: var(--d-nav-color--active);
+    outline-color: var(--d-nav-color--active);
   }
 }
 
-.channels-list {
-  padding-bottom: env(safe-area-inset-bottom);
+.channels-list,
+.channels-list-container {
   position: relative;
-  @include chat-scrollbar();
+  @include chat-scrollbar;
+  height: 100%;
+  padding-bottom: 1rem;
 
   @include breakpoint(mobile-large) {
-    @include chat-scrollbar();
+    @include chat-scrollbar;
   }
 
   .open-browse-page-btn,
@@ -44,7 +46,7 @@
     color: var(--primary-medium);
     font-size: var(--font-0-rem);
 
-    &:after {
+    &::after {
       content: "";
       position: absolute;
       top: -50%;
@@ -63,26 +65,28 @@
   }
 
   .channel-list-empty-message {
-    margin: 1em 0.5em 0.5em 0.5em;
-    padding: 0 1em;
-  }
-
-  .chat-channel-divider {
-    padding: 2.5rem 1.5rem 0.5rem 1.5rem;
     display: flex;
+    flex-direction: column;
+    justify-content: center;
     align-items: center;
-    justify-content: space-between;
-    font-weight: bold;
-    font-family: var(--heading-font-family);
-    font-size: var(--font-down-1);
-    color: var(--quaternary);
+    gap: 1rem;
+    height: 100%;
 
     .channel-title {
-      line-height: var(--line-height-medium);
+      margin-bottom: 1rem;
     }
+  }
+}
 
-    &:first-of-type {
-      padding-top: 1rem;
-    }
+.chat-channel-divider {
+  padding: 0.5rem 1rem 0.5rem 1rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-family: var(--heading-font-family);
+  color: var(--primary);
+
+  .channel-title {
+    line-height: var(--line-height-medium);
   }
 }

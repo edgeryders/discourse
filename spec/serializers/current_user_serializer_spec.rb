@@ -128,25 +128,24 @@ RSpec.describe CurrentUserSerializer do
     end
   end
 
-  describe "#has_topic_draft" do
-    it "is not included by default" do
-      payload = serializer.as_json
-      expect(payload).not_to have_key(:has_topic_draft)
+  describe "#can_ignore_users" do
+    let(:guardian) { Guardian.new(user) }
+    let(:payload) { serializer.as_json }
+
+    context "when user is a regular one" do
+      let(:user) { Fabricate(:user) }
+
+      it "return false for regular users" do
+        expect(payload[:can_ignore_users]).to eq(false)
+      end
     end
 
-    it "returns true when user has a draft" do
-      Draft.set(user, Draft::NEW_TOPIC, 0, "test1")
+    context "when user is a staff member" do
+      let(:user) { Fabricate(:moderator) }
 
-      payload = serializer.as_json
-      expect(payload[:has_topic_draft]).to eq(true)
-    end
-
-    it "clearing a draft removes has_topic_draft from payload" do
-      sequence = Draft.set(user, Draft::NEW_TOPIC, 0, "test1")
-      Draft.clear(user, Draft::NEW_TOPIC, sequence)
-
-      payload = serializer.as_json
-      expect(payload).not_to have_key(:has_topic_draft)
+      it "returns true" do
+        expect(payload[:can_ignore_users]).to eq(true)
+      end
     end
   end
 
@@ -309,7 +308,7 @@ RSpec.describe CurrentUserSerializer do
 
           expect(serialized[:sidebar_sections].count).to eq(2)
 
-          expect(serialized[:sidebar_sections].last.links.map { |link| link.id }).to eq(
+          expect(serialized[:sidebar_sections].last[:links].map { |link| link.id }).to eq(
             [custom_sidebar_section_link_1.linkable.id],
           )
         end.count
@@ -323,12 +322,33 @@ RSpec.describe CurrentUserSerializer do
 
           expect(serialized[:sidebar_sections].count).to eq(2)
 
-          expect(serialized[:sidebar_sections].last.links.map { |link| link.id }).to eq(
+          expect(serialized[:sidebar_sections].last[:links].map { |link| link.id }).to eq(
             [custom_sidebar_section_link_1.linkable.id, custom_sidebar_section_link_2.linkable.id],
           )
         end.count
 
       expect(initial_count).to eq(final_count)
+    end
+  end
+
+  describe "#featured_topic" do
+    fab!(:featured_topic) { Fabricate(:topic) }
+
+    before { user.user_profile.update!(featured_topic_id: featured_topic.id) }
+
+    it "includes the featured topic" do
+      payload = serializer.as_json
+
+      expect(payload[:featured_topic]).to_not be_nil
+      expect(payload[:featured_topic][:id]).to eq(featured_topic.id)
+      expect(payload[:featured_topic][:title]).to eq(featured_topic.title)
+      expect(payload[:featured_topic].keys).to contain_exactly(
+        :id,
+        :title,
+        :fancy_title,
+        :slug,
+        :posts_count,
+      )
     end
   end
 end

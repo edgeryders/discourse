@@ -19,7 +19,7 @@ if defined?(RailsFailover::Redis)
     SiteSetting.refresh!
   end
 
-  RailsFailover::Redis.logger = Rails.logger.chained.first if Rails.logger.respond_to? :chained
+  RailsFailover::Redis.logger = Rails.logger.broadcasts.first
 end
 
 if defined?(RailsFailover::ActiveRecord)
@@ -44,7 +44,7 @@ if defined?(RailsFailover::ActiveRecord)
 
       # Test connection to the master, and trigger master failover if needed
       ActiveRecord::Base.connected_to(role: ActiveRecord.writing_role) do
-        ActiveRecord::Base.connection.active?
+        ActiveRecord::Base.connection.connect!.active?
       rescue PG::ConnectionBad, PG::UnableToSend, PG::ServerError
         RailsFailover::ActiveRecord.verify_primary(ActiveRecord.writing_role)
       end

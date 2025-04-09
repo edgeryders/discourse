@@ -1,13 +1,13 @@
 import { get } from "@ember/object";
 import { htmlSafe } from "@ember/template";
 import categoryVariables from "discourse/helpers/category-variables";
-import { isRTL } from "discourse/lib/text-direction";
+import getURL from "discourse/lib/get-url";
+import { helperContext, registerRawHelper } from "discourse/lib/helpers";
+import { iconHTML } from "discourse/lib/icon-library";
+import { applyValueTransformer } from "discourse/lib/transformer";
 import { escapeExpression } from "discourse/lib/utilities";
 import Category from "discourse/models/category";
-import getURL from "discourse-common/lib/get-url";
-import { helperContext, registerRawHelper } from "discourse-common/lib/helpers";
-import { iconHTML } from "discourse-common/lib/icon-library";
-import I18n from "discourse-i18n";
+import { i18n } from "discourse-i18n";
 
 let _renderer = defaultCategoryLinkRenderer;
 
@@ -33,6 +33,7 @@ export function addExtraIconRenderer(renderer) {
     @param {Boolean} [opts.recursive] If true, the function will be called recursively for all parent categories
     @param {Number}  [opts.depth] Current category depth, used for limiting recursive calls
     @param {Boolean} [opts.previewColor] If true, category color will be set as an inline style.
+    @param {Array}   [opts.ancestors] The ancestors of the category to generate the badge for.
 **/
 export function categoryBadgeHTML(category, opts) {
   const { site, siteSettings } = helperContext();
@@ -48,7 +49,13 @@ export function categoryBadgeHTML(category, opts) {
   }
 
   const depth = (opts.depth || 1) + 1;
-  if (opts.recursive && depth <= siteSettings.max_category_nesting) {
+  if (opts.ancestors) {
+    const { ancestors, ...otherOpts } = opts;
+    return [category, ...ancestors]
+      .reverse()
+      .map((c) => categoryBadgeHTML(c, otherOpts))
+      .join("");
+  } else if (opts.recursive && depth <= siteSettings.max_category_nesting) {
     const parentCategory = Category.findById(category.parent_category_id);
     const lastSubcategory = !opts.depth;
     opts.depth = depth;
@@ -88,6 +95,9 @@ export function categoryLinkHTML(category, options) {
     if (options.recursive) {
       categoryOptions.recursive = true;
     }
+    if (options.ancestors) {
+      categoryOptions.ancestors = options.ancestors;
+    }
   }
   return htmlSafe(categoryBadgeHTML(category, categoryOptions));
 }
@@ -96,14 +106,20 @@ export default categoryLinkHTML;
 registerRawHelper("category-link", categoryLinkHTML);
 
 function buildTopicCount(count) {
-  return `<span class="topic-count" aria-label="${I18n.t(
+  return `<span class="topic-count" aria-label="${i18n(
     "category_row.topic_count",
     { count }
   )}">&times; ${count}</span>`;
 }
 
 export function defaultCategoryLinkRenderer(category, opts) {
-  let descriptionText = escapeExpression(get(category, "description_text"));
+  // not ideal as we have to call it manually and we pass a fake category object
+  // but there's not way around it for now
+  let descriptionText = applyValueTransformer(
+    "category-description-text",
+    escapeExpression(get(category, "description_text")),
+    { category }
+  );
   let restricted = get(category, "read_restricted");
   let url = opts.url
     ? opts.url
@@ -135,10 +151,10 @@ export function defaultCategoryLinkRenderer(category, opts) {
     dataAttributes += ` data-parent-category-id="${parentCat.id}"`;
   }
 
-  html += `<span 
-    ${dataAttributes} 
-    data-drop-close="true" 
-    class="${classNames}" 
+  html += `<span
+    ${dataAttributes}
+    data-drop-close="true"
+    class="${classNames}"
     ${
       opts.previewColor
         ? `style="--category-badge-color: #${category.color}"`
@@ -147,10 +163,16 @@ export function defaultCategoryLinkRenderer(category, opts) {
     ${descriptionText ? 'title="' + descriptionText + '" ' : ""}
   >`;
 
-  let categoryName = escapeExpression(get(category, "name"));
+  // not ideal as we have to call it manually and we pass a fake category object
+  // but there's not way around it for now
+  let categoryName = applyValueTransformer(
+    "category-display-name",
+    escapeExpression(get(category, "name")),
+    { category }
+  );
 
   if (siteSettings.support_mixed_text_direction) {
-    categoryDir = isRTL(categoryName) ? 'dir="rtl"' : 'dir="ltr"';
+    categoryDir = 'dir="auto"';
   }
 
   if (restricted) {
@@ -167,6 +189,13 @@ export function defaultCategoryLinkRenderer(category, opts) {
 
   if (opts.topicCount) {
     html += buildTopicCount(opts.topicCount);
+  }
+
+  if (opts.subcategoryCount) {
+    html += `<span class="plus-subcategories">${i18n(
+      "category_row.subcategory_count",
+      { count: opts.subcategoryCount }
+    )}</span>`;
   }
 
   if (href) {

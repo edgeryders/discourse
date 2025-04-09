@@ -1,7 +1,7 @@
 import EmberObject from "@ember/object";
 import { dependentKeyCompat } from "@ember/object/compat";
-import { inject as service } from "@ember/service";
-import deprecated from "discourse-common/lib/deprecated";
+import { service } from "@ember/service";
+import deprecated from "discourse/lib/deprecated";
 
 let reopenedClasses = [];
 

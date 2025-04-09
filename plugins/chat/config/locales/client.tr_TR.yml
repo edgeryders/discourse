@@ -39,6 +39,10 @@ tr_TR:
       chat_messages_count: "Sohbet mesajları"
       chat_channels_count: "Sohbet kanalları"
       chat_users_count: "Sohbet kullanıcıları"
+      activities:
+        chat_messages:
+          one: "%{formatted_number} sohbet mesajı"
+          other: "%{formatted_number} sohbet mesajları"
     chat:
       text_copied: Metin panoya kopyalandı
       link_copied: Bağlantı panoya kopyalandı
@@ -46,7 +50,6 @@ tr_TR:
       deleted_chat_username: silindi
       dates:
         yesterday: "Dün"
-        time_tiny: "h:mm"
       all_loaded: "Tüm mesajlar gösteriliyor"
       already_enabled: "Bu konuda sohbet zaten etkin. Lütfen yenileyin."
       disabled_for_topic: "Bu konuda sohbet devre dışı bırakılmış."
@@ -56,12 +59,17 @@ tr_TR:
       cancel_reply: "Yanıtı iptal et"
       chat_channels: "Kanallar"
       browse_all_channels: "Tüm kanallara göz atın"
+      see_in: "Şurada bak:"
       move_to_channel:
         title: "Mesajları kanala taşı"
         instructions:
           one: "<strong>%{count}</strong> mesajı taşıyorsunuz. Hedef kanal seçin. Bu mesajın taşındığını belirtmek için <strong>%{channelTitle}</strong> adlı kanalda bir yer tutucu mesaj oluşturulacak. Yanıt zincirlerinin yeni kanalda saklanmayacağını ve eski kanaldaki iletilerin artık taşınan iletilere yanıt veriyormuş gibi görünmeyeceğini unutmayın."
           other: "<strong>%{count}</strong> mesajı taşıyorsunuz. Hedef kanal seçin. Bu mesajın taşındığını belirtmek için <strong>%{channelTitle}</strong> adlı kanalda bir yer tutucu mesaj oluşturulacak. Yanıt zincirlerinin yeni kanalda saklanmayacağını ve eski kanaldaki iletilerin artık taşınan iletilere yanıt veriyormuş gibi görünmeyeceğini unutmayın."
         confirm_move: "Mesajları Taşı"
+      delete_messages:
+        confirm:
+          one: "Bu mesajı silmek istediğinizden emin misiniz?"
+          other: "Bu %{count} mesajı silmek istediğinizden emin misiniz?"
       channel_settings:
         title: "Kanal ayarları"
         edit: "Düzenle"
@@ -99,7 +107,6 @@ tr_TR:
       channels_list_popup:
         browse: "Kanallara göz atın"
         create: "Yeni kanal"
-      click_to_join: "Mevcut kanalları görüntülemek için buraya tıklayın."
       close: "Kapat"
       remove: "Kaldır"
       collapse: "Sohbet Çekmecesini Daralt"
@@ -117,7 +124,7 @@ tr_TR:
         direct_message_cta: "Kişisel bir Sohbet başlatın"
         direct_message: "Bir veya daha fazla kullanıcıyla da kişisel sohbet başlatabilirsiniz."
         title: "Kanal bulunamadı"
-        my_threads: "Henüz konunuz yok. Katıldığınız konular burada görüntülenecektir."
+        my_threads: "Henüz konunuz yok. Katıldığınız konular burada gösterilir."
       email_frequency:
         description: "Yalnızca sizi son 15 dakika içinde görmediğimiz takdirde size e-posta göndeririz."
         never: "Asla"
@@ -126,11 +133,18 @@ tr_TR:
       header_indicator_preference:
         title: "Etkinlik göstergesini başlıkta gösterin"
         all_new: "Tüm Yeni Mesajlar"
-        dm_and_mentions: "Doğrudan Mesajlar ve Bahsetmeler"
+        dm_and_mentions: "Doğrudan Mesajlar, Bahsetmeler ve İzlenen Konular"
         only_mentions: "Yalnızca Bahsetmeler"
         never: "Asla"
       separate_sidebar_mode:
         title: "Forum ve sohbet için ayrı kenar çubuğu modları göster"
+      send_shortcut:
+        enter:
+          label: "Enter ile gönder"
+          description: "Shift + Enter ile yeni satır"
+        meta_enter:
+          label: "%{meta_key} + Enter ile gönder"
+          description: "Enter ile yeni satır"
       enable: "Sohbeti etkinleştir"
       flag: "Bayrak ekle"
       emoji: "Emoji ekle"
@@ -141,13 +155,6 @@ tr_TR:
       heading: "Sohbet"
       join: "Katıl"
       last_visit: "son ziyaret"
-      summarization:
-        title: "Mesajları özetle"
-        description: "İstediğiniz zaman diliminde gönderilen görüşmeyi özetlemek için aşağıdaki seçeneklerden birini belirleyin."
-        summarize: "Özetle"
-        since:
-          one: "Son bir saat"
-          other: "Son %{count} saat"
       mention_warning:
         invitations_sent:
           one: "Davet gönderildi"
@@ -227,8 +234,10 @@ tr_TR:
         header: "Sohbet başlığı"
         composer: "Sohbet oluşturucu"
         channels_list: "Sohbet kanalları listesi"
-      no_direct_message_channels: "Herhangi bir doğrudan mesaj kanalına katılmadınız."
-      no_public_channels: "Hiçbir kanala katılmadınız."
+      no_direct_message_channels: "Henüz herhangi bir doğrudan mesaja katılmadınız!"
+      no_direct_message_channels_cta: "Konuşma başlat"
+      no_public_channels: "Henüz hiçbir kanala katılmadınız!"
+      no_public_channels_cta: "Kanallara göz at"
       kicked_from_channel: "Artık bu kanala erişemezsiniz."
       only_chat_push_notifications:
         title: "Yalnızca sohbet anlık bildirimleri gönder"
@@ -236,6 +245,9 @@ tr_TR:
       ignore_channel_wide_mention:
         title: "Kanal genelindeki bahsetmeleri yok say"
         description: "Kanal genelindeki bahsetmeler için bildirim gönderme (@here ve @all)"
+      show_thread_title_prompts:
+        title: "Konu başlığı istemlerini göster"
+        description: "Yeni konular için başlık ayarlama istemlerini göster"
       open: "Sohbeti aç"
       open_full_page: "Tam ekran sohbeti aç"
       close_full_page: "Tam ekran sohbeti kapat"
@@ -244,6 +256,7 @@ tr_TR:
       placeholder_channel: "%{channelName} adlı kanalda sohbet edin"
       placeholder_thread: "Konuda sohbet edin"
       placeholder_users: "%{commaSeparatedNames} ile sohbet edin"
+      placeholder_group: "Grupta sohbet et"
       placeholder_new_message_disallowed:
         archived: "Kanal arşivlendi, şu anda yeni mesaj gönderemezsiniz."
         closed: "Kanal kapalı, şu anda yeni mesaj gönderemezsiniz."
@@ -256,6 +269,7 @@ tr_TR:
       copy_link: "Bağlantıyı kopyala"
       copy_text: "Metni kopyala"
       rebake_message: "HTML'yi yeniden oluştur"
+      message_too_long: "Mesaj çok uzun, mesajlar en fazla %{count} karakter olmalı."
       retry_staged_message:
         title: "Ağ hatası"
         action: "Tekrar gönderilsin mi?"
@@ -305,7 +319,7 @@ tr_TR:
         back: "Geri"
         title: Kanallar
         filter_all: Tümü
-        filter_open: Açıldı
+        filter_open: Aç
         filter_closed: Kapalı
         filter_archived: Arşivlendi
         filter_input_placeholder: Ada göre kanal ara
@@ -423,13 +437,13 @@ tr_TR:
         you_and_single_user: "<span>Siz ve %{username} şu şekilde tepki verdiniz: </span>:%{emoji}:"
         you_and_multiple_users: "<span>Siz, %{commaSeparatedUsernames} ve %{username} şu şekilde tepki verdiniz</span>:%{emoji}"
         you_multiple_users_and_more:
-          one: "<span>Siz, %{commaSeparatedUsernames} ve diğer %{count} kişi şu şekilde tepki verdiniz: </span>:%{emoji}:"
-          other: "<span>Siz, %{commaSeparatedUsernames} ve diğer %{count} kişi şu şekilde tepki verdiniz: </span>:%{emoji}:"
+          one: "<span>Siz, %{commaSeparatedUsernames} ve %{count} kişi daha şu şekilde tepki verdiniz: </span>:%{emoji}:"
+          other: "<span>Siz, %{commaSeparatedUsernames} ve %{count} kişi daha şu şekilde tepki verdiniz: </span>:%{emoji}:"
         single_user: "<span>%{username} şu şekilde tepki verdi</span>:%{emoji}:"
         multiple_users: "<span>%{commaSeparatedUsernames} ve %{username} şu şekilde tepki verdi</span>:%{emoji}:"
         multiple_users_and_more:
-          one: "<span>%{commaSeparatedUsernames} ve diğer %{count} kişi şu şekilde tepki verdi: </span>:%{emoji}:"
-          other: "<span>%{commaSeparatedUsernames} ve diğer %{count} kişi şu şekilde tepki verdi: </span>:%{emoji}:"
+          one: "<span>%{commaSeparatedUsernames} ve %{count} kişi daha şu şekilde tepki verdi: </span>:%{emoji}:"
+          other: "<span>%{commaSeparatedUsernames} ve %{count} kişi daha şu şekilde tepki verdi: </span>:%{emoji}:"
       composer:
         toggle_toolbar: "Araç çubuğunu aç/kapat"
         italic_text: "vurgulanan yazı"
@@ -453,10 +467,9 @@ tr_TR:
         auto_join_users_info: "Son 3 ayda hangi kullanıcıların aktif olduğunu saatlik olarak kontrol edin. %{category} kategorisine erişimleri varsa onları bu kanala ekleyin."
         auto_join_users_info_no_category: "Son 3 ayda hangi kullanıcıların aktif olduğunu saatlik olarak kontrol edin. Seçilen kategoriye erişimleri varsa onları bu kanala ekleyin."
         auto_join_users_warning: "Bu kanala üye olmayan ve %{category} adlı kategoriye erişimi olan her kullanıcı katılacak. Emin misiniz?"
-        desktop_notification_level: "Masaüstü bildirimleri"
+        notification_level: "Anlık bildirimler gönder"
         follow: "Katıl"
         followed: "Katıldı"
-        mobile_notification_level: "Mobil anlık bildirimleri"
         mute: "Kanalı sessize al"
         threading_enabled: "Etkin"
         threading_disabled: "Devre Dışı"
@@ -479,13 +492,14 @@ tr_TR:
           title: "Sohbet mesajlarını dışa aktar"
           description: "Bu, tüm kanallardan gelen tüm mesajları dışa aktarır."
           create_export: "Dışa aktarma oluştur"
+          confirm_export: "Bu, tüm kanallardaki tüm mesajları dışa aktarır ve sonucu size kişisel bir mesajla gönderir. Dışa aktarmak istediğinizden emin misiniz?"
           export_has_started: "Dışa aktarma başladı. Hazır olduğunda bir kişisel mesaj alacaksınız."
       my_threads:
         title: Konularım
         aria_label: "Konu listeme geç"
       direct_messages:
-        title: "Direkt Mesajlar"
-        aria_label: "Doğrudan mesajlara geçin"
+        title: "DM'ler"
+        aria_label: "Doğrudan mesajlara geç"
         new: "Kişisel sohbet oluşturun"
         create: "Git"
         leave: "Bu kişisel sohbetten ayrıl"
@@ -493,10 +507,11 @@ tr_TR:
         cannot_create: "Üzgünüz, doğrudan mesaj gönderemezsiniz."
       channel_list:
         title: "Kanallar"
-        aria_label: "Kanal listesine dön"
+        aria_label: "Kanal listesine geç"
       incoming_webhooks:
         back: "Geri"
         channel_placeholder: "Kanal seçin"
+        channel: "Kanal"
         confirm_destroy: "Bu gelen web kancasını silmek istediğinizden emin misiniz? Bu işlem geri alınamaz."
         current_emoji: "Mevcut Emoji"
         description: "Açıklama"
@@ -520,10 +535,13 @@ tr_TR:
         username: "Kullanıcı Adı"
         username_instructions: "Kanala gönderi yapan botun kullanıcı adı. Boş bırakıldığında varsayılan olarak \"sistem\" olur."
         instructions: "Gelen web kancaları, <code>/hooks/:key</code> uç noktası aracılığıyla bot kullanıcısı olarak belirlenmiş bir sohbet kanalına mesaj göndermek için harici sistemler tarafından kullanılabilir. Yük, 2000 karakterle sınırlı tek bir <code>metin</code> parametresinden oluşur.<br><br>Ayrıca, <a href=\"https://api.slack.com/reference/surfaces/formatting\">https://api.slack.com/reference/surfaces/formatting</a> adresindeki biçime dayalı olarak bağlantıları ve bahsetmeleri çıkaran sınırlı Slack biçimli <code>metin</code> parametrelerini de destekliyoruz, ancak bunun için <code>/hooks/:key/slack</code> uç noktası kullanılmalıdır."
+        saved: "Web kancası değişiklikleri kaydedildi"
+        created: "Web kancası oluşturuldu"
       selection:
         cancel: "İptal et"
         quote_selection: "Konu İçinde Alıntı Yap"
         copy: "Kopyala"
+        delete: "Sil (%{selectionCount}/%{totalCount})"
         move_selection_to_channel: "Kanala Taşı"
         error: "Sohbet mesajlarını taşırken bir hata oluştu"
         title: "Sohbeti Konuya Taşı"
@@ -562,6 +580,7 @@ tr_TR:
       flags:
         off_topic: "Bu mesaj, kanal başlığı tarafından tanımlanan mevcut tartışma ile ilgili değildir ve muhtemelen başka bir yere taşınmalıdır."
         inappropriate: "Bu mesaj, makul bir kişinin saldırgan, taciz edici veya <a href=\"%{basePath}/guidelines\">topluluk kurallarımızı</a> ihlal ettiğini düşüneceği içerik içeriyor."
+        illegal: "Bu gönderi, personelin dikkatini gerektiriyor çünkü yasa dışı içerikler barındırıyor."
         spam: "Bu mesaj bir reklam veya vandalizm içerikli. Kullanışlı veya mevcut kanalla ilgili değil."
         notify_user: "Bu kişiyle doğrudan ve kişisel olarak mesajı hakkında konuşmak istiyorum."
         notify_moderators: "Bu mesaj, yukarıda listelenmeyen başka bir nedenden dolayı personelin dikkatini gerektiriyor."
@@ -595,13 +614,27 @@ tr_TR:
         notifications:
           regular:
             title: "Normal"
-            description: "Biri bu başlıkta @adınızdan bahsederse bildirim alırsınız."
+            description: "Biri bu konuda sizden bahsettiğinde bildirim alın."
           tracking:
             title: "İzleniyor"
-            description: "Bu konu için yeni yanıtların sayısı konu listesinde ve kanalda gösterilir. Biri bu konuda @adınızdan bahsederse bildirim alırsınız."
+            description: "Biri bu konuda sizden bahsettiğinde bildirim alın ve konu listesindeki yeni yanıtların sayısını görün."
+          watching:
+            title: "İzleniyor"
+            description: "Bu konudaki tüm yanıtlar için bildirim alın ve konu listesindeki yeni yanıtların sayısını görün."
         participants_other_count:
           one: "+%{count}"
           other: "+%{count}"
+      thread_title_toast:
+        title: "Konu başlığı belirleyin"
+        message: "Başkalarının bu konuşmayı keşfetmesine yardımcı olun."
+        dismiss_action: "Tekrar gösterme"
+        primary_action: "Başlık belirle"
+      thread_title_modal:
+        title: "Konu başlığı belirleyin"
+        input_placeholder: "Başkalarına bu konuşmanın neyle ilgili olduğunu anlatın..."
+        discourse_ai:
+          title: "Konu başlıklarını otomatik olarak oluşturun"
+          description: "Bu konu ve Discourse deneyiminizdeki diğer geliştirmeler hakkında daha fazla bilgi edinmek için %{url} adresine göz atın."
       threads:
         open: "Konu aç"
         list: "İleti dizileri"
@@ -613,6 +646,9 @@ tr_TR:
       chat_invitation: "sizi bir sohbet kanalına katılmaya davet etti"
       chat_invitation_html: "<span>%{username}</span> <span>sizi bir sohbet kanalına katılmaya davet etti</span>"
       chat_quoted: "<span>%{username}</span> %{description}"
+      chat_watched_thread_label:
+        one: "%{username} ve %{username2}"
+        other: "%{username} ve %{count} kişi daha"
       popup:
         chat_mention:
           direct: '"%{channel}" adlı kanalda sizden bahsetti'
@@ -627,9 +663,10 @@ tr_TR:
         chat_message: "Yeni sohbet mesajı"
         chat_quoted: "%{username} sohbet mesajınızı alıntıladı"
       titles:
-        chat_mention: "Sohbette bahsetme"
-        chat_invitation: "Sohbet daveti"
-        chat_quoted: "Sohbet alıntılandı"
+        chat_mention: "Sohbette bahsedildi"
+        chat_invitation: "Sohbet kanalına davet edildi"
+        chat_quoted: "Sohbet mesajından alıntı yapıldı"
+        chat_watched_thread: "Sohbet ileti dizisini izledi"
     action_codes:
       chat:
         enabled: '%{who} %{when} <button class="btn-link open-chat">sohbeti</button> etkinleştirdi'
@@ -660,6 +697,7 @@ tr_TR:
         title: "Sohbet"
         keyboard_shortcuts:
           switch_channel_arrows: "%{shortcut} Kanalı değiştir"
+          switch__unread_channel_arrows: "%{shortcut} Okunmamış kanalı değiştir"
           open_quick_channel_selector: "%{shortcut} Hızlı kanal seçiciyi aç"
           open_insert_link_modal: "%{shortcut} Köprü ekle (yalnızca besteci)"
           composer_bold: "%{shortcut} Kalın (yalnızca besteci)"

@@ -1,67 +1,72 @@
 import Controller, { inject as controller } from "@ember/controller";
 import EmberObject, { action, computed } from "@ember/object";
 import { equal, notEmpty } from "@ember/object/computed";
-import { inject as service } from "@ember/service";
+import { service } from "@ember/service";
 import { htmlSafe } from "@ember/template";
 import { Promise } from "rsvp";
 import { ajax } from "discourse/lib/ajax";
+import BulkSelectHelper from "discourse/lib/bulk-select-helper";
+import discourseComputed from "discourse/lib/decorators";
+import { iconHTML } from "discourse/lib/icon-library";
 import Bookmark from "discourse/models/bookmark";
-import { iconHTML } from "discourse-common/lib/icon-library";
-import discourseComputed from "discourse-common/utils/decorators";
-import I18n from "discourse-i18n";
+import { i18n } from "discourse-i18n";
 
-export default Controller.extend({
-  queryParams: ["q"],
-  q: null,
+export default class UserActivityBookmarksController extends Controller {
+  @service router;
+  @controller application;
+  @controller user;
 
-  router: service(),
-  application: controller(),
-  user: controller(),
-  loading: false,
-  loadingMore: false,
-  permissionDenied: false,
-  inSearchMode: notEmpty("q"),
-  noContent: equal("model.bookmarks.length", 0),
+  queryParams = ["q"];
 
-  searchTerm: computed("q", {
-    get() {
-      return this.q;
-    },
-    set(key, value) {
-      return value;
-    },
-  }),
+  q = null;
+  loading = false;
+  loadingMore = false;
+  permissionDenied = false;
+
+  bulkSelectHelper = new BulkSelectHelper(this);
+
+  @notEmpty("q") inSearchMode;
+  @equal("model.bookmarks.length", 0) noContent;
+
+  @computed("q")
+  get searchTerm() {
+    return this._searchTerm || this.q;
+  }
+
+  set searchTerm(value) {
+    this._searchTerm = value;
+  }
 
   @discourseComputed()
   emptyStateBody() {
     return htmlSafe(
-      I18n.t("user.no_bookmarks_body", {
+      i18n("user.no_bookmarks_body", {
         icon: iconHTML("bookmark"),
       })
     );
-  },
+  }
 
   @discourseComputed("inSearchMode", "noContent")
   userDoesNotHaveBookmarks(inSearchMode, noContent) {
     return !inSearchMode && noContent;
-  },
+  }
 
   @discourseComputed("inSearchMode", "noContent")
   nothingFound(inSearchMode, noContent) {
     return inSearchMode && noContent;
-  },
+  }
 
   @action
   search() {
     this.router.transitionTo({
-      queryParams: { q: this.searchTerm },
+      queryParams: { q: this._searchTerm },
     });
-  },
+  }
 
   @action
   reload() {
     this.send("triggerRefresh");
-  },
+  }
 
   @action
   loadMore() {
@@ -75,7 +80,12 @@ export default Controller.extend({
       .then((response) => this._processLoadResponse(this.q, response))
       .catch(() => this._bookmarksListDenied())
       .finally(() => this.set("loadingMore", false));
-  },
+  }
+
+  @action
+  updateAutoAddBookmarksToBulkSelect(value) {
+    this.bulkSelectHelper.autoAddBookmarksToBulkSelect = value;
+  }
 
   _loadMoreBookmarks(searchQuery) {
     if (!this.model.loadMoreUrl) {
@@ -90,13 +100,13 @@ export default Controller.extend({
     }
 
     return ajax({ url: moreUrl });
-  },
+  }
 
   _bookmarksListDenied() {
     this.set("permissionDenied", true);
-  },
+  }
 
-  _processLoadResponse(searchTerm, response) {
+  async _processLoadResponse(searchTerm, response) {
     if (!response || !response.user_bookmark_list) {
       this.model.loadMoreUrl = null;
       return;
@@ -108,10 +118,11 @@ export default Controller.extend({
 
     if (response.bookmarks) {
       const bookmarkModels = response.bookmarks.map(this.transform);
+      await Bookmark.applyTransformations(bookmarkModels);
       this.model.bookmarks.pushObjects(bookmarkModels);
       this.session.set("bookmarksModel", this.model);
     }
-  },
+  }
 
   transform(bookmark) {
     const bookmarkModel = Bookmark.create(bookmark);
@@ -124,5 +135,5 @@ export default Controller.extend({
       invisible: bookmark.invisible,
     });
     return bookmarkModel;
-  },
-});
+  }
+}

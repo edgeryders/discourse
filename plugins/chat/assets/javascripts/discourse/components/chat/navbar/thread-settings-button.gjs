@@ -1,6 +1,6 @@
 import Component from "@glimmer/component";
 import { action } from "@ember/object";
-import { inject as service } from "@ember/service";
+import { service } from "@ember/service";
 import DButton from "discourse/components/d-button";
 import ThreadSettingsModal from "discourse/plugins/chat/discourse/components/chat/modal/thread-settings";
 
@@ -28,9 +28,9 @@ export default class ChatNavbarThreadSettingsButton extends Component {
     {{#if this.canChangeThreadSettings}}
       <DButton
         @action={{this.openThreadSettings}}
-        @icon="cog"
+        @icon="gear"
         @title="chat.thread.settings"
-        class="btn-flat c-navbar__thread-settings-button"
+        class="btn-transparent c-navbar__thread-settings-button"
       />
     {{/if}}
   </template>

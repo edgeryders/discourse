@@ -1,10 +1,10 @@
 import Component from "@glimmer/component";
 import { action } from "@ember/object";
-import { inject as service } from "@ember/service";
+import { service } from "@ember/service";
+import { gte } from "truth-helpers";
 import DButton from "discourse/components/d-button";
 import { popupAjaxError } from "discourse/lib/ajax-error";
-import I18n from "discourse-i18n";
-import gte from "truth-helpers/helpers/gte";
+import { i18n } from "discourse-i18n";
 import MembersCount from "./members-count";
 import MembersSelector from "./members-selector";
 
@@ -27,6 +27,10 @@ export default class AddMembers extends Component {
     return userCount + (this.args.channel?.membershipsCount ?? 0);
   }
 
+  get maxMembers() {
+    return this.siteSettings.chat_max_direct_message_users;
+  }
+
   @action
   async saveGroupMembers() {
     try {
@@ -45,7 +49,7 @@ export default class AddMembers extends Component {
         groups,
       });
 
-      this.toasts.success({ data: { message: I18n.t("saved") } });
+      this.toasts.success({ data: { message: i18n("saved") } });
       this.router.transitionTo(
         "chat.channel",
         ...this.args.channel.routeModels
@@ -60,10 +64,7 @@ export default class AddMembers extends Component {
   <template>
     <div class="chat-message-creator__add-members-container">
       <div class="chat-message-creator__add-members">
-        <MembersCount
-          @count={{this.membersCount}}
-          @max={{this.siteSettings.chat_max_direct_message_users}}
-        />
+        <MembersCount @count={{this.membersCount}} @max={{this.maxMembers}} />
 
         <MembersSelector
           @channel={{@channel}}
@@ -72,10 +73,7 @@ export default class AddMembers extends Component {
           @close={{@close}}
           @cancel={{@cancel}}
           @membersCount={{this.membersCount}}
-          @maxReached={{gte
-            this.membersCount
-            this.siteSettings.chat_max_direct_message_users
-          }}
+          @maxReached={{gte this.membersCount this.maxMembers}}
         />
 
         {{#if @members.length}}

@@ -20,7 +20,6 @@ lt:
       deleted_chat_username: ištrintas
       dates:
         yesterday: "Vakar"
-        time_tiny: "h:mm"
       bot: "botas"
       create: "Sukurti"
       cancel: "Atšaukti"
@@ -47,8 +46,7 @@ lt:
       heading: "Pokalbis"
       join: "Prisijungti"
       last_visit: "paskutinis apsilankymas"
-      summarization:
-        summarize: "Apibendrinti"
+      no_public_channels_cta: "Naršyti kanalus"
       reply: "Atsakyti"
       edit: "Redaguoti"
       rebake_message: "Perkurti HTML"
@@ -66,6 +64,7 @@ lt:
       browse:
         back: "Atgal"
         filter_all: Visos
+        filter_open: Atidaryti
         filter_closed: Uždaryta
       chat_message_separator:
         today: Šiandien
@@ -158,6 +157,8 @@ lt:
             title: "Įprastas"
           tracking:
             title: "Seku"
+          watching:
+            title: "Stebiu"
         participants_other_count:
           one: "+%{count}"
           few: "+%{count}"

@@ -2,9 +2,10 @@ import { get } from "@ember/object";
 import { gt, or } from "@ember/object/computed";
 import { isBlank, isEmpty } from "@ember/utils";
 import { popupAjaxError } from "discourse/lib/ajax-error";
+import discourseComputed from "discourse/lib/decorators";
 import RestModel from "discourse/models/rest";
-import discourseComputed from "discourse-common/utils/decorators";
-import I18n from "discourse-i18n";
+import { i18n } from "discourse-i18n";
+import ThemeSettings from "admin/models/theme-settings";
 
 const THEME_UPLOAD_VAR = 2;
 const FIELDS_IDS = [0, 1, 5];
@@ -14,6 +15,16 @@ export const COMPONENTS = "components";
 const SETTINGS_TYPE_ID = 5;
 
 class Theme extends RestModel {
+  static munge(json) {
+    if (json.settings) {
+      json.settings = json.settings.map((setting) =>
+        ThemeSettings.create(setting)
+      );
+    }
+
+    return json;
+  }
+
   @or("default", "user_selectable") isActive;
   @gt("remote_theme.commits_behind", 0) isPendingUpdates;
   @gt("editedFields.length", 0) hasEditedFields;
@@ -26,8 +37,8 @@ class Theme extends RestModel {
     return [
       { id: 0, name: "common" },
       { id: 1, name: "desktop", icon: "desktop" },
-      { id: 2, name: "mobile", icon: "mobile-alt" },
-      { id: 3, name: "settings", icon: "cog", advanced: true },
+      { id: 2, name: "mobile", icon: "mobile-screen-button" },
+      { id: 3, name: "settings", icon: "gear", advanced: true },
       {
         id: 4,
         name: "translations",
@@ -38,7 +49,7 @@ class Theme extends RestModel {
       {
         id: 5,
         name: "extra_scss",
-        icon: "paint-brush",
+        icon: "paintbrush",
         advanced: true,
         customNames: true,
       },
@@ -106,14 +117,14 @@ class Theme extends RestModel {
         if (target === "translations" || target === "extra_scss") {
           field.translatedName = fieldName;
         } else {
-          field.translatedName = I18n.t(
+          field.translatedName = i18n(
             `admin.customize.theme.${fieldName}.text`
           );
-          field.title = I18n.t(`admin.customize.theme.${fieldName}.title`);
+          field.title = i18n(`admin.customize.theme.${fieldName}.title`);
         }
 
         if (fieldName.indexOf("_tag") > 0) {
-          field.icon = "far-file-alt";
+          field.icon = "far-file-lines";
         }
 
         return field;
@@ -306,6 +317,7 @@ class Theme extends RestModel {
   saveChanges() {
     const hash = this.getProperties.apply(this, arguments);
     return this.save(hash)
+      .then(() => true)
       .finally(() => this.set("changed", false))
       .catch(popupAjaxError);
   }

@@ -68,6 +68,18 @@ RSpec.describe "users" do
           let(:expected_request_schema) { expected_request_schema }
         end
       end
+
+      response "200", "user with primary group response" do
+        expected_response_schema = load_spec_schema("user_get_response")
+        schema expected_response_schema
+
+        let(:username) { Fabricate(:user, primary_group_id: Fabricate(:group).id).username }
+
+        it_behaves_like "a JSON endpoint", 200 do
+          let(:expected_response_schema) { expected_response_schema }
+          let(:expected_request_schema) { expected_request_schema }
+        end
+      end
     end
 
     put "Update a user" do
@@ -442,7 +454,7 @@ RSpec.describe "users" do
       produces "application/json"
       response "200", "response" do
         let(:id) { Fabricate(:user).id }
-        let(:params) {}
+        let(:params) { { "reason" => "up to me", "silenced_till" => "2301-08-15" } }
 
         expected_response_schema = load_spec_schema("user_silence_response")
         schema(expected_response_schema)
@@ -644,6 +656,8 @@ RSpec.describe "users" do
   end
 
   path "/session/forgot_password.json" do
+    SiteSetting.hide_email_address_taken = false
+
     post "Send password reset email" do
       tags "Users"
       operationId "sendPasswordResetEmail"

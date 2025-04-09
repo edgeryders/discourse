@@ -25,9 +25,10 @@ class PostsController < ApplicationController
 
   skip_before_action :preload_json,
                      :check_xhr,
-                     only: %i[markdown_id markdown_num short_link latest user_posts_feed]
+                     only: %i[markdown_id markdown_num short_link user_posts_feed]
+  skip_before_action :preload_json, :check_xhr, if: -> { request.format.rss? }
 
-  MARKDOWN_TOPIC_PAGE_SIZE ||= 100
+  MARKDOWN_TOPIC_PAGE_SIZE = 100
 
   def markdown_id
     markdown Post.find_by(id: params[:id].to_i)
@@ -61,41 +62,55 @@ class PostsController < ApplicationController
   def latest
     params.permit(:before)
     last_post_id = params[:before].to_i
-    last_post_id = Post.last.id if last_post_id <= 0
+    last_post_id = nil if last_post_id <= 0
 
     if params[:id] == "private_posts"
       raise Discourse::NotFound if current_user.nil?
+
+      allowed_private_topics = TopicAllowedUser.where(user_id: current_user.id).select(:topic_id)
+
+      allowed_groups = GroupUser.where(user_id: current_user.id).select(:group_id)
+      allowed_private_topics_by_group =
+        TopicAllowedGroup.where(group_id: allowed_groups).select(:topic_id)
+
+      all_allowed =
+        Topic
+          .where(id: allowed_private_topics)
+          .or(Topic.where(id: allowed_private_topics_by_group))
+          .select(:id)
+
       posts =
         Post
           .private_posts
-          .order(created_at: :desc)
-          .where("posts.id <= ?", last_post_id)
-          .where("posts.id > ?", last_post_id - 50)
+          .order(id: :desc)
           .includes(topic: :category)
           .includes(user: %i[primary_group flair_group])
           .includes(:reply_to_user)
           .limit(50)
       rss_description = I18n.t("rss_description.private_posts")
+
+      posts = posts.where(topic_id: all_allowed) if !current_user.admin?
     else
       posts =
         Post
           .public_posts
           .visible
           .where(post_type: Post.types[:regular])
-          .order(created_at: :desc)
-          .where("posts.id <= ?", last_post_id)
-          .where("posts.id > ?", last_post_id - 50)
+          .order(id: :desc)
           .includes(topic: :category)
           .includes(user: %i[primary_group flair_group])
           .includes(:reply_to_user)
+          .where("categories.id" => Category.secured(guardian).select(:id))
           .limit(50)
+
       rss_description = I18n.t("rss_description.posts")
       @use_canonical = true
     end
 
-    # Remove posts the user doesn't have permission to see
-    # This isn't leaking any information we weren't already through the post ID numbers
-    posts = posts.reject { |post| !guardian.can_see?(post) || post.topic.blank? }
+    posts = posts.where("posts.id < ?", last_post_id) if last_post_id
+
+    posts = posts.to_a
+
     counts = PostAction.counts_for(posts, current_user)
 
     respond_to do |format|
@@ -114,6 +129,7 @@ class PostsController < ApplicationController
             scope: guardian,
             root: params[:id],
             add_raw: true,
+            add_excerpt: true,
             add_title: true,
             all_post_actions: counts,
           ),
@@ -226,8 +242,9 @@ class PostsController < ApplicationController
 
     Post.plugin_permitted_update_params.keys.each { |param| changes[param] = params[:post][param] }
 
-    raw_old = params[:post][:raw_old]
-    if raw_old.present? && raw_old != post.raw
+    # keep `raw_old` for backwards compatibility
+    original_text = params[:post][:original_text] || params[:post][:raw_old]
+    if original_text.present? && original_text != post.raw
       return render_json_error(I18n.t("edit_conflict"), status: 409)
     end
 
@@ -296,13 +313,16 @@ class PostsController < ApplicationController
   def reply_history
     post = find_post_from_params
 
-    reply_history = post.reply_history(params[:max_replies].to_i, guardian)
-    user_custom_fields = {}
-    if (added_fields = User.allowed_user_custom_fields(guardian)).present?
-      user_custom_fields = User.custom_fields_for_ids(reply_history.pluck(:user_id), added_fields)
-    end
+    topic_view =
+      TopicView.new(
+        post.topic,
+        current_user,
+        include_suggested: false,
+        include_related: false,
+        reply_history_for: post.id,
+      )
 
-    render_serialized(reply_history, PostSerializer, user_custom_fields: user_custom_fields)
+    render_json_dump(TopicViewPostsSerializer.new(topic_view, scope: guardian).post_stream[:posts])
   end
 
   def reply_ids
@@ -412,17 +432,38 @@ class PostsController < ApplicationController
     render_json_error(e.message)
   end
 
-  # Direct replies to this post
+  MAX_POST_REPLIES = 20
+
   def replies
+    params.permit(:after)
+
+    after = [params[:after].to_i, 1].max
     post = find_post_from_params
-    replies = post.replies.secured(guardian)
 
-    user_custom_fields = {}
-    if (added_fields = User.allowed_user_custom_fields(guardian)).present?
-      user_custom_fields = User.custom_fields_for_ids(replies.pluck(:user_id), added_fields)
+    post_ids =
+      post
+        .replies
+        .secured(guardian)
+        .where(post_number: after + 1..)
+        .limit(MAX_POST_REPLIES)
+        .pluck(:id)
+
+    if post_ids.blank?
+      render_json_dump []
+    else
+      topic_view =
+        TopicView.new(
+          post.topic,
+          current_user,
+          post_ids:,
+          include_related: false,
+          include_suggested: false,
+        )
+
+      render_json_dump(
+        TopicViewPostsSerializer.new(topic_view, scope: guardian).post_stream[:posts],
+      )
     end
-
-    render_serialized(replies, PostSerializer, user_custom_fields: user_custom_fields)
   end
 
   def revisions
@@ -455,6 +496,8 @@ class PostsController < ApplicationController
     post.public_version -= 1
     post.save
 
+    post.publish_change_to_clients!(:revised)
+
     render body: nil
   end
 
@@ -463,7 +506,7 @@ class PostsController < ApplicationController
 
     post = find_post_from_params
     raise Discourse::InvalidParameters.new(:post) if post.blank?
-    raise Discourse::NotFound unless post.revisions.present?
+    raise Discourse::NotFound if post.revisions.blank?
 
     RateLimiter.new(
       current_user,
@@ -494,6 +537,8 @@ class PostsController < ApplicationController
     post = find_post_from_params
     post.public_version += 1
     post.save
+
+    post.publish_change_to_clients!(:revised)
 
     render body: nil
   end
@@ -580,10 +625,12 @@ class PostsController < ApplicationController
     old_notice = post.custom_fields[Post::NOTICE]
 
     if params[:notice].present?
+      cooked_notice = PrettyText.cook(params[:notice], features: { onebox: false })
       post.custom_fields[Post::NOTICE] = {
         type: Post.notices[:custom],
         raw: params[:notice],
-        cooked: PrettyText.cook(params[:notice], features: { onebox: false }),
+        cooked: cooked_notice,
+        created_by_user_id: current_user.id,
       }
     else
       post.custom_fields.delete(Post::NOTICE)
@@ -597,7 +644,7 @@ class PostsController < ApplicationController
       new_value: params[:notice],
     )
 
-    render body: nil
+    render json: success_json.merge(cooked_notice:)
   end
 
   def destroy_bookmark
@@ -771,7 +818,7 @@ class PostsController < ApplicationController
           .order(created_at: :desc)
       end
 
-    if guardian.user.moderator?
+    if guardian.user.moderator? && !guardian.user.admin?
       # Awful hack, but you can't seem to remove the `default_scope` when joining
       # So instead I grab the topics separately
       topic_ids = posts.dup.pluck(:topic_id)
@@ -977,20 +1024,15 @@ class PostsController < ApplicationController
     # A deleted post can be seen by staff or a category group moderator for the topic.
     # But we must find the deleted post to determine which category it belongs to, so
     # we must find.with_deleted
-    post = finder.with_deleted.first
-    raise Discourse::NotFound unless post
+    raise Discourse::NotFound unless post = finder.with_deleted.first
+    raise Discourse::NotFound unless post.topic ||= Topic.with_deleted.find_by(id: post.topic_id)
 
-    post.topic = Topic.with_deleted.find_by(id: post.topic_id)
-
-    if !post.topic ||
-         (
-           (post.deleted_at.present? || post.topic.deleted_at.present?) &&
-             !guardian.can_moderate_topic?(post.topic)
-         )
-      raise Discourse::NotFound
+    if post.deleted_at.present? || post.topic.deleted_at.present?
+      raise Discourse::NotFound unless guardian.can_moderate_topic?(post.topic)
     end
 
     guardian.ensure_can_see!(post)
+
     post
   end
 end

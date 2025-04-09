@@ -1,4 +1,3 @@
-import bootbox from "bootbox";
 import I18n from "discourse-i18n";
 
 export default {
@@ -12,7 +11,7 @@ export default {
 
     try {
       return sessionStorage && sessionStorage.getItem("verbose_localization");
-    } catch (e) {
+    } catch {
       return false;
     }
   },
@@ -39,18 +38,8 @@ export default {
           node[segs[segs.length - 1]] = value;
         }
       }
-    }
 
-    for (let [key, value] of Object.entries(I18n._mfOverrides || {})) {
-      key = key.replace(/^[a-z_]*js\./, "");
-      I18n._compiledMFs[key] = value;
+      delete I18n._overrides;
     }
-
-    bootbox.addLocale(I18n.currentLocale(), {
-      OK: I18n.t("composer.modal_ok"),
-      CANCEL: I18n.t("composer.modal_cancel"),
-      CONFIRM: I18n.t("composer.modal_ok"),
-    });
-    bootbox.setLocale(I18n.currentLocale());
   },
 };

@@ -5,9 +5,9 @@ class MigratePollsData < ActiveRecord::Migration[5.2]
     PG::Connection.escape_string(text)
   end
 
-  POLL_TYPES ||= { "regular" => 0, "multiple" => 1, "number" => 2 }
+  POLL_TYPES = { "regular" => 0, "multiple" => 1, "number" => 2 }
 
-  PG_INTEGER_MAX ||= 2_147_483_647
+  PG_INTEGER_MAX = 2_147_483_647
 
   def up
     # Ensure we don't have duplicate polls
@@ -74,7 +74,7 @@ class MigratePollsData < ActiveRecord::Migration[5.2]
         votes = {}
         r.votes.each do |user_id, user_votes|
           # don't migrate votes from deleted/non-existing users
-          next unless existing_user_ids.include?(user_id.to_i)
+          next if existing_user_ids.exclude?(user_id.to_i)
 
           user_votes.each do |poll_name, options|
             votes[poll_name] ||= {}

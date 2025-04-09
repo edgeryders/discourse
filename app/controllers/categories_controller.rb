@@ -7,6 +7,7 @@ class CategoriesController < ApplicationController
                    index
                    categories_and_latest
                    categories_and_top
+                   categories_and_hot
                    show
                    redirect
                    find_by_slug
@@ -17,7 +18,15 @@ class CategoriesController < ApplicationController
 
   before_action :fetch_category, only: %i[show update destroy visible_groups]
   before_action :initialize_staff_action_logger, only: %i[create update destroy]
-  skip_before_action :check_xhr, only: %i[index categories_and_latest categories_and_top redirect]
+  skip_before_action :check_xhr,
+                     only: %i[
+                       index
+                       categories_and_latest
+                       categories_and_top
+                       categories_and_hot
+                       redirect
+                     ]
+  skip_before_action :verify_authenticity_token, only: %i[search]
 
   SYMMETRICAL_CATEGORIES_TO_TOPICS_FACTOR = 1.5
   MIN_CATEGORIES_TOPICS = 5
@@ -31,57 +40,25 @@ class CategoriesController < ApplicationController
   def index
     discourse_expires_in 1.minute
 
-    @description = SiteSetting.site_description
-
-    parent_category =
-      Category.find_by_slug(params[:parent_category_id]) ||
-        Category.find_by(id: params[:parent_category_id].to_i)
-
-    include_subcategories =
-      SiteSetting.desktop_category_page_style == "subcategories_with_featured_topics" ||
-        params[:include_subcategories] == "true"
-
-    category_options = {
-      is_homepage: current_homepage == "categories",
-      parent_category_id: params[:parent_category_id],
-      include_topics: include_topics(parent_category),
-      include_subcategories: include_subcategories,
-      tag: params[:tag],
-      page: params[:page],
-    }
-
-    @category_list = CategoryList.new(guardian, category_options)
-
-    if category_options[:is_homepage] && SiteSetting.short_site_description.present?
-      @title = "#{SiteSetting.title} - #{SiteSetting.short_site_description}"
-    elsif !category_options[:is_homepage]
-      @title = "#{I18n.t("js.filters.categories.title")} - #{SiteSetting.title}"
-    end
+    @category_list = fetch_category_list
 
     respond_to do |format|
       format.html do
+        @title =
+          if current_homepage == "categories" && SiteSetting.short_site_description.present?
+            "#{SiteSetting.title} - #{SiteSetting.short_site_description}"
+          elsif current_homepage != "categories"
+            "#{I18n.t("js.filters.categories.title")} - #{SiteSetting.title}"
+          end
+
+        @description = SiteSetting.site_description
+
         store_preloaded(
           @category_list.preload_key,
           MultiJson.dump(CategoryListSerializer.new(@category_list, scope: guardian)),
         )
 
-        style = SiteSetting.desktop_category_page_style
-        topic_options = { per_page: CategoriesController.topics_per_page, no_definitions: true }
-
-        if style == "categories_and_latest_topics_created_date"
-          topic_options[:order] = "created"
-          @topic_list = TopicQuery.new(current_user, topic_options).list_latest
-          @topic_list.more_topics_url = url_for(public_send("latest_path", sort: :created))
-        elsif style == "categories_and_latest_topics"
-          @topic_list = TopicQuery.new(current_user, topic_options).list_latest
-          @topic_list.more_topics_url = url_for(public_send("latest_path"))
-        elsif style == "categories_and_top_topics"
-          @topic_list =
-            TopicQuery.new(current_user, topic_options).list_top_for(
-              SiteSetting.top_page_default_timeframe.to_sym,
-            )
-          @topic_list.more_topics_url = url_for(public_send("top_path"))
-        end
+        @topic_list = fetch_topic_list
 
         if @topic_list.present? && @topic_list.topics.present?
           store_preloaded(
@@ -103,6 +80,10 @@ class CategoriesController < ApplicationController
 
   def categories_and_top
     categories_and_topics(:top)
+  end
+
+  def categories_and_hot
+    categories_and_topics(:hot)
   end
 
   def move
@@ -265,7 +246,7 @@ class CategoriesController < ApplicationController
     @category =
       Category.includes(:category_setting).find_by_slug_path(params[:category_slug].split("/"))
 
-    raise Discourse::NotFound unless @category.present?
+    raise Discourse::NotFound if @category.blank?
 
     if !guardian.can_see?(@category)
       if SiteSetting.detailed_404 && group = @category.access_category_via_group
@@ -303,9 +284,17 @@ class CategoriesController < ApplicationController
 
   def find
     categories = []
+    serializer = params[:include_permissions] ? CategorySerializer : SiteCategorySerializer
 
     if params[:ids].present?
       categories = Category.secured(guardian).where(id: params[:ids])
+    elsif params[:slug_path].present?
+      category = Category.find_by_slug_path(params[:slug_path].split("/"))
+      raise Discourse::NotFound if category.blank?
+      guardian.ensure_can_see!(category)
+
+      ancestors = Category.secured(guardian).with_ancestors(category.id).where.not(id: category.id)
+      categories = [*ancestors, category]
     elsif params[:slug_path_with_id].present?
       category = Category.find_by_slug_path_with_id(params[:slug_path_with_id])
       raise Discourse::NotFound if category.blank?
@@ -319,7 +308,72 @@ class CategoriesController < ApplicationController
 
     Category.preload_user_fields!(guardian, categories)
 
-    render_serialized(categories, SiteCategorySerializer, root: :categories, scope: guardian)
+    render_serialized(categories, serializer, root: :categories, scope: guardian)
+  end
+
+  def hierarchical_search
+    term = params[:term].to_s.strip
+    page = [1, params[:page].to_i].max
+    offset = params[:offset].to_i
+    parent_category_id = params[:parent_category_id].to_i if params[:parent_category_id].present?
+    only =
+      if params[:only].present?
+        Category.secured(guardian).where(id: params[:only].to_a.map(&:to_i))
+      else
+        Category.secured(guardian)
+      end
+    except_ids = params[:except].to_a.map(&:to_i)
+    include_uncategorized =
+      (
+        if params[:include_uncategorized].present?
+          ActiveModel::Type::Boolean.new.cast(params[:include_uncategorized])
+        else
+          true
+        end
+      )
+
+    except_ids << SiteSetting.uncategorized_category_id unless include_uncategorized
+
+    except = Category.where(id: except_ids) if except_ids.present?
+
+    limit =
+      (
+        if params[:limit].present?
+          params[:limit].to_i.clamp(1, MAX_CATEGORIES_LIMIT)
+        else
+          MAX_CATEGORIES_LIMIT
+        end
+      )
+
+    categories =
+      Category
+        .secured(guardian)
+        .limited_categories_matching(only, except, parent_category_id, term)
+        .preload(
+          :uploaded_logo,
+          :uploaded_logo_dark,
+          :uploaded_background,
+          :uploaded_background_dark,
+          :tags,
+          :tag_groups,
+          :form_templates,
+          category_required_tag_groups: :tag_group,
+        )
+        .joins("LEFT JOIN topics t on t.id = categories.topic_id")
+        .select("categories.*, t.slug topic_slug")
+        .limit(limit)
+        .offset((page - 1) * limit + offset)
+        .to_a
+
+    if Site.preloaded_category_custom_fields.present?
+      Category.preload_custom_fields(categories, Site.preloaded_category_custom_fields)
+    end
+
+    Category.preload_user_fields!(guardian, categories)
+
+    response = { categories: serialize_data(categories, SiteCategorySerializer, scope: guardian) }
+
+    render_json_dump(response)
   end
 
   def search
@@ -333,28 +387,42 @@ class CategoriesController < ApplicationController
           true
         end
       )
-    select_category_ids = params[:select_category_ids].presence
-    reject_category_ids = params[:reject_category_ids].presence
+    if params[:select_category_ids].is_a?(Array)
+      select_category_ids = params[:select_category_ids].map(&:presence)
+    end
+    if params[:reject_category_ids].is_a?(Array)
+      reject_category_ids = params[:reject_category_ids].map(&:presence)
+    end
     include_subcategories =
       if params[:include_subcategories].present?
         ActiveModel::Type::Boolean.new.cast(params[:include_subcategories])
       else
         true
       end
+    include_ancestors =
+      if params[:include_ancestors].present?
+        ActiveModel::Type::Boolean.new.cast(params[:include_ancestors])
+      else
+        false
+      end
     prioritized_category_id = params[:prioritized_category_id].to_i if params[
       :prioritized_category_id
     ].present?
-    limit = params[:limit].to_i.clamp(1, MAX_CATEGORIES_LIMIT) if params[:limit].present?
+    limit =
+      (
+        if params[:limit].present?
+          params[:limit].to_i.clamp(1, MAX_CATEGORIES_LIMIT)
+        else
+          MAX_CATEGORIES_LIMIT
+        end
+      )
+    page = [1, params[:page].to_i].max
 
     categories = Category.secured(guardian)
 
-    categories =
-      categories
-        .includes(:category_search_data)
-        .references(:category_search_data)
-        .where(
-          "category_search_data.search_data @@ #{Search.ts_query(term: term)}",
-        ) if term.present?
+    if term.present? && words = term.split
+      words.each { |word| categories = categories.where("name ILIKE ?", "%#{word}%") }
+    end
 
     categories =
       (
@@ -374,21 +442,50 @@ class CategoriesController < ApplicationController
 
     categories = categories.where(parent_category_id: nil) if !include_subcategories
 
-    categories = categories.limit(limit || MAX_CATEGORIES_LIMIT)
+    categories_count = categories.count
 
-    categories = categories.order(<<~SQL) if prioritized_category_id.present?
-      CASE
-      WHEN id = #{prioritized_category_id} THEN 1
-      WHEN parent_category_id = #{prioritized_category_id} THEN 2
-      ELSE 3
-      END
-    SQL
+    categories =
+      categories
+        .includes(
+          :uploaded_logo,
+          :uploaded_logo_dark,
+          :uploaded_background,
+          :uploaded_background_dark,
+          :tags,
+          :tag_groups,
+          :form_templates,
+          category_required_tag_groups: :tag_group,
+        )
+        .joins("LEFT JOIN topics t on t.id = categories.topic_id")
+        .select("categories.*, t.slug topic_slug")
+        .order(
+          "starts_with(lower(categories.name), #{ActiveRecord::Base.connection.quote(term)}) DESC",
+          "categories.parent_category_id IS NULL DESC",
+          "categories.id IS NOT DISTINCT FROM #{ActiveRecord::Base.connection.quote(prioritized_category_id)} DESC",
+          "categories.parent_category_id IS NOT DISTINCT FROM #{ActiveRecord::Base.connection.quote(prioritized_category_id)} DESC",
+          "categories.id ASC",
+        )
+        .limit(limit)
+        .offset((page - 1) * limit)
 
-    categories = categories.order(:id)
+    if Site.preloaded_category_custom_fields.present?
+      Category.preload_custom_fields(categories, Site.preloaded_category_custom_fields)
+    end
 
     Category.preload_user_fields!(guardian, categories)
 
-    render_serialized(categories, SiteCategorySerializer, root: :categories, scope: guardian)
+    response = {
+      categories_count: categories_count,
+      categories: serialize_data(categories, SiteCategorySerializer, scope: guardian),
+    }
+
+    if include_ancestors
+      ancestors = Category.secured(guardian).ancestors_of(categories.map(&:id))
+      Category.preload_user_fields!(guardian, ancestors)
+      response[:ancestors] = serialize_data(ancestors, SiteCategorySerializer, scope: guardian)
+    end
+
+    render_json_dump(response)
   end
 
   private
@@ -404,35 +501,9 @@ class CategoriesController < ApplicationController
   def categories_and_topics(topics_filter)
     discourse_expires_in 1.minute
 
-    category_options = {
-      is_homepage: current_homepage == "categories",
-      parent_category_id: params[:parent_category_id],
-      include_topics: false,
-      page: params[:page],
-    }
-
-    topic_options = { per_page: CategoriesController.topics_per_page, no_definitions: true }
-
-    topic_options.merge!(build_topic_list_options)
-    style = SiteSetting.desktop_category_page_style
-    topic_options[:order] = "created" if style == "categories_and_latest_topics_created_date"
-
     result = CategoryAndTopicLists.new
-    result.category_list = CategoryList.new(guardian, category_options)
-
-    if topics_filter == :latest
-      result.topic_list = TopicQuery.new(current_user, topic_options).list_latest
-      result.topic_list.more_topics_url =
-        url_for(
-          public_send("latest_path", sort: topic_options[:order] == "created" ? :created : nil),
-        )
-    elsif topics_filter == :top
-      result.topic_list =
-        TopicQuery.new(current_user, topic_options).list_top_for(
-          SiteSetting.top_page_default_timeframe.to_sym,
-        )
-      result.topic_list.more_topics_url = url_for(public_send("top_path"))
-    end
+    result.category_list = fetch_category_list
+    result.topic_list = fetch_topic_list(topics_filter:)
 
     render_serialized(result, CategoryAndTopicListsSerializer, root: false)
   end
@@ -463,10 +534,9 @@ class CategoriesController < ApplicationController
           ]
         end
 
+        conditional_param_keys = []
         if SiteSetting.enable_category_group_moderation?
-          params[:reviewable_by_group_id] = Group.where(
-            name: params[:reviewable_by_group_name],
-          ).pick(:id) if params[:reviewable_by_group_name]
+          conditional_param_keys << { moderating_group_ids: [] }
         end
 
         result =
@@ -506,7 +576,7 @@ class CategoriesController < ApplicationController
             :allow_global_tags,
             :read_only_banner,
             :default_list_filter,
-            :reviewable_by_group_id,
+            *conditional_param_keys,
             category_setting_attributes: %i[
               auto_bump_cooldown_days
               num_auto_bump_daily
@@ -541,15 +611,75 @@ class CategoriesController < ApplicationController
     raise Discourse::NotFound if @category.blank?
   end
 
-  def initialize_staff_action_logger
-    @staff_action_logger = StaffActionLogger.new(current_user)
+  def fetch_category_list
+    parent_category =
+      if params[:parent_category_id].present?
+        Category.find_by_slug(params[:parent_category_id]) ||
+          Category.find_by(id: params[:parent_category_id].to_i)
+      elsif params[:category_slug_path_with_id].present?
+        Category.find_by_slug_path_with_id(params[:category_slug_path_with_id])
+      end
+
+    include_topics =
+      params[:include_topics] ||
+        (parent_category && parent_category.subcategory_list_includes_topics?) ||
+        SiteSetting.desktop_category_page_style == "categories_with_featured_topics" ||
+        SiteSetting.desktop_category_page_style == "subcategories_with_featured_topics" ||
+        SiteSetting.desktop_category_page_style == "categories_boxes_with_topics" ||
+        SiteSetting.desktop_category_page_style == "categories_with_top_topics" ||
+        SiteSetting.mobile_category_page_style == "categories_with_featured_topics" ||
+        SiteSetting.mobile_category_page_style == "categories_boxes_with_topics" ||
+        SiteSetting.mobile_category_page_style == "subcategories_with_featured_topics"
+
+    include_subcategories =
+      SiteSetting.desktop_category_page_style == "subcategories_with_featured_topics" ||
+        SiteSetting.mobile_category_page_style == "subcategories_with_featured_topics" ||
+        params[:include_subcategories] == "true"
+
+    category_options = {
+      is_homepage: current_homepage == "categories",
+      parent_category_id: parent_category&.id,
+      include_topics: include_topics,
+      include_subcategories: include_subcategories,
+      tag: params[:tag],
+      page: params[:page].try(:to_i) || 1,
+    }
+
+    @category_list = CategoryList.new(guardian, category_options)
   end
 
-  def include_topics(parent_category = nil)
-    style = SiteSetting.desktop_category_page_style
-    view_context.mobile_view? || params[:include_topics] ||
-      (parent_category && parent_category.subcategory_list_includes_topics?) ||
-      style == "categories_with_featured_topics" || style == "subcategories_with_featured_topics" ||
-      style == "categories_boxes_with_topics" || style == "categories_with_top_topics"
+  def fetch_topic_list(topics_filter: nil)
+    style =
+      if topics_filter
+        "categories_and_#{topics_filter}_topics"
+      else
+        SiteSetting.desktop_category_page_style
+      end
+
+    topic_options = { per_page: CategoriesController.topics_per_page, no_definitions: true }
+    topic_options.merge!(build_topic_list_options)
+    topic_options[:order] = "created" if SiteSetting.desktop_category_page_style ==
+      "categories_and_latest_topics_created_date"
+
+    case style
+    when "categories_and_latest_topics", "categories_and_latest_topics_created_date"
+      @topic_list = TopicQuery.new(current_user, topic_options).list_latest
+      @topic_list.more_topics_url = url_for(latest_path(sort: topic_options[:order]))
+    when "categories_and_top_topics"
+      @topic_list =
+        TopicQuery.new(current_user, topic_options).list_top_for(
+          SiteSetting.top_page_default_timeframe.to_sym,
+        )
+      @topic_list.more_topics_url = url_for(top_path)
+    when "categories_and_hot_topics"
+      @topic_list = TopicQuery.new(current_user, topic_options).list_hot
+      @topic_list.more_topics_url = url_for(hot_path)
+    end
+
+    @topic_list
+  end
+
+  def initialize_staff_action_logger
+    @staff_action_logger = StaffActionLogger.new(current_user)
   end
 end

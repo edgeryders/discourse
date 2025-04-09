@@ -8,6 +8,10 @@ body.composer-open .chat-drawer-outlet-container {
   width: 15px;
   height: 15px;
   z-index: z("composer", "content");
+
+  .is-collapsed & {
+    display: none;
+  }
 }
 
 html:not(.rtl) {
@@ -25,8 +29,8 @@ html.rtl {
 }
 
 .chat-drawer-outlet-container {
-  // higher than timeline, lower than composer, lower than user card (bump up below)
-  z-index: z("usercard");
+  // higher than timeline, lower than composer, dropdown, and user card
+  z-index: z("chat-drawer");
   position: fixed;
   right: var(--composer-right, 20px);
   left: 0;
@@ -62,7 +66,7 @@ html.rtl {
     border-bottom: 0;
     border-top-left-radius: var(--d-border-radius-large);
     border-top-right-radius: var(--d-border-radius-large);
-    box-shadow: 0px 0px 4px rgba(0, 0, 0, 0.125);
+    box-shadow: 0 0 4px rgba(0, 0, 0, 0.125);
     box-sizing: border-box;
     display: flex;
     flex-direction: column;
@@ -76,9 +80,10 @@ html.rtl {
     }
   }
 
-  &:not(.is-expanded) {
+  &.is-collapsed {
     min-height: 0 !important;
     height: auto !important;
+    max-width: 25vw;
   }
 
   .chat-channel,
@@ -89,11 +94,26 @@ html.rtl {
 }
 
 .chat-drawer-content {
-  @include chat-scrollbar();
+  @include chat-scrollbar;
+  display: flex;
+  flex-direction: column;
   box-sizing: border-box;
   height: 100%;
   min-height: 1px;
   position: relative;
   overflow-y: auto;
   overscroll-behavior: contain;
+
+  .c-channel-settings {
+    flex-grow: 1;
+
+    .chat-form {
+      height: 100%;
+    }
+
+    .chat-form__section.--leave-channel {
+      margin-top: auto;
+      margin-bottom: 0;
+    }
+  }
 }

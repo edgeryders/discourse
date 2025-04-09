@@ -105,6 +105,9 @@ function rowHelper(row) {
     label() {
       return row.querySelector(".name").innerText.trim();
     },
+    description() {
+      return row.querySelector(".desc").innerText.trim();
+    },
     value() {
       const value = row?.getAttribute("data-value");
       return isEmpty(value) ? null : value;
@@ -114,6 +117,9 @@ function rowHelper(row) {
     },
     el() {
       return row;
+    },
+    hasClass(className) {
+      return row.classList.contains(className);
     },
   };
 }
@@ -229,6 +235,10 @@ export default function selectKit(selector) {
       return filterHelper(query(selector).querySelector(".select-kit-filter"));
     },
 
+    error() {
+      return query(selector).querySelector(".select-kit-error");
+    },
+
     rows() {
       return query(selector).querySelectorAll(".select-kit-row");
     },
@@ -268,6 +278,10 @@ export default function selectKit(selector) {
       return rowHelper(query(selector).querySelector(".select-kit-row.none"));
     },
 
+    clearButton() {
+      return query(selector).querySelector(".btn-clear");
+    },
+
     validationMessage() {
       const validationMessage = query(selector).querySelector(
         ".validation-message"
@@ -298,6 +312,12 @@ export default function selectKit(selector) {
 
     async deselectItemByName(name) {
       await click(`${selector} .selected-content [data-name="${name}"]`);
+    },
+
+    async deselectItemByIndex(index) {
+      await click(
+        queryAll(`${selector} .selected-content .selected-choice`)[index]
+      );
     },
 
     exists() {

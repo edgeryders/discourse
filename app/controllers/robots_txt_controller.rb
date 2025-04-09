@@ -2,12 +2,15 @@
 
 class RobotsTxtController < ApplicationController
   layout false
-  skip_before_action :preload_json, :check_xhr, :redirect_to_login_if_required
+  skip_before_action :preload_json,
+                     :check_xhr,
+                     :redirect_to_login_if_required,
+                     :redirect_to_profile_if_required
 
   OVERRIDDEN_HEADER = "# This robots.txt file has been customized at /admin/customize/robots\n"
 
   # NOTE: order is important!
-  DISALLOWED_PATHS ||= %w[
+  DISALLOWED_PATHS = %w[
     /admin/
     /auth/
     /assets/browser-update*.js
@@ -18,7 +21,7 @@ class RobotsTxtController < ApplicationController
     /*?*api_key*
   ]
 
-  DISALLOWED_WITH_HEADER_PATHS ||= %w[/badges /u/ /my /search /tag/*/l /g /t/*/*.rss /c/*.rss]
+  DISALLOWED_WITH_HEADER_PATHS = %w[/badges /my /search /tag/*/l /g /t/*/*.rss /c/*.rss]
 
   def index
     if (overridden = SiteSetting.overridden_robots_txt.dup).present?

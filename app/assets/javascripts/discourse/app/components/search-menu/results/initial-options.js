@@ -1,7 +1,7 @@
 import Component from "@glimmer/component";
-import { inject as service } from "@ember/service";
+import { service } from "@ember/service";
 import { MODIFIER_REGEXP } from "discourse/components/search-menu";
-import I18n from "discourse-i18n";
+import { i18n } from "discourse-i18n";
 import Assistant from "./assistant";
 import AssistantItem from "./assistant-item";
 
@@ -13,6 +13,14 @@ const SEARCH_CONTEXT_TYPE_COMPONENTS = {
   tagIntersection: Assistant,
   user: AssistantItem,
 };
+
+const DISPLAY_INITIAL_OPTIONS_FOR_CONTEXT_TYPES = [
+  "topic",
+  "category",
+  "tag",
+  "tagIntersection",
+  "user",
+];
 
 export default class InitialOptions extends Component {
   @service search;
@@ -35,6 +43,15 @@ export default class InitialOptions extends Component {
 
   get termMatchesContextTypeKeyword() {
     return this.search.activeGlobalSearchTerm?.match(MODIFIER_REGEXP);
+  }
+
+  get displayInitialOptions() {
+    if (this.search.activeGlobalSearchTerm) {
+      return false;
+    }
+    return DISPLAY_INITIAL_OPTIONS_FOR_CONTEXT_TYPES.includes(
+      this.search.searchContext?.type
+    );
   }
 
   setAttributesForSearchContextType(type) {
@@ -61,7 +78,7 @@ export default class InitialOptions extends Component {
   }
 
   topicContextType() {
-    this.suffix = I18n.t("search.in_this_topic");
+    this.suffix = i18n("search.in_this_topic");
   }
 
   privateMessageContextType() {
@@ -118,8 +135,9 @@ export default class InitialOptions extends Component {
   }
 
   userContextType() {
+    this.contextTypeKeyword = "@";
     this.slug = `@${this.search.searchContext.user.username}`;
-    this.suffix = I18n.t("search.in_posts_by", {
+    this.suffix = i18n("search.in_posts_by", {
       username: this.search.searchContext.user.username,
     });
   }

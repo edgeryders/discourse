@@ -5,7 +5,7 @@ require_relative "shared_context_for_backup_restore"
 RSpec.describe BackupRestore::DatabaseRestorer do
   subject(:restorer) { BackupRestore::DatabaseRestorer.new(logger, current_db) }
 
-  include_context "with shared stuff"
+  include_context "with shared backup restore context"
 
   let(:current_db) { RailsMultisite::ConnectionManagement.current_db }
 
@@ -157,7 +157,7 @@ RSpec.describe BackupRestore::DatabaseRestorer do
 
   describe "readonly functions" do
     before do
-      BackupRestore::DatabaseRestorer.stubs(:core_migration_files).returns(
+      BackupRestore::DatabaseRestorer.stubs(:all_migration_files).returns(
         Dir[Rails.root.join("spec/fixtures/db/post_migrate/drop_column/**/*.rb")],
       )
     end

@@ -16,6 +16,7 @@ class InvitesController < ApplicationController
   skip_before_action :check_xhr, except: [:perform_accept_invitation]
   skip_before_action :preload_json, except: [:show]
   skip_before_action :redirect_to_login_if_required
+  skip_before_action :redirect_to_profile_if_required
 
   before_action :ensure_invites_allowed, only: %i[show perform_accept_invitation]
   before_action :ensure_new_registrations_allowed, only: %i[show perform_accept_invitation]
@@ -323,6 +324,8 @@ class InvitesController < ApplicationController
       },
     )
 
+    raise Discourse::NotFound if SiteSetting.enable_discourse_connect
+
     invite = Invite.find_by(invite_key: params[:id])
     redeeming_user = current_user
 
@@ -546,11 +549,12 @@ class InvitesController < ApplicationController
       info[:username] = current_user.username
     end
 
-    store_preloaded("invite_info", MultiJson.dump(info))
-
     secure_session["invite-key"] = invite.invite_key
 
-    render layout: "application"
+    respond_to do |format|
+      format.html { store_preloaded("invite_info", MultiJson.dump(info)) }
+      format.json { render_json_dump(info) }
+    end
   end
 
   def show_irredeemable_invite(invite)

@@ -7,11 +7,11 @@ module Reports::ConsolidatedApiRequests
     def report_consolidated_api_requests(report)
       filters = %w[api user_api]
 
-      report.modes = [:stacked_chart]
+      report.modes = [Report::MODES[:stacked_chart]]
 
       requests =
         filters.map do |filter|
-          color = filter == "api" ? report.colors[0] : report.colors[1]
+          color = filter == "api" ? report.colors[:turquoise] : report.colors[:lime]
 
           {
             req: filter,

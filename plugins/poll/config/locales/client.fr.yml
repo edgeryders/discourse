@@ -13,6 +13,9 @@ fr:
       total_votes:
         one: "vote au total"
         other: "votes au total"
+      votes:
+        one: "%{count} vote"
+        other: "%{count} votes"
       average_rating: "Notation moyenne : <strong>%{average}</strong>"
       public:
         title: "Les votes sont <strong>publics</strong>."
@@ -25,6 +28,9 @@ fr:
           title: "Les résultats sont affichés après la <strong>fermeture</strong> du sondage."
         staff:
           title: "Les résultats ne sont montrés qu'aux <strong>responsables</strong>."
+        tabs:
+          votes: "Votes"
+          outcome: "Résultat"
       multiple:
         help:
           at_least_min_options:
@@ -43,6 +49,12 @@ fr:
       show-results:
         title: "Afficher les résultats du sondage"
         label: "Résultats"
+      show-tally:
+        title: "Afficher les résultats du vote par nombre de votes"
+        label: "Afficher le décompte"
+      show-percentage:
+        title: "Afficher les résultats du vote sous forme de pourcentage"
+        label: "Afficher en pourcentage"
       remove-vote:
         title: "Supprimer votre vote"
         label: "Annuler le vote"
@@ -72,8 +84,27 @@ fr:
         breakdown: "Détails"
         percentage: "Pourcentage"
         count: "Nombre"
+      ranked_choice:
+        title:
+          rounds: "Tours"
+          outcome: "Résultat"
+        none: "Aucun"
+        majority: "Majorité"
+        eliminated: "Éliminé"
+        round: "Tour"
+        winner:
+          one: "Le gagnant était %{winner} après un tour."
+          other: "Le gagnant était %{winner} après %{count} tours."
+        tied:
+          one: "Égalité après un tour entre les candidats suivants :"
+          other: "Égalité après %{count} tours entre les candidats suivants :"
       options:
         label: "Options"
+        ranked_choice:
+          abstain: "Abstention"
+          highest_priority: "(priorité la plus élevée)"
+          lowest_priority: "(priorité la plus faible)"
+          login: "Connectez-vous pour voter !"
       error_while_toggling_status: "Nous sommes désolés, une erreur s'est produite lors du changement de statut de ce sondage."
       error_while_casting_votes: "Nous sommes désolés, une erreur s'est produite lors de l'envoi de vos votes."
       error_while_fetching_voters: "Nous sommes désolés, une erreur s'est produite lors de l'affichage des votants."
@@ -92,6 +123,7 @@ fr:
           label: Type
           regular: Choix unique
           multiple: Choix multiple
+          ranked_choice: Choix classé
           number: Nombre
         poll_result:
           label: Afficher les résultats…

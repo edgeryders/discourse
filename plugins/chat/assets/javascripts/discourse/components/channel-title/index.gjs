@@ -12,6 +12,10 @@ const ChatChannelTitle = <template>
     <ChannelIcon @channel={{@channel}} />
     <ChannelName @channel={{@channel}} />
 
+    {{#if @isUnread}}
+      <div class="unread-indicator {{if @isUrgent '-urgent'}}"></div>
+    {{/if}}
+
     {{#if (has-block)}}
       {{yield}}
     {{/if}}

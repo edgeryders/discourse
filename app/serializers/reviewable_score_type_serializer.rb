@@ -9,8 +9,7 @@ class ReviewableScoreTypeSerializer < ApplicationSerializer
 
   # Allow us to share post action type translations for backwards compatibility
   def title
-    I18n.t("post_action_types.#{ReviewableScore.types[id]}.title", default: nil) ||
-      I18n.t("reviewable_score_types.#{ReviewableScore.types[id]}.title")
+    ReviewableScore.type_title(type)
   end
 
   def reviewable_priority

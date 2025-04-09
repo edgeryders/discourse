@@ -6,20 +6,20 @@ source "https://rubygems.org"
 
 gem "bootsnap", require: false, platform: :mri
 
-gem "actionmailer", "< 7.1"
-gem "actionpack", "< 7.1"
-gem "actionview", "< 7.1"
-gem "activemodel", "< 7.1"
-gem "activerecord", "< 7.1"
-gem "activesupport", "< 7.1"
-gem "railties", "< 7.1"
+gem "actionmailer", "~> 7.2.0"
+gem "actionpack", "~> 7.2.0"
+gem "actionview", "~> 7.2.0"
+gem "activemodel", "~> 7.2.0"
+gem "activerecord", "~> 7.2.0"
+gem "activesupport", "~> 7.2.0"
+gem "railties", "~> 7.2.0"
 gem "sprockets-rails"
 
 gem "json"
 
 # TODO: At the moment Discourse does not work with Sprockets 4, we would need to correct internals
 # We intend to drop sprockets rather than upgrade to 4.x
-gem "sprockets", git: "https://github.com/rails/sprockets", branch: "3.x"
+gem "sprockets", "~> 3.7.3"
 
 # this will eventually be added to rails,
 # allows us to precompile all our templates in the unicorn master
@@ -31,7 +31,9 @@ gem "mail"
 gem "mini_mime"
 gem "mini_suffix"
 
-gem "redis"
+# config/initializers/006-mini_profiler.rb depends upon the RedisClient#call.
+# Rework this when upgrading to redis client 5.0 and above.
+gem "redis", "< 5.0"
 
 # This is explicitly used by Sidekiq and is an optional dependency.
 # We tell Sidekiq to use the namespace "sidekiq" which triggers this
@@ -54,9 +56,6 @@ gem "discourse-fonts", require: "discourse_fonts"
 gem "message_bus"
 
 gem "rails_multisite"
-
-# https://github.com/discourse/discourse/pull/26442
-# gem "fast_xs", platform: :ruby
 
 gem "fastimage"
 
@@ -90,6 +89,7 @@ gem "mini_sql"
 gem "pry-rails", require: false
 gem "pry-byebug", require: false
 gem "rtlcss", require: false
+gem "messageformat-wrapper", require: false
 gem "rake"
 
 gem "thor", require: false
@@ -99,7 +99,7 @@ gem "sidekiq"
 gem "mini_scheduler"
 
 gem "execjs", require: false
-gem "mini_racer"
+gem "mini_racer", "0.17.pre13"
 
 gem "highline", require: false
 
@@ -126,7 +126,6 @@ group :test do
   gem "capybara", require: false
   gem "webmock", require: false
   gem "fakeweb", require: false
-  gem "minitest", require: false
   gem "simplecov", require: false
   gem "selenium-webdriver", "~> 4.14", require: false
   gem "selenium-devtools", require: false
@@ -148,6 +147,7 @@ group :test, :development do
 
   gem "shoulda-matchers", require: false
   gem "rspec-html-matchers"
+  gem "pry-stack_explorer", require: false
   gem "byebug", require: ENV["RM_INFO"].nil?, platform: :mri
   gem "rubocop-discourse", require: false
   gem "parallel_tests"
@@ -158,6 +158,8 @@ group :test, :development do
 
   gem "syntax_tree"
   gem "syntax_tree-disable_ternary"
+
+  gem "rspec-multi-mock"
 end
 
 group :development do
@@ -196,11 +198,9 @@ gem "htmlentities", require: false
 gem "rack-mini-profiler", require: ["enable_rails_patches"]
 
 gem "unicorn", require: false, platform: :ruby
-gem "puma", '< 5', require: false
-gem "rbtrace", require: false, platform: :mri
+gem "puma", require: false
 
-# https://github.com/discourse/discourse/pull/26441
-# gem "gc_tracer", require: false, platform: :mri
+gem "rbtrace", require: false, platform: :mri
 
 # required for feed importing and embedding
 gem "ruby-readability", require: false
@@ -215,7 +215,6 @@ gem "cppjieba_rb", require: false
 
 gem "lograge", require: false
 gem "logstash-event", require: false
-gem "logstash-logger", require: false
 gem "logster"
 
 # A fork of sassc with dart-sass support
@@ -244,8 +243,6 @@ if ENV["IMPORT"] == "1"
   gem "reverse_markdown"
   gem "tiny_tds"
   gem "csv"
-
-  gem "parallel", require: false
 end
 
 group :generic_import, optional: true do
@@ -270,30 +267,28 @@ gem "net-http"
 gem "cgi", ">= 0.3.6", require: false
 
 gem "tzinfo-data"
+gem "csv", require: false
 
-# damingo (Github ID), 2017-08-22, #password_migration
-gem 'bcrypt', '3.1.3'
-gem 'unix-crypt', '1.3.0' #, :require_name => 'unix_crypt'
+# dependencies for the automation plugin
+gem "iso8601"
+gem "rrule"
 
-# damingo (Github ID), 2024-05-25, required in production to precompile assets.
-gem "uglifier"
+group :migrations, optional: true do
+  gem "extralite-bundle", require: "extralite"
 
-# --- discourse-annotator ---
-# damingo (Github ID), 2019-09, #annotator
-gem 'discourse-annotator', git: 'https://github.com/edgeryders/discourse-annotator', branch: 'master'
-# gem 'discourse-annotator', path: '~/Projects/Edgeryders/discourse-annotator'
-# gem 'discourse-annotator', source: 'https://gem.fury.io/webmaster/'
+  # auto-loading
+  gem "zeitwerk"
 
-# Must be included here as dependencies that are still in development cannot be added in the gems gemspec.
-gem 'administrate', git: 'https://github.com/edgeryders/administrate'
-gem "administrate-field-nested_has_many", git: 'https://github.com/edgeryders/administrate-field-nested_has_many', branch: 'master'
-gem "administrate-field-belongs_to_search", git: 'https://github.com/edgeryders/administrate-field-belongs_to_search', branch: 'master'
+  # databases
+  gem "trilogy"
 
+  # CLI
+  gem "ruby-progressbar"
 
-# --- edgeryders-api ---
-# Required by the edgeryders-api plugin.
-# Added here to avoid that all of the discourse_api dependencies
-# must be listed in the plugin.rb. See: https://meta.discourse.org/t/plugin-using-own-gem/50007/6
-gem 'discourse_api' # https://github.com/discourse/discourse_api
+  # non-cryptographic hashing algorithm for generating placeholder IDs
+  gem "digest-xxhash"
+end
 
+gem "dry-initializer", "~> 3.1"
 
+gem "parallel"

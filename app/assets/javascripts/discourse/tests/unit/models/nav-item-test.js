@@ -1,4 +1,4 @@
-import { getOwner } from "@ember/application";
+import { getOwner } from "@ember/owner";
 import { setupTest } from "ember-qunit";
 import { module, test } from "qunit";
 import Category from "discourse/models/category";
@@ -44,7 +44,7 @@ module("Unit | Model | nav-item", function (hooks) {
       last_read_post_number: null,
       created_in_new_period: true,
     });
-    navItem.topicTrackingState.incrementMessageCount();
+    navItem.topicTrackingState.messageCount++;
 
     assert.strictEqual(
       navItem.count,

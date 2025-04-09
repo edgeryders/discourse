@@ -28,6 +28,10 @@ class FileHelper
     filename.match?(inline_images_regexp)
   end
 
+  def self.is_svg?(filename)
+    filename.match?(/\.svg\z/i)
+  end
+
   def self.is_supported_media?(filename)
     filename.match?(supported_media_regexp)
   end
@@ -50,7 +54,8 @@ class FileHelper
     verbose: false,
     validate_uri: true,
     retain_on_max_file_size_exceeded: false,
-    include_port_in_host_header: false
+    include_port_in_host_header: false,
+    extra_headers: {}
   )
     url = "https:" + url if url.start_with?("//")
     raise Discourse::InvalidParameters.new(:url) unless url =~ %r{\Ahttps?://}
@@ -66,6 +71,7 @@ class FileHelper
         validate_uri: validate_uri,
         timeout: read_timeout,
         include_port_in_host_header: include_port_in_host_header,
+        headers: extra_headers,
       )
 
     fd.get do |response, chunk, uri|

@@ -14,7 +14,7 @@ class BulkImport::Vanilla < BulkImport::Base
   BATCH_SIZE = 1000
   CONVERT_HTML = true
 
-  SUSPENDED_TILL ||= Date.new(3000, 1, 1)
+  SUSPENDED_TILL = Date.new(3000, 1, 1)
 
   def initialize
     super
@@ -227,7 +227,7 @@ class BulkImport::Vanilla < BulkImport::Base
           ).first
         next if r.nil?
         photo = r["photo"]
-        next unless photo.present?
+        next if photo.blank?
 
         # Possible encoded values:
         # 1. cf://uploads/userpics/820/Y0AFUQYYM6QN.jpg
@@ -305,7 +305,7 @@ class BulkImport::Vanilla < BulkImport::Base
             next if r.nil?
             path = r["Path"]
             name = r["Name"]
-            next unless path.present?
+            next if path.blank?
 
             path.gsub!("s3://content/", "")
             path.gsub!("s3://uploads/", "")
