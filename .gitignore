@@ -121,3 +121,5 @@ copyright
 /public/.well-known/
 
 /config/secrets.yml
+
+/.idea/*
