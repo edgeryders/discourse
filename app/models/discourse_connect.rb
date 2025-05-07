@@ -143,8 +143,9 @@ class DiscourseConnect < DiscourseConnectBase
 
     user.ip_address = ip_address
 
-    user.admin = admin unless admin.nil?
-    user.moderator = moderator unless moderator.nil?
+    # damingo (Github ID), 2019-07-04, #multisite, Do not automatically make users admins or moderators.
+    # user.admin = admin unless admin.nil?
+    # user.moderator = moderator unless moderator.nil?
 
     user.title = title unless title.nil?
 

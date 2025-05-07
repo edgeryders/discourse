@@ -638,9 +638,10 @@ class Category < ActiveRecord::Base
   def description_text
     return nil unless self.description
 
-    @@cache_text ||= LruRedux::ThreadSafeCache.new(1000)
-    @@cache_text.getset(self.description) do
-      text = Nokogiri::HTML5.fragment(self.description).text.strip
+    @@cache ||= LruRedux::ThreadSafeCache.new(1000)
+    @@cache.getset(self.description) do
+      # damingo (Github ID), 2019-01-02, #details
+      text = Nokogiri::HTML.fragment(self.description.gsub(/<summary\s*>.*?<\/summary\s*>/,'')).text.strip.truncate(500, separator: /\s/)
       ERB::Util.html_escape(text).html_safe
     end
   end
@@ -649,7 +650,12 @@ class Category < ActiveRecord::Base
     return nil unless self.description
 
     @@cache_excerpt ||= LruRedux::ThreadSafeCache.new(1000)
-    @@cache_excerpt.getset(self.description) { PrettyText.excerpt(description, 300) }
+    @@cache_excerpt.getset(self.description) do
+      # damingo (Github ID), 2019-01-02, #details
+      doc = Nokogiri::HTML.fragment(self.description)
+      html = doc.css('p').first ? doc.css('p').first.inner_html.strip : description.gsub(/<summary\s*>.*?<\/summary\s*>/,'')
+      PrettyText.excerpt(html, 300)
+    end
   end
 
   def access_category_via_group

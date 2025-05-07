@@ -75,6 +75,12 @@ class UserSummarySerializer < ApplicationSerializer
                :parent_category_id
   end
 
+  class CategoryWithCountsSerializer < ApplicationSerializer
+    attributes :topic_count, :post_count,
+      :id, :name, :color, :text_color, :slug,
+      :read_restricted, :parent_category_id
+  end
+
   has_many :topics, serializer: TopicSerializer
   has_many :replies, serializer: ReplySerializer, embed: :object
   has_many :links, serializer: LinkSerializer, embed: :object

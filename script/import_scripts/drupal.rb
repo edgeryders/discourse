@@ -17,8 +17,8 @@ class ImportScripts::Drupal < ImportScripts::Base
 
     @client =
       Mysql2::Client.new(
-        host: "localhost",
-        username: "root",
+        host: 'localhost',
+        username: Rails.env.production? ? 'discourse' : 'root',
         #password: "password",
         database: DRUPAL_DB,
       )

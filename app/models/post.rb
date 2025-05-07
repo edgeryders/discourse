@@ -535,7 +535,8 @@ class Post < ActiveRecord::Base
 
   # Strip out most of the markup
   def excerpt(maxlength = nil, options = {})
-    Post.excerpt(cooked, maxlength, options.merge(post: self))
+    # damingo (Github ID), 2019-01-02, #details
+    Post.excerpt(cooked.gsub(/<summary\s*>.*?<\/summary\s*>/,''), maxlength, options.merge(post: self))
   end
 
   def excerpt_for_topic

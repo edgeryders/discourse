@@ -75,9 +75,11 @@ class ApplicationController < ActionController::Base
     @use_crawler_layout ||=
       request.user_agent && (request.media_type.blank? || request.media_type.include?("html")) &&
         !%w[json rss].include?(params[:format]) &&
+        # damingo (Github ID), 2019-09-23, #annotator
         (
           has_escaped_fragment? || params.key?("print") || show_browser_update? ||
-            CrawlerDetection.crawler?(request.user_agent, request.headers["HTTP_VIA"])
+            CrawlerDetection.crawler?(request.user_agent, request.headers["HTTP_VIA"]) ||
+            params.key?("oe")
         )
   end
 

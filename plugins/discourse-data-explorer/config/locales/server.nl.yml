@@ -1,0 +1,14 @@
+# WARNING: Never edit this file.
+# It will be overwritten when translations are pulled from Crowdin.
+#
+# To work with us on translations, join this project:
+# https://translate.discourse.org/
+
+nl:
+  site_settings:
+    data_explorer_enabled: "Gegevensverkenner op /admin/plugins/explorer inschakelen"
+  discourse_automation:
+    scriptables:
+      recurring_data_explorer_result_pm:
+        title: Plan een PB met de resultaten van Gegevensverkenner
+        description: Ontvang geplande rapporten die elke maand naar je berichten worden gestuurd

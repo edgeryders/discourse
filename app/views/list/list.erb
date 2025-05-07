@@ -146,6 +146,10 @@
   <% content_for :head do %>
     <%= raw crawlable_meta_data(title: @title, description: @description_meta) %>
   <% end %>
+<% elsif @tag_id %>
+  <% content_for :head do %>
+    <%= raw crawlable_meta_data(title: @title, description: @description_meta) %>
+  <% end %>
 <% else %>
   <% content_for :head do %>
     <%= raw crawlable_meta_data(title: SiteSetting.title, description: SiteSetting.site_description) %>

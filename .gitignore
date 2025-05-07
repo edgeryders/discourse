@@ -85,10 +85,39 @@ openapi/*
 # Cached License Data Files
 /.licenses
 
+# ember-cli generated
+dist
+
+# Copyright Deposits
+copyright
+
 # devenv.sh
 .devenv*
 
 # direnv.net
 .direnv
 
-/.idea/*
+
+!/plugins/discourse-data-explorer
+!/plugins/discourse-migratepassword
+!/plugins/edgeryders-consent
+!/plugins/discourse-text-direction
+!/plugins/discourse-topic-previews
+!/plugins/discourse-events
+!/plugins/edgeryders-communities-navigation
+!/plugins/edgeryders-multisite
+!/plugins/edgeryders-signup-notification
+!/plugins/edgeryders-shared
+!/plugins/edgeryders-permit-api-cors
+!/plugins/discourse-webkit-components
+!/plugins/edgeryders-api
+!/plugins/discourse-encrypt
+
+.powenv
+
+# Ignore RubyMine settings which are individual for every developer.
+.idea/**/*
+
+/public/.well-known/
+
+/config/secrets.yml
