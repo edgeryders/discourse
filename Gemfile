@@ -292,3 +292,31 @@ end
 gem "dry-initializer", "~> 3.1"
 
 gem "parallel"
+
+
+
+
+# damingo (Github ID), 2017-08-22, #password_migration
+gem 'bcrypt', '3.1.3'
+gem 'unix-crypt', '1.3.0' #, :require_name => 'unix_crypt'
+
+# damingo (Github ID), 2024-05-25, required in production to precompile assets.
+# gem "uglifier"
+
+# --- discourse-annotator ---
+# damingo (Github ID), 2019-09, #annotator
+gem 'discourse-annotator', git: 'https://github.com/edgeryders/discourse-annotator', branch: 'master'
+# gem 'discourse-annotator', path: '~/Projects/Edgeryders/discourse-annotator'
+# gem 'discourse-annotator', source: 'https://gem.fury.io/webmaster/'
+
+# Must be included here as dependencies that are still in development cannot be added in the gems gemspec.
+gem 'administrate', git: 'https://github.com/edgeryders/administrate'
+gem "administrate-field-nested_has_many", git: 'https://github.com/edgeryders/administrate-field-nested_has_many', branch: 'master'
+gem "administrate-field-belongs_to_search", git: 'https://github.com/edgeryders/administrate-field-belongs_to_search', branch: 'master'
+
+
+# --- edgeryders-api ---
+# Required by the edgeryders-api plugin.
+# Added here to avoid that all of the discourse_api dependencies
+# must be listed in the plugin.rb. See: https://meta.discourse.org/t/plugin-using-own-gem/50007/6
+gem 'discourse_api' # https://github.com/discourse/discourse_api

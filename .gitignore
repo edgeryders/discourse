@@ -90,3 +90,5 @@ openapi/*
 
 # direnv.net
 .direnv
+
+/.idea/*
