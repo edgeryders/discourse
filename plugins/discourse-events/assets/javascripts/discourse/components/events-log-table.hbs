@@ -1,0 +1,36 @@
+<LoadMore @action={{action "loadMore"}}>
+  <ResponsiveTable @className="events-log-table">
+    <:header>
+      <TableHeaderToggle
+        @field="created_at"
+        @labelKey="admin.events.log.created_at"
+        @order={{@order}}
+        @asc={{@asc}}
+        @automatic={{true}}
+      />
+      <TableHeaderToggle
+        @field="level"
+        @labelKey="admin.events.log.level"
+        @order={{@order}}
+        @asc={{@asc}}
+        @automatic={{true}}
+      />
+      <TableHeaderToggle
+        @field="context"
+        @labelKey="admin.events.log.context"
+        @order={{@order}}
+        @asc={{@asc}}
+        @automatic={{true}}
+      />
+      <div class="directory-table__column-header log-message">
+        {{I18n "admin.events.log.message"}}
+      </div>
+    </:header>
+    <:body>
+      {{#each @logs as |log|}}
+        <EventsLogRow @log={{log}} />
+      {{/each}}
+    </:body>
+  </ResponsiveTable>
+</LoadMore>
+<ConditionalLoadingSpinner @condition={{this.loading}} />

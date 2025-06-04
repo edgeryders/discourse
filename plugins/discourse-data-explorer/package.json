@@ -1,0 +1,10 @@
+{
+  "name": "discourse-data-explorer",
+  "version": "0.3.0",
+  "repository": "https://github.com/discourse/discourse-data-explorer",
+  "author": "Discourse",
+  "license": "MIT",
+  "devDependencies": {
+    "eslint-config-discourse": "^3.4.0"
+  }
+}

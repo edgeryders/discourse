@@ -1,0 +1,4 @@
+plugins:
+  edgeryders_shared_enabled:
+    default: true
+    client: true

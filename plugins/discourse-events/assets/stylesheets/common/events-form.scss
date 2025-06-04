@@ -1,0 +1,172 @@
+.event-form {
+  width: 585px;
+  max-width: 80vw;
+
+  .control {
+    display: inline-flex;
+    align-items: flex-start;
+    min-height: 30px;
+    margin-right: 20px;
+
+    > input:first-child {
+      margin-top: 10px !important;
+    }
+
+    > span:first-child {
+      margin-top: 5px !important;
+    }
+
+    > input + span {
+      margin-top: 5px;
+    }
+
+    &:last-of-type {
+      margin-right: 0;
+    }
+
+    input[type="checkbox"] {
+      margin: 0 10px 0 0;
+    }
+
+    input[type="number"] {
+      width: 50px;
+      margin: 0;
+    }
+
+    &.full-width {
+      flex: 1;
+    }
+
+    .select-kit,
+    .ac-wrap {
+      width: 100% !important;
+      max-width: 330px;
+    }
+
+    .select-kit-body {
+      width: 100% !important;
+      max-width: 330px;
+    }
+  }
+
+  .event-controls {
+    margin-bottom: 20px;
+    display: flex;
+    align-items: flex-start;
+    min-height: 37px;
+  }
+
+  .datetime-controls {
+    display: flex;
+    margin-bottom: 5px;
+
+    .date-time-card {
+      width: 270px;
+      display: inline-block;
+      text-align: left;
+    }
+
+    .start-card {
+      border-left: 1px solid transparent;
+      padding-right: 20px;
+    }
+
+    .end-card {
+      border-left: 1px solid #eee;
+      padding-left: 20px;
+
+      &.disabled {
+        span,
+        label,
+        input,
+        .d-time-input,
+        .d-date-input .date-picker::after {
+          color: var(--primary-low);
+          background-image: initial;
+          background: initial;
+          box-shadow: initial;
+          cursor: default;
+          pointer-events: none;
+        }
+
+        input,
+        .time-area .d-time-input .combo-box summary {
+          border: 1px solid var(--primary-low) !important;
+        }
+      }
+    }
+
+    .set-all-day {
+      font-size: 1.2em;
+      padding-bottom: 13px;
+    }
+
+    .sub-title {
+      font-size: 1.1em;
+      font-weight: bold;
+      padding-bottom: 2px;
+      padding-right: 10px;
+    }
+
+    .date-time-set {
+      padding-top: 10px;
+      display: flex;
+      flex-direction: row;
+      gap: 10px;
+
+      .date-area {
+        order: 1;
+        flex: 1;
+        max-width: 50%;
+      }
+
+      .time-area {
+        order: 2;
+        flex: 1;
+        max-width: 50%;
+
+        .d-time-input {
+          width: 100%;
+
+          .combo-box {
+            width: 100%;
+
+            summary {
+              border: 1px solid var(--primary-medium);
+            }
+          }
+        }
+      }
+
+      input {
+        font-size: 1em;
+        color: var(--primary);
+        border: 1px solid var(--primary-medium);
+        width: 100%;
+      }
+    }
+
+    .ui-timepicker-input {
+      width: 105px;
+      text-align: center;
+    }
+  }
+
+  .rsvp-controls {
+    margin-top: 1.5em;
+
+    .rsvp-container {
+      display: flex;
+      flex-flow: wrap;
+      margin-top: 10px;
+
+      .control span {
+        margin-right: 10px;
+      }
+
+      .full-width {
+        align-items: flex-start;
+      }
+    }
+  }
+}

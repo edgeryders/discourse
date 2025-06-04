@@ -1,0 +1,4 @@
+plugins:
+  edgeryders_api_enabled:
+    default: false
+    client: false
