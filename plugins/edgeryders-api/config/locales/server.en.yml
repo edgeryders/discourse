@@ -1,7 +1,8 @@
 en:
+  edgeryders_api:
+    title: "Edgeryders API"
   site_settings:
     edgeryders_api_enabled: "Enable edgeryders-api plugin"
-
   user_notifications:
     edgeryders_api_account_created:
       title: "Account Created"

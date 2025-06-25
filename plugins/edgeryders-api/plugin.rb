@@ -11,7 +11,7 @@ register_asset "stylesheets/common/edgeryders-api.scss"
 
 enabled_site_setting :edgeryders_api_enabled
 
-PLUGIN_NAME ||= "EdgerydersApi".freeze
+PLUGIN_NAME ||= "edgeryders-api".freeze
 
 after_initialize do
   %w(
@@ -31,7 +31,8 @@ after_initialize do
     # email:
     # password:
     def self.create_account(args = {})
-      client = DiscourseApi::Client.new("#{protocol}://#{Rails.application.secrets.host}", Rails.application.secrets.system_user_api_key, "system")
+      client = DiscourseApi::Client.new("#{protocol}://#{SiteSetting.edgeryders_api_host}", SiteSetting.edgeryders_api_system_user_api_key, "system")
+
       attributes = {
         name: args[:username],
         email: args[:email],
@@ -41,7 +42,7 @@ after_initialize do
       }
       response = client.create_user(attributes)
       if response['success']
-        Jobs.enqueue(:edgeryders_api_account_created_email, {
+        Jobs.enqueue(Jobs::EdgerydersApi::AccountCreatedEmail, {
           to_address: args[:email],
           username: args[:username]
         })
@@ -59,7 +60,7 @@ after_initialize do
     def self.create_user_api_key(username)
       require 'net/http'
       require 'json'
-      uri = URI.parse "#{protocol}://#{Rails.application.secrets.host}/admin/api/keys"
+      uri = URI.parse "#{protocol}://#{SiteSetting.edgeryders_api_host}/admin/api/keys"
       http = Net::HTTP.new(uri.host, uri.port)
       if protocol == 'https'
         http.use_ssl = true
@@ -69,7 +70,7 @@ after_initialize do
       request.initialize_http_header(
         {
           "Content-type" => "application/json",
-          "Api-Key" => "#{Rails.application.secrets.system_user_api_key}",
+          "Api-Key" => "#{SiteSetting.edgeryders_api_system_user_api_key}",
           "Api-Username" => "system",
           'Cache-Control' => "no-cache"
         })
@@ -91,7 +92,7 @@ after_initialize do
     # https://edgeryders.eu/t/using-the-edgeryders-eu-apis/7904
     # https://edgeryders.eu/t/it-development-plan-for-the-h2020-projects/9202#heading--2-2-posting
     def create
-      unless params[:auth_key].present? && params[:auth_key] == Rails.application.secrets.auth_key
+      unless params[:auth_key].present? && params[:auth_key] == SiteSetting.edgeryders_api_auth_key
         return render_json_error("auth_key: Is invalid.")
       end
       return render_json_error("accepted_gtc: GTCs must be accepted.") unless params[:accepted_gtc] == 'true'
@@ -110,7 +111,7 @@ after_initialize do
       )
       return render json: response, status: :unprocessable_entity unless response['success']
 
-      user = User.find(response['user_id'])
+      user = User.find_by(username: params[:username])
       user.custom_fields['edgeryders_consent'] = '1'
       user.save!
 

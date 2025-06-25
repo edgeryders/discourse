@@ -2,3 +2,12 @@ plugins:
   edgeryders_api_enabled:
     default: false
     client: false
+  edgeryders_api_host:
+    default: "edgeryders.eu"
+    client: false
+  edgeryders_api_auth_key:
+    default: ""
+    client: false
+  edgeryders_api_system_user_api_key:
+    default: ""
+    client: false
