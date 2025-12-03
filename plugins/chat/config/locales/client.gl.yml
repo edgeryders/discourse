@@ -42,7 +42,6 @@ gl:
       save: "Gardar"
       sounds:
         none: "Ningunha"
-      exit: "volver"
       channel_status:
         closed: "Pechado"
         open: "Abrir"
@@ -63,6 +62,7 @@ gl:
         tabs:
           members: Membros
           settings: Configuración
+        remove_member: "Retirar"
       new_message_modal:
         no_items: "Sen elementos"
         filter: "Filtro"

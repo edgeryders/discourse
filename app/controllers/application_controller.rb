@@ -30,6 +30,7 @@ class ApplicationController < ActionController::Base
     end
   end
 
+  around_action :ensure_dont_cache_page
   before_action :check_readonly_mode
   before_action :handle_theme
   before_action :set_current_user_for_logs
@@ -47,7 +48,6 @@ class ApplicationController < ActionController::Base
   before_action :check_xhr
   after_action :add_readonly_header
   after_action :perform_refresh_session
-  after_action :dont_cache_page
   after_action :conditionally_allow_site_embedding
   after_action :ensure_vary_header
   after_action :add_noindex_header,
@@ -80,6 +80,7 @@ class ApplicationController < ActionController::Base
             CrawlerDetection.crawler?(request.user_agent, request.headers["HTTP_VIA"])
         )
   end
+  helper_method :use_crawler_layout?
 
   def perform_refresh_session
     refresh_session(current_user) unless @readonly_mode
@@ -144,7 +145,7 @@ class ApplicationController < ActionController::Base
   rescue_from PG::ReadOnlySqlTransaction do |e|
     Discourse.received_postgres_readonly!
     Rails.logger.error("#{e.class} #{e.message}: #{e.backtrace.join("\n")}")
-    rescue_with_handler(Discourse::ReadOnly.new) || raise
+    rescue_with_handler(Discourse::ReadOnly) || raise
   end
 
   rescue_from ActionController::ParameterMissing do |e|
@@ -156,6 +157,11 @@ class ApplicationController < ActionController::Base
   end
 
   rescue_from ActionController::RoutingError, PluginDisabled do
+    # This error is raised outside of the normal request response cycle and is called via the
+    # `DiscoursePublicExceptions` middleware which creates a new instance of the ApplicationController.
+    # As a result, controller actions hooks are not called and we need to explicitly call `dont_cache_page` here.
+    dont_cache_page
+
     rescue_discourse_actions(:not_found, 404)
   end
 
@@ -281,7 +287,7 @@ class ApplicationController < ActionController::Base
 
     show_json_errors =
       (request.format && request.format.json?) || (request.xhr?) ||
-        ((params[:external_id] || "").ends_with? ".json")
+        ((params[:external_id] || "").to_s.ends_with?(".json"))
 
     if type == :not_found && opts[:check_permalinks]
       url = opts[:original_path] || request.fullpath
@@ -579,9 +585,7 @@ class ApplicationController < ActionController::Base
 
   def rate_limit_second_factor!(user)
     return if params[:second_factor_token].blank?
-
     RateLimiter.new(nil, "second-factor-min-#{request.remote_ip}", 6, 1.minute).performed!
-
     RateLimiter.new(nil, "second-factor-min-#{user.username}", 6, 1.minute).performed! if user
   end
 
@@ -692,9 +696,7 @@ class ApplicationController < ActionController::Base
   end
 
   def apply_cdn_headers
-    if Discourse.is_cdn_request?(request.env, request.method)
-      Discourse.apply_cdn_headers(response.headers)
-    end
+    Discourse.apply_cdn_headers(response.headers)
   end
 
   def self.requires_login(arg = {})
@@ -735,8 +737,15 @@ class ApplicationController < ActionController::Base
     raise Discourse::InvalidAccess.new unless SiteSetting.wizard_enabled?
   end
 
+  # Keep in sync with `NO_DESTINATION_COOKIE` in `app/assets/javascripts/discourse/app/lib/utilities.js`
+  NO_DESTINATION_COOKIE = %w[/login /signup /session/ /auth/ /uploads/].freeze
+
+  def is_valid_destination_url?(url)
+    url.present? && url != path("/") && NO_DESTINATION_COOKIE.none? { url.start_with? path(_1) }
+  end
+
   def destination_url
-    request.original_url unless request.original_url =~ /uploads/
+    request.original_url if is_valid_destination_url?(request.original_url)
   end
 
   def redirect_to_login
@@ -747,12 +756,13 @@ class ApplicationController < ActionController::Base
       session[:destination_url] = destination_url
       redirect_to path("/session/sso")
     elsif SiteSetting.auth_immediately && !SiteSetting.enable_local_logins &&
-          Discourse.enabled_authenticators.length == 1 && !cookies[:authentication_data]
+          Discourse.enabled_authenticators.one? && !cookies[:authentication_data]
       # Only one authentication provider, direct straight to it.
       # If authentication_data is present, then we are halfway though registration. Don't redirect offsite
       cookies[:destination_url] = destination_url
       redirect_to path("/auth/#{Discourse.enabled_authenticators.first.name}")
     else
+      return if request.path == path("/") && !cookies[:authentication_data]
       # save original URL in a cookie (javascript redirects after login in this case)
       cookies[:destination_url] = destination_url
       redirect_to path("/login")
@@ -1049,5 +1059,11 @@ class ApplicationController < ActionController::Base
 
   def service_params
     { params: params.to_unsafe_h, guardian: }
+  end
+
+  def ensure_dont_cache_page
+    yield
+  ensure
+    dont_cache_page
   end
 end

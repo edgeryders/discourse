@@ -1,0 +1,41 @@
+# WARNING: Never edit this file.
+# It will be overwritten when translations are pulled from Crowdin.
+#
+# To work with us on translations, join this project:
+# https://translate.discourse.org/
+
+hu:
+  discourse_automation:
+    scriptables:
+      llm_triage:
+        flagged_post: |
+          <div>A modell válasza:</div>
+          <p>%%LLM_RESPONSE%%</p>
+          <b>A <a href="%{base_path}/admin/plugins/discourse-automation/%%AUTOMATION_ID%%">%%AUTOMATION_NAME%%</a> szabály által kiváltva.</b>
+  site_settings:
+    ai_helper_custom_prompts_allowed_groups: "Az ezekhez a csoportokhoz tartozó felhasználók az egyéni prompt opciót látják az AI helperben."
+    ai_translation_max_post_length: "A lefordítandó bejegyzés maximális hossza. Az ennél hosszabb bejegyzések nem kerülnek fordításra."
+  reports:
+    overall_sentiment:
+      yaxis: "Dátum"
+    emotion_neutral:
+      title: "\U0001F610 Semleges"
+  discourse_ai:
+    ai_bot:
+      tool_summary:
+        search: "Keresés"
+        tags: "Címkék felsorolása"
+        time: "Idő"
+        summarize: "Összefoglalás"
+    sentiment:
+      reports:
+        post_emotion:
+          neutral: "Semleges \U0001F610"
+        sentiment_analysis:
+          neutral: "Semleges"
+    embeddings:
+      configuration:
+        invalid_config: "A kiválasztott opció érvénytelen"
+    ai_staff_action_logger:
+      updated: "frissítve"
+      removed: "eltávolítva"

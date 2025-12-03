@@ -1,10 +1,11 @@
 # frozen_string_literal: true
 
 module ::DiscourseDataExplorer
-  class ValidationError < StandardError
-  end
-
   module DataExplorer
+    # Used for ftype calls, see https://www.rubydoc.info/gems/pg/0.17.1/PG%2FResult:ftype
+    # and /usr/include/postgresql/server/catalog/pg_type_d.h
+    PG_TYPE_OID_JSON = 114
+
     # Run a data explorer query on the currently connected database.
     #
     # @param [Query] query the Query object to run
@@ -45,7 +46,7 @@ module ::DiscourseDataExplorer
           sql = <<-SQL
   /*
   * DiscourseDataExplorer Query
-  * Query: /admin/plugins/explorer?id=#{query.id}
+  * Query: /admin/plugins/explorer/queries/#{query.id}
   * Started by: #{opts[:current_user]}
   */
   WITH query AS (
@@ -114,8 +115,13 @@ module ::DiscourseDataExplorer
         },
         topic: {
           class: Topic,
-          fields: %i[id title slug posts_count],
+          fields: %i[id title slug posts_count locale],
           serializer: BasicTopicSerializer,
+        },
+        tag_group: {
+          class: TagGroup,
+          fields: %i[id name],
+          only: %i[id name],
         },
         group: {
           class: Group,
@@ -131,13 +137,16 @@ module ::DiscourseDataExplorer
         html: {
           ignore: true,
         },
+        json: {
+          ignore: true,
+        },
       }
     end
 
     def self.column_regexes
       @column_regexes ||=
         extra_data_pluck_fields
-          .map { |key, val| /(#{val[:class].to_s.downcase})_id$/ if val[:class] }
+          .map { |key, val| /(#{val[:class].to_s.underscore})_id$/ if val[:class] }
           .compact
     end
 
@@ -145,7 +154,6 @@ module ::DiscourseDataExplorer
       needed_classes = {}
       ret = {}
       col_map = {}
-
       pg_result.fields.each_with_index do |col, idx|
         rgx = column_regexes.find { |r| r.match col }
         if rgx
@@ -158,11 +166,13 @@ module ::DiscourseDataExplorer
           needed_classes[cls] << idx
         elsif col =~ /^\w+_url$/
           col_map[idx] = "url"
+        elsif col =~ /^\w+_payload$/ || col == "payload" || pg_result.ftype(idx) == PG_TYPE_OID_JSON
+          col_map[idx] = "json"
         end
       end
 
       needed_classes.each do |cls, column_nums|
-        next unless column_nums.present?
+        next if column_nums.blank?
         support_info = extra_data_pluck_fields[cls]
         next unless support_info
 
@@ -188,10 +198,9 @@ module ::DiscourseDataExplorer
             .includes(support_info[:include])
             .order(:id)
 
-        ret[cls] = ActiveModel::ArraySerializer.new(
-          all_objs,
-          each_serializer: support_info[:serializer],
-        )
+        opts = { each_serializer: support_info[:serializer] }
+        opts[:only] = support_info[:only] if support_info[:only]
+        ret[cls] = ActiveModel::ArraySerializer.new(all_objs, **opts)
       end
       [ret, col_map]
     end

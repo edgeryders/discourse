@@ -1,10 +1,12 @@
-import {
-  acceptance,
-  exists,
-  query,
-} from "discourse/tests/helpers/qunit-helpers";
 import { click, currentURL, fillIn, visit } from "@ember/test-helpers";
 import { test } from "qunit";
+import Category from "discourse/models/category";
+import { acceptance } from "discourse/tests/helpers/qunit-helpers";
+import selectKit from "discourse/tests/helpers/select-kit-helper";
+
+async function runQuery() {
+  await click("form.query-run button");
+}
 
 acceptance("Data Explorer Plugin | Param Input", function (needs) {
   needs.user();
@@ -12,82 +14,11 @@ acceptance("Data Explorer Plugin | Param Input", function (needs) {
 
   needs.pretender((server, helper) => {
     server.get("/admin/plugins/explorer/groups.json", () => {
-      return helper.response([
-        {
-          id: 1,
-          name: "admins",
-        },
-        {
-          id: 2,
-          name: "moderators",
-        },
-        {
-          id: 3,
-          name: "staff",
-        },
-        {
-          id: 0,
-          name: "everyone",
-        },
-        {
-          id: 10,
-          name: "trust_level_0",
-        },
-        {
-          id: 11,
-          name: "trust_level_1",
-        },
-        {
-          id: 12,
-          name: "trust_level_2",
-        },
-        {
-          id: 13,
-          name: "trust_level_3",
-        },
-        {
-          id: 14,
-          name: "trust_level_4",
-        },
-        {
-          id: 41,
-          name: "discourse",
-        },
-      ]);
+      return helper.response([]);
     });
 
     server.get("/admin/plugins/explorer/schema.json", () => {
-      return helper.response({
-        anonymous_users: [
-          {
-            column_name: "id",
-            data_type: "serial",
-            primary: true,
-          },
-          {
-            column_name: "user_id",
-            data_type: "integer",
-            fkey_info: "users",
-          },
-          {
-            column_name: "master_user_id",
-            data_type: "integer",
-            fkey_info: "users",
-          },
-          {
-            column_name: "active",
-            data_type: "boolean",
-          },
-          {
-            column_name: "created_at",
-            data_type: "timestamp",
-          },
-          {
-            column_name: "updated_at",
-            data_type: "timestamp",
-          },
-        ],
-      });
+      return helper.response({});
     });
 
     server.get("/admin/plugins/explorer/queries", () => {
@@ -95,46 +26,59 @@ acceptance("Data Explorer Plugin | Param Input", function (needs) {
         queries: [
           {
             id: -6,
-            sql: "-- [params]\n-- int :months_ago = 1\n\nWITH query_period AS (\n    SELECT\n        date_trunc('month', CURRENT_DATE) - INTERVAL ':months_ago months' as period_start,\n        date_trunc('month', CURRENT_DATE) - INTERVAL ':months_ago months' + INTERVAL '1 month' - INTERVAL '1 second' as period_end\n        )\n\n    SELECT\n        ua.user_id,\n        count(1) AS like_count\n    FROM user_actions ua\n    INNER JOIN query_period qp\n    ON ua.created_at >= qp.period_start\n    AND ua.created_at <= qp.period_end\n    WHERE ua.action_type = 1\n    GROUP BY ua.user_id\n    ORDER BY like_count DESC\n    LIMIT 100\n",
             name: "Top 100 Likers",
             description:
               "returns the top 100 likers for a given monthly period ordered by like_count. It accepts a ‘months_ago’ parameter, defaults to 1 to give results for the last calendar month.",
-            param_info: [
-              {
-                identifier: "months_ago",
-                type: "int",
-                default: "1",
-                nullable: false,
-              },
-            ],
-            created_at: "2021-02-02T12:21:11.449Z",
             username: "system",
             group_ids: [],
             last_run_at: "2021-02-11T08:29:59.337Z",
-            hidden: false,
             user_id: -1,
           },
           {
             id: -7,
-            sql: "-- [params]\n-- user_id :user\n\nSELECT :user_id\n\n",
             name: "Invalid Query",
             description: "",
-            param_info: [
-              {
-                identifier: "user",
-                type: "user_id",
-                default: null,
-                nullable: false,
-              },
-            ],
-            created_at: "2022-01-14T16:40:05.458Z",
             username: "bianca",
             group_ids: [],
             last_run_at: "2022-01-14T16:47:34.244Z",
-            hidden: false,
             user_id: 1,
           },
+          {
+            id: 3,
+            name: "Params test",
+            description: "test for params.",
+            username: "system",
+            group_ids: [41],
+            last_run_at: "2021-02-11T08:29:59.337Z",
+            user_id: -1,
+          },
         ],
+      });
+    });
+
+    server.get("/admin/plugins/explorer/queries/-6", () => {
+      return helper.response({
+        query: {
+          id: -6,
+          sql: "-- [params]\n-- int :months_ago = 1\n\nWITH query_period AS (\n    SELECT\n        date_trunc('month', CURRENT_DATE) - INTERVAL ':months_ago months' as period_start,\n        date_trunc('month', CURRENT_DATE) - INTERVAL ':months_ago months' + INTERVAL '1 month' - INTERVAL '1 second' as period_end\n        )\n\n    SELECT\n        ua.user_id,\n        count(1) AS like_count\n    FROM user_actions ua\n    INNER JOIN query_period qp\n    ON ua.created_at >= qp.period_start\n    AND ua.created_at <= qp.period_end\n    WHERE ua.action_type = 1\n    GROUP BY ua.user_id\n    ORDER BY like_count DESC\n    LIMIT 100\n",
+          name: "Top 100 Likers",
+          description:
+            "returns the top 100 likers for a given monthly period ordered by like_count. It accepts a ‘months_ago’ parameter, defaults to 1 to give results for the last calendar month.",
+          param_info: [
+            {
+              identifier: "months_ago",
+              type: "int",
+              default: "1",
+              nullable: false,
+            },
+          ],
+          created_at: "2021-02-02T12:21:11.449Z",
+          username: "system",
+          group_ids: [],
+          last_run_at: "2021-02-11T08:29:59.337Z",
+          hidden: false,
+          user_id: -1,
+        },
       });
     });
 
@@ -235,6 +179,31 @@ acceptance("Data Explorer Plugin | Param Input", function (needs) {
       });
     });
 
+    server.get("/admin/plugins/explorer/queries/-7", () => {
+      return helper.response({
+        query: {
+          id: -7,
+          sql: "-- [params]\n-- user_id :user\n\nSELECT :user_id\n\n",
+          name: "Invalid Query",
+          description: "",
+          param_info: [
+            {
+              identifier: "user",
+              type: "user_id",
+              default: null,
+              nullable: false,
+            },
+          ],
+          created_at: "2022-01-14T16:40:05.458Z",
+          username: "bianca",
+          group_ids: [],
+          last_run_at: "2022-01-14T16:47:34.244Z",
+          hidden: false,
+          user_id: 1,
+        },
+      });
+    });
+
     server.post("/admin/plugins/explorer/queries/-7/run", () => {
       return helper.response({
         success: true,
@@ -296,30 +265,168 @@ acceptance("Data Explorer Plugin | Param Input", function (needs) {
         ],
       });
     });
+
+    server.get("/admin/plugins/explorer/queries/3", () => {
+      return helper.response({
+        query: {
+          id: 3,
+          sql: "SELECT 1",
+          name: "Params test",
+          description: "test for params.",
+          param_info: [],
+          created_at: "2021-02-02T12:21:11.449Z",
+          username: "system",
+          group_ids: [41],
+          last_run_at: "2021-02-11T08:29:59.337Z",
+          hidden: false,
+          user_id: -1,
+        },
+      });
+    });
+
+    server.put("/admin/plugins/explorer/queries/3", () => {
+      return helper.response({
+        query: {
+          id: 3,
+          sql: "-- [params]\n-- int :months_ago = 1\n\nSELECT 1",
+          name: "Params test",
+          description: "test for params.",
+          param_info: [
+            {
+              identifier: "months_ago",
+              type: "int",
+              default: "1",
+              nullable: false,
+            },
+          ],
+          created_at: "2021-02-02T12:21:11.449Z",
+          username: "system",
+          group_ids: [41],
+          last_run_at: "2021-02-11T08:29:59.337Z",
+          hidden: false,
+          user_id: -1,
+        },
+      });
+    });
+
+    server.get("/admin/plugins/explorer/queries/4", () => {
+      return helper.response({
+        query: {
+          id: 4,
+          sql: "-- [params]\n-- null category_id :category\n\nSELECT 1",
+          name: "Params test - category_id chooser",
+          description: "Test for category_id param.",
+          param_info: [
+            {
+              identifier: "category",
+              type: "category_id",
+              default: null,
+              nullable: true,
+            },
+          ],
+          created_at: "2025-06-03T09:05:59.337Z",
+          username: "system",
+          group_ids: [],
+          last_run_at: "2025-06-03T09:05:59.337Z",
+          hidden: false,
+          category_id: null,
+        },
+      });
+    });
+
+    server.post("/admin/plugins/explorer/queries/4/run", () => {
+      return helper.response({});
+    });
   });
 
-  test("it puts params for the query into the url", async function (assert) {
-    await visit("admin/plugins/explorer?id=-6");
+  function getSearchParam(param) {
+    const searchParams = new URLSearchParams(currentURL().split("?")[1]);
+    return JSON.parse(searchParams.get("params"))[param];
+  }
+
+  test("puts params for the query into the url", async function (assert) {
+    await visit("/admin/plugins/explorer/queries/-6");
     const monthsAgoValue = "2";
     await fillIn(".query-params input", monthsAgoValue);
-    await click("form.query-run button");
+    await runQuery();
 
-    const searchParams = new URLSearchParams(currentURL());
-    const monthsAgoParam = JSON.parse(searchParams.get("params")).months_ago;
-    assert.equal(monthsAgoParam, monthsAgoValue);
+    assert.strictEqual(getSearchParam("months_ago"), monthsAgoValue);
   });
 
-  test("it loads the page if one of the parameter is null", async function (assert) {
-    await visit('admin/plugins/explorer?id=-7&params={"user":null}');
-    assert.ok(exists(".query-params .user-chooser"));
-    assert.ok(exists(".query-run .btn.btn-primary"));
-  });
-
-  test("it applies params when running a report", async function (assert) {
+  test("puts params for the query into the url for group reports", async function (assert) {
     await visit("/g/discourse/reports/-8");
     const monthsAgoValue = "2";
     await fillIn(".query-params input", monthsAgoValue);
-    await click("form.query-run button");
-    assert.equal(query(".query-params input").value, monthsAgoValue);
+    await runQuery();
+
+    assert.strictEqual(getSearchParam("months_ago"), monthsAgoValue);
+  });
+
+  test("loads the page if one of the parameter is null", async function (assert) {
+    await visit('/admin/plugins/explorer/queries/-7?params={"user":null}');
+    assert.dom(".query-params .user-chooser").exists();
+    assert.dom(".query-run .btn.btn-primary").exists();
+  });
+
+  test("loads the page if one of the parameter is null for group reports", async function (assert) {
+    await visit('/g/discourse/reports/-8?params={"months_ago":null}');
+    assert.dom(".query-params input").exists();
+    assert.dom(".query-run .btn.btn-primary").exists();
+  });
+
+  test("applies params when running a report", async function (assert) {
+    await visit("/g/discourse/reports/-8");
+    const monthsAgoValue = "2";
+    await fillIn(".query-params input", monthsAgoValue);
+    await runQuery();
+    assert.dom(".query-params input").hasValue(monthsAgoValue);
+  });
+
+  test("creates input boxes if has parameters when save", async function (assert) {
+    await visit("/admin/plugins/explorer/queries/3");
+    assert.dom(".query-params input").doesNotExist();
+    await click(".query-edit .btn-edit-query");
+    await fillIn(
+      ".query-editor .ace_text-input",
+      "-- [params]\n-- int :months_ago = 1\n\nSELECT 1"
+    );
+    await click(".query-editor .ace_text-input"); // enables `Save Changes` button
+    await click(".query-edit .btn-save-query");
+    assert.dom(".query-params input").exists();
+  });
+
+  test("nullable category_id param", async function (assert) {
+    await visit("/admin/plugins/explorer/queries/4");
+    const catChooser = selectKit(".category-chooser");
+
+    assert.strictEqual(catChooser.header().value(), null);
+
+    await runQuery();
+
+    assert.strictEqual(getSearchParam("category"), "");
+
+    const category = Category.findById(6);
+    await catChooser.expand();
+    await catChooser.selectRowByValue(category.id);
+
+    assert.strictEqual(catChooser.header().label(), category.name);
+
+    await runQuery();
+
+    assert.strictEqual(
+      getSearchParam("category"),
+      category.id.toString(),
+      "it updates the URL with the selected category id"
+    );
+
+    await catChooser.expand();
+    await catChooser.selectRowByIndex(0);
+    await runQuery();
+
+    assert.strictEqual(
+      getSearchParam("category"),
+      undefined,
+      "it removes the category id from the URL when selecting the first row (null value)"
+    );
   });
 });

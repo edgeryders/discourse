@@ -82,7 +82,6 @@ bg:
         none: "Без"
       title: "чат"
       title_capitalized: "Чат"
-      exit: "назад"
       channel_status:
         closed: "Затворена"
         open: "Отвори"
@@ -104,6 +103,7 @@ bg:
         tabs:
           members: Членове
           settings: Настройки
+        remove_member: "Премахване"
       new_message_modal:
         filter: "Филтър"
       direct_message_creator:

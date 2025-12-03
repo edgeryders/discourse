@@ -1,7 +1,10 @@
+import { service } from "@ember/service";
 import { ajax } from "discourse/lib/ajax";
 import DiscourseRoute from "discourse/routes/discourse";
 
 export default class GroupReportsShowRoute extends DiscourseRoute {
+  @service router;
+
   model(params) {
     const group = this.modelFor("group");
     return ajax(`/g/${group.name}/reports/${params.query_id}`)
@@ -24,7 +27,7 @@ export default class GroupReportsShowRoute extends DiscourseRoute {
         };
       })
       .catch(() => {
-        this.transitionTo("group.members", group);
+        this.router.transitionTo("group.members", group);
       });
   }
 

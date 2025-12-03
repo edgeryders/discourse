@@ -118,7 +118,6 @@ zh_TW:
       title: "聊天"
       title_capitalized: "聊天"
       upload_to_channel: "上傳至 %{title}"
-      exit: "上一步"
       channel_status:
         read_only_header: "頻道為唯讀"
         read_only: "唯讀"
@@ -148,6 +147,7 @@ zh_TW:
         tabs:
           members: 成員
           settings: 設定
+        remove_member: "移除"
       new_message_modal:
         title: 傳送訊息
         add_user_short: <span>新增使用者</span>

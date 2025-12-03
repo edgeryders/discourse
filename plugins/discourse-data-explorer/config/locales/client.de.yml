@@ -32,7 +32,7 @@ de:
         data_types: "<h3>Datentypen</h3> <p>Hier sind gängige Datentypen, die du verwenden kannst:</p> <ul> <li><b>Ganzzahl</b> - vorzeichenbehaftete Vier-Byte-Ganzzahl</li> <li><b>Text</b> - Zeichenkette mit variabler Länge</li> <li><b>Boolean</b> – wahr/falsch</li> <li><b>Datum</b> - Kalenderdatum (Jahr, Monat, Tag)</li> </ul> <p>Weitere Informationen über Datentypen findest du auf <a href='http://www.postgresql.org/docs/9.3/static/datatype.html#DATATYPE-TABLE' target='_blank'>dieser Website</a>.</p>"
       schema:
         title: "Datenbank-Schema"
-        filter: "Suchen …"
+        filter: "Suche …"
         sensitive: "Die Inhalte dieser Spalte enthalten möglicherweise besonders sensible oder persönliche Informationen. Bitte gehe behutsam mit den Inhalten dieser Spalte um."
       types:
         bool:
@@ -40,6 +40,7 @@ de:
           no: "Nein"
           null_: "Null"
       export: "Exportieren"
+      view_json: "JSON anzeigen"
       save: "Änderungen speichern"
       saverun: "Änderungen speichern und ausführen"
       run: "Ausführen"
@@ -70,8 +71,15 @@ de:
       explain_label: "Anfrageplan einbeziehen?"
       save_params: "Standards festlegen"
       reset_params: "Zurücksetzen"
-      search_placeholder: "Suchen …"
+      search_placeholder: "Suche …"
       no_search_results: "Leider konnten wir keine Ergebnisse finden, die deinem Text entsprechen."
+      form:
+        errors:
+          invalid: "Ungültig"
+          no_such_category: "Keine solche Kategorie"
+          no_such_group: "Keine solche Gruppe"
+          invalid_date: "%{date} ist ein ungültiges Datum"
+          invalid_time: "%{time} ist eine ungültige Zeit"
     group:
       reports: "Berichte"
     admin:
@@ -90,3 +98,21 @@ de:
               label: Daten-Explorer-Anfrage
             query_params:
               label: Daten-Explorer-Anfrageparameter
+            skip_empty:
+              label: Überspringe das Senden einer PN, wenn es keine Ergebnisse gibt
+            attach_csv:
+              label: Hänge die CSV-Datei an die PN an
+            users_from_group:
+              label: Jedem Gruppenmitglied eine individuelle PN senden
+        recurring_data_explorer_result_topic:
+          fields:
+            topic_id:
+              label: Das Thema, in dem die Anfrageergebnisse veröffentlicht werden
+            query_id:
+              label: Daten-Explorer-Anfrage
+            query_params:
+              label: Daten-Explorer-Anfrageparameter
+            skip_empty:
+              label: Überspringe die Veröffentlichung, wenn keine Ergebnisse vorliegen
+            attach_csv:
+              label: Hänge die CSV-Datei an den Beitrag an

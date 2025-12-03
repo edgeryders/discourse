@@ -1,7 +1,5 @@
 # frozen_string_literal: true
 
-require "rails_helper"
-
 describe Jobs::DeleteHiddenQueries do
   before do
     Jobs.run_immediately!
@@ -64,7 +62,7 @@ describe Jobs::DeleteHiddenQueries do
       updated_at: 5.days.ago,
     )
 
-    subject.execute(nil)
+    described_class.new.execute(nil)
     expect(DiscourseDataExplorer::Query.all.length).to eq(4)
   end
 end

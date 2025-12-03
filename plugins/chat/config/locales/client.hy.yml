@@ -43,7 +43,6 @@ hy:
       save: "Պահպանել"
       sounds:
         none: "Ոչ մի"
-      exit: "ետ"
       channel_status:
         closed: "Փակված"
         open: "Բացել"
@@ -64,6 +63,7 @@ hy:
         tabs:
           members: Անդամներ
           settings: Կարգավորումներ
+        remove_member: "Հեռացնել"
       new_message_modal:
         no_items: "Տարրեր չկան"
         filter: "Ֆիլտր"

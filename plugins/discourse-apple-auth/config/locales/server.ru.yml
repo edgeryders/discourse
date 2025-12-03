@@ -1,0 +1,13 @@
+# WARNING: Never edit this file.
+# It will be overwritten when translations are pulled from Crowdin.
+#
+# To work with us on translations, join this project:
+# https://translate.discourse.org/
+
+ru:
+  site_settings:
+    sign_in_with_apple_enabled: 'Включить вход через Apple?'
+    apple_client_id: "(Войти через Apple) Параметр «Service Identifier» из консоли разработчика Apple. Обычно это строка в формате обратного доменного имени (например, com.example.auth) (Войти через Apple)"
+    apple_team_id: '(Войти через Apple) Apple Team ID (10 символов)'
+    apple_key_id: '(Войти через Apple) Apple Key ID (10 символов)'
+    apple_pem: '(Войти через Apple) Содержимое PEM-файла Apple. Включите строки BEGIN и END'

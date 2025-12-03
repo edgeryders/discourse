@@ -110,6 +110,12 @@ module ::DiscourseDataExplorer
           name: "Number of replies by category",
           description: "List the number of replies by category.",
         },
+        "poll-results-ranked-choice": {
+          id: -19,
+          name: "Poll results report (for Ranked Choice polls)",
+          description:
+            "Details of a Ranked Choice poll result, including details about each vote and voter inc. rank, useful for analyzing results in external software.",
+        },
       }.with_indifferent_access
 
       queries["most-common-likers"]["sql"] = <<~SQL
@@ -357,9 +363,9 @@ module ::DiscourseDataExplorer
           uploads.extension,
           uploads.created_at,
           uploads.url
-      FROM post_uploads
-      JOIN uploads ON uploads.id = post_uploads.upload_id
-      JOIN posts ON posts.id = post_uploads.post_id
+      FROM upload_references
+      JOIN uploads ON uploads.id = upload_references.upload_id
+      JOIN posts ON posts.id = upload_references.target_id AND upload_references.target_type = 'Post'
       ORDER BY uploads.filesize DESC
       LIMIT 50
       SQL
@@ -487,6 +493,33 @@ module ::DiscourseDataExplorer
         SELECT
           poll_votes.updated_at AS vote_time,
           poll_votes.poll_option_id AS vote_option,
+          users.id AS user_id,
+          users.username,
+          users.name,
+          users.trust_level,
+          poll_options.html AS vote_option_full
+        FROM
+          poll_votes
+        INNER JOIN
+          polls ON polls.id = poll_votes.poll_id
+        INNER JOIN
+          users ON users.id = poll_votes.user_id
+        INNER JOIN
+          poll_options ON poll_votes.poll_id = poll_options.poll_id AND poll_votes.poll_option_id = poll_options.id
+        WHERE
+          polls.name = :poll_name AND
+          polls.post_id = :post_id
+      SQL
+
+      queries["poll-results-ranked-choice"]["sql"] = <<~SQL
+      -- [params]
+      -- string :poll_name
+      -- int :post_id
+
+        SELECT
+          poll_votes.updated_at AS vote_time,
+          poll_votes.poll_option_id AS vote_option,
+          poll_votes.rank AS vote_rank,
           users.id AS user_id,
           users.username,
           users.name,

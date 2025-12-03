@@ -1,4 +1,5 @@
-import getURL from "discourse-common/lib/get-url";
+import { computed } from "@ember/object";
+import getURL from "discourse/lib/get-url";
 import RestModel from "discourse/models/rest";
 
 export default class Query extends RestModel {
@@ -23,8 +24,18 @@ export default class Query extends RestModel {
     return getURL(`/admin/plugins/explorer/queries/${this.id}.json?export=1`);
   }
 
+  @computed("param_info", "updating")
   get hasParams() {
-    return this.param_info.length;
+    // When saving, we need to refresh the param-input component to clean up the old key
+    return this.param_info.length && !this.updating;
+  }
+
+  beforeUpdate() {
+    this.set("updating", true);
+  }
+
+  afterUpdate() {
+    this.set("updating", false);
   }
 
   resetParams() {
@@ -41,6 +52,8 @@ export default class Query extends RestModel {
       } else if (pinfo["type"] === "user_id") {
         newParams[name] = null;
       } else if (pinfo["type"] === "user_list") {
+        newParams[name] = null;
+      } else if (pinfo["type"] === "group_list") {
         newParams[name] = null;
       } else {
         newParams[name] = "";

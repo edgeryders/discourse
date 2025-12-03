@@ -42,7 +42,6 @@ th:
       save: "บันทึก"
       sounds:
         none: "ไม่มี"
-      exit: "กลับ"
       channel_status:
         closed: "ปิด"
         open: "เปิด"
@@ -63,6 +62,7 @@ th:
         tabs:
           members: สมาชิก
           settings: การตั้งค่า
+        remove_member: "ลบ"
       direct_message_creator:
         title: สร้างข้อความใหม่
         prefix: "ถึง:"

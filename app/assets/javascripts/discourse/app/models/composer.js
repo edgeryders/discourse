@@ -14,6 +14,7 @@ import discourseComputed from "discourse/lib/decorators";
 import deprecated from "discourse/lib/deprecated";
 import { QUOTE_REGEXP } from "discourse/lib/quote";
 import { prioritizeNameFallback } from "discourse/lib/settings";
+import { applyValueTransformer } from "discourse/lib/transformer";
 import { emailValid, escapeExpression } from "discourse/lib/utilities";
 import Category from "discourse/models/category";
 import Draft from "discourse/models/draft";
@@ -41,7 +42,9 @@ export const CREATE_TOPIC = "createTopic",
   REPLY = "reply",
   EDIT = "edit",
   NEW_PRIVATE_MESSAGE_KEY = "new_private_message",
-  NEW_TOPIC_KEY = "new_topic";
+  NEW_TOPIC_KEY = "new_topic",
+  EDIT_TOPIC_KEY = "topic_",
+  ADD_TRANSLATION = "add_translation";
 
 function isEdit(action) {
   return action === EDIT || action === EDIT_SHARED_DRAFT;
@@ -65,16 +68,19 @@ const CLOSED = "closed",
     target_recipients: "targetRecipients",
     typing_duration_msecs: "typingTime",
     composer_open_duration_msecs: "composerTime",
+    composer_version: "composerVersion",
     tags: "tags",
     featured_link: "featuredLink",
     shared_draft: "sharedDraft",
     no_bump: "noBump",
     draft_key: "draftKey",
+    locale: "locale",
   },
   _update_serializer = {
     raw: "reply",
     topic_id: "topic.id",
     original_text: "originalText",
+    locale: "locale",
   },
   _edit_topic_serializer = {
     title: "topic.title",
@@ -83,6 +89,7 @@ const CLOSED = "closed",
     featuredLink: "topic.featured_link",
     original_title: "originalTitle",
     original_tags: "originalTags",
+    locale: "locale",
   },
   _draft_serializer = {
     reply: "reply",
@@ -100,6 +107,7 @@ const CLOSED = "closed",
     original_text: "originalText",
     original_title: "originalTitle",
     original_tags: "originalTags",
+    locale: "locale",
   },
   _add_draft_fields = {},
   FAST_REPLY_LENGTH_THRESHOLD = 10000;
@@ -111,6 +119,7 @@ export const SAVE_LABELS = {
   [PRIVATE_MESSAGE]: "composer.create_pm",
   [CREATE_SHARED_DRAFT]: "composer.create_shared_draft",
   [EDIT_SHARED_DRAFT]: "composer.save_edit",
+  [ADD_TRANSLATION]: "composer.translations.save",
 };
 
 export const SAVE_ICONS = {
@@ -137,10 +146,12 @@ export default class Composer extends RestModel {
   static PRIVATE_MESSAGE = PRIVATE_MESSAGE;
   static REPLY = REPLY;
   static EDIT = EDIT;
+  static ADD_TRANSLATION = ADD_TRANSLATION;
 
   // Draft key
   static NEW_PRIVATE_MESSAGE_KEY = NEW_PRIVATE_MESSAGE_KEY;
   static NEW_TOPIC_KEY = NEW_TOPIC_KEY;
+  static EDIT_TOPIC_KEY = EDIT_TOPIC_KEY;
 
   // TODO: Replace with injection
   static create(args) {
@@ -192,11 +203,17 @@ export default class Composer extends RestModel {
   }
 
   @service dialog;
+  @service siteSettings;
+  @service currentUser;
 
   @tracked topic;
   @tracked post;
   @tracked reply;
   @tracked whisper;
+  @tracked
+  locale = this.siteSettings.content_localization_enabled
+    ? this.post?.locale
+    : null;
 
   unlistTopic = false;
   noBump = false;
@@ -349,6 +366,14 @@ export default class Composer extends RestModel {
     return total;
   }
 
+  get composerVersion() {
+    if (this.siteSettings.rich_editor && this.currentUser.useRichEditor) {
+      return 2;
+    }
+
+    return 1;
+  }
+
   @discourseComputed("archetypeId")
   archetype(archetypeId) {
     return this.archetypes.findBy("id", archetypeId);
@@ -438,7 +463,12 @@ export default class Composer extends RestModel {
 
     if (post) {
       options.label = i18n(`post.${action}`);
-      options.userAvatar = tinyAvatar(post.avatar_template);
+      const avatarTemplate = applyValueTransformer(
+        "composer-reply-options-user-avatar-template",
+        post.avatar_template,
+        { post }
+      );
+      options.userAvatar = tinyAvatar(avatarTemplate);
 
       if (this.site.desktopView) {
         const originalUserName = post.get("reply_to_user.username");
@@ -460,7 +490,12 @@ export default class Composer extends RestModel {
         anchor: i18n("post.post_number", { number: postNumber }),
       };
 
-      const name = prioritizeNameFallback(post.name, post.username);
+      const namePrioritized = prioritizeNameFallback(post.name, post.username);
+      const name = applyValueTransformer(
+        "composer-reply-options-user-link-name",
+        namePrioritized,
+        { post }
+      );
 
       options.userLink = {
         href: `${topic.url}/${postNumber}`,
@@ -1095,6 +1130,7 @@ export default class Composer extends RestModel {
 
     const cooked = this.getCookedHtml();
     post.setProperties({ cooked, staged: true });
+    // TODO (glimmer-post-stream) the Glimmer Post Stream does not listen to this event
     this.appEvents.trigger("post-stream:refresh", { id: post.id });
 
     return promise
@@ -1107,6 +1143,7 @@ export default class Composer extends RestModel {
       .catch(rollback)
       .finally(() => {
         post.set("staged", false);
+        // TODO (glimmer-post-stream) the Glimmer Post Stream does not listen to this event
         this.appEvents.trigger("post-stream:refresh", { id: post.id });
       });
   }
@@ -1156,6 +1193,9 @@ export default class Composer extends RestModel {
       typingTime: this.typingTime,
       composerTime: this.composerTime,
       metaData: this.metaData,
+      locale: this.siteSettings.content_localization_enabled
+        ? this.locale
+        : null,
     });
 
     this.serialize(_create_serializer, createdPost);
@@ -1281,6 +1321,10 @@ export default class Composer extends RestModel {
     "minimumPostLength"
   )
   canSaveDraft() {
+    if (this.action === Composer.ADD_TRANSLATION) {
+      return false;
+    }
+
     if (this.draftSaving) {
       return false;
     }

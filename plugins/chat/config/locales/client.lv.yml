@@ -43,7 +43,6 @@ lv:
       save: "Saglabāt"
       sounds:
         none: "Nav"
-      exit: "atpakaļ"
       channel_status:
         closed: "Slēgts"
         open: "Atvērt"
@@ -64,6 +63,7 @@ lv:
         tabs:
           members: Dalībnieki
           settings: Iestatījumi
+        remove_member: "Atcelt"
       new_message_modal:
         filter: "Filtrs"
       direct_message_creator:

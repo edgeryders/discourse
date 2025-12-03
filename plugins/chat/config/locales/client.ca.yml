@@ -43,7 +43,6 @@ ca:
       save: "Desa"
       sounds:
         none: "Cap"
-      exit: "enrere"
       channel_status:
         closed: "Tancat"
         open: "Obre"
@@ -64,6 +63,7 @@ ca:
         tabs:
           members: Membres
           settings: Configuració
+        remove_member: "Elimina"
       new_message_modal:
         no_items: "Sense elements"
         filter: "Filtre"

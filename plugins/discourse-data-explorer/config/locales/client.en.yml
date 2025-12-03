@@ -56,6 +56,7 @@ en:
           no: "No"
           null_: "Null"
       export: "Export"
+      view_json: "View JSON"
       save: "Save Changes"
       saverun: "Save Changes and Run"
       run: "Run"
@@ -88,6 +89,13 @@ en:
       reset_params: "Reset"
       search_placeholder: "Search..."
       no_search_results: "Sorry, we couldn't find any results matching your text."
+      form:
+        errors:
+          invalid: "Invalid"
+          no_such_category: "No such category"
+          no_such_group: "No such group"
+          invalid_date: "%{date} is a invalid date"
+          invalid_time: "%{time} is a invalid time"
     group:
       reports: "Reports"
     admin:
@@ -106,4 +114,21 @@ en:
               label: Data Explorer Query
             query_params:
               label: Data Explorer Query parameters
-
+            skip_empty:
+              label: Skip sending PM if there are no results
+            attach_csv:
+              label: Attach the CSV file to the PM
+            users_from_group:
+              label: Send individual PM to each group member
+        recurring_data_explorer_result_topic:
+          fields:
+            topic_id:
+              label: The topic to post query results in
+            query_id:
+              label: Data Explorer Query
+            query_params:
+              label: Data Explorer Query parameters
+            skip_empty:
+              label: Skip posting if there are no results
+            attach_csv:
+              label: Attach the CSV file to the post

@@ -5,6 +5,11 @@
 # https://translate.discourse.org/
 
 uk:
+  admin_js:
+    admin:
+      site_settings:
+        categories:
+          styleguide: "Керівництво по стилю Discourse"
   js:
     styleguide:
       title: "Styleguide"
@@ -25,6 +30,8 @@ uk:
           title: "Введення дати / часу"
         menus:
           title: "Меню"
+        multi_select:
+          title: "Множинний вибір"
         toasts:
           title: "Тости"
         font_scale:
@@ -82,8 +89,8 @@ uk:
           title: "Карта теми"
         site_header:
           title: "Заголовок сайту"
-        suggested_topics:
-          title: "Схожі теми"
+        more_topics:
+          title: "Більше тем"
         post_menu:
           title: "Меню повідомлення"
         modal:

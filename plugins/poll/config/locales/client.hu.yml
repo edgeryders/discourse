@@ -5,6 +5,11 @@
 # https://translate.discourse.org/
 
 hu:
+  admin_js:
+    admin:
+      site_settings:
+        categories:
+          poll: "Discourse Szavazás"
   js:
     poll:
       voters:
@@ -110,7 +115,7 @@ hu:
       error_while_fetching_voters: "Sajnáljuk, hiba történt a szavazók megjelenítésekor."
       error_while_exporting_results: "Sajnáljuk, hiba történt az szavazás eredményének exportálásakor."
       ui_builder:
-        title: Szavazás összeállítása
+        title: Szavazás létrehozása
         insert: Szavazás beillesztése
         help:
           options_min_count: Adjon meg legalább 1 lehetőséget.

@@ -4,10 +4,9 @@ class Admin::ColorSchemesController < Admin::AdminController
   before_action :fetch_color_scheme, only: %i[update destroy]
 
   def index
-    render_serialized(
-      ColorScheme.base_color_schemes + ColorScheme.order("id ASC").all.to_a,
-      ColorSchemeSerializer,
-    )
+    schemes = ColorScheme.includes(:base_scheme).order("color_schemes.id ASC")
+
+    render_serialized(ColorScheme.base_color_schemes + schemes.to_a, ColorSchemeSerializer)
   end
 
   def create

@@ -40,6 +40,7 @@ nl:
           no: "Nee"
           null_: "Null"
       export: "Exporteren"
+      view_json: "JSON weergeven"
       save: "Wijzigingen opslaan"
       saverun: "Wijzigingen opslaan en uitvoeren"
       run: "Uitvoeren"
@@ -69,9 +70,16 @@ nl:
       column: "Kolom %{number}"
       explain_label: "Queryplan bijvoegen?"
       save_params: "Standaardwaarden instellen"
-      reset_params: "Herstellen"
+      reset_params: "Resetten"
       search_placeholder: "Zoeken..."
       no_search_results: "Er zijn geen resultaten gevonden voor je tekst."
+      form:
+        errors:
+          invalid: "Ongeldig"
+          no_such_category: "Geen dergelijke categorie"
+          no_such_group: "Geen dergelijke groep"
+          invalid_date: "%{date} is een ongeldige datum"
+          invalid_time: "%{time} is een ongeldige tijd"
     group:
       reports: "Rapporten"
     admin:
@@ -90,3 +98,21 @@ nl:
               label: Gegevensverkenner-query
             query_params:
               label: Gegevensverkenner-queryparameters
+            skip_empty:
+              label: PB verzenden overslaan als er geen resultaten zijn
+            attach_csv:
+              label: Voeg het CSV-bestand bij de PB
+            users_from_group:
+              label: Individueel PB naar elk groepslid sturen
+        recurring_data_explorer_result_topic:
+          fields:
+            topic_id:
+              label: Het topic om queryresultaten in te plaatsen
+            query_id:
+              label: Gegevensverkenner-query
+            query_params:
+              label: Gegevensverkenner-queryparameters
+            skip_empty:
+              label: Plaatsen overslaan als er geen resultaten zijn
+            attach_csv:
+              label: Voeg het CSV-bestand bij het bericht

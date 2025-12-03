@@ -11,7 +11,7 @@ it:
         no_semicolons: "Rimuovi i punti e virgola dalla query."
         dirty: "È necessario salvare la query prima di eseguirla."
     explorer:
-      or: "oppure"
+      or: "o"
       admins_only: "Data explorer è disponibile solo per gli amministratori."
       allow_groups: "Consenti ai gruppi di accedere a questa query"
       title: "Data Explorer"
@@ -40,6 +40,7 @@ it:
           no: "No"
           null_: "Null"
       export: "Esporta"
+      view_json: "Visualizza JSON"
       save: "Salva Modifiche"
       saverun: "Salva modifiche ed esegui"
       run: "Esegui"
@@ -69,11 +70,18 @@ it:
       column: "Colonna %{number}"
       explain_label: "Includere il piano query?"
       save_params: "Imposta Predefiniti"
-      reset_params: "Reimposta"
+      reset_params: "Annulla"
       search_placeholder: "Ricerca..."
       no_search_results: "Spiacenti, non abbiamo trovato alcun risultato che corrisponda al tuo testo."
+      form:
+        errors:
+          invalid: "Non valido"
+          no_such_category: "Categoria inesistente"
+          no_such_group: "Gruppo inesistente"
+          invalid_date: "%{date} è una data non valida"
+          invalid_time: "%{time} è un orario non valido"
     group:
-      reports: "Rapporti"
+      reports: "Report"
     admin:
       api:
         scopes:
@@ -90,3 +98,21 @@ it:
               label: Query di Data Explorer
             query_params:
               label: Parametri della query di Data Explorer
+            skip_empty:
+              label: Salta l'invio di MP se non ci sono risultati
+            attach_csv:
+              label: Allega il file CSV al MP
+            users_from_group:
+              label: Invia un messaggio privato individuale a ciascun membro del gruppo
+        recurring_data_explorer_result_topic:
+          fields:
+            topic_id:
+              label: L'argomento in cui pubblicare i risultati della query
+            query_id:
+              label: Query di Data Explorer
+            query_params:
+              label: Parametri della query di Data Explorer
+            skip_empty:
+              label: Salta la pubblicazione se non ci sono risultati
+            attach_csv:
+              label: Allega il file CSV all'argomento

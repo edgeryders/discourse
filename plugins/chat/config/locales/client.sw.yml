@@ -41,7 +41,6 @@ sw:
       save: "Hifadhi"
       sounds:
         none: "Hakuna"
-      exit: "iliyopita"
       channel_status:
         closed: "Imefungwa"
         open: "Fungua"
@@ -62,6 +61,7 @@ sw:
         tabs:
           members: Wanachama
           settings: Mipangilio
+        remove_member: "Ondoa"
       new_message_modal:
         filter: "Chuja"
       direct_message_creator:

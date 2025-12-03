@@ -73,7 +73,6 @@ sq:
       save: "Ruaj"
       sounds:
         none: "Asnjë"
-      exit: "kthehu mbrapa"
       channel_status:
         open: "Fillo"
       browse:
@@ -92,6 +91,7 @@ sq:
         tabs:
           members: Anëtarë
           settings: Rregullimet
+        remove_member: "Hiq"
       new_message_modal:
         filter: "Filtro"
       direct_message_creator:

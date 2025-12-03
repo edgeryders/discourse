@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-RSpec.describe "Reports", type: :system, js: true do
+RSpec.describe "Reports", type: :system do
   fab!(:group) { Fabricate(:group, name: "group") }
   fab!(:user) { Fabricate(:admin) }
   fab!(:group_user) { Fabricate(:group_user, user: user, group: group) }
@@ -41,5 +41,19 @@ RSpec.describe "Reports", type: :system, js: true do
     expect(page).not_to have_css(".query-results .result-header")
     find(".query-run .btn-primary").click
     expect(page).to have_css(".query-results .result-header")
+  end
+
+  it "allows user to run a report with a JSON column and open a fullscreen code viewer" do
+    Fabricate(:reviewable_queued_post)
+    sql = <<~SQL
+      SELECT id, payload FROM reviewables LIMIT 10
+    SQL
+    json_query = DiscourseDataExplorer::Query.create!(name: "some query", sql: sql)
+    sign_in(user)
+    visit("/g/group/reports/#{json_query.id}")
+    find(".query-run .btn-primary").click
+    expect(page).to have_css(".query-results .result-json")
+    first(".query-results .result-json .btn.result-json-button").click
+    expect(page).to have_css(".fullscreen-code-modal")
   end
 end

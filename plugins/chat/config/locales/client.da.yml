@@ -127,7 +127,6 @@ da:
       uploaded_files:
         one: "%{count} fil"
         other: "%{count} filer"
-      exit: "tilbage"
       channel_status:
         read_only_header: "Kanalen er skrivebeskyttet"
         read_only: "Kun læsning"
@@ -158,6 +157,7 @@ da:
         tabs:
           members: Brugere
           settings: Indstillinger
+        remove_member: "Fjern"
       new_message_modal:
         no_items: "Ingen punkter"
         filter: "Filter"

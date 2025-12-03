@@ -40,11 +40,11 @@ module ::DiscourseDataExplorer
       end
 
       return raise Discourse::NotFound if !guardian.user_can_access_query?(@query) || @query.hidden
-      render_serialized @query, QuerySerializer, root: "query"
+      render_serialized @query, QueryDetailsSerializer, root: "query"
     end
 
     def groups
-      render json: Group.all.select(:id, :name), root: false
+      render json: Group.all.select(:id, :name).as_json(only: %i[id name]), root: false
     end
 
     def group_reports_index
@@ -68,7 +68,7 @@ module ::DiscourseDataExplorer
           query_group = QueryGroup.find_by(query_id: @query.id, group_id: @group.id)
 
           render json: {
-                   query: serialize_data(@query, QuerySerializer, root: nil),
+                   query: serialize_data(@query, QueryDetailsSerializer, root: nil),
                    query_group: serialize_data(query_group, QueryGroupSerializer, root: nil),
                  }
         end
@@ -93,7 +93,7 @@ module ::DiscourseDataExplorer
         )
       group_ids = params.require(:query)[:group_ids]
       group_ids&.each { |group_id| query.query_groups.find_or_create_by!(group_id: group_id) }
-      render_serialized query, QuerySerializer, root: "query"
+      render_serialized query, QueryDetailsSerializer, root: "query"
     end
 
     def update
@@ -107,7 +107,7 @@ module ::DiscourseDataExplorer
         group_ids&.each { |group_id| @query.query_groups.find_or_create_by!(group_id: group_id) }
       end
 
-      render_serialized @query, QuerySerializer, root: "query"
+      render_serialized @query, QueryDetailsSerializer, root: "query"
     rescue ValidationError => e
       render_json_error e.message
     end
@@ -147,7 +147,7 @@ module ::DiscourseDataExplorer
       query_params = {}
       query_params = MultiJson.load(params[:params]) if params[:params]
 
-      opts = { current_user: current_user.username }
+      opts = { current_user: current_user&.username }
       opts[:explain] = true if params[:explain] == "true"
 
       opts[:limit] = if params[:format] == "csv"
@@ -179,49 +179,28 @@ module ::DiscourseDataExplorer
 
         render json: { success: false, errors: [err_msg] }, status: 422
       else
-        pg_result = result[:pg_result]
-        cols = pg_result.fields
+        content_disposition =
+          "attachment; filename=#{query.slug}@#{Slug.for(Discourse.current_hostname, "discourse")}-#{Date.today}.dcqresult"
+
         respond_to do |format|
           format.json do
-            if params[:download]
-              response.headers[
-                "Content-Disposition"
-              ] = "attachment; filename=#{query.slug}@#{Slug.for(Discourse.current_hostname, "discourse")}-#{Date.today}.dcqresult.json"
-            end
-            json = {
-              success: true,
-              errors: [],
-              duration: (result[:duration_secs].to_f * 1000).round(1),
-              result_count: pg_result.values.length || 0,
-              params: query_params,
-              columns: cols,
-              default_limit: SiteSetting.data_explorer_query_result_limit,
-            }
-            json[:explain] = result[:explain] if opts[:explain]
+            response.headers["Content-Disposition"] = "#{content_disposition}.json" if params[
+              :download
+            ]
 
-            if !params[:download]
-              relations, colrender = DataExplorer.add_extra_data(pg_result)
-              json[:relations] = relations
-              json[:colrender] = colrender
-            end
-
-            json[:rows] = pg_result.values
-
-            render json: json
+            render json:
+                     ResultFormatConverter.convert(
+                       :json,
+                       result,
+                       query_params:,
+                       download: params[:download],
+                       explain: params[:explain] == "true",
+                     )
           end
           format.csv do
-            response.headers[
-              "Content-Disposition"
-            ] = "attachment; filename=#{query.slug}@#{Slug.for(Discourse.current_hostname, "discourse")}-#{Date.today}.dcqresult.csv"
+            response.headers["Content-Disposition"] = "#{content_disposition}.csv"
 
-            require "csv"
-            text =
-              CSV.generate do |csv|
-                csv << cols
-                pg_result.values.each { |row| csv << row }
-              end
-
-            render plain: text
+            render plain: ResultFormatConverter.convert(:csv, result)
           end
         end
       end

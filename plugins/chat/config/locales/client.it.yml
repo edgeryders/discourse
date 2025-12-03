@@ -302,7 +302,7 @@ it:
         one: "%{count} file"
         other: "%{count} file"
       you_flagged: "Hai segnalato questo messaggio"
-      exit: "indietro"
+      exit: "esci dalla chat"
       channel_status:
         read_only_header: "Il canale è di sola lettura"
         read_only: "Sola lettura"
@@ -342,6 +342,7 @@ it:
         tabs:
           members: Membri
           settings: Impostazioni
+        remove_member: "Rimuovi"
       new_message_modal:
         title: Invia messaggio
         add_user_long: <kbd>MAIUSC + clic</kbd> o <kbd>MAIUSC + INVIO</kbd><span>Aggiunge @%{username}</span>
@@ -530,6 +531,7 @@ it:
         select_emoji: "Scegli emoji"
         system: "sistema"
         title: "Webhook in ingresso"
+        header_description: "I webhook in arrivo possono essere utilizzati da sistemi esterni per pubblicare messaggi in un canale di chat designato come utente bot"
         url: "URL"
         url_instructions: "Questo URL contiene un valore segreto: tienilo al sicuro."
         username: "Nome utente"
@@ -642,6 +644,11 @@ it:
       draft_channel_screen:
         header: "Nuovo messaggio"
         cancel: "Annulla"
+      quick_reaction_type:
+        title: "Reazioni alla chat con un clic"
+        options:
+          frequent: "Reazioni alla chat più frequentemente utilizzate"
+          custom: "Reazioni personalizzate"
     notifications:
       chat_invitation: "ti ha inviato un invito a partecipare a un canale di chat"
       chat_invitation_html: "<span>%{username}</span> <span>ti ha inviato un invito a partecipare a un canale di chat</span>"
@@ -699,7 +706,7 @@ it:
           switch_channel_arrows: "%{shortcut} Cambia canale"
           switch__unread_channel_arrows: "%{shortcut} Cambia canale non letto"
           open_quick_channel_selector: "%{shortcut} Apri il selettore rapido dei canali"
-          open_insert_link_modal: "%{shortcut} Inserisci collegamento ipertestuale (solo compositore)"
+          open_insert_link_modal: "%{shortcut} Inserisci link (solo compositore)"
           composer_bold: "%{shortcut} Grassetto (solo compositore)"
           composer_italic: "%{shortcut} Corsivo (solo compositore)"
           composer_code: "%{shortcut} Codice (solo compositore)"

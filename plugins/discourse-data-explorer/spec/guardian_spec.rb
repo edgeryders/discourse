@@ -1,7 +1,5 @@
 # frozen_string_literal: true
 
-require "rails_helper"
-
 describe Guardian do
   before { SiteSetting.data_explorer_enabled = true }
 
@@ -19,7 +17,7 @@ describe Guardian do
 
   let(:user) { build(:user) }
   let(:admin) { build(:admin) }
-  fab!(:group) { Fabricate(:group) }
+  fab!(:group)
 
   describe "#user_is_a_member_of_group?" do
     it "is true when the user is an admin" do

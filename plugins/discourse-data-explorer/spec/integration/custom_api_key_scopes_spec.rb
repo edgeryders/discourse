@@ -1,7 +1,5 @@
 # frozen_string_literal: true
 
-require "rails_helper"
-
 describe "API keys scoped to query#run" do
   before { SiteSetting.data_explorer_enabled = true }
 
@@ -11,7 +9,7 @@ describe "API keys scoped to query#run" do
   fab!(:query2) do
     DiscourseDataExplorer::Query.create!(name: "Query 2", sql: "SELECT 1 AS query2_res")
   end
-  fab!(:admin) { Fabricate(:admin) }
+  fab!(:admin)
 
   let(:all_queries_api_key) do
     key = ApiKey.create!

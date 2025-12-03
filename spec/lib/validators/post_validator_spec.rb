@@ -23,7 +23,7 @@ RSpec.describe PostValidator do
     end
 
     context "when post's topic is a PM between a human and a non human user" do
-      fab!(:robot) { Fabricate(:bot) }
+      fab!(:robot, :bot)
       fab!(:user)
 
       let(:topic) do
@@ -43,10 +43,22 @@ RSpec.describe PostValidator do
 
         expect(post.errors).to be_empty
       end
+
+      it "respects the max body length" do
+        SiteSetting.max_post_length = 5
+        post = Fabricate.build(:post, topic: topic)
+        post.raw = "that's too much mate"
+        validator.post_body_validator(post)
+
+        expect(post.errors.count).to eq(1)
+        expect(post.errors[:raw]).to contain_exactly(
+          I18n.t("errors.messages.too_long_validation", count: 5, length: 20),
+        )
+      end
     end
   end
 
-  describe "stripped_length" do
+  describe "#stripped_length" do
     it "adds an error for short raw" do
       post.raw = "abc"
       validator.stripped_length(post)
@@ -102,6 +114,26 @@ RSpec.describe PostValidator do
       post.raw = "<!-- <!-- an html comment --> -->"
       validator.stripped_length(post)
       expect(post.errors.count).to eq(1)
+    end
+
+    context "when configured to count uploads" do
+      before { SiteSetting.prevent_uploads_only_posts = false }
+
+      it "counts image tags" do
+        post.raw = "![A cute cat|690x472](upload://3NvZqZ2iBHjDjwNVI4QyZpkaC5r.png)"
+        validator.stripped_length(post)
+        expect(post.errors.count).to eq(0)
+      end
+    end
+
+    context "when configured to not count uploads" do
+      before { SiteSetting.prevent_uploads_only_posts = true }
+
+      it "doesn't count image tags" do
+        post.raw = "![A cute cat|690x472](upload://3NvZqZ2iBHjDjwNVI4QyZpkaC5r.png)"
+        validator.stripped_length(post)
+        expect(post.errors.count).to eq(1)
+      end
     end
   end
 
@@ -313,7 +345,7 @@ RSpec.describe PostValidator do
   end
 
   describe "max_attachments_validator" do
-    fab!(:new_user) { Fabricate(:newuser) }
+    fab!(:new_user, :newuser)
 
     before { SiteSetting.newuser_max_attachments = 2 }
 
@@ -347,7 +379,7 @@ RSpec.describe PostValidator do
   end
 
   describe "max_links_validator" do
-    fab!(:new_user) { Fabricate(:newuser) }
+    fab!(:new_user, :newuser)
 
     before { SiteSetting.newuser_max_links = 2 }
 
@@ -368,7 +400,7 @@ RSpec.describe PostValidator do
 
   describe "force_edit_last_validator" do
     fab!(:user) { Fabricate(:user, refresh_auto_groups: true) }
-    fab!(:other_user) { Fabricate(:user) }
+    fab!(:other_user, :user)
     fab!(:topic)
 
     before { SiteSetting.max_consecutive_replies = 2 }

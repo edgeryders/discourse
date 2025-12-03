@@ -2,28 +2,25 @@ import { click, currentRouteName, visit } from "@ember/test-helpers";
 import { test } from "qunit";
 import { acceptance } from "discourse/tests/helpers/qunit-helpers";
 
-acceptance("Login Required", function (needs) {
+acceptance("Login Required - Full page login", function (needs) {
   needs.settings({ login_required: true });
 
-  test("redirect", async function (assert) {
-    await visit("/latest");
+  test("page", async function (assert) {
+    await visit("/");
     assert.strictEqual(
       currentRouteName(),
-      "login",
-      "it redirects them to login"
+      "discovery.login-required",
+      "it shows the login required splash"
     );
 
-    await click("#site-logo");
-    assert.strictEqual(
-      currentRouteName(),
-      "login",
-      "clicking the logo keeps them on login"
-    );
+    await click(".login-button");
+    assert.dom(".login-left-side").exists("login form is shown");
+    assert
+      .dom(".login-welcome")
+      .doesNotExist("login welcome is no longer shown");
 
-    await click("header .login-button");
-    assert.dom(".login-modal").exists("they can still access the login modal");
-
-    await click(".d-modal__header .modal-close");
-    assert.dom(".login-modal").doesNotExist("closes the login modal");
+    await click(".logo-big");
+    assert.dom(".login-left-side").doesNotExist("closes the login modal");
+    assert.dom(".login-welcome").exists("login welcome is shown");
   });
 });

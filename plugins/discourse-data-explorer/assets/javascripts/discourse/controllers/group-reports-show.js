@@ -1,27 +1,35 @@
+import { tracked } from "@glimmer/tracking";
 import Controller from "@ember/controller";
+import { action } from "@ember/object";
+import { service } from "@ember/service";
 import BookmarkModal from "discourse/components/modal/bookmark";
-import { BookmarkFormData } from "discourse/lib/bookmark";
-import { popupAjaxError } from "discourse/lib/ajax-error";
 import { ajax } from "discourse/lib/ajax";
+import { popupAjaxError } from "discourse/lib/ajax-error";
+import { BookmarkFormData } from "discourse/lib/bookmark-form-data";
+import { bind } from "discourse/lib/decorators";
 import {
   NO_REMINDER_ICON,
   WITH_REMINDER_ICON,
 } from "discourse/models/bookmark";
-import { action } from "@ember/object";
-import { bind } from "discourse-common/utils/decorators";
-import { tracked } from "@glimmer/tracking";
-import { inject as service } from "@ember/service";
+import { ParamValidationError } from "discourse/plugins/discourse-data-explorer/discourse/components/param-input-form";
 
 export default class GroupReportsShowController extends Controller {
   @service currentUser;
   @service modal;
+  @service router;
 
   @tracked showResults = false;
   @tracked loading = false;
   @tracked results = this.model.results;
   @tracked queryGroupBookmark = this.queryGroup?.bookmark;
 
+  queryParams = ["params"];
+  form = null;
   explain = false;
+
+  get parsedParams() {
+    return this.params ? JSON.parse(this.params) : null;
+  }
 
   get hasParams() {
     return this.model.param_info.length > 0;
@@ -48,16 +56,28 @@ export default class GroupReportsShowController extends Controller {
 
   @bind
   async run() {
-    this.loading = true;
-    this.showResults = false;
-
     try {
+      let params = null;
+      if (this.hasParams) {
+        params = await this.form.submit();
+        if (params == null) {
+          return;
+        }
+      }
+      this.loading = true;
+      this.showResults = false;
+      const stringifiedParams = JSON.stringify(params);
+      this.router.transitionTo({
+        queryParams: {
+          params: params ? stringifiedParams : null,
+        },
+      });
       const response = await ajax(
         `/g/${this.get("group.name")}/reports/${this.model.id}/run`,
         {
           type: "POST",
           data: {
-            params: JSON.stringify(this.model.params),
+            params: stringifiedParams,
             explain: this.explain,
           },
         }
@@ -71,7 +91,7 @@ export default class GroupReportsShowController extends Controller {
     } catch (error) {
       if (error.jqXHR?.status === 422 && error.jqXHR.responseJSON) {
         this.results = error.jqXHR.responseJSON;
-      } else {
+      } else if (!(error instanceof ParamValidationError)) {
         popupAjaxError(error);
       }
     } finally {
@@ -91,12 +111,15 @@ export default class GroupReportsShowController extends Controller {
     return this.modal.show(BookmarkModal, {
       model: {
         bookmark: new BookmarkFormData(modalBookmark),
-        afterSave: (savedData) => {
-          const bookmark = this.store.createRecord("bookmark", savedData);
+        afterSave: (bookmarkFormData) => {
+          const bookmark = this.store.createRecord(
+            "bookmark",
+            bookmarkFormData.saveData
+          );
           this.queryGroupBookmark = bookmark;
           this.appEvents.trigger(
             "bookmarks:changed",
-            savedData,
+            bookmarkFormData.saveData,
             bookmark.attachedTo()
           );
         },
@@ -107,10 +130,8 @@ export default class GroupReportsShowController extends Controller {
     });
   }
 
-  // This is necessary with glimmer's one way data stream to get the child's
-  // changes of 'params' to bubble up.
   @action
-  updateParams(identifier, value) {
-    this.set(`model.params.${identifier}`, value);
+  onRegisterApi(form) {
+    this.form = form;
   }
 }

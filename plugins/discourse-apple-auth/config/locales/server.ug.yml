@@ -1,0 +1,9 @@
+# WARNING: Never edit this file.
+# It will be overwritten when translations are pulled from Crowdin.
+#
+# To work with us on translations, join this project:
+# https://translate.discourse.org/
+
+ug:
+  site_settings:
+    apple_client_id: "( Apple ئارقىلىق تىزىمغا كىرىدۇ) ئىجادىيەت تىزگىن تاختىسىدىكى Apple «مۇلازىمەت پەرقلەندۈرگۈچ». ئادەتتە ئەكسى دائىرە ئىسمى ئۇسلۇبىدىكى ھەرپ تىزىقى (مەسىلەن، com.example.auth) ( Apple ئارقىلىق تىزىمغا كىرىدۇ)"
