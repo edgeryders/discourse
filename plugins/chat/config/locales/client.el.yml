@@ -86,8 +86,15 @@ el:
         all_new: "Όλα Τα Νέα Μηνύματα"
         only_mentions: "Μόνο Επισημάνσεις"
         never: "Ποτέ"
+      send_shortcut:
+        enter:
+          label: "Αποστολή με Enter"
+          description: "Νέα γραμμή με Shift + Enter"
+        meta_enter:
+          label: "Αποστολή με %{meta_key} + Enter"
+          description: "Νέα γραμμή με Enter"
       enable: "Ενεργοποίηση συνομιλίας"
-      flag: "Επισήμανση"
+      flag: "Αναφορά"
       emoji: "Εισαγωγή emoji"
       in_reply_to: "Ως απάντηση σε"
       heading: "Συνομιλία"
@@ -144,6 +151,7 @@ el:
       uploaded_files:
         one: "%{count} αρχείο"
         other: "%{count} αρχεία"
+      you_flagged: "Ανέφερες αυτό το μήνυμα"
       channel_status:
         closed: "Κλειστό"
         open: "Ξεκίνημα"
@@ -181,6 +189,8 @@ el:
         types:
           category: "Κατηγορία"
           topic: "Θέμα"
+      reviewable:
+        type: "Μήνυμα συνομιλίας"
       composer:
         italic_text: "κείμενο σε έμφαση"
         bold_text: "έντονη γραφή"
@@ -204,16 +214,27 @@ el:
         members_label: "Μέλη"
       incoming_webhooks:
         back: "Πίσω"
+        channel_placeholder: "Επιλέξτε ένα κανάλι"
         channel: "Κανάλι"
+        current_emoji: "Τρέχον Emoji"
         description: "Περιγραφή"
-        delete: "Σβήσιμο"
+        delete: "Διαγραφή"
         emoji: "Emoji"
         name: "Όνομα"
+        name_placeholder: "όνομα..."
+        new: "Νέο εισερχόμενο webhook"
+        no_emoji: "Δεν επιλέχθηκε Emoji"
+        post_to: "Δημοσίευση σε"
+        reset_emoji: "Επαναφορά Emoji"
         save: "Αποθήκευση"
         edit: "Επεξεργασία"
+        select_emoji: "Επιλογή Emoji"
         system: "σύστημα"
+        title: "Εισερχόμενα webhooks"
         url: "URL"
         username: "Όνομα Χρήστη"
+        saved: "Οι αλλαγές στο webhook αποθηκεύτηκαν"
+        created: "Το webhook δημιουργήθηκε"
       selection:
         cancel: "Ακύρωση"
         copy: "Αντιγραφή"
@@ -227,6 +248,8 @@ el:
         short:
           one: "%{count} ημ"
           other: "%{count} ημ"
+      flagging:
+        action: "Αναφορά μηνύματος"
       emoji_picker:
         objects: "Αντικείμενα"
         activities: "Δραστηριότητες"
@@ -255,9 +278,44 @@ el:
       chat_watched_thread_label:
         one: "%{username} και %{username2}"
         other: "%{username} και %{count} ακόμη"
+      popup:
+        direct_message_chat_mention:
+          direct: "σας επισήμανε σε προσωπική συνομιλία"
+          direct_html: "<span>%{username}</span> <span>σας επισήμανε σε προσωπική συνομιλία</span>"
+          other_plain: "επισήμανε %{identifier} σε προσωπική συνομιλία"
+          other_html: "<span>%{username}</span> <span>επισήμανε %{identifier} σε προσωπική συνομιλία</span>"
     discourse_automation:
       scriptables:
         send_chat_message:
           fields:
             message:
               label: Μήνυμα
+    review:
+      types:
+        chat_reviewable_message:
+          title: "Αναφερόμενο Μήνυμα Συνομιλίας"
+        reviewable_chat_message:
+          title: "Αναφερόμενο μήνυμα συνομιλίας"
+          noun: "μήνυμα συνομιλίας"
+    keyboard_shortcuts_help:
+      chat:
+        title: "Συνομιλία"
+        keyboard_shortcuts:
+          switch_channel_arrows: "%{shortcut} Εναλλαγή καναλιού"
+          switch__unread_channel_arrows: "%{shortcut} Εναλλαγή αδιάβαστου καναλιού"
+          open_quick_channel_selector: "%{shortcut} Άνοιγμα γρήγορης επιλογής καναλιών"
+          open_insert_link_modal: "%{shortcut} Εισαγωγή συνδέσμου (μόνο για συνθέτη)"
+          composer_bold: "%{shortcut} Έντονη γραφή (μόνο για συνθέτη)"
+          composer_italic: "%{shortcut} Πλάγια γραφή (μόνο για συνθέτη)"
+          composer_code: "%{shortcut} Κώδικας (μόνο για συνθέτη)"
+          drawer_open: "%{shortcut} Άνοιγμα συρταριού συνομιλίας"
+          drawer_close: "%{shortcut} Κλείσιμο συρταριού συνομιλίας"
+          mark_all_channels_read: "%{shortcut} Σήμανση όλων των καναλιών ως διαβασμένα"
+    styleguide:
+      sections:
+        chat:
+          title: Συνομιλία
+    sidebar:
+      panels:
+        chat:
+          label: "Συνομιλία"

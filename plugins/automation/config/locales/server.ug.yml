@@ -9,6 +9,9 @@ ug:
     discourse_automation_enabled: "discourse-automation قىستۇرمىنى قوزغات"
   discourse_automation:
     models:
+      automations:
+        validations:
+          script_blank: "قوليازما بوش قالمايدۇ"
       fields:
         required_field: '«%{target}:%{target_name}» دىكى «%{name}» بۆلەكنى چوقۇم تولدۇرۇش كېرەك.'
         invalid_field: '«%{component}» بۆلەك بۆلىكى «%{target}:%{target_name}» دا ئىشلەتكىلى بولمايدۇ.'
@@ -93,7 +96,7 @@ ug:
         title: تېما چوققىلا
         description: بېرىلگەن چېسلادا بەلگىلەنگەن يازمىنى چوققىلايدۇ
       banner_topic:
-        title: لوزۇنكا تېما دەپ تەڭشە
+        title: لەۋھە تېما دەپ تەڭشە
         description: تېمىنى لوزۇنكىغا تەڭشەيدۇ
       gift_exchange:
         title: سوۋغات ئالماشتۇرۇش

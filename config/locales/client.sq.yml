@@ -3587,6 +3587,8 @@ sq:
       settings_sections:
         general: "Karakteristika të përgjithshme"
         email: "Email"
+      list_filters:
+        none: "asnjë nënkategori"
     flagging:
       action: "Sinjalizo postimin"
       take_action_options:
@@ -4971,6 +4973,7 @@ sq:
       next: "Vazhdo përpara"
       step-text: "Hapi"
       step: "%{current} nga %{total}"
+      uploading: "Po ngarkohet…"
       upload_error: "Na vjen keq, pati një gabim gjatë ngarkimit të skedarit. Provo përsëri. "
       invites:
         add_user: "shto"

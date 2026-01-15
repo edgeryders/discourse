@@ -2490,6 +2490,7 @@ sr:
         muted:
           title: "Utišano"
       groups:
+        new: "Nova Grupa"
         name_placeholder: "Ime foruma"
         save: "Sačuvaj"
         delete: "Obriši"
@@ -3472,6 +3473,7 @@ sr:
       next: "Dalje"
       step-text: "Korak"
       step: "%{current} od %{total}"
+      uploading: "Slanje…"
       upload_error: "Žao nam je, dogodila se greška pri učitavanju te datoteke. Molimo pokušajte ponovo."
       staff_count:
         one: "Tvoja zajednica ima %{count} člana tima (tebe). "

@@ -15,7 +15,12 @@ el:
     errors:
       not_accepting_dms: "Λυπούμαστε, ο/η %{username} δεν δέχεται μηνύματα αυτή τη στιγμή."
     reviewables:
+      message_already_handled: "Ευχαριστούμε, αλλά έχουμε ήδη αναθεωρήσει αυτό το μήνυμα και έχουμε διαπιστώσει ότι δεν χρειάζεται να αναφερθεί ξανά."
       actions:
+        agree:
+          title: "Συμφωνώ..."
+        agree_and_keep_message:
+          title: "Διατήρηση μηνύματος"
         agree_and_suspend:
           title: "Αποβολή Χρήστη"
         agree_and_silence:
@@ -59,6 +64,10 @@ el:
     popup:
       chat_mention:
         direct: '%{username} σε ανέφερε στο "%{channel}"'
+      direct_message_chat_mention:
+        direct: "%{username} σας επισήμανε σε προσωπική συνομιλία"
+        other_type: "%{username} επισήμανε %{identifier} σε προσωπική συνομιλία"
+      new_direct_chat_message: "%{username} έστειλε ένα μήνυμα σε προσωπική συνομιλία"
   reviewable_score_types:
     notify_user:
       chat_pm_body: "%{link}\n\n%{message}"
