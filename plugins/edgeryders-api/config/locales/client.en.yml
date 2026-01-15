@@ -1,3 +1,9 @@
 en:
+  admin_js:
+    admin:
+      site_settings:
+        categories:
+          edgeryders_api: "Edgeryders API"
   js:
     edgeryders_api:
+      title: "Edgeryders API"
