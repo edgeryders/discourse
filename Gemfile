@@ -316,3 +316,24 @@ gem "hashery", require: false
 gem "ttfunk", require: false
 gem "afm", require: false
 gem "pdf-reader", require: false
+
+# --- discourse-annotator ---
+# damingo (Github ID), 2019-09, #annotator
+gem 'discourse-annotator', git: 'https://github.com/edgeryders/discourse-annotator', branch: 'administrate-1.0'
+# gem 'discourse-annotator', path: '~/Projects/Edgeryders/discourse-annotator'
+# gem 'discourse-annotator', source: 'https://gem.fury.io/webmaster/'
+
+# Must be included here as dependencies that are still in development cannot be added in the gems gemspec.
+gem 'administrate', git: 'https://github.com/edgeryders/administrate', branch: 'administrate-1.0'
+# gem 'administrate', path: '~/Projects/Edgeryders/administrate'
+
+gem "administrate-field-nested_has_many", git: 'https://github.com/edgeryders/administrate-field-nested_has_many', branch: 'master'
+# gem "administrate-field-nested_has_many", path: '~/Projects/Edgeryders/administrate-field-nested_has_many'
+gem "administrate-field-belongs_to_search", git: 'https://github.com/edgeryders/administrate-field-belongs_to_search', branch: 'master'
+# gem "administrate-field-belongs_to_search", path: '~/Projects/Edgeryders/administrate-field-belongs_to_search'
+
+# --- edgeryders-api ---
+# Required by the edgeryders-api plugin.
+# Added here to avoid that all of the discourse_api dependencies
+# must be listed in the plugin.rb. See: https://meta.discourse.org/t/plugin-using-own-gem/50007/6
+gem 'discourse_api' # https://github.com/discourse/discourse_api
