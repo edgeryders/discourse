@@ -1,21 +1,7 @@
-PATH
-  remote: ../administrate-field-belongs_to_search
-  specs:
-    administrate-field-belongs_to_search (0.10.0)
-      administrate (>= 0.3, <= 1.0)
-      jbuilder (~> 2)
-      rails (>= 4.2, < 9.0)
-      selectize-rails (~> 0.6)
-
-PATH
-  remote: ../administrate-field-nested_has_many
-  specs:
-    administrate-field-nested_has_many (2.1.0)
-      administrate (>= 0.19, <= 1)
-      cocoon (~> 1.2, >= 1.2.11)
-
-PATH
-  remote: ../administrate
+GIT
+  remote: https://github.com/edgeryders/administrate
+  revision: 3e005ca30e38be45f75e0185687a3ac847dd1a70
+  branch: administrate-1.0
   specs:
     administrate (1.0.0)
       actionpack (>= 6.0, < 9.0)
@@ -25,8 +11,30 @@ PATH
       kaminari (~> 1.2.2)
       selectize-rails (~> 0.6)
 
-PATH
-  remote: ../discourse-annotator
+GIT
+  remote: https://github.com/edgeryders/administrate-field-belongs_to_search
+  revision: a34a1f60c8da56c589e8f1ebe948a047b198d2c3
+  branch: master
+  specs:
+    administrate-field-belongs_to_search (0.10.0)
+      administrate (>= 0.3, <= 1.0)
+      jbuilder (~> 2)
+      rails (>= 4.2, < 9.0)
+      selectize-rails (~> 0.6)
+
+GIT
+  remote: https://github.com/edgeryders/administrate-field-nested_has_many
+  revision: cdc93c12fcac69e3a16ea95651e55b92e9238ae8
+  branch: master
+  specs:
+    administrate-field-nested_has_many (2.1.0)
+      administrate (>= 0.19, <= 1)
+      cocoon (~> 1.2, >= 1.2.11)
+
+GIT
+  remote: https://github.com/edgeryders/discourse-annotator
+  revision: 1691d62f4ec76e5e1cd1c274c51965f04af1c2d3
+  branch: administrate-1.0
   specs:
     discourse-annotator (1.0.0)
       activejob
