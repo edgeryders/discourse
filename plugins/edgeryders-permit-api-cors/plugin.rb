@@ -14,7 +14,12 @@ after_initialize do
 
       def apply_headers(cors_origins, env, headers)
         result = super(cors_origins, env, headers)
-        result[HEADER_KEY] = result[HEADER_KEY].split(', ').concat(HEADER_VALUES).join(', ') if cors_origins.presence
+
+        if cors_origins.presence
+          existing = result[HEADER_KEY].to_s.split(/\s*,\s*/).reject(&:blank?)
+          result[HEADER_KEY] = (existing + HEADER_VALUES).uniq.join(', ')
+        end
+
         result
       end
     end
