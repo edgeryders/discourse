@@ -25,7 +25,7 @@ worker_processes (ENV["UNICORN_WORKERS"] || 3).to_i
 
 working_directory discourse_path
 
-# listen "#{discourse_path}/tmp/sockets/unicorn.sock" 
+# listen "#{discourse_path}/tmp/sockets/unicorn.sock"
 listen "#{discourse_path}/tmp/sockets/unicorn.sock" if ENV["RAILS_ENV"] === "production"
 
 # stree-ignore
