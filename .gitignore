@@ -75,7 +75,6 @@
 !/plugins/discourse-ai
 !/plugins/discourse-cakeday
 !/plugins/discourse-rewind
-!/plugins/edgeryders-permit-api-cors
 /plugins/*/auto_generated
 
 /spec/fixtures/plugins/my_plugin/auto_generated
@@ -138,5 +137,19 @@ frontend/discourse-types/declarations
 /.cursor
 .playwright-mcp
 
+
+
+
+
+
 # Ignore RubyMine settings which are individual for every developer.
 .idea/**/*
+
+!/plugins/discourse-webkit-components
+!/plugins/discourse-text-direction
+
+!/plugins/edgeryders-api
+!/plugins/edgeryders-consent
+!/plugins/edgeryders-permit-api-cors
+!/plugins/edgeryders-shared
+!/plugins/edgeryders-signup-notification
