@@ -33,7 +33,7 @@ GIT
 
 GIT
   remote: https://github.com/edgeryders/discourse-annotator
-  revision: 1691d62f4ec76e5e1cd1c274c51965f04af1c2d3
+  revision: 4701f0ddbc0628ec12fe6dfb32e3c1b0220d4b10
   branch: administrate-1.0
   specs:
     discourse-annotator (1.0.0)
@@ -213,7 +213,7 @@ GEM
       irb (~> 1.10)
       reline (>= 0.3.8)
     debug_inspector (1.2.0)
-    deep_cloneable (3.2.1)
+    deep_cloneable (3.2.2)
       activerecord (>= 3.1.0, < 9)
     diff-lcs (1.6.2)
     diffy (3.4.4)
@@ -1108,7 +1108,7 @@ CHECKSUMS
   date (3.4.1) sha256=bf268e14ef7158009bfeaec40b5fa3c7271906e88b196d958a89d4b408abe64f
   debug (1.11.1) sha256=2e0b0ac6119f2207a6f8ac7d4a73ca8eb4e440f64da0a3136c30343146e952b6
   debug_inspector (1.2.0) sha256=9bdfa02eebc3da163833e6a89b154084232f5766087e59573b70521c77ea68a2
-  deep_cloneable (3.2.1) sha256=35298dd8fc15e507e1b7dbe5cbd409a1b2b9515140b057407aa74474ca3e016d
+  deep_cloneable (3.2.2) sha256=b1ca8004f1792525fa79c56d19bacf76e1365df7f546fd90010f1243797c3e71
   diff-lcs (1.6.2) sha256=9ae0d2cba7d4df3075fe8cd8602a8604993efc0dfa934cff568969efb1909962
   diffy (3.4.4) sha256=79384ab5ca82d0e115b2771f0961e27c164c456074bd2ec46b637ebf7b6e47e3
   digest (3.2.0) sha256=fa2e7092ec683f65d82fadde5ff4ca3b32e23ee0b19f1fc1a5e09993ad2d3991

@@ -153,3 +153,4 @@ frontend/discourse-types/declarations
 !/plugins/edgeryders-permit-api-cors
 !/plugins/edgeryders-shared
 !/plugins/edgeryders-signup-notification
+.gstack/
